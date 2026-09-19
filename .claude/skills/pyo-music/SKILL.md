@@ -7,7 +7,7 @@ description: Use whenever the user wants music, sound design, or procedural/gene
 
 This skill connects two knowledge layers that must stay separate:
 
-- **`references/`** (everything except `pyo-api/`) — the music-composition reference library. Answers "what is the musical/sonic idea?" It knows nothing about Pyo.
+- **`../music-theory/`** — the music-composition reference skill. Answers "what is the musical/sonic idea?" It knows nothing about Pyo. Load it for the theory/composition layer before choosing synthesis mechanisms.
 - **`references/pyo-api/`** — the authoritative, hand-written documentation of every Pyo object this project uses or has evaluated. Answers "what implementation primitives exist?" It knows nothing about music theory. **Never invent Pyo behaviour or constructor arguments — if `pyo-api/` documents it, read the file; don't answer from general Pyo knowledge.**
 
 Neither layer talks about the other. Routing between them is this file's only job — it deliberately does not restate either layer's content.
@@ -19,7 +19,7 @@ Move through these steps in order. Don't skip from natural language straight to 
 ```
 user's musical/sonic description
         ↓  (1)
-references/00-navigation.md  → musical/sonic reference file(s)
+../music-theory/  → musical/sonic reference file(s)
         ↓  (2)
 translate into a synthesis-level idea: what changes, how, at what timescale,
 gated or free-running, periodic or stochastic, harmonic or noisy...
@@ -35,9 +35,9 @@ wire it into a patch (see "Writing/editing a patch" below)
 
 ## Step 1 in detail — musical/sonic reasoning
 
-Always start at `references/00-navigation.md`. It routes theory/composition/genre/vague-feeling requests to specific files (harmony, rhythm, form, genre, production-aware, etc.) and explains its own loading discipline (1-3 files for most requests; 5+ means the question is too broad). Follow that discipline here too.
+Always start by loading `../music-theory/SKILL.md`, then begin at its `references/00-navigation.md`. It routes theory/composition/genre/vague-feeling requests to specific files (harmony, rhythm, form, genre, production-aware, etc.) and explains its own loading discipline (1-3 files for most requests; 5+ means the question is too broad). Follow that discipline here too.
 
-`references/music-composition-skill-notes.md` holds that skill's own philosophy and conventions (how to frame techniques, notation conventions, genre framing) — read it once if you need the reasoning style, not per request.
+The music-theory skill's `references/music-composition-skill-notes.md` holds its own philosophy and conventions (how to frame techniques, notation conventions, genre framing) — read it once if you need the reasoning style, not per request.
 
 This layer is genuinely sufficient on its own for pure composition questions (chord progressions, melodic advice, arrangement) that have no synthesis/patch component — answer from it directly and skip step 3 onward.
 
@@ -51,7 +51,7 @@ That file's candidates are deliberately not 1:1 (e.g. "continuous organic modula
 
 ("Make something like the clock ticks in Pink Floyd's *Time*", "give me the vibe of [artist]'s intro".)
 
-Never treat the reference as a recipe to reproduce and never hard-code a patch keyed to a specific track/artist. Instead: `references/research/reference-track-digging.md` (and the relevant genre/production-aware file) to extract sonic/musical *characteristics* → step 2/3 above to turn those characteristics into synthesis mechanisms → an original patch. `pyo-api-navigation.md` documents one worked instance of this (`clock_tick.py`, derived from "several unsynchronized periodic ticks, each a distinct resonant timbre" — not from looking up the track).
+Never treat the reference as a recipe to reproduce and never hard-code a patch keyed to a specific track/artist. Instead: use the music-theory skill's reference-track guidance and relevant genre/production-aware file to extract sonic/musical *characteristics* → step 2/3 above to turn those characteristics into synthesis mechanisms → an original patch. `pyo-api-navigation.md` documents one worked instance of this (`clock_tick.py`, derived from "several unsynchronized periodic ticks, each a distinct resonant timbre" — not from looking up the track).
 
 ## Writing or editing a patch
 
