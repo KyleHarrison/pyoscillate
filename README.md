@@ -1,43 +1,103 @@
+# Pyoscillate
+
+Agentic DSP patches for Pyo, built for interactive experimentation in Jupyter notebooks.
+
+Pyoscillate is a small, notebook-first toolkit for assembling reusable audio voices into a live modular performance environment. The core idea is simple: build synth components as expressive, tweakable building blocks, then audition them in real time from notebook cells while a shared timing system keeps everything in sync.
+
+This project is meant for a workflow where sound design and patching feel more like a live instrument than a static script. You prototype a voice, tune its controls, route it into a larger arrangement, and iterate quickly without leaving the notebook.
+
+## What this project does
+
+Pyoscillate helps you:
+
+- design custom Pyo-based synth voices and effects
+- compose systems of patches that share a tempo and timing grid
+- experiment interactively with controls in a notebook UI
+- prototyping modular-synth ideas as live, audible building blocks
+- save and reload patch states for quick recall and iteration
+
+The emphasis is on rapid exploration: small patches, live auditioning, fast tuning, and compositional experimentation in context.
+
+## Core ideas
+
+### Modular voice design
+
+Each patch behaves like a small module in a larger synth rig: it has its own sound, its own motion, and its own controllable parameters, while still fitting into a shared system.
+
+### Shared timing
+
+Rather than treating every patch as an isolated loop, the system is designed to let multiple voices lock into a common rhythmic reference. That makes layered textures feel coherent even when each element has its own character.
+
+### Interactive prototyping
+
+The notebook is the main interface: patch cells can be run, adjusted, stopped, and replayed in place. This makes the workflow feel closer to a live performance tool than a one-off script.
+
+### Preset-driven exploration
+
+A patch rig can be tuned, saved, and reloaded as a whole. That keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
+
+## Installation
+
+### macOS dependencies
+
+Install the required system libraries with Homebrew:
+
+```bash
 brew update
+brew install flac ffmpeg liblo libsndfile portaudio portmidi
+```
+
+If you need to refresh an existing install, a common follow-up is:
+
+```bash
 brew reinstall flac
-brew install ffmpeg
-?
-
-brew install liblo libsndfile portaudio portmidi
-
-Here's the conceptual map — Pyo's classes fall into a handful of roles, and every patch is just wiring these roles together into a graph. Each role is documented in its own file under [`.claude/skills/pyo-music/references/pyo-api/`](.claude/skills/pyo-music/references/pyo-api/): a short module docstring explains the role, and every class it imports from `pyo` carries a simplified docstring of its constructor params right below the import.
-
-**How they combine — the actual pattern in your notebook:**
-
-```
-Metro (timing) ──► TrigEnv (amplitude shape) ──┐
-Metro (timing) ──► TrigXnoiseMidi (pitch)   ────┼──► Osc (generator) ──► Compress (dynamics) ──► .out()
 ```
 
-The general template is always: **timing source → triggered control objects → parameters of a generator/effect → dynamics → output.** Continuous modulators (LFOs) plug into the same parameter slots as triggered ones — the difference is just whether the modulation is event-driven (one-shot, gated) or free-running (cyclical, ungated). Once you see every object as one of the roles below, reading any Pyo patch becomes: trace each wire backward from `.out()` and ask "what role is feeding this parameter, and is it one-shot or continuous?"
+### uv setup
 
-| # | Role | File |
-|---|---|---|
-| 1 | Server — the audio engine | [`core/01_server.py`](.claude/skills/pyo-music/references/pyo-api/core/01_server.py) |
-| 2 | Signal generators (sources) | [`core/02_generators.py`](.claude/skills/pyo-music/references/pyo-api/core/02_generators.py) |
-| 3 | Tables — shapes/data generators read from | [`core/03_tables.py`](.claude/skills/pyo-music/references/pyo-api/core/03_tables.py) |
-| 4 | Triggers / event sources | [`core/04_triggers.py`](.claude/skills/pyo-music/references/pyo-api/core/04_triggers.py) |
-| 5 | Trig-reactive objects | [`core/05_trig_reactive.py`](.claude/skills/pyo-music/references/pyo-api/core/05_trig_reactive.py) |
-| 6 | Envelopes / control signals | [`core/06_envelopes.py`](.claude/skills/pyo-music/references/pyo-api/core/06_envelopes.py) |
-| 7 | Modulators (continuous, non-triggered) | [`core/07_modulators.py`](.claude/skills/pyo-music/references/pyo-api/core/07_modulators.py) |
-| 8 | Filters & effects | [`core/08_filters_effects.py`](.claude/skills/pyo-music/references/pyo-api/core/08_filters_effects.py) |
-| 9 | Dynamics (gain management), e.g. `Compress` in [`base.py`](src/pyoscillate/patches/base.py) | [`core/09_dynamics.py`](.claude/skills/pyo-music/references/pyo-api/core/09_dynamics.py) |
-| 10 | Output — `.out()` / `.play()` | [`core/10_output.py`](.claude/skills/pyo-music/references/pyo-api/core/10_output.py) |
+This project is intended to work cleanly with `uv`.
 
-**Everything else in Pyo** — the roles above (all in [`.claude/skills/pyo-music/references/pyo-api/core/`](.claude/skills/pyo-music/references/pyo-api/core/)) cover every category this project actually uses. Pyo's [full API](https://belangeo.github.io/pyo/api/index.html) groups its remaining classes into categories this project doesn't touch (yet), organized under [`.claude/skills/pyo-music/references/pyo-api/`](.claude/skills/pyo-music/references/pyo-api/) by similarity of use:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --group dev
+```
 
-| Sub-dir | Groups | Files |
-|---|---|---|
-| [`analysis/`](.claude/skills/pyo-music/references/pyo-api/analysis/) | Measuring and converting signals/values | [`signal_analysis.py`](.claude/skills/pyo-music/references/pyo-api/analysis/signal_analysis.py), [`arithmetic.py`](.claude/skills/pyo-music/references/pyo-api/analysis/arithmetic.py), [`expression.py`](.claude/skills/pyo-music/references/pyo-api/analysis/expression.py), [`utils.py`](.claude/skills/pyo-music/references/pyo-api/analysis/utils.py) |
-| [`spectral/`](.claude/skills/pyo-music/references/pyo-api/spectral/) | Frequency-domain processing | [`fourier.py`](.claude/skills/pyo-music/references/pyo-api/spectral/fourier.py), [`pvoc.py`](.claude/skills/pyo-music/references/pyo-api/spectral/pvoc.py) |
-| [`sequencing/`](.claude/skills/pyo-music/references/pyo-api/sequencing/) | Python-level / declarative event sequencing | [`event_sequencing.py`](.claude/skills/pyo-music/references/pyo-api/sequencing/event_sequencing.py), [`events_framework.py`](.claude/skills/pyo-music/references/pyo-api/sequencing/events_framework.py), [`mml.py`](.claude/skills/pyo-music/references/pyo-api/sequencing/mml.py) |
-| [`external_io/`](.claude/skills/pyo-music/references/pyo-api/external_io/) | External device & network I/O | [`midi.py`](.claude/skills/pyo-music/references/pyo-api/external_io/midi.py), [`opensndctrl.py`](.claude/skills/pyo-music/references/pyo-api/external_io/opensndctrl.py), [`listeners.py`](.claude/skills/pyo-music/references/pyo-api/external_io/listeners.py) |
-| [`control/`](.claude/skills/pyo-music/references/pyo-api/control/) | Non-audio control-signal helpers | [`randoms.py`](.claude/skills/pyo-music/references/pyo-api/control/randoms.py), [`value_converters.py`](.claude/skills/pyo-music/references/pyo-api/control/value_converters.py) |
-| [`playback_routing/`](.claude/skills/pyo-music/references/pyo-api/playback_routing/) | Soundfile playback, channel routing, 2D data | [`players.py`](.claude/skills/pyo-music/references/pyo-api/playback_routing/players.py), [`routing.py`](.claude/skills/pyo-music/references/pyo-api/playback_routing/routing.py), [`matrix.py`](.claude/skills/pyo-music/references/pyo-api/playback_routing/matrix.py) |
+If you prefer a local environment explicitly:
 
-(`Internal objects` and the WxPython GUI widgets are implementation details / legacy GUI helpers and are omitted.)
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+```
+
+## Quick start
+
+Open the notebook environment and start the live rig:
+
+```bash
+jupyter lab
+```
+
+Then run the notebook that initializes the audio server, sets up the shared timing, and launches the patch rack. The intended experience is a live studio setup where patch cells are rerun as you shape the sound.
+
+## Typical workflow
+
+A typical session looks like this:
+
+1. start the audio engine
+2. create a shared tempo and timing context
+3. load a notebook rig or build one from small patch modules
+4. audition each voice in context
+5. tweak controls and rerun cells immediately
+6. save useful combinations as presets for later recall
+
+This is the heart of the project: not just writing DSP code, but iterating on a living system in real time.
+
+## Why it exists
+
+Pyoscillate is for building musical systems with a procedural, agentic mindset: small, composable pieces of DSP that can be tested, tuned, and combined into something larger. It is a tool for exploring how synth components behave when they are treated as interactive building blocks rather than fixed one-off patches.
+
+## License
+
+This project is under active development and is intended as a creative coding environment for experimentation with Pyo, DSP, and live notebook-based sound design.
+
