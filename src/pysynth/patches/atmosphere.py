@@ -15,8 +15,52 @@ ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 ARP_ROOT = 220  # A3, an octave+ above the bass root
 
 
-def build(tempo: Tempo, arp_root: float = ARP_ROOT) -> Patch:
-    """FM pad voice arpeggiated at 8th notes, with a slow amplitude swell and reverb."""
+def build(
+    tempo: Tempo,
+    arp_root: float = ARP_ROOT,
+    fm_ratio: float = 0.5012,
+    fm_index: float = 4,
+    reverb_size: float = 0.85,
+    reverb_damp: float = 0.6,
+    reverb_bal: float = 0.5,
+) -> Patch:
+    """FM pad voice arpeggiated at 8th notes, with a slow amplitude swell and reverb.
+
+    Args:
+        tempo: Shared tempo grid; the arpeggio steps at `tempo.eighth` and the
+            swell period is derived from it, so all timing stays locked to
+            the rest of the mix.
+        arp_root: Base frequency (Hz) of the arpeggio's root note, before the
+            `ARP_INTERVALS` offsets are applied each step. Raising it moves
+            the whole pad up in register; lowering it pushes the pad down
+            toward the drone/bass range and can make the arpeggio read as
+            muddier or more likely to clash with the bass.
+        fm_ratio: Ratio of modulator frequency to carrier frequency in the FM
+            voice. Simple ratios (0.5, 1, 2) sound bell-like and harmonic;
+            the default's slightly-off ratio (0.5012) is deliberately
+            detuned so the partials beat softly against each other for a
+            warm, unstable, analog-ish texture. Push it further from a
+            simple ratio for a more dissonant, metallic tone; pull it toward
+            an exact ratio for a cleaner, more tonal pad.
+        fm_index: FM modulation index - how far the modulator swings the
+            carrier's instantaneous frequency. Higher values add more
+            sideband energy, producing a brighter, buzzier, more complex
+            timbre; lower values approach a plain sine tone. Because `index`
+            is fixed here (unlike the drone's LFO-modulated index), it sets
+            a constant brightness for the whole pad.
+        reverb_size: Freeverb room size (0-1). Larger values simulate a
+            bigger space with a longer, denser decay tail, pushing the pad
+            further back in the mix; smaller values give a tighter, more
+            present ambience.
+        reverb_damp: Freeverb high-frequency damping (0-1). Higher values
+            absorb more high end as the reverb tail decays, making the
+            trailing reverb sound darker and softer; lower values let the
+            tail stay bright and ring on longer.
+        reverb_bal: Freeverb dry/wet balance (0 = fully dry, 1 = fully wet).
+            Higher values dissolve the pad further into the reverb space;
+            lower values keep more of the direct, unprocessed FM tone
+            audible.
+    """
     arp_trig = Trig()
 
     # slow swell over 32 steps so the pad breathes in and out across two bars
@@ -27,8 +71,8 @@ def build(tempo: Tempo, arp_root: float = ARP_ROOT) -> Patch:
     arp_env = TrigEnv(arp_trig, table=envelope_table, dur=tempo.eighth * 1.2, mul=arp_swell, add=-0.3)
 
     # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-    fm_voice = FM(carrier=arp_root, ratio=0.5012, index=4, mul=arp_env, add=-0.3)
-    voice = Freeverb(fm_voice, size=0.85, damp=0.6, bal=0.5)
+    fm_voice = FM(carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3)
+    voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}
 

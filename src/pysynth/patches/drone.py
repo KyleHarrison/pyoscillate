@@ -14,8 +14,37 @@ DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 DRONE_ROOT = 110  # A2, mid register between the bass (55) and the arp (220)
 
 
-def build(tempo: Tempo, root_freq: float = DRONE_ROOT) -> Patch:
-    """Slow-winding FM drone: note changes once every 8 bars, with a continuously drifting timbre."""
+def build(
+    tempo: Tempo,
+    root_freq: float = DRONE_ROOT,
+    reverb_size: float = 0.9,
+    reverb_damp: float = 0.3,
+    reverb_bal: float = 0.9,
+) -> Patch:
+    """Slow-winding FM drone: note changes once every 8 bars, with a continuously drifting timbre.
+
+    Args:
+        tempo: Shared tempo grid; one drone step is `tempo.bar * 8`, and the
+            ratio/index LFO periods are derived from that step time.
+        root_freq: Fundamental frequency (Hz) the drone glides between, before
+            the `DRONE_INTERVALS` semitone offsets are applied each step.
+            Raising it brings the drone closer to the arp's register and
+            makes it easier to pick out as a melodic voice; lowering it
+            moves it toward the bass and makes it read more as a sustained
+            sub layer.
+        reverb_size: Freeverb room size (0-1). Larger values give the drone a
+            huge, cavernous decay that smears note changes into each other;
+            smaller values keep each glide more distinct and present.
+        reverb_damp: Freeverb high-frequency damping (0-1). The default is
+            low (0.3) so the drone's reverb tail stays bright and shimmering
+            rather than going dark and muffled; raise it for a warmer, more
+            subdued wash.
+        reverb_bal: Freeverb dry/wet balance (0 = fully dry, 1 = fully wet).
+            The default is high (0.9) so the drone is heard almost entirely
+            through the reverb, which is what makes it sit as a diffuse
+            atmospheric bed rather than a distinct pitched voice; lowering
+            it brings the raw FM tone forward.
+    """
     # the drone changes note far more slowly than the bass (per 16th), arp (per
     # 8th), or either hat
     step_time = tempo.bar * 8
@@ -29,7 +58,7 @@ def build(tempo: Tempo, root_freq: float = DRONE_ROOT) -> Patch:
     index_lfo = Sine(freq=1 / (step_time * 0.7), mul=2, add=3)
 
     fm_voice = FM(carrier=drone_freq, ratio=ratio_lfo, index=index_lfo, mul=0.2)
-    voice = Freeverb(fm_voice, size=0.9, damp=0.5, bal=0.45)
+    voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}
 
