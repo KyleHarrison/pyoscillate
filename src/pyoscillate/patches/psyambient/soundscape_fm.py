@@ -1,14 +1,91 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
+from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.psyambient.common import ContinuousSequencer
+from pyoscillate.patches.widgets import SliderSpec, patch_widget
 
 ROOT_FREQ = 110  # A2, current default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        55,
+        220,
+        1,
+        ROOT_FREQ,
+        "Carrier frequency",
+        "Carrier frequency - the pad's held pitch.",
+    ),
+    SliderSpec(
+        "chaos_speed",
+        0.01,
+        0.5,
+        0.01,
+        0.04,
+        "Chaos speed",
+        "How fast the timbre wanders - lower is slower and more hypnotic.",
+    ),
+    SliderSpec(
+        "chaos_amount",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Chaos amount",
+        "How unpredictable the wander is - higher is more psychedelic.",
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.85,
+        "Reverb size",
+        "Reverb room size - larger is more enveloping.",
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.4,
+        "Reverb damping",
+        "Reverb high-frequency damping - higher is darker.",
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.85,
+        "Reverb balance",
+        "Reverb dry/wet balance - 0 is dry and 1 is wet.",
+    ),
+    SliderSpec(
+        "delay_time",
+        0.05,
+        2,
+        0.05,
+        0.6,
+        "Delay time",
+        "Delay time - smears the timbral drift across time.",
+    ),
+    SliderSpec(
+        "delay_feedback",
+        0,
+        0.9,
+        0.05,
+        0.35,
+        "Delay feedback",
+        "Delay feedback - higher repeats echoes more times before decaying.",
+    ),
+)
 
 
 def build(
@@ -56,107 +133,53 @@ def build(
     # Rossler wanders smoothly, Lorenz more angularly - pairing them on ratio
     # and index gives the timbre two independently-textured axes of drift
     # instead of both parameters moving in the same "shape" of way
-    ratio_chaos = Rossler(pitch=chaos_speed, chaos=chaos_amount, mul=0.4, add=1.5)
-    index_chaos = Lorenz(pitch=chaos_speed * 1.3, chaos=chaos_amount, mul=3, add=4)
+    live = {
+        name: SigTo(value=value, time=0.15)
+        for name, value in {
+            "root_freq": root_freq,
+            "chaos_speed": chaos_speed,
+            "chaos_amount": chaos_amount,
+            "reverb_size": reverb_size,
+            "reverb_damp": reverb_damp,
+            "reverb_bal": reverb_bal,
+            "delay_time": delay_time,
+            "delay_feedback": delay_feedback,
+        }.items()
+    }
 
-    fm_voice = FM(carrier=root_freq, ratio=ratio_chaos, index=index_chaos, mul=0.2)
-    reverb_voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
-    voice = Delay(reverb_voice, delay=delay_time, feedback=delay_feedback, maxdelay=2)
+    ratio_chaos = Rossler(pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5)
+    index_chaos = Lorenz(pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4)
 
-    return Patch(sequencer=ContinuousSequencer(), voice=voice)
+    fm_voice = FM(carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2)
+    reverb_voice = Freeverb(
+        fm_voice,
+        size=live["reverb_size"],
+        damp=live["reverb_damp"],
+        bal=live["reverb_bal"],
+    )
+    voice = Delay(
+        reverb_voice,
+        delay=live["delay_time"],
+        feedback=live["delay_feedback"],
+        maxdelay=2,
+    )
+
+    return Patch(
+        sequencer=ContinuousSequencer(),
+        voice=voice,
+        controls={
+            name: lambda value, control=control: setattr(control, "value", value)
+            for name, control in live.items()
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create soundscape_fm controls with parameter descriptions beside each slider."""
-
-    def set_params(
-        enabled,
-        root_freq,
-        chaos_speed,
-        chaos_amount,
-        reverb_size,
-        reverb_damp,
-        reverb_bal,
-        delay_time,
-        delay_feedback,
-        volume,
-    ):
-        if controller is not None and controller.applying:
-            return
-        if not enabled:
-            rack.stop("soundscape_fm")
-            return
-
-        patch = build(
-            root_freq,
-            chaos_speed,
-            chaos_amount,
-            reverb_size,
-            reverb_damp,
-            reverb_bal,
-            delay_time,
-            delay_feedback,
-        )
-        patch.volume = volume
-        rack.start("soundscape_fm", patch)
-
-    enabled = Checkbox(value=False, description="soundscape_fm on/off")
-    root_freq = FloatSlider(min=55, max=220, step=1, value=ROOT_FREQ, description="root_freq")
-    chaos_speed = FloatSlider(min=0.01, max=0.5, step=0.01, value=0.04, description="chaos_speed")
-    chaos_amount = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="chaos_amount")
-    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.85, description="reverb_size")
-    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.4, description="reverb_damp")
-    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.85, description="reverb_bal")
-    delay_time = FloatSlider(min=0.05, max=2, step=0.05, value=0.6, description="delay_time")
-    delay_feedback = FloatSlider(
-        min=0, max=0.9, step=0.05, value=0.35, description="delay_feedback"
+    """Create live-updating soundscape_fm controls."""
+    return patch_widget(
+        rack=rack,
+        name="soundscape_fm",
+        build=build,
+        parameters=PARAMETERS,
+        controller=controller,
     )
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
-
-    controls = {
-        "enabled": enabled,
-        "root_freq": root_freq,
-        "chaos_speed": chaos_speed,
-        "chaos_amount": chaos_amount,
-        "reverb_size": reverb_size,
-        "reverb_damp": reverb_damp,
-        "reverb_bal": reverb_bal,
-        "delay_time": delay_time,
-        "delay_feedback": delay_feedback,
-        "volume": volume,
-    }
-    if controller is not None:
-        controller.register(
-            "soundscape_fm",
-            controls,
-            lambda: set_params(**{name: widget.value for name, widget in controls.items()}),
-        )
-
-    output = interactive_output(set_params, controls)
-    slider_rows = [
-        HBox([root_freq, HTML("Carrier frequency - the pad's held pitch.")]),
-        HBox(
-            [
-                chaos_speed,
-                HTML("How fast the timbre wanders - lower is slower and more hypnotic."),
-            ]
-        ),
-        HBox(
-            [
-                chaos_amount,
-                HTML("How unpredictable the wander is - higher is more psychedelic."),
-            ]
-        ),
-        HBox([reverb_size, HTML("Reverb room size - larger is more enveloping.")]),
-        HBox([reverb_damp, HTML("Reverb high-frequency damping - higher is darker.")]),
-        HBox([reverb_bal, HTML("Reverb dry/wet balance - 0 is dry and 1 is wet.")]),
-        HBox([delay_time, HTML("Delay time - smears the timbral drift across time.")]),
-        HBox(
-            [
-                delay_feedback,
-                HTML("Delay feedback - higher repeats echoes more times before decaying."),
-            ]
-        ),
-        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
-    ]
-    return VBox([enabled, *slider_rows, output])

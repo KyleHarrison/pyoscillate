@@ -53,9 +53,30 @@ class Patch:
 
     sequencer: Sequencer
     voice: PyoObject
+    controls: dict[str, Callable[[Any], None]] = field(default_factory=dict)
     volume: float = 1.0
     _output: PyoObject | None = field(default=None, repr=False)
     _fade: SigTo | None = field(default=None, repr=False)
+    _volume_control: SigTo | None = field(default=None, repr=False)
+
+    def set(self, name: str, value: Any) -> None:
+        """Update one live parameter without rebuilding the Pyo graph."""
+        if name == "volume":
+            self.volume = value
+            if self._volume_control is not None:
+                self._volume_control.value = value
+            return
+        try:
+            setter = self.controls[name]
+        except KeyError as error:
+            raise KeyError(f"Patch has no live parameter named {name!r}") from error
+        setter(value)
+
+    def update(self, values: dict[str, Any]) -> Patch:
+        """Update several live parameters and preserve runtime state."""
+        for name, value in values.items():
+            self.set(name, value)
+        return self
 
     def start(self) -> Patch:
         # `volume` boosts *before* Compress, not after: Compress's own mul
@@ -66,7 +87,8 @@ class Patch:
         # thresh near 0dB with a high ratio only engages for whatever
         # `volume` pushes toward clipping, rather than coloring the patch
         # at its normal level.
-        boosted = self.voice * self.volume
+        self._volume_control = SigTo(value=self.volume, time=0.05)
+        boosted = self.voice * self._volume_control
         compressed = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05)
         # pyo's stop(wait=...) only delays the hard cutoff, it doesn't fade
         # the signal itself - multiplying by this ramp is what actually
@@ -117,6 +139,10 @@ class PatchRack:
         self._patches[name] = patch
         return patch.start()
 
+    def get(self, name: str) -> Patch | None:
+        """Return the active patch, if any, without changing its state."""
+        return self._patches.get(name)
+
     def stop(self, name: str) -> None:
         self._signatures.pop(name, None)
         existing = self._patches.pop(name, None)
@@ -128,7 +154,12 @@ class PatchRack:
             self.stop(name)
 
     def toggle(
-        self, name: str, build: Callable[..., Patch], *args: Any, volume: float = 1.0, **kwargs: Any
+        self,
+        name: str,
+        build: Callable[..., Patch],
+        *args: Any,
+        volume: float = 1.0,
+        **kwargs: Any,
     ) -> Patch | None:
         """Rerun a patch cell to switch it on and off in place.
 
