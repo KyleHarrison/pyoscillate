@@ -7,10 +7,31 @@ from typing import Any, Protocol
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Compress
+from pyo.lib.server import Server, pa_list_devices
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
 STOP_FADE = 0.2
+
+
+def setup_notebook(
+    *,
+    output_device: int | None = None,
+    nchnls: int = 2,
+) -> Server:
+    """Create, boot, and start the Pyo server for notebook use.
+
+    `output_device` should match the output index reported by
+    `pa_list_devices()`.
+    """
+    pa_list_devices()
+
+    server = Server(nchnls=nchnls)
+    if output_device is not None:
+        server.setOutputDevice(output_device)
+    server.boot()
+    server.start()
+    return server
 
 
 class Sequencer(Protocol):

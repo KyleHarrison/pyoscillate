@@ -1,11 +1,16 @@
 [project]
 name = "pyoscillate"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Python project for creating audio in jupyter notebooks"
 readme = "README.md"
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
 requires-python = ">=3.10"
-dependencies = ["ipywidgets>=8.1.9", "pyo>=1.0.5", "wxpython>=4.3.1"]
+dependencies = [
+    "ipykernel>=7.3.0",
+    "ipywidgets>=8.1.9",
+    "pyo>=1.0.5",
+    "wxpython>=4.3.1",
+]
 
 [project.scripts]
 pyoscillate = "pyoscillate:main"
