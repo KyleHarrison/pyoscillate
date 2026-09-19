@@ -26,15 +26,15 @@ Every patch is: timing → triggered/continuous control → generator → filter
 
 | Synthesis need | Category | File | What's inside (read the file for real params) |
 |---|---|---|---|
-| A raw sound source — pitched oscillator, wavetable, or noise | Generators | `core/02_generators.py` | `Sine`, `Osc`, `LFO`, `SuperSaw`, `FM`, `Noise`, `PinkNoise`, `BrownNoise` |
-| A precomputed shape/waveform/curve for a generator or envelope to read | Tables | `core/03_tables.py` | `SquareTable`, `SawTable`, `CosTable`, `CurveTable` |
-| Discrete rhythmic pulses — a clock, an algorithmic pattern, a one-shot trigger | Triggers / event sources | `core/04_triggers.py` | `Metro` (isochronous), `Beat` (weighted/algorithmic pattern), `Trig` (one-shot) |
-| Something that reacts fresh each time a trigger fires (new envelope shape, new random value per hit) | Trig-reactive | `core/05_trig_reactive.py` | `TrigEnv`, `TrigXnoiseMidi`, `TrigRand` |
-| A one-shot amplitude/parameter shape gated by a note or trigger | Envelopes | `core/06_envelopes.py` | `Adsr`, `Fader` |
-| Continuous, free-running, **ungated** movement in a parameter — the opposite of trig-reactive | Modulators | `core/07_modulators.py` | `Sine`/`LFO` at sub-audio rate for periodic movement; `Rossler`/`Lorenz` chaotic attractors for smoothly wandering, never-repeating "organic" movement — the file's own docstrings distinguish their character |
-| Reshaping an existing signal's spectrum or texture — filtering, distortion, reverb, delay, chorus | Filters & effects | `core/08_filters_effects.py` | `Biquad`, `Tone`, `Disto`, `Freeverb`, `Delay`, `Chorus` |
-| Managing loudness/level range rather than spectrum (limiting, gating, clipping, folding) | Dynamics | `core/09_dynamics.py` | `Compress`, `Gate`, `Clip`, `Mirror`, `Wrap`, `Balance`, `Expand`, `Min`, `Max` |
-| Sending a finished signal to speakers | Output | `core/10_output.py` | `.out()` / `.play()` — methods on every `PyoObject`, not a separate class |
+| A raw sound source — pitched oscillator, wavetable, or noise | Generators | [`core/02_generators.py`](./pyo-api/core/02_generators.py) | `Sine`, `Osc`, `LFO`, `SuperSaw`, `FM`, `Noise`, `PinkNoise`, `BrownNoise` |
+| A precomputed shape/waveform/curve for a generator or envelope to read | Tables | [`core/03_tables.py`](./pyo-api/core/03_tables.py) | `SquareTable`, `SawTable`, `CosTable`, `CurveTable` |
+| Discrete rhythmic pulses — a clock, an algorithmic pattern, a one-shot trigger | Triggers / event sources | [`core/04_triggers.py`](./pyo-api/core/04_triggers.py) | `Metro` (isochronous), `Beat` (weighted/algorithmic pattern), `Trig` (one-shot) |
+| Something that reacts fresh each time a trigger fires (new envelope shape, new random value per hit) | Trig-reactive | [`core/05_trig_reactive.py`](./pyo-api/core/05_trig_reactive.py) | `TrigEnv`, `TrigXnoiseMidi`, `TrigRand` |
+| A one-shot amplitude/parameter shape gated by a note or trigger | Envelopes | [`core/06_envelopes.py`](./pyo-api/core/06_envelopes.py) | `Adsr`, `Fader` |
+| Continuous, free-running, **ungated** movement in a parameter — the opposite of trig-reactive | Modulators | [`core/07_modulators.py`](./pyo-api/core/07_modulators.py) | `Sine`/`LFO` at sub-audio rate for periodic movement; `Rossler`/`Lorenz` chaotic attractors for smoothly wandering, never-repeating "organic" movement — the file's own docstrings distinguish their character |
+| Reshaping an existing signal's spectrum or texture — filtering, distortion, reverb, delay, chorus | Filters & effects | [`core/08_filters_effects.py`](./pyo-api/core/08_filters_effects.py) | `Biquad`, `Tone`, `Disto`, `Freeverb`, `Delay`, `Chorus` |
+| Managing loudness/level range rather than spectrum (limiting, gating, clipping, folding) | Dynamics | [`core/09_dynamics.py`](./pyo-api/core/09_dynamics.py) | `Compress`, `Gate`, `Clip`, `Mirror`, `Wrap`, `Balance`, `Expand`, `Min`, `Max` |
+| Sending a finished signal to speakers | Output | [`core/10_output.py`](./pyo-api/core/10_output.py) | `.out()` / `.play()` — methods on every `PyoObject`, not a separate class |
 
 **Continuous vs. trig-reactive is the single most important distinction to get right** when a description implies "movement" or "change." Ask: is the change one-shot and tied to a discrete event (→ `05_trig_reactive.py` / `06_envelopes.py`), or ongoing and ungated (→ `07_modulators.py`)? Both plug into the same parameter slots on a generator or filter — the difference is purely in what drives them.
 
@@ -44,19 +44,19 @@ These are real, available categories; "not used yet" in their docstrings means n
 
 | Synthesis need | File | What's inside |
 |---|---|---|
-| Measuring an existing signal instead of generating one — envelope following, pitch tracking, brightness/onset detection | `pyo-api/analysis/signal_analysis.py` | `Follower`, `Yin`, `RMS`, `Centroid`, `AttackDetector` |
-| Per-sample math or a small text-based DSP expression language | `pyo-api/analysis/arithmetic.py`, `pyo-api/analysis/expression.py` | `Sin`/`Log`/`Abs`/`Pow`/`Round`; `Expr` |
-| Unit conversion, freezing a continuous signal into stepped values, recording to disk | `pyo-api/analysis/utils.py` | `Scale`, `SampHold`, `Interp`, `MToF`, `Record` |
-| Free-running random values as an alternative flavor of continuous modulation (stepped/held rather than smoothly wandering) | `pyo-api/control/randoms.py` | `Choice`, `Randh`, `Xnoise`, `Urn` |
-| Exposing a musically-named high-level parameter (e.g. "brightness") that maps onto a low-level Pyo range | `pyo-api/control/value_converters.py` | `SLMap`, `SLMapFreq`, `SLMapQ` |
-| Reading MIDI note/controller/pitch-bend from an external device | `pyo-api/external_io/midi.py`, `pyo-api/external_io/listeners.py` | `Notein`, `Midictl`, `Bendin`, `MidiAdsr`, `MidiListener` |
-| Sending/receiving control data over a network | `pyo-api/external_io/opensndctrl.py` | `OscSend`, `OscReceive`, `OscDataSend` |
-| Playing back recorded audio, with pitch/speed control or marker-based looping | `pyo-api/playback_routing/players.py` | `SfPlayer`, `SfMarkerLooper`, `SfMarkerShuffler` |
-| Panning, mixing, crossfading, or binaural placement across channels | `pyo-api/playback_routing/routing.py` | `Mixer`, `Pan`, `SPan`, `Selector`, `Switch`, `Binaural` |
-| Storing/reading 2D data (e.g. a sonogram) — the 2D equivalent of a table, for granular/scanned synthesis | `pyo-api/playback_routing/matrix.py` | `NewMatrix`, `MatrixPointer`, `MatrixRec`, `MatrixMorph` |
-| Frequency-domain processing, convolution reverb | `pyo-api/spectral/fourier.py` | `FFT`, `IFFT`, `PolToCar`, `CvlVerb` |
-| Higher-level spectral manipulation — time-stretch, pitch-shift, cross-synthesis (morphing between two sounds' spectra) | `pyo-api/spectral/pvoc.py` | `PVAnal`, `PVSynth`, `PVTranspose`, `PVMorph` |
-| Declarative/algorithmic note sequencing beyond raw `Metro`/`Trig` wiring | `pyo-api/sequencing/event_sequencing.py`, `pyo-api/sequencing/events_framework.py`, `pyo-api/sequencing/mml.py` | `Pattern`, `CallAfter`, `Score`; `Events`, `EventSeq`, `EventMarkov`, `EventScale`; `MML` |
+| Measuring an existing signal instead of generating one — envelope following, pitch tracking, brightness/onset detection | [`pyo-api/analysis/signal_analysis.py`](./pyo-api/analysis/signal_analysis.py) | `Follower`, `Yin`, `RMS`, `Centroid`, `AttackDetector` |
+| Per-sample math or a small text-based DSP expression language | [`pyo-api/analysis/arithmetic.py`](./pyo-api/analysis/arithmetic.py), [`pyo-api/analysis/expression.py`](./pyo-api/analysis/expression.py) | `Sin`/`Log`/`Abs`/`Pow`/`Round`; `Expr` |
+| Unit conversion, freezing a continuous signal into stepped values, recording to disk | [`pyo-api/analysis/utils.py`](./pyo-api/analysis/utils.py) | `Scale`, `SampHold`, `Interp`, `MToF`, `Record` |
+| Free-running random values as an alternative flavor of continuous modulation (stepped/held rather than smoothly wandering) | [`pyo-api/control/randoms.py`](./pyo-api/control/randoms.py) | `Choice`, `Randh`, `Xnoise`, `Urn` |
+| Exposing a musically-named high-level parameter (e.g. "brightness") that maps onto a low-level Pyo range | [`pyo-api/control/value_converters.py`](./pyo-api/control/value_converters.py) | `SLMap`, `SLMapFreq`, `SLMapQ` |
+| Reading MIDI note/controller/pitch-bend from an external device | [`pyo-api/external_io/midi.py`](./pyo-api/external_io/midi.py), [`pyo-api/external_io/listeners.py`](./pyo-api/external_io/listeners.py) | `Notein`, `Midictl`, `Bendin`, `MidiAdsr`, `MidiListener` |
+| Sending/receiving control data over a network | [`pyo-api/external_io/opensndctrl.py`](./pyo-api/external_io/opensndctrl.py) | `OscSend`, `OscReceive`, `OscDataSend` |
+| Playing back recorded audio, with pitch/speed control or marker-based looping | [`pyo-api/playback_routing/players.py`](./pyo-api/playback_routing/players.py) | `SfPlayer`, `SfMarkerLooper`, `SfMarkerShuffler` |
+| Panning, mixing, crossfading, or binaural placement across channels | [`pyo-api/playback_routing/routing.py`](./pyo-api/playback_routing/routing.py) | `Mixer`, `Pan`, `SPan`, `Selector`, `Switch`, `Binaural` |
+| Storing/reading 2D data (e.g. a sonogram) — the 2D equivalent of a table, for granular/scanned synthesis | [`pyo-api/playback_routing/matrix.py`](./pyo-api/playback_routing/matrix.py) | `NewMatrix`, `MatrixPointer`, `MatrixRec`, `MatrixMorph` |
+| Frequency-domain processing, convolution reverb | [`pyo-api/spectral/fourier.py`](./pyo-api/spectral/fourier.py) | `FFT`, `IFFT`, `PolToCar`, `CvlVerb` |
+| Higher-level spectral manipulation — time-stretch, pitch-shift, cross-synthesis (morphing between two sounds' spectra) | [`pyo-api/spectral/pvoc.py`](./pyo-api/spectral/pvoc.py) | `PVAnal`, `PVSynth`, `PVTranspose`, `PVMorph` |
+| Declarative/algorithmic note sequencing beyond raw `Metro`/`Trig` wiring | [`pyo-api/sequencing/event_sequencing.py`](./pyo-api/sequencing/event_sequencing.py), [`pyo-api/sequencing/events_framework.py`](./pyo-api/sequencing/events_framework.py), [`pyo-api/sequencing/mml.py`](./pyo-api/sequencing/mml.py) | `Pattern`, `CallAfter`, `Score`; `Events`, `EventSeq`, `EventMarkov`, `EventScale`; `MML` |
 
 ## Worked examples already in this codebase
 

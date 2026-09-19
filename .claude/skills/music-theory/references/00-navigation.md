@@ -64,8 +64,9 @@ This file routes user requests to the specific reference files you need. **Read 
 | Picking a key, tempo, length, references; pre-production decisions | `production-aware/pre-production-decisions.md` |
 | Current music trends, recent references, charts, platform-specific style signals | `research/web-music-trend-research.md` + relevant genre file |
 | Fast web-search operators, query recipes, source-confidence labels | `../assets/web-search-cheatsheet.md` + `research/web-music-trend-research.md` |
-| Style imitation, copyright-safe reference use, living artist style requests | `research/style-reference-and-copyright.md` + `research/reference-track-digging.md` |
-| Reference-track digging, "make it feel like X" without copying | `research/reference-track-digging.md` + `production-aware/pre-production-decisions.md` |
+| Style imitation, copyright-safe reference use, living artist style requests | [`research/style-reference-and-copyright.md`](research/style-reference-and-copyright.md) + [`research/reference-track-digging.md`](research/reference-track-digging.md) |
+| Reference-track digging, "make it feel like X" without copying | [`research/reference-track-digging.md`](research/reference-track-digging.md) + [`production-aware/pre-production-decisions.md`](production-aware/pre-production-decisions.md) |
+| Progressive rock (c. 1968 onward) | [`genres/pop-rock.md`](genres/pop-rock.md) |
 | How to start, when to revise, beating writer's block | `workflow.md` |
 | Musical brainstorming, ideation, generating multiple song/cue directions | `creative-workflows/musical-brainstorming.md` + `../assets/musical-brainstorming-cards.md` |
 | Multi-turn user-agent collaboration, project card, decision log, revision branching | `creative-workflows/user-agent-collaboration.md` + `../assets/session-brief-and-decision-log.md` |
@@ -177,21 +178,21 @@ Reach for `assets/` when you need to *grab a value or template*, not understand 
 
 | Need | File |
 |------|------|
-| Common chord progressions by mood/genre, ready to drop in | `assets/progressions-catalog.md` |
-| Standard answer formats for progressions, toplines, critiques, song plans, reference-driven requests | `assets/response-templates.md` |
-| Troubleshooting vague creative problems such as weak chorus, muddy arrangement, generic harmony | `assets/diagnostic-checklists.md` |
-| Quick lookup of cadence types (PAC, IAC, HC, deceptive, plagal, Phrygian, etc.) | `assets/cadence-reference.md` |
-| All seven diatonic modes at a glance, with formulas and characteristic notes | `assets/modes-cheatsheet.md` |
-| Interval qualities, scale formulas (major, minor variants, pentatonic, blues, folk-derived, non-diatonic) | `assets/intervals-and-scale-formulas.md` |
-| Common jazz/pop voicings (rootless, drop 2/3, shell, quartal, etc.) | `assets/jazz-voicings.md` |
-| Skeletal templates for forms (sonata, AABA, K-pop verse-pre-chorus-chorus, etc.) | `assets/form-templates.md` |
-| Chord symbol notation across systems (Real Book, pop, RN, Nashville); ambiguous symbol disambiguation | `assets/chord-symbol-conventions.md` |
-| Operational chord-symbol parsing, ambiguous user notation, add/sus/omit rules | `assets/chord-symbol-ambiguity-and-parsing.md` |
-| Scale-degree spelling, Roman numerals, secondary dominants, modal and altered-tension spelling | `assets/scale-degree-spelling-cheatsheet.md` |
-| Trend/reference matrices for streaming evidence, regional evolution, microgenres, and hybrid genre merging | `assets/trend-and-reference-matrices.md` |
-| Fast musical brainstorming prompt cards and mutation menus | `assets/musical-brainstorming-cards.md` |
-| Project card, decision log, branch tracker, handoff summary templates | `assets/session-brief-and-decision-log.md` |
-| Fast web-search operators, query recipes, confidence labels for music research | `assets/web-search-cheatsheet.md` |
+| Common chord progressions by mood/genre, ready to drop in | [`assets/progressions-catalog.md`](../assets/progressions-catalog.md) |
+| Standard answer formats for progressions, toplines, critiques, song plans, reference-driven requests | [`assets/response-templates.md`](../assets/response-templates.md) |
+| Troubleshooting vague creative problems such as weak chorus, muddy arrangement, generic harmony | [`assets/diagnostic-checklists.md`](../assets/diagnostic-checklists.md) |
+| Quick lookup of cadence types (PAC, IAC, HC, deceptive, plagal, Phrygian, etc.) | [`assets/cadence-reference.md`](../assets/cadence-reference.md) |
+| All seven diatonic modes at a glance, with formulas and characteristic notes | [`assets/modes-cheatsheet.md`](../assets/modes-cheatsheet.md) |
+| Interval qualities, scale formulas (major, minor variants, pentatonic, blues, folk-derived, non-diatonic) | [`assets/intervals-and-scale-formulas.md`](../assets/intervals-and-scale-formulas.md) |
+| Common jazz/pop voicings (rootless, drop 2/3, shell, quartal, etc.) | [`assets/jazz-voicings.md`](../assets/jazz-voicings.md) |
+| Skeletal templates for forms (sonata, AABA, K-pop verse-pre-chorus-chorus, etc.) | [`assets/form-templates.md`](../assets/form-templates.md) |
+| Chord symbol notation across systems (Real Book, pop, RN, Nashville); ambiguous symbol disambiguation | [`assets/chord-symbol-conventions.md`](../assets/chord-symbol-conventions.md) |
+| Operational chord-symbol parsing, ambiguous user notation, add/sus/omit rules | [`assets/chord-symbol-ambiguity-and-parsing.md`](../assets/chord-symbol-ambiguity-and-parsing.md) |
+| Scale-degree spelling, Roman numerals, secondary dominants, modal and altered-tension spelling | [`assets/scale-degree-spelling-cheatsheet.md`](../assets/scale-degree-spelling-cheatsheet.md) |
+| Trend/reference matrices for streaming evidence, regional evolution, microgenres, and hybrid genre merging | [`assets/trend-and-reference-matrices.md`](../assets/trend-and-reference-matrices.md) |
+| Fast musical brainstorming prompt cards and mutation menus | [`assets/musical-brainstorming-cards.md`](../assets/musical-brainstorming-cards.md) |
+| Project card, decision log, branch tracker, handoff summary templates | [`assets/session-brief-and-decision-log.md`](../assets/session-brief-and-decision-log.md) |
+| Fast web-search operators, query recipes, confidence labels for music research | [`assets/web-search-cheatsheet.md`](../assets/web-search-cheatsheet.md) |
 
 You can quote from `assets/` directly in answers (with attribution like "common ii-V-I voicings"). Don't quote from `references/` verbatim — synthesize.
 

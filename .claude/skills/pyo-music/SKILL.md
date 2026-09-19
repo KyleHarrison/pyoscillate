@@ -12,6 +12,24 @@ This skill connects two knowledge layers that must stay separate:
 
 Neither layer talks about the other. Routing between them is this file's only job — it deliberately does not restate either layer's content.
 
+## Reference map
+
+For musical reasoning, load the sibling
+[`music-theory/SKILL.md`](../music-theory/SKILL.md), then its
+[`references/00-navigation.md`](../music-theory/references/00-navigation.md).
+
+For synthesis reasoning, start with
+[`references/pyo-api-navigation.md`](./references/pyo-api-navigation.md),
+then open the specific linked API reference it selects:
+
+- [`references/pyo-api/core/`](./references/pyo-api/core/) for generators, timing, modulation, envelopes, effects, dynamics, and output
+- [`references/pyo-api/analysis/`](./references/pyo-api/analysis/) for signal analysis and DSP expressions
+- [`references/pyo-api/control/`](./references/pyo-api/control/) for random sources and value mapping
+- [`references/pyo-api/external_io/`](./references/pyo-api/external_io/) for MIDI and network control
+- [`references/pyo-api/playback_routing/`](./references/pyo-api/playback_routing/) for players, routing, and matrices
+- [`references/pyo-api/sequencing/`](./references/pyo-api/sequencing/) for event and pattern sequencing
+- [`references/pyo-api/spectral/`](./references/pyo-api/spectral/) for FFT and phase-vocoder processing
+
 ## Reasoning chain
 
 Move through these steps in order. Don't skip from natural language straight to a Pyo class name.

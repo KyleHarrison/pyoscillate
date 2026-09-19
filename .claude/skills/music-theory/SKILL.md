@@ -24,3 +24,20 @@ an event is gated or free-running. This skill does not document Pyo objects.
 For reference-track requests, use the reference-track research guidance to
 extract characteristics rather than reproducing a track's melody, lyrics,
 riffs, samples, vocal identity, or signature production.
+
+## Reference map
+
+Start with [`references/00-navigation.md`](./references/00-navigation.md),
+which routes a request to the smallest relevant set of files.
+
+- [`references/fundamentals/`](./references/fundamentals/) for scales, rhythm, notation, and prosody
+- [`references/harmony/`](./references/harmony/) for chords, progressions, voice leading, and modulation
+- [`references/melody/`](./references/melody/) for contour, motifs, and phrase construction
+- [`references/rhythm-groove/`](./references/rhythm-groove/) for groove, syncopation, and odd meters
+- [`references/form/`](./references/form/) for song structure and transitions
+- [`references/genres/`](./references/genres/) for genre conventions
+- [`references/orchestration/`](./references/orchestration/) for register, texture, and density
+- [`references/production-aware/`](./references/production-aware/) for mix-aware arrangement and dynamics
+- [`references/research/`](./references/research/) for reference-track and style analysis
+- [`references/creative-workflows/`](./references/creative-workflows/) for brainstorming and iterative collaboration
+- [Asset lookup table](./references/00-navigation.md#cheatsheets--when-to-use-assets) for compact lookup tables and reusable templates in `assets/`
