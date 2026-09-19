@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from pyo import PyoObject
 from pyo.lib.dynamics import Compress
@@ -39,7 +40,9 @@ class Patch:
         # `volume` pushes toward clipping, rather than coloring the patch
         # at its normal level.
         boosted = self.voice * self.volume
-        self._output = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05).out()
+        compressed = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05)
+        # mono voices only have one stream, so .out() alone would only reach channel 0
+        self._output = compressed.mix(2).out()
         self.sequencer.play()
         return self
 
@@ -68,7 +71,9 @@ class PatchRack:
     """
 
     _patches: dict[str, Patch] = field(default_factory=dict)
-    _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any], float]] = field(default_factory=dict, repr=False)
+    _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any], float]] = field(
+        default_factory=dict, repr=False
+    )
 
     def start(self, name: str, patch: Patch) -> Patch:
         self.stop(name)
