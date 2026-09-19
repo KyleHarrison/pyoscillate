@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.pattern import Pattern
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
+from pysynth.clock import FOURTH, Clock
 from pysynth.patches.base import Patch
 from pysynth.tempo import Tempo
 
@@ -14,6 +14,7 @@ CUTOFF_FREQ = 3000  # lower than the main hat (8000) so this reads as a darker, 
 
 def build(
     tempo: Tempo,
+    clock: Clock,
     cutoff_freq: float = CUTOFF_FREQ,
     level: float = 0.3,
     decay: float = 0.5,
@@ -21,8 +22,10 @@ def build(
     """Darker noise tick, once per quarter note, as a rarer, dubbier accent.
 
     Args:
-        tempo: Shared tempo grid; the tick fires at `tempo.fourth` and the
-            level swell is derived from `tempo.eighth`.
+        tempo: Shared tempo grid; the level swell is derived from
+            `tempo.eighth`.
+        clock: Shared master pulse; the tick fires every quarter note
+            (`FOURTH`), phase-locked to every other patch on the clock.
         cutoff_freq: ButHP high-pass cutoff (Hz). The default (3000) is much
             lower than the main hat's (8000), which is what makes this
             voice read as darker and lower. Raising it brings it closer to
@@ -48,5 +51,5 @@ def build(
 
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = Pattern(hat_trig.play, time=tempo.fourth)
+    sequencer = clock.subscribe(FOURTH, hat_trig.play)
     return Patch(sequencer=sequencer, voice=voice)

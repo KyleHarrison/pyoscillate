@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from pyo import PyoObject
-from pyo.lib.pattern import Pattern
+
+
+class Sequencer(Protocol):
+    """Anything a `Patch` can start/stop ticking - a `Clock` `Division`, a
+    raw pyo `Pattern`, or clock_tick's multi-`Pattern` fan-out."""
+
+    def play(self) -> None: ...
+    def stop(self) -> None: ...
 
 
 @dataclass
@@ -15,7 +23,7 @@ class Patch:
     `stop()`.
     """
 
-    sequencer: Pattern
+    sequencer: Sequencer
     voice: PyoObject
 
     def start(self) -> Patch:

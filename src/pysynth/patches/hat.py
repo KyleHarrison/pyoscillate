@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.pattern import Pattern
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
+from pysynth.clock import EIGHTH, Clock
 from pysynth.patches.base import Patch
 from pysynth.tempo import Tempo
 
@@ -14,6 +14,7 @@ CUTOFF_FREQ = 8000
 
 def build(
     tempo: Tempo,
+    clock: Clock,
     cutoff_freq: float = CUTOFF_FREQ,
     level: float = 0.5,
     decay: float = 0.2,
@@ -21,8 +22,10 @@ def build(
     """Subtle high-passed noise tick, once per 8th note, for top-end texture.
 
     Args:
-        tempo: Shared tempo grid; the hat ticks at `tempo.eighth` and the
-            level swell is derived from `tempo.sixteenth`.
+        tempo: Shared tempo grid; the level swell is derived from
+            `tempo.sixteenth`.
+        clock: Shared master pulse; the hat ticks every 8th note (`EIGHTH`),
+            phase-locked to every other patch on the clock.
         cutoff_freq: ButHP high-pass cutoff (Hz). Raising it strips away more
             low and mid content, making the tick thinner, more distant, and
             more "sizzly"; lowering it lets more body through, making the
@@ -49,5 +52,5 @@ def build(
     # high-pass to keep it thin and airy, not a full noise burst
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = Pattern(hat_trig.play, time=tempo.eighth)
+    sequencer = clock.subscribe(EIGHTH, hat_trig.play)
     return Patch(sequencer=sequencer, voice=voice)

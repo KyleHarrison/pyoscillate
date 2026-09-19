@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
-from pyo.lib.pattern import Pattern
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
+from pysynth.clock import EIGHTH, Clock
 from pysynth.patches.base import Patch
 from pysynth.tempo import Tempo
 
@@ -17,6 +17,7 @@ ARP_ROOT = 220  # A3, an octave+ above the bass root
 
 def build(
     tempo: Tempo,
+    clock: Clock,
     arp_root: float = ARP_ROOT,
     fm_ratio: float = 0.5012,
     fm_index: float = 4,
@@ -27,9 +28,10 @@ def build(
     """FM pad voice arpeggiated at 8th notes, with a slow amplitude swell and reverb.
 
     Args:
-        tempo: Shared tempo grid; the arpeggio steps at `tempo.eighth` and the
-            swell period is derived from it, so all timing stays locked to
-            the rest of the mix.
+        tempo: Shared tempo grid; the swell period and envelope duration are
+            derived from `tempo.eighth`.
+        clock: Shared master pulse; the arpeggio steps every 8th note
+            (`EIGHTH`), phase-locked to every other patch on the clock.
         arp_root: Base frequency (Hz) of the arpeggio's root note, before the
             `ARP_INTERVALS` offsets are applied each step. Raising it moves
             the whole pad up in register; lowering it pushes the pad down
@@ -82,5 +84,5 @@ def build(
         arp_trig.play()
         step["i"] += 1
 
-    sequencer = Pattern(next_step, time=tempo.eighth)
+    sequencer = clock.subscribe(EIGHTH, next_step)
     return Patch(sequencer=sequencer, voice=voice)

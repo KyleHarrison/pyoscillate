@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
-from pyo.lib.pattern import Pattern
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import Trig, TrigEnv
 
+from pysynth.clock import SIXTEENTH, Clock
 from pysynth.patches.base import Patch
 from pysynth.tempo import Tempo
 
@@ -23,6 +23,7 @@ ROOT_FREQ = 55  # A1, classic techno bass register
 
 def build(
     tempo: Tempo,
+    clock: Clock,
     root_freq: float = ROOT_FREQ,
     filter_res: float = 0.75,
     filter_base: float = 900,
@@ -31,8 +32,10 @@ def build(
     """Rolling 16-step bassline through a resonant, LFO-swept lowpass filter.
 
     Args:
-        tempo: Shared tempo grid; the bassline steps at `tempo.sixteenth` and
-            the filter sweep completes one cycle per `tempo.bar`.
+        tempo: Shared tempo grid; the filter sweep completes one cycle per
+            `tempo.bar`.
+        clock: Shared master pulse; the bassline steps every 16th note
+            (`SIXTEENTH`), phase-locked to every other patch on the clock.
         root_freq: Fundamental frequency (Hz) of the bassline's root note,
             before the `NOTE_PATTERN` semitone offsets are applied each
             step. Raising it thins the bass out and brings it closer to the
@@ -73,5 +76,5 @@ def build(
         step_trig.play()
         step["i"] += 1
 
-    sequencer = Pattern(next_step, time=tempo.sixteenth)
+    sequencer = clock.subscribe(SIXTEENTH, next_step)
     return Patch(sequencer=sequencer, voice=voice)
