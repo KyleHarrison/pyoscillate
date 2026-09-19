@@ -10,6 +10,16 @@ melody, rhythm, form, orchestration, arrangement, genre conventions,
 production-aware decisions, reference-track analysis, and generative musical
 ideas.
 
+## Entry point check
+
+If the request involves building, editing, or reasoning about a Pyo patch
+(sound design, synthesis, code under `src/pyoscillate/patches/`) rather than
+pure composition — stop here and load
+[`../pyo-music/SKILL.md`](../pyo-music/SKILL.md) instead. It's the layer
+that routes between this skill and the Pyo API and owns the full reasoning
+chain; loading it first (rather than arriving here directly) avoids doubling
+back later. This file intentionally has no knowledge of Pyo itself.
+
 ## Loading order
 
 Start with `references/00-navigation.md`. It routes the request to the smallest

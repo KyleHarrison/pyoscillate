@@ -2,6 +2,11 @@
 
 This file routes user requests to the specific reference files you need. **Read this before diving into any other reference**, every time you use this skill.
 
+If the request has a synthesis/patch component (not pure composition),
+switch to [`../../pyo-music/SKILL.md`](../../pyo-music/SKILL.md) instead —
+it routes between this file's output and the Pyo API and pitch/harmony
+implementation bridge, and owns the full reasoning chain from here forward.
+
 ## How to use this map
 
 1. Find the section matching the user's request (quick-lookup table, vague-problem table, or genre table).

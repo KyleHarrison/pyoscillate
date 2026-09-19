@@ -18,7 +18,12 @@ For musical reasoning, load the sibling
 [`music-theory/SKILL.md`](../music-theory/SKILL.md), then its
 [`references/00-navigation.md`](../music-theory/references/00-navigation.md).
 
-For synthesis reasoning, start with
+If the theory layer produced pitch/harmonic content (a chord, scale, or
+interval set) rather than just a mechanism idea, first read
+[`references/pitch-and-harmony-implementation.md`](./references/pitch-and-harmony-implementation.md)
+to turn it into frequencies and a voice-count strategy.
+
+For synthesis mechanism reasoning, start with
 [`references/pyo-api-navigation.md`](./references/pyo-api-navigation.md),
 then open the specific linked API reference it selects:
 
@@ -29,6 +34,27 @@ then open the specific linked API reference it selects:
 - [`references/pyo-api/playback_routing/`](./references/pyo-api/playback_routing/) for players, routing, and matrices
 - [`references/pyo-api/sequencing/`](./references/pyo-api/sequencing/) for event and pattern sequencing
 - [`references/pyo-api/spectral/`](./references/pyo-api/spectral/) for FFT and phase-vocoder processing
+
+## Concept bridges
+
+Most theory concepts (orchestration density, groove feel, genre convention,
+production-aware arrangement...) don't need a dedicated bridge file — step 2
+below plus `pyo-api-navigation.md`'s mechanism table already handles them,
+because there's no unit mismatch, only a mechanism choice.
+
+A dedicated bridge is only worth writing where the theory layer's units
+don't exist in Pyo natively and require real conversion. Before adding a new
+one, check whether the codebase already solves that conversion — point to
+the existing utility instead of re-deriving it in a doc:
+
+| Concept | Unit gap | Bridge |
+|---|---|---|
+| Pitch / harmony (single pitch) | semitones, chord tones ↔ Hz | already solved in code: `root_freq * 2 ** (semitones / 12)`, as used in `atmosphere.py`'s `ARP_INTERVALS` and `mid_arp.py` — or `MToF`/`FToM` in [`pyo-api/analysis/utils.py`](./references/pyo-api/analysis/utils.py) for MIDI-derived pitch. Read those directly; don't re-derive |
+| Pitch / harmony (multiple pitches at once) | no existing convention for sounding a chord — every patch so far arpeggiates one pitch at a time | [`references/pitch-and-harmony-implementation.md`](./references/pitch-and-harmony-implementation.md) — genuinely undocumented territory, not solved in code yet |
+| Rhythm / tempo | BPM, bars, 16ths ↔ seconds | `src/pyoscillate/tempo.py`'s `Tempo` and `clock.py`'s `Clock`/`Division` — already solved in code; read those directly rather than re-deriving BPM math, and use `Clock.subscribe()` for anything tempo-locked instead of a raw `Metro` |
+
+Add a new row here only when a request exposes a real gap of this kind —
+don't pre-build one per theory topic speculatively.
 
 ## Reasoning chain
 
@@ -41,6 +67,8 @@ user's musical/sonic description
         ↓  (2)
 translate into a synthesis-level idea: what changes, how, at what timescale,
 gated or free-running, periodic or stochastic, harmonic or noisy...
+        ↓  (2b, only if step 1 produced more than one simultaneous pitch — a chord/voicing)
+references/pitch-and-harmony-implementation.md  → how to sound them together
         ↓  (3)
 references/pyo-api-navigation.md  → candidate pyo-api/ file(s)
         ↓  (4)
@@ -81,3 +109,5 @@ Never treat the reference as a recipe to reproduce and never hard-code a patch k
 ## Known gaps
 
 `pyo-api-navigation.md` ends with a short list of categories (`analysis/`, `spectral/`, `sequencing/`, `external_io/`, `playback_routing/`, `control/`) whose mapping is inferred from their docstrings rather than from an existing patch using them — treat a mismatch there as a cue to refine that file, not as ground truth.
+
+No patch in this codebase currently sustains a chord (simultaneous pitches) — everything arpeggiates one note at a time. `pitch-and-harmony-implementation.md`'s multi-voice options are therefore reasoned from the Pyo API, not distilled from a working example here; treat a mismatch as a cue to refine that file once a real chord/pad patch exists.
