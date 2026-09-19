@@ -3,12 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
 from pyo.lib.filters import ButBP, ButHP, ButLP
 from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv
 
-from pysynth.patches.base import Patch
+from pysynth.patches.base import Patch, PatchRack
 from pysynth.tempo import Tempo
 
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
@@ -110,3 +111,40 @@ def build(
     voice = (bright_voice + wood_voice + deep_voice + glass_voice) * level
     sequencer = _Clocks(metros=metros, keepalive=keepalive)
     return Patch(sequencer=sequencer, voice=voice)
+
+
+def widget(rack: PatchRack, tempo: Tempo) -> VBox:
+    """Create clock-tick controls with parameter descriptions beside each slider."""
+
+    def set_params(enabled, level, wood_q, glass_q, volume):
+        if not enabled:
+            rack.stop("clock_tick")
+            return
+
+        clock_patch = build(tempo, level, wood_q, glass_q)
+        clock_patch.volume = volume
+        rack.start("clock_tick", clock_patch)
+
+    enabled = Checkbox(value=False, description="clock tick on/off")
+    level = FloatSlider(min=0, max=1, step=0.05, value=OVERALL_LEVEL, description="level")
+    wood_q = FloatSlider(min=1, max=10, step=0.5, value=3, description="wood_q")
+    glass_q = FloatSlider(min=1, max=15, step=0.5, value=6, description="glass_q")
+    volume = FloatSlider(min=0, max=2, step=0.1, value=1.0, description="volume")
+
+    output = interactive_output(
+        set_params,
+        {
+            "enabled": enabled,
+            "level": level,
+            "wood_q": wood_q,
+            "glass_q": glass_q,
+            "volume": volume,
+        },
+    )
+    slider_rows = [
+        HBox([level, HTML("Overall level of the four summed ticks.")]),
+        HBox([wood_q, HTML("Woodblock tock resonance - higher is more tonal.")]),
+        HBox([glass_q, HTML("Glassy tick resonance - higher is more ringing.")]),
+        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
+    ]
+    return VBox([enabled, *slider_rows, output])

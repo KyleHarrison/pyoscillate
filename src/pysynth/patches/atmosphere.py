@@ -1,30 +1,39 @@
 from __future__ import annotations
 
+from ipywidgets import (
+    HTML,
+    Checkbox,
+    FloatSlider,
+    HBox,
+    IntSlider,
+    VBox,
+    interactive_output,
+)
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pysynth.clock import FOURTH, Clock
-from pysynth.patches.base import Patch
+from pysynth.clock import Clock
+from pysynth.patches.base import Patch, PatchRack
 from pysynth.tempo import Tempo
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 
-ARP_ROOT = 220  # A3, an octave+ above the bass root
+ARP_ROOT = 207  # current notebook default
 
 
 def build(
     tempo: Tempo,
     clock: Clock,
     arp_root: float = ARP_ROOT,
-    step_division: int = FOURTH,
-    fm_ratio: float = 0.5012,
-    fm_index: float = 4,
-    reverb_size: float = 0.85,
-    reverb_damp: float = 0.6,
-    reverb_bal: float = 0.5,
+    step_division: int = 8,
+    fm_ratio: float = 0.4,
+    fm_index: float = 3,
+    reverb_size: float = 0.25,
+    reverb_damp: float = 0.15,
+    reverb_bal: float = 0.1,
 ) -> Patch:
     """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
@@ -78,14 +87,10 @@ def build(
 
     # dur is longer than the step time so envelopes overlap into a sustained pad
     envelope_table = CosTable([(0, 0), (2000, 1), (5000, 0.4), (8191, 0)])
-    arp_env = TrigEnv(
-        arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3
-    )
+    arp_env = TrigEnv(arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3)
 
     # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-    fm_voice = FM(
-        carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3
-    )
+    fm_voice = FM(carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3)
     voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}
@@ -98,3 +103,84 @@ def build(
 
     sequencer = clock.subscribe(step_division, next_step)
     return Patch(sequencer=sequencer, voice=voice)
+
+
+def widget(rack: PatchRack, tempo: Tempo, clock: Clock) -> VBox:
+    """Create atmosphere controls with parameter descriptions beside each slider."""
+
+    def set_params(
+        enabled,
+        step_division,
+        arp_root,
+        fm_ratio,
+        fm_index,
+        reverb_size,
+        reverb_damp,
+        reverb_bal,
+        volume,
+    ):
+        if not enabled:
+            rack.stop("atmosphere")
+            return
+
+        atmosphere_patch = build(
+            tempo,
+            clock,
+            arp_root,
+            step_division,
+            fm_ratio,
+            fm_index,
+            reverb_size,
+            reverb_damp,
+            reverb_bal,
+        )
+        atmosphere_patch.volume = volume
+        rack.start("atmosphere", atmosphere_patch)
+
+    enabled = Checkbox(value=False, description="atmosphere on/off")
+    step_division = IntSlider(min=1, max=16, step=1, value=8, description="step_division")
+    arp_root = FloatSlider(min=110, max=440, step=1, value=ARP_ROOT, description="arp_root")
+    fm_ratio = FloatSlider(min=0.1, max=4, step=0.1, value=0.4, description="fm_ratio")
+    fm_index = FloatSlider(min=0, max=10, step=0.1, value=3, description="fm_index")
+    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.25, description="reverb_size")
+    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.15, description="reverb_damp")
+    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.1, description="reverb_bal")
+    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
+
+    output = interactive_output(
+        set_params,
+        {
+            "enabled": enabled,
+            "step_division": step_division,
+            "arp_root": arp_root,
+            "fm_ratio": fm_ratio,
+            "fm_index": fm_index,
+            "reverb_size": reverb_size,
+            "reverb_damp": reverb_damp,
+            "reverb_bal": reverb_bal,
+            "volume": volume,
+        },
+    )
+    slider_rows = [
+        HBox(
+            [
+                step_division,
+                HTML("How often the arpeggio advances, in 16th notes - larger is slower."),
+            ]
+        ),
+        HBox([arp_root, HTML("Base frequency of the arpeggio's root note.")]),
+        HBox(
+            [
+                fm_ratio,
+                HTML(
+                    "Modulator/carrier ratio in the FM voice - controls harmonic versus dissonant tone."
+                ),
+            ]
+        ),
+        HBox([fm_index, HTML("FM modulation depth - higher is brighter and buzzier.")]),
+        HBox([reverb_size, HTML("Reverb room size - larger is bigger and more distant.")]),
+        HBox([reverb_damp, HTML("Reverb high-frequency damping - higher is darker.")]),
+        HBox([reverb_bal, HTML("Reverb dry/wet balance - 0 is dry and 1 is wet.")]),
+        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
+    ]
+    return VBox([enabled, *slider_rows, output])

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 from pyo.lib.tableprocess import Osc
@@ -7,7 +8,7 @@ from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pysynth.clock import SIXTEENTH, Clock
-from pysynth.patches.base import Patch
+from pysynth.patches.base import Patch, PatchRack
 from pysynth.tempo import Tempo
 
 # one bar = 16 steps (16th notes)
@@ -18,7 +19,7 @@ NOTE_PATTERN = [0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0]
 # louder on the "and" of each beat for a driving feel
 ACCENT_PATTERN = [1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.6, 1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.7]
 
-ROOT_FREQ = 55  # A1, classic techno bass register
+ROOT_FREQ = 92  # A#2, current notebook default
 
 
 def build(
@@ -26,7 +27,7 @@ def build(
     clock: Clock,
     root_freq: float = ROOT_FREQ,
     filter_res: float = 0.75,
-    filter_base: float = 900,
+    filter_base: float = 1380,
     filter_range: float = 400,
 ) -> Patch:
     """Rolling 16-step bassline through a resonant, LFO-swept lowpass filter.
@@ -78,3 +79,48 @@ def build(
 
     sequencer = clock.subscribe(SIXTEENTH, next_step)
     return Patch(sequencer=sequencer, voice=voice)
+
+
+def widget(rack: PatchRack, tempo: Tempo, clock: Clock) -> VBox:
+    """Create bass controls with parameter descriptions beside each slider."""
+
+    def set_params(enabled, root_freq, filter_res, filter_base, filter_range, volume):
+        if not enabled:
+            rack.stop("bass")
+            return
+
+        bass_patch = build(tempo, clock, root_freq, filter_res, filter_base, filter_range)
+        bass_patch.volume = volume
+        rack.start("bass", bass_patch)
+
+    enabled = Checkbox(value=False, description="bass on/off")
+    root_freq = FloatSlider(min=30, max=110, step=1, value=ROOT_FREQ, description="root_freq")
+    filter_res = FloatSlider(min=0, max=1, step=0.05, value=0.75, description="filter_res")
+    filter_base = FloatSlider(min=200, max=2000, step=10, value=1380, description="filter_base")
+    filter_range = FloatSlider(min=0, max=1000, step=10, value=400, description="filter_range")
+    volume = FloatSlider(min=0, max=2, step=0.1, value=1.0, description="volume")
+
+    output = interactive_output(
+        set_params,
+        {
+            "enabled": enabled,
+            "root_freq": root_freq,
+            "filter_res": filter_res,
+            "filter_base": filter_base,
+            "filter_range": filter_range,
+            "volume": volume,
+        },
+    )
+    slider_rows = [
+        HBox([root_freq, HTML("Fundamental frequency of the bassline's root note.")]),
+        HBox(
+            [
+                filter_res,
+                HTML("Filter resonance - higher gives a more squelchy, whistling character."),
+            ]
+        ),
+        HBox([filter_base, HTML("Center cutoff the sweep rides on - higher is brighter.")]),
+        HBox([filter_range, HTML("How far the cutoff sweeps each bar - larger is more dramatic.")]),
+        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
+    ]
+    return VBox([enabled, *slider_rows, output])

@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pysynth.clock import EIGHTH, Clock
-from pysynth.patches.base import Patch
+from pysynth.patches.base import Patch, PatchRack
 from pysynth.tempo import Tempo
 
-CUTOFF_FREQ = 8000
+CUTOFF_FREQ = 10300
 
 
 def build(
     tempo: Tempo,
     clock: Clock,
     cutoff_freq: float = CUTOFF_FREQ,
-    level: float = 0.5,
-    decay: float = 0.2,
+    level: float = 0.2,
+    decay: float = 0.75,
 ) -> Patch:
     """Subtle high-passed noise tick, once per 8th note, for top-end texture.
 
@@ -54,3 +55,44 @@ def build(
 
     sequencer = clock.subscribe(EIGHTH, hat_trig.play)
     return Patch(sequencer=sequencer, voice=voice)
+
+
+def widget(rack: PatchRack, tempo: Tempo, clock: Clock) -> VBox:
+    """Create hi-hat controls with parameter descriptions beside each slider."""
+
+    def set_params(enabled, cutoff_freq, level, decay, volume):
+        if not enabled:
+            rack.stop("hat")
+            return
+
+        hat_patch = build(tempo, clock, cutoff_freq, level, decay)
+        hat_patch.volume = volume
+        rack.start("hat", hat_patch)
+
+    enabled = Checkbox(value=False, description="hat on/off")
+    cutoff_freq = FloatSlider(
+        min=2000, max=12000, step=100, value=CUTOFF_FREQ, description="cutoff_freq"
+    )
+    level = FloatSlider(min=0, max=1, step=0.05, value=0.2, description="level")
+    decay = FloatSlider(min=0.05, max=1, step=0.05, value=0.75, description="decay")
+    volume = FloatSlider(min=0, max=2, step=0.1, value=0.2, description="volume")
+
+    output = interactive_output(
+        set_params,
+        {
+            "enabled": enabled,
+            "cutoff_freq": cutoff_freq,
+            "level": level,
+            "decay": decay,
+            "volume": volume,
+        },
+    )
+    slider_rows = [
+        HBox([cutoff_freq, HTML("High-pass cutoff - higher is thinner and more distant.")]),
+        HBox([level, HTML("Loudness of the raw noise burst before shaping.")]),
+        HBox(
+            [decay, HTML("Envelope length - shorter is a tighter click, longer is more of a hiss.")]
+        ),
+        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
+    ]
+    return VBox([enabled, *slider_rows, output])

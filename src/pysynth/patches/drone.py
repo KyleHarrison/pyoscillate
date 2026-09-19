@@ -1,25 +1,26 @@
 from __future__ import annotations
 
+from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
 from pysynth.clock import BAR, Clock
-from pysynth.patches.base import Patch
+from pysynth.patches.base import Patch, PatchRack
 from pysynth.tempo import Tempo
 
 # mostly small steps so the pitch glides rather than leaps
 DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 
-DRONE_ROOT = 110  # A2, mid register between the bass (55) and the arp (220)
+DRONE_ROOT = 186  # current notebook default
 
 
 def build(
     tempo: Tempo,
     clock: Clock,
     root_freq: float = DRONE_ROOT,
-    reverb_size: float = 0.9,
-    reverb_damp: float = 0.3,
+    reverb_size: float = 0.7,
+    reverb_damp: float = 0.7,
     reverb_bal: float = 0.9,
 ) -> Patch:
     """Slow-winding FM drone: note changes once every 8 bars, with a continuously drifting timbre.
@@ -72,3 +73,43 @@ def build(
 
     sequencer = clock.subscribe(BAR * 8, next_step)
     return Patch(sequencer=sequencer, voice=voice)
+
+
+def widget(rack: PatchRack, tempo: Tempo, clock: Clock) -> VBox:
+    """Create drone controls with parameter descriptions beside each slider."""
+
+    def set_params(enabled, root_freq, reverb_size, reverb_damp, reverb_bal, volume):
+        if not enabled:
+            rack.stop("drone")
+            return
+
+        drone_patch = build(tempo, clock, root_freq, reverb_size, reverb_damp, reverb_bal)
+        drone_patch.volume = volume
+        rack.start("drone", drone_patch)
+
+    enabled = Checkbox(value=False, description="drone on/off")
+    root_freq = FloatSlider(min=55, max=220, step=1, value=DRONE_ROOT, description="root_freq")
+    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.7, description="reverb_size")
+    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.7, description="reverb_damp")
+    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.9, description="reverb_bal")
+    volume = FloatSlider(min=0, max=2, step=0.1, value=1.0, description="volume")
+
+    output = interactive_output(
+        set_params,
+        {
+            "enabled": enabled,
+            "root_freq": root_freq,
+            "reverb_size": reverb_size,
+            "reverb_damp": reverb_damp,
+            "reverb_bal": reverb_bal,
+            "volume": volume,
+        },
+    )
+    slider_rows = [
+        HBox([root_freq, HTML("Fundamental frequency the drone glides between.")]),
+        HBox([reverb_size, HTML("Reverb room size - larger is more cavernous.")]),
+        HBox([reverb_damp, HTML("Reverb high-frequency damping - higher is darker.")]),
+        HBox([reverb_bal, HTML("Reverb dry/wet balance - 0 is dry and 1 is wet.")]),
+        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
+    ]
+    return VBox([enabled, *slider_rows, output])
