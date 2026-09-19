@@ -24,3 +24,7 @@ build-backend = "uv_build"
 dev = [
     "ruff>=0.16.8",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# __all__ is ordered to match each conceptual-map section, not alphabetically.
+"docs/pyo_api/**/*.py" = ["RUF022"]

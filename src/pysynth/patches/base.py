@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from pyo import PyoObject
+from pyo.lib.dynamics import Compress
 
 
 class Sequencer(Protocol):
@@ -25,15 +26,28 @@ class Patch:
 
     sequencer: Sequencer
     voice: PyoObject
+    volume: float = 1.0
+    _output: PyoObject | None = field(default=None, repr=False)
 
     def start(self) -> Patch:
-        self.voice.out()
+        # `volume` boosts *before* Compress, not after: Compress's own mul
+        # multiplies its already-compressed output, so gain reduction would
+        # never see (and never catch) whatever volume pushed past the
+        # limiter. Boosting first means the limiter always sees the final
+        # level and can catch it regardless of how high volume goes - a
+        # thresh near 0dB with a high ratio only engages for whatever
+        # `volume` pushes toward clipping, rather than coloring the patch
+        # at its normal level.
+        boosted = self.voice * self.volume
+        self._output = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05).out()
         self.sequencer.play()
         return self
 
     def stop(self) -> Patch:
         self.sequencer.stop()
         self.voice.stop()
+        if self._output is not None:
+            self._output.stop()
         return self
 
 
@@ -54,7 +68,7 @@ class PatchRack:
     """
 
     _patches: dict[str, Patch] = field(default_factory=dict)
-    _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any]]] = field(default_factory=dict, repr=False)
+    _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any], float]] = field(default_factory=dict, repr=False)
 
     def start(self, name: str, patch: Patch) -> Patch:
         self.stop(name)
@@ -71,7 +85,9 @@ class PatchRack:
         for name in list(self._patches):
             self.stop(name)
 
-    def toggle(self, name: str, build: Callable[..., Patch], *args: Any, **kwargs: Any) -> Patch | None:
+    def toggle(
+        self, name: str, build: Callable[..., Patch], *args: Any, volume: float = 1.0, **kwargs: Any
+    ) -> Patch | None:
         """Rerun a patch cell to switch it on and off in place.
 
         Calls `build(*args, **kwargs)` and starts it under `name` - unless a
@@ -82,11 +98,18 @@ class PatchRack:
         the patch is running skips the toggle-off and goes straight to
         stopping the old version and starting the new one, same as
         `start()`.
+
+        `volume` isn't passed to `build` - it's applied to the returned
+        `Patch` (see `Patch.volume`) and included in the toggle signature
+        like any other argument.
         """
-        if name in self._signatures and self._signatures[name] == (args, kwargs):
+        signature = (args, kwargs, volume)
+        if name in self._signatures and self._signatures[name] == signature:
             self.stop(name)
             return None
 
-        patch = self.start(name, build(*args, **kwargs))
-        self._signatures[name] = (args, kwargs)
+        patch = build(*args, **kwargs)
+        patch.volume = volume
+        self.start(name, patch)
+        self._signatures[name] = signature
         return patch
