@@ -156,14 +156,10 @@ def build(
 
     # dur is longer than the step time so envelopes overlap into a sustained pad
     envelope_table = CosTable([(0, 0), (2000, 1), (5000, 0.4), (8191, 0)])
-    arp_env = TrigEnv(
-        arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3
-    )
+    arp_env = TrigEnv(arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3)
 
     # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-    fm_voice = FM(
-        carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3
-    )
+    fm_voice = FM(carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3)
     voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}

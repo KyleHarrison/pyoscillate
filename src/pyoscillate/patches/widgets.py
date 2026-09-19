@@ -55,9 +55,7 @@ def patch_widget(
         )
         for spec in parameters
     }
-    volume = FloatSlider(
-        min=0, max=2, step=0.1, value=volume_default, description="volume"
-    )
+    volume = FloatSlider(min=0, max=2, step=0.1, value=volume_default, description="volume")
     controls = {"enabled": enabled, **sliders, "volume": volume}
     built_values: dict[str, Any] | None = None
     build_kwargs = build_kwargs or {}
@@ -82,11 +80,7 @@ def patch_widget(
             built_values = dict(live_values)
         else:
             patch.update(
-                {
-                    key: value
-                    for key, value in live_values.items()
-                    if key not in rebuild_parameters
-                }
+                {key: value for key, value in live_values.items() if key not in rebuild_parameters}
             )
             built_values = dict(live_values)
         patch.set("volume", values["volume"])
@@ -96,16 +90,11 @@ def patch_widget(
             name,
             controls,
             lambda: set_params(
-                **{
-                    control_name: widget.value
-                    for control_name, widget in controls.items()
-                }
+                **{control_name: widget.value for control_name, widget in controls.items()}
             ),
         )
 
     output = interactive_output(set_params, controls)
     rows = [HBox([sliders[spec.name], HTML(spec.help_text)]) for spec in parameters]
-    rows.append(
-        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")])
-    )
+    rows.append(HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]))
     return VBox([enabled, *rows, output])

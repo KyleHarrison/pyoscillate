@@ -12,9 +12,7 @@ from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
-CUTOFF_FREQ = (
-    3000  # lower than the main hat (8000) so this reads as a darker, lower accent
-)
+CUTOFF_FREQ = 3000  # lower than the main hat (8000) so this reads as a darker, lower accent
 
 PARAMETERS = (
     SliderSpec(

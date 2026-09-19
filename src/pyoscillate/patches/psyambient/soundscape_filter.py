@@ -238,9 +238,7 @@ def build(
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
     """Create soundscape_filter controls."""
-    return patch_widget(
-        rack, "soundscape_filter", build, PARAMETERS, controller=controller
-    )
+    return patch_widget(rack, "soundscape_filter", build, PARAMETERS, controller=controller)
 
     """
 

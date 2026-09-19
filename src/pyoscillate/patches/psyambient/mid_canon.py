@@ -193,23 +193,15 @@ def build(
     envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
 
     voice_a_metro = Metro(time=voice_a_period)
-    voice_a_env = TrigEnv(
-        voice_a_metro, table=envelope_table, dur=note_duration, mul=0.18
-    )
+    voice_a_env = TrigEnv(voice_a_metro, table=envelope_table, dur=note_duration, mul=0.18)
     voice_a_fm = FM(carrier=root_freq, ratio=fm_ratio, index=fm_index, mul=voice_a_env)
 
     voice_b_root = root_freq * pow(2, voice_b_interval / 12)
     voice_b_metro = Metro(time=voice_b_period)
-    voice_b_env = TrigEnv(
-        voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14
-    )
-    voice_b_fm = FM(
-        carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env
-    )
+    voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14)
+    voice_b_fm = FM(carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env)
 
-    voice = Freeverb(
-        voice_a_fm + voice_b_fm, size=reverb_size, damp=reverb_damp, bal=reverb_bal
-    )
+    voice = Freeverb(voice_a_fm + voice_b_fm, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     def next_voice_a() -> None:
         interval = random.choice(CANON_SCALE)

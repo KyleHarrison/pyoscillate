@@ -103,12 +103,8 @@ def build(
             "tone_cutoff": tone_cutoff,
         }.items()
     }
-    noise_voice = MoogLP(
-        BrownNoise(mul=live["noise_level"]), freq=live["noise_cutoff"], res=0
-    )
-    sub_voice = Tone(
-        Sine(freq=live["sub_freq"], mul=live["sub_level"]), freq=live["tone_cutoff"]
-    )
+    noise_voice = MoogLP(BrownNoise(mul=live["noise_level"]), freq=live["noise_cutoff"], res=0)
+    sub_voice = Tone(Sine(freq=live["sub_freq"], mul=live["sub_level"]), freq=live["tone_cutoff"])
     voice = noise_voice + sub_voice
 
     return Patch(

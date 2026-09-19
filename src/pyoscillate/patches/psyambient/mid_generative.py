@@ -174,9 +174,7 @@ def build(
         fm_voice.carrier = root_freq * pow(2, interval / 12)
 
     note_func = TrigFunc(note_metro, next_note)
-    sequencer = _Generative(
-        metro=note_metro, keepalive=[envelope_table, note_env, note_func]
-    )
+    sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
     return Patch(
         sequencer=sequencer,
         voice=voice,

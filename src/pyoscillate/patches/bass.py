@@ -121,9 +121,7 @@ def build(
     step_trig = Trig()
 
     envelope_table = CosTable([(0, 0), (100, 1), (2000, 0.3), (8191, 0)])
-    amp_env = TrigEnv(
-        step_trig, table=envelope_table, dur=tempo.sixteenth * 0.9, mul=1.0
-    )
+    amp_env = TrigEnv(step_trig, table=envelope_table, dur=tempo.sixteenth * 0.9, mul=1.0)
 
     bass_table = HarmTable([1, 0, 0.4, 0, 0.2, 0, 0.1])
     bass_osc = Osc(table=bass_table, freq=root_freq, mul=amp_env)

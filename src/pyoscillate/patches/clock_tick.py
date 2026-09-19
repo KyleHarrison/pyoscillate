@@ -18,9 +18,7 @@ OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in
 
 PARAMETERS = (
     SliderSpec("level", 0, 1, 0.05, OVERALL_LEVEL, "Level", "Overall tick level.", ()),
-    SliderSpec(
-        "wood_q", 1, 10, 0.5, 3, "Wood Q", "Wood resonance.", (PyoParamRef(ButBP, "q"),)
-    ),
+    SliderSpec("wood_q", 1, 10, 0.5, 3, "Wood Q", "Wood resonance.", (PyoParamRef(ButBP, "q"),)),
     SliderSpec(
         "glass_q",
         1,
@@ -102,9 +100,7 @@ def build(
     # bright, thin wristwatch tick - fastest and quietest of the four
     bright_metro = Metro(time=0.63)
     metros.append(bright_metro)
-    bright_env = TrigEnv(
-        bright_metro, table=tick_envelope, dur=0.05, mul=Noise(mul=0.3)
-    )
+    bright_env = TrigEnv(bright_metro, table=tick_envelope, dur=0.05, mul=Noise(mul=0.3))
     bright_voice = ButHP(bright_env, freq=6500)
     keepalive += [bright_env, bright_voice]
 
@@ -142,9 +138,7 @@ def build(
     )
 
 
-def widget(
-    rack: PatchRack, tempo: Tempo, controller: PresetController | None = None
-) -> VBox:
+def widget(rack: PatchRack, tempo: Tempo, controller: PresetController | None = None) -> VBox:
     """Create clock-tick controls."""
     return patch_widget(
         rack,
