@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import ClassVar
 
 from pyo.lib.pattern import Pattern
 
@@ -15,13 +16,18 @@ FOURTH = 4
 BAR = 16
 
 
-@dataclass
+@dataclass(eq=False)
 class Division:
     """One patch's slice of a `Clock`: fires `callback` every `steps` master
     ticks. Rebuilding the owning patch and resubscribing lands back on the
     grid at whatever tick the clock is currently on, rather than resetting
     phase to zero - so two patches with the same `steps` always fire on the
     same tick, however long after each other they were started.
+
+    `eq=False` keeps equality/hashing identity-based (the default `object`
+    behaviour) - `Division` and `Clock` reference each other, so the
+    generated field-by-field `__eq__` would recurse into each other's field
+    tuples.
     """
 
     clock: Clock
@@ -35,7 +41,7 @@ class Division:
         self.clock._unregister(self)
 
 
-@dataclass
+@dataclass(eq=False)
 class Clock:
     """Single master pulse, ticking once per 16th note, that every patch
     divides down from via `subscribe()` instead of running its own
@@ -49,7 +55,17 @@ class Clock:
     shared `Clock` instead means "every 2nd tick" always means the same
     ticks for everyone, so patches lock to a common downbeat and stay
     locked across rebuilds.
+
+    `eq=False` keeps equality identity-based - see `Division`'s docstring -
+    and also matters for `PatchRack.toggle()`, which compares previous
+    `build()` arguments (including this `clock`) with `==` to decide
+    whether to treat a rerun as an off/on toggle.
     """
+
+    SIXTEENTH: ClassVar[int] = SIXTEENTH
+    EIGHTH: ClassVar[int] = EIGHTH
+    FOURTH: ClassVar[int] = FOURTH
+    BAR: ClassVar[int] = BAR
 
     tempo: Tempo
     _tick: int = field(default=0, init=False, repr=False)

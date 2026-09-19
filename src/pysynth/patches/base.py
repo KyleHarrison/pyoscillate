@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Callable, Protocol
 
 from pyo import PyoObject
 
@@ -54,6 +54,7 @@ class PatchRack:
     """
 
     _patches: dict[str, Patch] = field(default_factory=dict)
+    _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any]]] = field(default_factory=dict, repr=False)
 
     def start(self, name: str, patch: Patch) -> Patch:
         self.stop(name)
@@ -61,6 +62,7 @@ class PatchRack:
         return patch.start()
 
     def stop(self, name: str) -> None:
+        self._signatures.pop(name, None)
         existing = self._patches.pop(name, None)
         if existing is not None:
             existing.stop()
@@ -68,3 +70,23 @@ class PatchRack:
     def stop_all(self) -> None:
         for name in list(self._patches):
             self.stop(name)
+
+    def toggle(self, name: str, build: Callable[..., Patch], *args: Any, **kwargs: Any) -> Patch | None:
+        """Rerun a patch cell to switch it on and off in place.
+
+        Calls `build(*args, **kwargs)` and starts it under `name` - unless a
+        patch is already running under `name` that was built from these
+        exact same arguments, in which case it's stopped instead and `None`
+        is returned. So: run a cell to start a patch, rerun it unchanged to
+        stop it, rerun it again to bring it back. Changing an argument while
+        the patch is running skips the toggle-off and goes straight to
+        stopping the old version and starting the new one, same as
+        `start()`.
+        """
+        if name in self._signatures and self._signatures[name] == (args, kwargs):
+            self.stop(name)
+            return None
+
+        patch = self.start(name, build(*args, **kwargs))
+        self._signatures[name] = (args, kwargs)
+        return patch

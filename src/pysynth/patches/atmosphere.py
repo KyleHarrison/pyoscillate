@@ -5,7 +5,7 @@ from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pysynth.clock import EIGHTH, Clock
+from pysynth.clock import FOURTH, Clock
 from pysynth.patches.base import Patch
 from pysynth.tempo import Tempo
 
@@ -19,24 +19,31 @@ def build(
     tempo: Tempo,
     clock: Clock,
     arp_root: float = ARP_ROOT,
+    step_division: int = FOURTH,
     fm_ratio: float = 0.5012,
     fm_index: float = 4,
     reverb_size: float = 0.85,
     reverb_damp: float = 0.6,
     reverb_bal: float = 0.5,
 ) -> Patch:
-    """FM pad voice arpeggiated at 8th notes, with a slow amplitude swell and reverb.
+    """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
     Args:
         tempo: Shared tempo grid; the swell period and envelope duration are
-            derived from `tempo.eighth`.
-        clock: Shared master pulse; the arpeggio steps every 8th note
-            (`EIGHTH`), phase-locked to every other patch on the clock.
+            derived from the resulting step time.
+        clock: Shared master pulse; the arpeggio steps every `step_division`
+            16th notes, phase-locked to every other patch on the clock.
         arp_root: Base frequency (Hz) of the arpeggio's root note, before the
             `ARP_INTERVALS` offsets are applied each step. Raising it moves
             the whole pad up in register; lowering it pushes the pad down
             toward the drone/bass range and can make the arpeggio read as
             muddier or more likely to clash with the bass.
+        step_division: How often the arpeggio advances, in 16th notes (see
+            `pysynth.clock`'s `SIXTEENTH`/`EIGHTH`/`FOURTH`/`BAR`, or any
+            multiple of them). Larger values space the notes further apart
+            and slow the arpeggio down; smaller values speed it up. The
+            swell period and envelope duration scale with this so the pad
+            keeps sounding right at any speed.
         fm_ratio: Ratio of modulator frequency to carrier frequency in the FM
             voice. Simple ratios (0.5, 1, 2) sound bell-like and harmonic;
             the default's slightly-off ratio (0.5012) is deliberately
@@ -64,16 +71,21 @@ def build(
             audible.
     """
     arp_trig = Trig()
+    step_time = tempo.sixteenth * step_division
 
     # slow swell over 32 steps so the pad breathes in and out across two bars
-    arp_swell = Sine(freq=1 / (32 * tempo.eighth), mul=0.01, add=0.5)
+    arp_swell = Sine(freq=1 / (32 * step_time), mul=0.01, add=0.5)
 
     # dur is longer than the step time so envelopes overlap into a sustained pad
     envelope_table = CosTable([(0, 0), (2000, 1), (5000, 0.4), (8191, 0)])
-    arp_env = TrigEnv(arp_trig, table=envelope_table, dur=tempo.eighth * 1.2, mul=arp_swell, add=-0.3)
+    arp_env = TrigEnv(
+        arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3
+    )
 
     # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-    fm_voice = FM(carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3)
+    fm_voice = FM(
+        carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3
+    )
     voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}
@@ -84,5 +96,5 @@ def build(
         arp_trig.play()
         step["i"] += 1
 
-    sequencer = clock.subscribe(EIGHTH, next_step)
+    sequencer = clock.subscribe(step_division, next_step)
     return Patch(sequencer=sequencer, voice=voice)
