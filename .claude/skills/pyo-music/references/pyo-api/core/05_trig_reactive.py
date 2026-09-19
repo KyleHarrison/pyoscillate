@@ -6,7 +6,7 @@ source (04_triggers.py) feeds one of these, and each pulse causes a fresh
 envelope, a fresh random value, etc.
 """
 
-__all__ = ['TrigEnv', 'TrigXnoiseMidi', 'TrigRand']
+__all__ = ["TrigEnv", "TrigXnoiseMidi", "TrigRand"]
 
 from pyo import TrigEnv
 

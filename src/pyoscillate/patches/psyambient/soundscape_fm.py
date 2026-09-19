@@ -8,7 +8,7 @@ from pyo.lib.generators import FM, Lorenz, Rossler
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.psyambient.common import ContinuousSequencer
-from pyoscillate.patches.widgets import SliderSpec, patch_widget
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 110  # A2, current default
 
@@ -21,6 +21,7 @@ PARAMETERS = (
         ROOT_FREQ,
         "Carrier frequency",
         "Carrier frequency - the pad's held pitch.",
+        (PyoParamRef(FM, "carrier"),),
     ),
     SliderSpec(
         "chaos_speed",
@@ -30,6 +31,7 @@ PARAMETERS = (
         0.04,
         "Chaos speed",
         "How fast the timbre wanders - lower is slower and more hypnotic.",
+        (PyoParamRef(Rossler, "pitch"), PyoParamRef(Lorenz, "pitch")),
     ),
     SliderSpec(
         "chaos_amount",
@@ -39,6 +41,7 @@ PARAMETERS = (
         0.6,
         "Chaos amount",
         "How unpredictable the wander is - higher is more psychedelic.",
+        (PyoParamRef(Rossler, "chaos"), PyoParamRef(Lorenz, "chaos")),
     ),
     SliderSpec(
         "reverb_size",
@@ -48,6 +51,7 @@ PARAMETERS = (
         0.85,
         "Reverb size",
         "Reverb room size - larger is more enveloping.",
+        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -57,6 +61,7 @@ PARAMETERS = (
         0.4,
         "Reverb damping",
         "Reverb high-frequency damping - higher is darker.",
+        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -66,6 +71,7 @@ PARAMETERS = (
         0.85,
         "Reverb balance",
         "Reverb dry/wet balance - 0 is dry and 1 is wet.",
+        (PyoParamRef(Freeverb, "bal"),),
     ),
     SliderSpec(
         "delay_time",
@@ -75,6 +81,7 @@ PARAMETERS = (
         0.6,
         "Delay time",
         "Delay time - smears the timbral drift across time.",
+        (PyoParamRef(Delay, "delay"),),
     ),
     SliderSpec(
         "delay_feedback",
@@ -84,6 +91,7 @@ PARAMETERS = (
         0.35,
         "Delay feedback",
         "Delay feedback - higher repeats echoes more times before decaying.",
+        (PyoParamRef(Delay, "feedback"),),
     ),
 )
 
@@ -147,10 +155,16 @@ def build(
         }.items()
     }
 
-    ratio_chaos = Rossler(pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5)
-    index_chaos = Lorenz(pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4)
+    ratio_chaos = Rossler(
+        pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5
+    )
+    index_chaos = Lorenz(
+        pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4
+    )
 
-    fm_voice = FM(carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2)
+    fm_voice = FM(
+        carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2
+    )
     reverb_voice = Freeverb(
         fm_voice,
         size=live["reverb_size"],

@@ -2,7 +2,7 @@
 strings. Not used by this project yet.
 """
 
-__all__ = ['MML']
+__all__ = ["MML"]
 
 from pyo import MML
 

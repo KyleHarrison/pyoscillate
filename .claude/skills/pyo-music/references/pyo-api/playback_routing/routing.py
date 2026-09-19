@@ -2,7 +2,7 @@
 crossfading between sources. Not used by this project yet.
 """
 
-__all__ = ['Mixer', 'Pan', 'SPan', 'Selector', 'Switch', 'Binaural']
+__all__ = ["Mixer", "Pan", "SPan", "Selector", "Switch", "Binaural"]
 
 from pyo import Mixer
 

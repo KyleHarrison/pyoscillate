@@ -3,7 +3,7 @@ pitch-shift, cross-synthesis) built on top of the Fast Fourier Transform
 category (see fourier.py). Not used by this project yet.
 """
 
-__all__ = ['PVAnal', 'PVSynth', 'PVTranspose', 'PVMorph']
+__all__ = ["PVAnal", "PVSynth", "PVTranspose", "PVMorph"]
 
 from pyo import PVAnal
 

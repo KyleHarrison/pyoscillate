@@ -3,7 +3,7 @@ for spectral processing. Foundation for the higher-level Phase Vocoder
 category (see pvoc.py). Not used by this project yet.
 """
 
-__all__ = ['FFT', 'IFFT', 'PolToCar', 'CvlVerb']
+__all__ = ["FFT", "IFFT", "PolToCar", "CvlVerb"]
 
 from pyo import FFT
 

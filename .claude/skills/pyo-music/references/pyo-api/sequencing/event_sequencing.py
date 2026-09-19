@@ -4,7 +4,7 @@ which stay
 inside the audio graph. Not used by this project yet.
 """
 
-__all__ = ['Pattern', 'CallAfter', 'Score']
+__all__ = ["Pattern", "CallAfter", "Score"]
 
 from pyo import Pattern
 

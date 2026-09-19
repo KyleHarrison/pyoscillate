@@ -3,7 +3,7 @@ generators; the continuous counterpart to the trig-reactive Trig* random
 objects (see ../core/05_trig_reactive.py). Not used by this project yet.
 """
 
-__all__ = ['Choice', 'Randh', 'Xnoise', 'Urn']
+__all__ = ["Choice", "Randh", "Xnoise", "Urn"]
 
 from pyo import Choice
 

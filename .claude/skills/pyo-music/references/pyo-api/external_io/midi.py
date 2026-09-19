@@ -2,7 +2,7 @@
 external device. Not used by this project yet.
 """
 
-__all__ = ['Notein', 'Midictl', 'Bendin', 'MidiAdsr']
+__all__ = ["Notein", "Midictl", "Bendin", "MidiAdsr"]
 
 from pyo import Notein
 

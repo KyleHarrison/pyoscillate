@@ -89,7 +89,9 @@ class Patch:
         # at its normal level.
         self._volume_control = SigTo(value=self.volume, time=0.05)
         boosted = self.voice * self._volume_control
-        compressed = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05)
+        compressed = Compress(
+            boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05
+        )
         # pyo's stop(wait=...) only delays the hard cutoff, it doesn't fade
         # the signal itself - multiplying by this ramp is what actually
         # brings the level to zero before that cutoff lands, on both this

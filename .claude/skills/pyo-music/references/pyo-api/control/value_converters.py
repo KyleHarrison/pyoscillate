@@ -2,7 +2,7 @@
 onto a parameter's useful range. Not used by this project yet.
 """
 
-__all__ = ['SLMap', 'SLMapFreq', 'SLMapQ']
+__all__ = ["SLMap", "SLMapFreq", "SLMapQ"]
 
 from pyo import SLMap
 

@@ -25,3 +25,6 @@ dev = ["ruff>=0.16.8"]
 [tool.ruff.lint.per-file-ignores]
 # __all__ is ordered to match each conceptual-map section, not alphabetically.
 ".claude/skills/pyo-music/references/pyo-api/**/*.py" = ["RUF022"]
+
+[tool.ruff.lint]
+ignore = ["E501"]

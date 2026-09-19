@@ -4,7 +4,7 @@ Take a signal in, transform it (spectrally or texturally), pass a modified
 signal out. Sits downstream of a generator, upstream of dynamics/output.
 """
 
-__all__ = ['Biquad', 'Tone', 'Disto', 'Freeverb', 'Delay', 'Chorus']
+__all__ = ["Biquad", "Tone", "Disto", "Freeverb", "Delay", "Chorus"]
 
 from pyo import Biquad
 

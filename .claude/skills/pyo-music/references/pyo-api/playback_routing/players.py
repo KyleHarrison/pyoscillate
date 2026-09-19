@@ -2,7 +2,7 @@
 control and marker-based looping. Not used by this project yet.
 """
 
-__all__ = ['SfPlayer', 'SfMarkerLooper', 'SfMarkerShuffler']
+__all__ = ["SfPlayer", "SfMarkerLooper", "SfMarkerShuffler"]
 
 from pyo import SfPlayer
 

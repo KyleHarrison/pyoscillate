@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, IntSlider, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
@@ -8,12 +8,86 @@ from pyo.lib.generators import FM
 from pyoscillate.clock import BAR, Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 # major pentatonic - consonant, calm, no leading tones to create tension
 MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
 
 MID_ROOT = 330  # E4, current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        110,
+        660,
+        1,
+        MID_ROOT,
+        "Root frequency",
+        "Melody root.",
+        (PyoParamRef(FM, "carrier"),),
+    ),
+    SliderSpec(
+        "step_bars",
+        1,
+        8,
+        1,
+        2,
+        "Step bars",
+        "Bars between notes; changing it rebuilds the clock subscription.",
+        (),
+    ),
+    SliderSpec(
+        "fm_ratio",
+        0.5,
+        4,
+        0.1,
+        1.5,
+        "FM ratio",
+        "Carrier/modulator ratio.",
+        (PyoParamRef(FM, "ratio"),),
+    ),
+    SliderSpec(
+        "fm_index",
+        0,
+        6,
+        0.1,
+        1.5,
+        "FM index",
+        "FM brightness.",
+        (PyoParamRef(FM, "index"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Reverb size",
+        "Room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.5,
+        "Reverb damping",
+        "Damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.4,
+        "Reverb balance",
+        "Dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+)
 
 
 def build(
@@ -76,13 +150,38 @@ def build(
         step["i"] += 1
 
     sequencer = clock.subscribe(BAR * step_bars, next_step)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "root_freq": lambda value: setattr(mid_freq, "value", value),
+            "fm_ratio": lambda value: setattr(fm_voice, "ratio", value),
+            "fm_index": lambda value: setattr(fm_voice, "index", value),
+            "reverb_size": lambda value: setattr(voice, "size", value),
+            "reverb_damp": lambda value: setattr(voice, "damp", value),
+            "reverb_bal": lambda value: setattr(voice, "bal", value),
+        },
+    )
 
 
 def widget(
-    rack: PatchRack, tempo: Tempo, clock: Clock, controller: PresetController | None = None
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
 ) -> VBox:
-    """Create mid_arp controls with parameter descriptions beside each slider."""
+    """Create mid_arp controls."""
+    return patch_widget(
+        rack,
+        "mid_arp",
+        build,
+        PARAMETERS,
+        controller=controller,
+        rebuild_parameters=("step_bars",),
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+
+    """
 
     def set_params(
         enabled,
@@ -116,14 +215,56 @@ def widget(
         rack.start("mid_arp", patch)
 
     enabled = Checkbox(value=False, description="mid_arp on/off")
-    root_freq = FloatSlider(min=110, max=660, step=1, value=MID_ROOT, description="root_freq")
+    root_freq = FloatSlider(
+        min=110,
+        max=660,
+        step=1,
+        value=MID_ROOT,
+        description="root_freq",
+    )
     step_bars = IntSlider(min=1, max=8, step=1, value=2, description="step_bars")
-    fm_ratio = FloatSlider(min=0.5, max=4, step=0.1, value=1.5, description="fm_ratio")
-    fm_index = FloatSlider(min=0, max=6, step=0.1, value=1.5, description="fm_index")
-    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="reverb_size")
-    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.5, description="reverb_damp")
-    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.4, description="reverb_bal")
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
+    fm_ratio = FloatSlider(
+        min=0.5,
+        max=4,
+        step=0.1,
+        value=1.5,
+        description="fm_ratio",
+    )
+    fm_index = FloatSlider(
+        min=0,
+        max=6,
+        step=0.1,
+        value=1.5,
+        description="fm_index",
+    )
+    reverb_size = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.6,
+        description="reverb_size",
+    )
+    reverb_damp = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.5,
+        description="reverb_damp",
+    )
+    reverb_bal = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.4,
+        description="reverb_bal",
+    )
+    volume = FloatSlider(
+        min=0,
+        max=2,
+        step=0.1,
+        value=0.6,
+        description="volume",
+    )
 
     controls = {
         "enabled": enabled,
@@ -147,10 +288,16 @@ def widget(
     slider_rows = [
         HBox([root_freq, HTML("Base frequency of the melody's root note.")]),
         HBox(
-            [step_bars, HTML("How many bars between melody notes - larger is calmer and slower.")]
+            [
+                step_bars,
+                HTML("How many bars between melody notes - larger is calmer and slower."),
+            ]
         ),
         HBox(
-            [fm_ratio, HTML("Modulator/carrier ratio - controls harmonic versus dissonant tone.")]
+            [
+                fm_ratio,
+                HTML("Modulator/carrier ratio - controls harmonic versus dissonant tone."),
+            ]
         ),
         HBox([fm_index, HTML("FM modulation depth - higher is brighter and buzzier.")]),
         HBox([reverb_size, HTML("Reverb room size - larger is more distant.")]),
@@ -159,3 +306,4 @@ def widget(
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

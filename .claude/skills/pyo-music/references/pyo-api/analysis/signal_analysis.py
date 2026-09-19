@@ -3,7 +3,7 @@ shaping one (amplitude, pitch, brightness, onsets). Not used by this
 project yet.
 """
 
-__all__ = ['Follower', 'Yin', 'RMS', 'Centroid', 'AttackDetector']
+__all__ = ["Follower", "Yin", "RMS", "Centroid", "AttackDetector"]
 
 from pyo import Follower
 

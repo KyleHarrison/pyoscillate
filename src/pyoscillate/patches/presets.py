@@ -11,7 +11,10 @@ Preset = dict[str, dict[str, Any]]
 
 
 def load_catalog(catalog_dir: Path) -> dict[str, Preset]:
-    return {path.stem: json.loads(path.read_text()) for path in sorted(catalog_dir.glob("*.json"))}
+    return {
+        path.stem: json.loads(path.read_text())
+        for path in sorted(catalog_dir.glob("*.json"))
+    }
 
 
 def save_preset(catalog_dir: Path, name: str, values: Preset) -> Path:

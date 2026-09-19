@@ -2,7 +2,7 @@
 custom DSP expressions. Not used by this project yet.
 """
 
-__all__ = ['Sin', 'Log', 'Abs', 'Pow', 'Round']
+__all__ = ["Sin", "Log", "Abs", "Pow", "Round"]
 
 from pyo import Sin
 

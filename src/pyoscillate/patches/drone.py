@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
@@ -8,12 +8,56 @@ from pyo.lib.generators import FM, Sine
 from pyoscillate.clock import BAR, Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 # mostly small steps so the pitch glides rather than leaps
 DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 
 DRONE_ROOT = 186  # current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        55,
+        220,
+        1,
+        DRONE_ROOT,
+        "Root frequency",
+        "Drone root.",
+        (PyoParamRef(FM, "carrier"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.7,
+        "Reverb size",
+        "Room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.7,
+        "Reverb damping",
+        "High-frequency damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.9,
+        "Reverb balance",
+        "Dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+)
 
 
 def build(
@@ -73,13 +117,35 @@ def build(
         step["i"] += 1
 
     sequencer = clock.subscribe(BAR * 8, next_step)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "root_freq": lambda value: setattr(drone_freq, "value", value),
+            "reverb_size": lambda value: setattr(voice, "size", value),
+            "reverb_damp": lambda value: setattr(voice, "damp", value),
+            "reverb_bal": lambda value: setattr(voice, "bal", value),
+        },
+    )
 
 
 def widget(
-    rack: PatchRack, tempo: Tempo, clock: Clock, controller: PresetController | None = None
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
 ) -> VBox:
-    """Create drone controls with parameter descriptions beside each slider."""
+    """Create drone controls."""
+    return patch_widget(
+        rack,
+        "drone",
+        build,
+        PARAMETERS,
+        controller=controller,
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+
+    """
 
     def set_params(enabled, root_freq, reverb_size, reverb_damp, reverb_bal, volume):
         if controller is not None and controller.applying:
@@ -126,3 +192,4 @@ def widget(
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

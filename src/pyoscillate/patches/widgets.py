@@ -11,6 +11,12 @@ from pyoscillate.patches.presets import PresetController
 
 
 @dataclass(frozen=True)
+class PyoParamRef:
+    owner: type[Any]
+    name: str
+
+
+@dataclass(frozen=True)
 class SliderSpec:
     name: str
     minimum: float
@@ -19,6 +25,7 @@ class SliderSpec:
     default: float
     description: str
     help_text: str
+    pyo_refs: tuple[PyoParamRef, ...] = ()
 
 
 def patch_widget(
@@ -30,6 +37,8 @@ def patch_widget(
     *,
     enabled_description: str | None = None,
     volume_default: float = 0.6,
+    rebuild_parameters: Sequence[str] = (),
+    build_kwargs: dict[str, Any] | None = None,
 ) -> VBox:
     """Build the standard live-updating notebook controls for a patch."""
     enabled = Checkbox(
@@ -50,8 +59,11 @@ def patch_widget(
         min=0, max=2, step=0.1, value=volume_default, description="volume"
     )
     controls = {"enabled": enabled, **sliders, "volume": volume}
+    built_values: dict[str, Any] | None = None
+    build_kwargs = build_kwargs or {}
 
     def set_params(**values: Any) -> None:
+        nonlocal built_values
         if controller is not None and controller.applying:
             return
         if not values["enabled"]:
@@ -60,11 +72,23 @@ def patch_widget(
 
         patch = rack.get(name)
         live_values = {spec.name: values[spec.name] for spec in parameters}
-        if patch is None:
-            patch = build(**live_values)
+        if (
+            patch is None
+            or built_values is not None
+            and any(live_values[key] != built_values[key] for key in rebuild_parameters)
+        ):
+            patch = build(**build_kwargs, **live_values)
             rack.start(name, patch)
+            built_values = dict(live_values)
         else:
-            patch.update(live_values)
+            patch.update(
+                {
+                    key: value
+                    for key, value in live_values.items()
+                    if key not in rebuild_parameters
+                }
+            )
+            built_values = dict(live_values)
         patch.set("volume", values["volume"])
 
     if controller is not None:

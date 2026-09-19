@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
@@ -9,9 +9,45 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import FOURTH, Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
-CUTOFF_FREQ = 3000  # lower than the main hat (8000) so this reads as a darker, lower accent
+CUTOFF_FREQ = (
+    3000  # lower than the main hat (8000) so this reads as a darker, lower accent
+)
+
+PARAMETERS = (
+    SliderSpec(
+        "cutoff_freq",
+        1000,
+        6000,
+        100,
+        CUTOFF_FREQ,
+        "Cutoff",
+        "High-pass cutoff.",
+        (PyoParamRef(ButHP, "freq"),),
+    ),
+    SliderSpec(
+        "level",
+        0,
+        1,
+        0.05,
+        0.55,
+        "Level",
+        "Noise burst level.",
+        (PyoParamRef(Noise, "mul"),),
+    ),
+    SliderSpec(
+        "decay",
+        0.05,
+        1,
+        0.05,
+        0.25,
+        "Decay",
+        "Envelope duration; changing it rebuilds the envelope.",
+        (PyoParamRef(TrigEnv, "dur"),),
+    ),
+)
 
 
 def build(
@@ -54,13 +90,35 @@ def build(
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
     sequencer = clock.subscribe(FOURTH, hat_trig.play)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "cutoff_freq": lambda value: setattr(voice, "freq", value),
+            "level": lambda value: setattr(hat_noise, "mul", value),
+        },
+    )
 
 
 def widget(
-    rack: PatchRack, tempo: Tempo, clock: Clock, controller: PresetController | None = None
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
 ) -> VBox:
-    """Create low-hat controls with parameter descriptions beside each slider."""
+    """Create low-hat controls."""
+    return patch_widget(
+        rack,
+        "low_hat",
+        build,
+        PARAMETERS,
+        controller=controller,
+        volume_default=0.2,
+        rebuild_parameters=("decay",),
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+
+    """
 
     def set_params(enabled, cutoff_freq, level, decay, volume):
         if controller is not None and controller.applying:
@@ -106,3 +164,4 @@ def widget(
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

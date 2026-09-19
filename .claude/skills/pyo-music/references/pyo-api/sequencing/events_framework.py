@@ -3,7 +3,7 @@ built on top of Event Sequencing (event_sequencing.py) and Triggers
 (../core/04_triggers.py). Not used by this project yet.
 """
 
-__all__ = ['Events', 'EventSeq', 'EventMarkov', 'EventScale']
+__all__ = ["Events", "EventSeq", "EventMarkov", "EventScale"]
 
 from pyo import Events
 

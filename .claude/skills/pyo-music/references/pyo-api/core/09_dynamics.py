@@ -7,7 +7,17 @@ but working on level instead of tone. `Compress` is what
 so `Patch.volume` can push loudness up without clipping.
 """
 
-__all__ = ["Compress", "Gate", "Clip", "Mirror", "Wrap", "Balance", "Expand", "Min", "Max"]
+__all__ = [
+    "Compress",
+    "Gate",
+    "Clip",
+    "Mirror",
+    "Wrap",
+    "Balance",
+    "Expand",
+    "Min",
+    "Max",
+]
 
 from pyo import Compress
 

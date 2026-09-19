@@ -1,14 +1,139 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
+from pyo.lib.controls import SigTo
 from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.psyambient.common import ContinuousSequencer
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 165  # E3, current default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        55,
+        440,
+        1,
+        ROOT_FREQ,
+        "Root frequency",
+        "Base frequency of the wash.",
+        (PyoParamRef(SuperSaw, "freq"),),
+    ),
+    SliderSpec(
+        "detune",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Detune",
+        "Oscillator spread - higher is thicker and hazier.",
+        (PyoParamRef(SuperSaw, "detune"),),
+    ),
+    SliderSpec(
+        "detune_bal",
+        0,
+        1,
+        0.05,
+        0.7,
+        "Detune balance",
+        "Balance toward detuned oscillators.",
+        (PyoParamRef(SuperSaw, "bal"),),
+    ),
+    SliderSpec(
+        "pitch_drift",
+        0,
+        1,
+        0.01,
+        0.03,
+        "Pitch drift",
+        "Depth of slow pitch instability.",
+        (),
+    ),
+    SliderSpec(
+        "chorus_depth",
+        0,
+        5,
+        0.1,
+        2.5,
+        "Chorus depth",
+        "Chorus modulation depth.",
+        (PyoParamRef(Chorus, "depth"),),
+    ),
+    SliderSpec(
+        "chorus_feedback",
+        0,
+        1,
+        0.05,
+        0.35,
+        "Chorus feedback",
+        "Density of the chorus repeats.",
+        (PyoParamRef(Chorus, "feedback"),),
+    ),
+    SliderSpec(
+        "chorus_bal",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Chorus balance",
+        "Chorus dry/wet balance.",
+        (PyoParamRef(Chorus, "bal"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.9,
+        "Reverb size",
+        "Reverb room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.35,
+        "Reverb damping",
+        "Reverb high-frequency damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.9,
+        "Reverb balance",
+        "Reverb dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+    SliderSpec(
+        "delay_time",
+        0.05,
+        2,
+        0.05,
+        0.8,
+        "Delay time",
+        "Delay line time.",
+        (PyoParamRef(Delay, "delay"),),
+    ),
+    SliderSpec(
+        "delay_feedback",
+        0,
+        0.9,
+        0.05,
+        0.25,
+        "Delay feedback",
+        "Delay feedback.",
+        (PyoParamRef(Delay, "feedback"),),
+    ),
+)
 
 
 def build(
@@ -66,121 +191,58 @@ def build(
         delay_feedback: Delay feedback (0-1). Higher values repeat each
             echo more times before decaying, for a denser wash.
     """
+    live = {
+        name: SigTo(value=value, time=0.15)
+        for name, value in {
+            "root_freq": root_freq,
+            "detune": detune,
+            "detune_bal": detune_bal,
+            "pitch_drift": pitch_drift,
+            "chorus_depth": chorus_depth,
+            "chorus_feedback": chorus_feedback,
+            "chorus_bal": chorus_bal,
+            "reverb_size": reverb_size,
+            "reverb_damp": reverb_damp,
+            "reverb_bal": reverb_bal,
+            "delay_time": delay_time,
+            "delay_feedback": delay_feedback,
+        }.items()
+    }
+
     # subtle, slow pitch instability rather than a discrete note pattern -
     # keeps the pad "dreamy" without ever resolving to a new pitch
-    pitch_wander = Rossler(pitch=0.02, chaos=0.4, mul=pitch_drift, add=root_freq)
+    pitch_wander = Rossler(pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"])
 
-    saw_voice = SuperSaw(freq=pitch_wander, detune=detune, bal=detune_bal, mul=0.2)
-    chorused = Chorus(saw_voice, depth=chorus_depth, feedback=chorus_feedback, bal=chorus_bal)
-    reverb_voice = Freeverb(chorused, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
-    voice = Delay(reverb_voice, delay=delay_time, feedback=delay_feedback, maxdelay=2)
+    saw_voice = SuperSaw(freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2)
+    chorused = Chorus(
+        saw_voice,
+        depth=live["chorus_depth"],
+        feedback=live["chorus_feedback"],
+        bal=live["chorus_bal"],
+    )
+    reverb_voice = Freeverb(
+        chorused,
+        size=live["reverb_size"],
+        damp=live["reverb_damp"],
+        bal=live["reverb_bal"],
+    )
+    voice = Delay(
+        reverb_voice,
+        delay=live["delay_time"],
+        feedback=live["delay_feedback"],
+        maxdelay=2,
+    )
 
-    return Patch(sequencer=ContinuousSequencer(), voice=voice)
+    return Patch(
+        sequencer=ContinuousSequencer(),
+        voice=voice,
+        controls={
+            name: lambda value, control=control: setattr(control, "value", value)
+            for name, control in live.items()
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create soundscape_wash controls with parameter descriptions beside each slider."""
-
-    def set_params(
-        enabled,
-        root_freq,
-        detune,
-        detune_bal,
-        pitch_drift,
-        chorus_depth,
-        chorus_feedback,
-        chorus_bal,
-        reverb_size,
-        reverb_damp,
-        reverb_bal,
-        delay_time,
-        delay_feedback,
-        volume,
-    ):
-        if controller is not None and controller.applying:
-            return
-        if not enabled:
-            rack.stop("soundscape_wash")
-            return
-
-        patch = build(
-            root_freq,
-            detune,
-            detune_bal,
-            pitch_drift,
-            chorus_depth,
-            chorus_feedback,
-            chorus_bal,
-            reverb_size,
-            reverb_damp,
-            reverb_bal,
-            delay_time,
-            delay_feedback,
-        )
-        patch.volume = volume
-        rack.start("soundscape_wash", patch)
-
-    enabled = Checkbox(value=False, description="soundscape_wash on/off")
-    root_freq = FloatSlider(min=55, max=440, step=1, value=ROOT_FREQ, description="root_freq")
-    detune = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="detune")
-    detune_bal = FloatSlider(min=0, max=1, step=0.05, value=0.7, description="detune_bal")
-    pitch_drift = FloatSlider(min=0, max=1, step=0.01, value=0.03, description="pitch_drift")
-    chorus_depth = FloatSlider(min=0, max=5, step=0.1, value=2.5, description="chorus_depth")
-    chorus_feedback = FloatSlider(
-        min=0, max=1, step=0.05, value=0.35, description="chorus_feedback"
-    )
-    chorus_bal = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="chorus_bal")
-    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.9, description="reverb_size")
-    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.35, description="reverb_damp")
-    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.9, description="reverb_bal")
-    delay_time = FloatSlider(min=0.05, max=2, step=0.05, value=0.8, description="delay_time")
-    delay_feedback = FloatSlider(
-        min=0, max=0.9, step=0.05, value=0.25, description="delay_feedback"
-    )
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
-
-    controls = {
-        "enabled": enabled,
-        "root_freq": root_freq,
-        "detune": detune,
-        "detune_bal": detune_bal,
-        "pitch_drift": pitch_drift,
-        "chorus_depth": chorus_depth,
-        "chorus_feedback": chorus_feedback,
-        "chorus_bal": chorus_bal,
-        "reverb_size": reverb_size,
-        "reverb_damp": reverb_damp,
-        "reverb_bal": reverb_bal,
-        "delay_time": delay_time,
-        "delay_feedback": delay_feedback,
-        "volume": volume,
-    }
-    if controller is not None:
-        controller.register(
-            "soundscape_wash",
-            controls,
-            lambda: set_params(**{name: widget.value for name, widget in controls.items()}),
-        )
-
-    output = interactive_output(set_params, controls)
-    slider_rows = [
-        HBox([root_freq, HTML("Base frequency of the SuperSaw voice.")]),
-        HBox([detune, HTML("SuperSaw detune depth - higher is thicker and hazier.")]),
-        HBox([detune_bal, HTML("Balance toward the detuned oscillators - higher is wider.")]),
-        HBox([pitch_drift, HTML("Depth of slow pitch instability - subtle by default.")]),
-        HBox([chorus_depth, HTML("Chorus modulation depth - higher is wider and thicker.")]),
-        HBox([chorus_feedback, HTML("Chorus feedback - higher adds more density to the haze.")]),
-        HBox([chorus_bal, HTML("Chorus dry/wet balance - 0 is dry and 1 is wet.")]),
-        HBox([reverb_size, HTML("Reverb room size - larger is more enveloping.")]),
-        HBox([reverb_damp, HTML("Reverb high-frequency damping - higher is darker.")]),
-        HBox([reverb_bal, HTML("Reverb dry/wet balance - 0 is dry and 1 is wet.")]),
-        HBox([delay_time, HTML("Delay time - adds a further layer of spatial repetition.")]),
-        HBox(
-            [
-                delay_feedback,
-                HTML("Delay feedback - higher repeats echoes more times before decaying."),
-            ]
-        ),
-        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
-    ]
-    return VBox([enabled, *slider_rows, output])
+    """Create soundscape_wash controls."""
+    return patch_widget(rack, "soundscape_wash", build, PARAMETERS, controller=controller)

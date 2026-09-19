@@ -4,7 +4,7 @@ These don't make sound; they make *timing events* that other objects react
 to (see 05_trig_reactive.py).
 """
 
-__all__ = ['Metro', 'Beat', 'Trig']
+__all__ = ["Metro", "Beat", "Trig"]
 
 from pyo import Metro
 

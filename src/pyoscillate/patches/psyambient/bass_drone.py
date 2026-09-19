@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
+from pyo.lib.controls import SigTo
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Sine
 from pyo.lib.tableprocess import Osc
@@ -9,8 +10,62 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.psyambient.common import ContinuousSequencer
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 41  # E1, current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        20,
+        80,
+        1,
+        ROOT_FREQ,
+        "Root frequency",
+        "Fundamental frequency of the sub tone.",
+        (PyoParamRef(Osc, "freq"),),
+    ),
+    SliderSpec(
+        "swell_period",
+        2,
+        30,
+        0.5,
+        9.0,
+        "Swell period",
+        "Seconds per swell cycle.",
+        (PyoParamRef(Sine, "freq"),),
+    ),
+    SliderSpec(
+        "swell_depth",
+        0,
+        1,
+        0.05,
+        0.4,
+        "Swell depth",
+        "Depth of the level swell.",
+        (PyoParamRef(Sine, "mul"),),
+    ),
+    SliderSpec(
+        "filter_base",
+        60,
+        500,
+        10,
+        180,
+        "Filter cutoff",
+        "Lowpass cutoff.",
+        (PyoParamRef(MoogLP, "freq"),),
+    ),
+    SliderSpec(
+        "filter_res",
+        0,
+        1,
+        0.05,
+        0.2,
+        "Filter resonance",
+        "Lowpass resonance.",
+        (PyoParamRef(MoogLP, "res"),),
+    ),
+)
 
 # mostly fundamental with a touch of 2nd/3rd harmonic - rounded, sub-heavy tone
 SUB_HARMONICS = [1, 0.15, 0.05]
@@ -43,62 +98,38 @@ def build(
             a rumbling sub bed benefits from a smooth, uncolored low end
             rather than an emphasized, whistling resonant peak.
     """
-    swell = Sine(freq=1 / swell_period, mul=swell_depth / 2, add=1 - swell_depth / 2)
+    live = {
+        name: SigTo(value=value, time=0.15)
+        for name, value in {
+            "root_freq": root_freq,
+            "swell_period": swell_period,
+            "swell_depth": swell_depth,
+            "filter_base": filter_base,
+            "filter_res": filter_res,
+        }.items()
+    }
+    swell = Sine(
+        freq=1 / live["swell_period"],
+        mul=live["swell_depth"] / 2,
+        add=1 - swell_depth / 2,
+    )
 
     sub_table = HarmTable(SUB_HARMONICS)
-    sub_osc = Osc(table=sub_table, freq=root_freq, mul=swell)
-    voice = MoogLP(sub_osc, freq=filter_base, res=filter_res)
+    sub_osc = Osc(table=sub_table, freq=live["root_freq"], mul=swell)
+    voice = MoogLP(sub_osc, freq=live["filter_base"], res=live["filter_res"])
 
-    return Patch(sequencer=ContinuousSequencer(), voice=voice)
+    return Patch(
+        sequencer=ContinuousSequencer(),
+        voice=voice,
+        controls={
+            name: lambda value, control=control: setattr(control, "value", value)
+            for name, control in live.items()
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create bass_drone controls with parameter descriptions beside each slider."""
-
-    def set_params(enabled, root_freq, swell_period, swell_depth, filter_base, filter_res, volume):
-        if controller is not None and controller.applying:
-            return
-        if not enabled:
-            rack.stop("bass_drone")
-            return
-
-        patch = build(root_freq, swell_period, swell_depth, filter_base, filter_res)
-        patch.volume = volume
-        rack.start("bass_drone", patch)
-
-    enabled = Checkbox(value=False, description="bass_drone on/off")
-    root_freq = FloatSlider(min=20, max=80, step=1, value=ROOT_FREQ, description="root_freq")
-    swell_period = FloatSlider(min=2, max=30, step=0.5, value=9.0, description="swell_period")
-    swell_depth = FloatSlider(min=0, max=1, step=0.05, value=0.4, description="swell_depth")
-    filter_base = FloatSlider(min=60, max=500, step=10, value=180, description="filter_base")
-    filter_res = FloatSlider(min=0, max=1, step=0.05, value=0.2, description="filter_res")
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.8, description="volume")
-
-    controls = {
-        "enabled": enabled,
-        "root_freq": root_freq,
-        "swell_period": swell_period,
-        "swell_depth": swell_depth,
-        "filter_base": filter_base,
-        "filter_res": filter_res,
-        "volume": volume,
-    }
-    if controller is not None:
-        controller.register(
-            "bass_drone",
-            controls,
-            lambda: set_params(**{name: widget.value for name, widget in controls.items()}),
-        )
-
-    output = interactive_output(set_params, controls)
-    slider_rows = [
-        HBox([root_freq, HTML("Fundamental frequency of the sub tone.")]),
-        HBox([swell_period, HTML("Seconds per swell cycle - longer feels like a slow tide.")]),
-        HBox(
-            [swell_depth, HTML("How dramatic the swell is - higher dips further toward silence.")]
-        ),
-        HBox([filter_base, HTML("Lowpass cutoff - lower darkens and softens the rumble.")]),
-        HBox([filter_res, HTML("Filter resonance - kept low for a smooth, uncolored low end.")]),
-        HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
-    ]
-    return VBox([enabled, *slider_rows, output])
+    """Create bass_drone controls."""
+    return patch_widget(
+        rack, "bass_drone", build, PARAMETERS, controller=controller, volume_default=0.8
+    )

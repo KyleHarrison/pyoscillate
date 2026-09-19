@@ -6,7 +6,7 @@ Used for one-shot shaping, like a note's loudness contour. `TrigEnv` (see
 trigger to replay a shape per note.
 """
 
-__all__ = ['Adsr', 'Fader']
+__all__ = ["Adsr", "Fader"]
 
 from pyo import Adsr
 

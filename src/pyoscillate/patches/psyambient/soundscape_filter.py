@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
+from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Lorenz
@@ -10,8 +11,122 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.psyambient.common import ContinuousSequencer
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 220  # A3, current default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        55,
+        440,
+        1,
+        ROOT_FREQ,
+        "Root frequency",
+        "Fundamental frequency.",
+        (PyoParamRef(Osc, "freq"),),
+    ),
+    SliderSpec(
+        "cutoff_speed",
+        0.01,
+        0.5,
+        0.01,
+        0.05,
+        "Cutoff speed",
+        "How fast the cutoff wanders.",
+        (PyoParamRef(Lorenz, "pitch"),),
+    ),
+    SliderSpec(
+        "cutoff_chaos",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Cutoff chaos",
+        "How unpredictable the sweep is.",
+        (PyoParamRef(Lorenz, "chaos"),),
+    ),
+    SliderSpec(
+        "filter_res",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Filter resonance",
+        "Lowpass resonance.",
+        (PyoParamRef(MoogLP, "res"),),
+    ),
+    SliderSpec(
+        "filter_base",
+        100,
+        2000,
+        10,
+        700,
+        "Filter base",
+        "Center cutoff frequency.",
+        (PyoParamRef(Lorenz, "add"),),
+    ),
+    SliderSpec(
+        "filter_range",
+        0,
+        1500,
+        10,
+        600,
+        "Filter range",
+        "Cutoff movement range.",
+        (PyoParamRef(Lorenz, "mul"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.8,
+        "Reverb size",
+        "Reverb room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.5,
+        "Reverb damping",
+        "Reverb damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.75,
+        "Reverb balance",
+        "Reverb dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+    SliderSpec(
+        "delay_time",
+        0.05,
+        2,
+        0.05,
+        0.45,
+        "Delay time",
+        "Delay line time.",
+        (PyoParamRef(Delay, "delay"),),
+    ),
+    SliderSpec(
+        "delay_feedback",
+        0,
+        0.9,
+        0.05,
+        0.3,
+        "Delay feedback",
+        "Delay feedback.",
+        (PyoParamRef(Delay, "feedback"),),
+    ),
+)
 
 # harmonic-rich static tone for the filter to carve movement into - the pad's
 # "color" comes entirely from the cutoff sweep below, not from this waveform changing
@@ -71,22 +186,63 @@ def build(
         delay_feedback: Delay feedback (0-1). Higher values repeat each
             echo more times before decaying, for a denser wash.
     """
+    live = {
+        name: SigTo(value=value, time=0.15)
+        for name, value in {
+            "root_freq": root_freq,
+            "cutoff_speed": cutoff_speed,
+            "cutoff_chaos": cutoff_chaos,
+            "filter_res": filter_res,
+            "filter_base": filter_base,
+            "filter_range": filter_range,
+            "reverb_size": reverb_size,
+            "reverb_damp": reverb_damp,
+            "reverb_bal": reverb_bal,
+            "delay_time": delay_time,
+            "delay_feedback": delay_feedback,
+        }.items()
+    }
     pad_table = HarmTable(PAD_HARMONICS)
-    pad_osc = Osc(table=pad_table, freq=root_freq, mul=0.25)
+    pad_osc = Osc(table=pad_table, freq=live["root_freq"], mul=0.25)
 
     cutoff_chaos_lfo = Lorenz(
-        pitch=cutoff_speed, chaos=cutoff_chaos, mul=filter_range, add=filter_base
+        pitch=live["cutoff_speed"],
+        chaos=live["cutoff_chaos"],
+        mul=live["filter_range"],
+        add=live["filter_base"],
     )
-    filtered = MoogLP(pad_osc, freq=cutoff_chaos_lfo, res=filter_res)
+    filtered = MoogLP(pad_osc, freq=cutoff_chaos_lfo, res=live["filter_res"])
 
-    reverb_voice = Freeverb(filtered, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
-    voice = Delay(reverb_voice, delay=delay_time, feedback=delay_feedback, maxdelay=2)
+    reverb_voice = Freeverb(
+        filtered,
+        size=live["reverb_size"],
+        damp=live["reverb_damp"],
+        bal=live["reverb_bal"],
+    )
+    voice = Delay(
+        reverb_voice,
+        delay=live["delay_time"],
+        feedback=live["delay_feedback"],
+        maxdelay=2,
+    )
 
-    return Patch(sequencer=ContinuousSequencer(), voice=voice)
+    return Patch(
+        sequencer=ContinuousSequencer(),
+        voice=voice,
+        controls={
+            name: lambda value, control=control: setattr(control, "value", value)
+            for name, control in live.items()
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create soundscape_filter controls with parameter descriptions beside each slider."""
+    """Create soundscape_filter controls."""
+    return patch_widget(
+        rack, "soundscape_filter", build, PARAMETERS, controller=controller
+    )
+
+    """
 
     def set_params(
         enabled,
@@ -126,18 +282,90 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
         rack.start("soundscape_filter", patch)
 
     enabled = Checkbox(value=False, description="soundscape_filter on/off")
-    root_freq = FloatSlider(min=55, max=440, step=1, value=ROOT_FREQ, description="root_freq")
-    cutoff_speed = FloatSlider(min=0.01, max=0.5, step=0.01, value=0.05, description="cutoff_speed")
-    cutoff_chaos = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="cutoff_chaos")
-    filter_res = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="filter_res")
-    filter_base = FloatSlider(min=100, max=2000, step=10, value=700, description="filter_base")
-    filter_range = FloatSlider(min=0, max=1500, step=10, value=600, description="filter_range")
-    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.8, description="reverb_size")
-    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.5, description="reverb_damp")
-    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.75, description="reverb_bal")
-    delay_time = FloatSlider(min=0.05, max=2, step=0.05, value=0.45, description="delay_time")
-    delay_feedback = FloatSlider(min=0, max=0.9, step=0.05, value=0.3, description="delay_feedback")
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
+    root_freq = FloatSlider(
+        min=55,
+        max=440,
+        step=1,
+        value=ROOT_FREQ,
+        description="root_freq",
+    )
+    cutoff_speed = FloatSlider(
+        min=0.01,
+        max=0.5,
+        step=0.01,
+        value=0.05,
+        description="cutoff_speed",
+    )
+    cutoff_chaos = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.6,
+        description="cutoff_chaos",
+    )
+    filter_res = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.6,
+        description="filter_res",
+    )
+    filter_base = FloatSlider(
+        min=100,
+        max=2000,
+        step=10,
+        value=700,
+        description="filter_base",
+    )
+    filter_range = FloatSlider(
+        min=0,
+        max=1500,
+        step=10,
+        value=600,
+        description="filter_range",
+    )
+    reverb_size = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.8,
+        description="reverb_size",
+    )
+    reverb_damp = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.5,
+        description="reverb_damp",
+    )
+    reverb_bal = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.75,
+        description="reverb_bal",
+    )
+    delay_time = FloatSlider(
+        min=0.05,
+        max=2,
+        step=0.05,
+        value=0.45,
+        description="delay_time",
+    )
+    delay_feedback = FloatSlider(
+        min=0,
+        max=0.9,
+        step=0.05,
+        value=0.3,
+        description="delay_feedback",
+    )
+    volume = FloatSlider(
+        min=0,
+        max=2,
+        step=0.1,
+        value=0.6,
+        description="volume",
+    )
 
     controls = {
         "enabled": enabled,
@@ -192,3 +420,4 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

@@ -3,7 +3,7 @@
 granular/scanned synthesis. Not used by this project yet.
 """
 
-__all__ = ['NewMatrix', 'MatrixPointer', 'MatrixRec', 'MatrixMorph']
+__all__ = ["NewMatrix", "MatrixPointer", "MatrixRec", "MatrixMorph"]
 
 from pyo import NewMatrix
 

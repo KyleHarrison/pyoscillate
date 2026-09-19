@@ -2,7 +2,7 @@
 sample-and-hold, writing audio to disk). Not used by this project yet.
 """
 
-__all__ = ['Scale', 'SampHold', 'Interp', 'MToF', 'Record']
+__all__ = ["Scale", "SampHold", "Interp", "MToF", "Record"]
 
 from pyo import Scale
 

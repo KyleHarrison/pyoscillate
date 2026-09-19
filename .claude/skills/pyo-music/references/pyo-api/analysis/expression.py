@@ -2,7 +2,7 @@
 for writing DSP algorithms as text. Not used by this project yet.
 """
 
-__all__ = ['Expr']
+__all__ = ["Expr"]
 
 from pyo import Expr
 

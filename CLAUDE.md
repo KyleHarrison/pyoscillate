@@ -48,6 +48,9 @@ brew install flac ffmpeg liblo libsndfile portaudio portmidi
 When running Python from the CLI, use `uv run` (for example, `uv run python
 script.py` or `uv run python -c "..."`) rather than invoking `python` directly.
 
+To run linting instead of: `source .venv/bin/activate && ruff check src` just use `uv run ruff check src`
+
+
 Patches live in `src/pysynth/patches/`; each is a `build(...) -> Patch` /
 `widget(...)` pair driven from the notebooks in `notebooks/`. `SKILL.md`
 covers how to extend or reason about these.

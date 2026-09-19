@@ -2,7 +2,7 @@
 without blocking the audio callback. Not used by this project yet.
 """
 
-__all__ = ['MidiListener', 'OscListener']
+__all__ = ["MidiListener", "OscListener"]
 
 from pyo import MidiListener
 

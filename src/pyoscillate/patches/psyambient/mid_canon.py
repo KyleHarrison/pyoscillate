@@ -4,7 +4,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
@@ -12,11 +12,115 @@ from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 CANON_SCALE = [0, 2, 4, 7, 9, 12]
 
 CANON_ROOT = 220  # A3, current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        110,
+        440,
+        1,
+        CANON_ROOT,
+        "Root frequency",
+        "Voice A root.",
+        (PyoParamRef(FM, "carrier"),),
+    ),
+    SliderSpec(
+        "voice_a_period",
+        1,
+        12,
+        0.5,
+        5.0,
+        "Voice A period",
+        "Seconds between draws; rebuilds the Metro.",
+        (),
+    ),
+    SliderSpec(
+        "voice_b_period",
+        1,
+        12,
+        0.5,
+        7.5,
+        "Voice B period",
+        "Seconds between draws; rebuilds the Metro.",
+        (),
+    ),
+    SliderSpec(
+        "voice_b_interval",
+        0,
+        12,
+        1,
+        7,
+        "Voice B interval",
+        "Voice B register offset.",
+        (),
+    ),
+    SliderSpec(
+        "note_duration",
+        0.5,
+        10,
+        0.5,
+        4.0,
+        "Note duration",
+        "Envelope duration; rebuilds envelopes.",
+        (PyoParamRef(TrigEnv, "dur"),),
+    ),
+    SliderSpec(
+        "fm_ratio",
+        0.5,
+        4,
+        0.1,
+        1.5,
+        "FM ratio",
+        "Carrier/modulator ratio.",
+        (PyoParamRef(FM, "ratio"),),
+    ),
+    SliderSpec(
+        "fm_index",
+        0,
+        6,
+        0.1,
+        1.5,
+        "FM index",
+        "FM brightness.",
+        (PyoParamRef(FM, "index"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.7,
+        "Reverb size",
+        "Room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.5,
+        "Reverb damping",
+        "Damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.5,
+        "Reverb balance",
+        "Dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+)
 
 
 @dataclass(eq=False)
@@ -51,7 +155,9 @@ def build(
     reverb_damp: float = 0.5,
     reverb_bal: float = 0.5,
 ) -> Patch:
-    """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on its own free-running period, so they drift in and out of alignment like an ever-shifting call and response.
+    """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on
+    its own free-running period, so they drift in and out of alignment like an ever-shifting call and
+    response.
 
     Both voices draw from the same scale, so they always stay consonant
     with each other, but their unrelated (non-integer-ratio) periods mean
@@ -87,15 +193,23 @@ def build(
     envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
 
     voice_a_metro = Metro(time=voice_a_period)
-    voice_a_env = TrigEnv(voice_a_metro, table=envelope_table, dur=note_duration, mul=0.18)
+    voice_a_env = TrigEnv(
+        voice_a_metro, table=envelope_table, dur=note_duration, mul=0.18
+    )
     voice_a_fm = FM(carrier=root_freq, ratio=fm_ratio, index=fm_index, mul=voice_a_env)
 
     voice_b_root = root_freq * pow(2, voice_b_interval / 12)
     voice_b_metro = Metro(time=voice_b_period)
-    voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14)
-    voice_b_fm = FM(carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env)
+    voice_b_env = TrigEnv(
+        voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14
+    )
+    voice_b_fm = FM(
+        carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env
+    )
 
-    voice = Freeverb(voice_a_fm + voice_b_fm, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
+    voice = Freeverb(
+        voice_a_fm + voice_b_fm, size=reverb_size, damp=reverb_damp, bal=reverb_bal
+    )
 
     def next_voice_a() -> None:
         interval = random.choice(CANON_SCALE)
@@ -110,13 +224,51 @@ def build(
 
     sequencer = _Duet(
         metros=[voice_a_metro, voice_b_metro],
-        keepalive=[envelope_table, voice_a_env, voice_b_env, voice_a_func, voice_b_func],
+        keepalive=[
+            envelope_table,
+            voice_a_env,
+            voice_b_env,
+            voice_a_func,
+            voice_b_func,
+        ],
     )
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "root_freq": lambda value: setattr(voice_a_fm, "carrier", value),
+            "fm_ratio": lambda value: (
+                setattr(voice_a_fm, "ratio", value),
+                setattr(voice_b_fm, "ratio", value),
+            ),
+            "fm_index": lambda value: (
+                setattr(voice_a_fm, "index", value),
+                setattr(voice_b_fm, "index", value),
+            ),
+            "reverb_size": lambda value: setattr(voice, "size", value),
+            "reverb_damp": lambda value: setattr(voice, "damp", value),
+            "reverb_bal": lambda value: setattr(voice, "bal", value),
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create mid_canon controls with parameter descriptions beside each slider."""
+    """Create mid_canon controls."""
+    return patch_widget(
+        rack,
+        "mid_canon",
+        build,
+        PARAMETERS,
+        controller=controller,
+        rebuild_parameters=(
+            "voice_a_period",
+            "voice_b_period",
+            "voice_b_interval",
+            "note_duration",
+        ),
+    )
+
+    """
 
     def set_params(
         enabled,
@@ -209,3 +361,4 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

@@ -4,7 +4,7 @@ Not a class of its own: `.out()` and `.play()` are methods every
 PyoObject inherits. Trace any patch backward from `.out()` to read it.
 """
 
-__all__ = ['PyoObject']
+__all__ = ["PyoObject"]
 
 from pyo import PyoObject
 

@@ -8,7 +8,7 @@ event-driven (one-shot, gated) or free-running (cyclical, ungated).
 strange attractors below only make sense in this continuous-modulator role.
 """
 
-__all__ = ['Rossler', 'Lorenz']
+__all__ = ["Rossler", "Lorenz"]
 
 from pyo import Rossler
 

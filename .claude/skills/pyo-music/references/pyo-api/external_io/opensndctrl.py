@@ -2,7 +2,7 @@
 used by this project yet.
 """
 
-__all__ = ['OscSend', 'OscReceive', 'OscDataSend']
+__all__ = ["OscSend", "OscReceive", "OscDataSend"]
 
 from pyo import OscSend
 

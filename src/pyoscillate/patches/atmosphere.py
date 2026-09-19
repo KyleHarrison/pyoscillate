@@ -1,13 +1,7 @@
 from __future__ import annotations
 
 from ipywidgets import (
-    HTML,
-    Checkbox,
-    FloatSlider,
-    HBox,
-    IntSlider,
     VBox,
-    interactive_output,
 )
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
@@ -17,12 +11,86 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 
 ARP_ROOT = 207  # current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "arp_root",
+        110,
+        440,
+        1,
+        ARP_ROOT,
+        "Arpeggio root",
+        "Root frequency.",
+        (PyoParamRef(FM, "carrier"),),
+    ),
+    SliderSpec(
+        "step_division",
+        1,
+        16,
+        1,
+        8,
+        "Step division",
+        "Clock spacing; changing it rebuilds the clock subscription.",
+        (),
+    ),
+    SliderSpec(
+        "fm_ratio",
+        0.1,
+        4,
+        0.1,
+        0.4,
+        "FM ratio",
+        "Carrier/modulator ratio.",
+        (PyoParamRef(FM, "ratio"),),
+    ),
+    SliderSpec(
+        "fm_index",
+        0,
+        10,
+        0.1,
+        3,
+        "FM index",
+        "FM brightness.",
+        (PyoParamRef(FM, "index"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.25,
+        "Reverb size",
+        "Room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.15,
+        "Reverb damping",
+        "High-frequency damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.1,
+        "Reverb balance",
+        "Dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+)
 
 
 def build(
@@ -88,10 +156,14 @@ def build(
 
     # dur is longer than the step time so envelopes overlap into a sustained pad
     envelope_table = CosTable([(0, 0), (2000, 1), (5000, 0.4), (8191, 0)])
-    arp_env = TrigEnv(arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3)
+    arp_env = TrigEnv(
+        arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3
+    )
 
     # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-    fm_voice = FM(carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3)
+    fm_voice = FM(
+        carrier=arp_root, ratio=fm_ratio, index=fm_index, mul=arp_env, add=-0.3
+    )
     voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     step = {"i": 0}
@@ -103,13 +175,38 @@ def build(
         step["i"] += 1
 
     sequencer = clock.subscribe(step_division, next_step)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "arp_root": lambda value: setattr(fm_voice, "carrier", value),
+            "fm_ratio": lambda value: setattr(fm_voice, "ratio", value),
+            "fm_index": lambda value: setattr(fm_voice, "index", value),
+            "reverb_size": lambda value: setattr(voice, "size", value),
+            "reverb_damp": lambda value: setattr(voice, "damp", value),
+            "reverb_bal": lambda value: setattr(voice, "bal", value),
+        },
+    )
 
 
 def widget(
-    rack: PatchRack, tempo: Tempo, clock: Clock, controller: PresetController | None = None
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
 ) -> VBox:
-    """Create atmosphere controls with parameter descriptions beside each slider."""
+    """Create atmosphere controls."""
+    return patch_widget(
+        rack,
+        "atmosphere",
+        build,
+        PARAMETERS,
+        controller=controller,
+        rebuild_parameters=("step_division",),
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+
+    """
 
     def set_params(
         enabled,
@@ -197,3 +294,4 @@ def widget(
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

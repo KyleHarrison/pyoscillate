@@ -4,7 +4,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
@@ -12,11 +12,95 @@ from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 GENERATIVE_SCALE = [0, 2, 4, 7, 9, 12]
 
 MID_ROOT = 330  # E4, current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        110,
+        660,
+        1,
+        MID_ROOT,
+        "Root frequency",
+        "Generated melody root.",
+        (PyoParamRef(FM, "carrier"),),
+    ),
+    SliderSpec(
+        "note_period",
+        1,
+        12,
+        0.5,
+        4.5,
+        "Note period",
+        "Seconds between notes; changing it rebuilds the Metro.",
+        (),
+    ),
+    SliderSpec(
+        "note_duration",
+        0.5,
+        10,
+        0.5,
+        3.5,
+        "Note duration",
+        "Envelope duration; changing it rebuilds the envelope.",
+        (PyoParamRef(TrigEnv, "dur"),),
+    ),
+    SliderSpec(
+        "fm_ratio",
+        0.5,
+        4,
+        0.1,
+        1.5,
+        "FM ratio",
+        "Carrier/modulator ratio.",
+        (PyoParamRef(FM, "ratio"),),
+    ),
+    SliderSpec(
+        "fm_index",
+        0,
+        6,
+        0.1,
+        1.5,
+        "FM index",
+        "FM brightness.",
+        (PyoParamRef(FM, "index"),),
+    ),
+    SliderSpec(
+        "reverb_size",
+        0,
+        1,
+        0.05,
+        0.6,
+        "Reverb size",
+        "Room size.",
+        (PyoParamRef(Freeverb, "size"),),
+    ),
+    SliderSpec(
+        "reverb_damp",
+        0,
+        1,
+        0.05,
+        0.5,
+        "Reverb damping",
+        "Damping.",
+        (PyoParamRef(Freeverb, "damp"),),
+    ),
+    SliderSpec(
+        "reverb_bal",
+        0,
+        1,
+        0.05,
+        0.45,
+        "Reverb balance",
+        "Dry/wet balance.",
+        (PyoParamRef(Freeverb, "bal"),),
+    ),
+)
 
 
 @dataclass(eq=False)
@@ -90,12 +174,35 @@ def build(
         fm_voice.carrier = root_freq * pow(2, interval / 12)
 
     note_func = TrigFunc(note_metro, next_note)
-    sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
-    return Patch(sequencer=sequencer, voice=voice)
+    sequencer = _Generative(
+        metro=note_metro, keepalive=[envelope_table, note_env, note_func]
+    )
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "root_freq": lambda value: setattr(fm_voice, "carrier", value),
+            "fm_ratio": lambda value: setattr(fm_voice, "ratio", value),
+            "fm_index": lambda value: setattr(fm_voice, "index", value),
+            "reverb_size": lambda value: setattr(voice, "size", value),
+            "reverb_damp": lambda value: setattr(voice, "damp", value),
+            "reverb_bal": lambda value: setattr(voice, "bal", value),
+        },
+    )
 
 
 def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create mid_generative controls with parameter descriptions beside each slider."""
+    """Create mid_generative controls."""
+    return patch_widget(
+        rack,
+        "mid_generative",
+        build,
+        PARAMETERS,
+        controller=controller,
+        rebuild_parameters=("note_period", "note_duration"),
+    )
+
+    """
 
     def set_params(
         enabled,
@@ -129,15 +236,69 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
         rack.start("mid_generative", patch)
 
     enabled = Checkbox(value=False, description="mid_generative on/off")
-    root_freq = FloatSlider(min=110, max=660, step=1, value=MID_ROOT, description="root_freq")
-    note_period = FloatSlider(min=1, max=12, step=0.5, value=4.5, description="note_period")
-    note_duration = FloatSlider(min=0.5, max=10, step=0.5, value=3.5, description="note_duration")
-    fm_ratio = FloatSlider(min=0.5, max=4, step=0.1, value=1.5, description="fm_ratio")
-    fm_index = FloatSlider(min=0, max=6, step=0.1, value=1.5, description="fm_index")
-    reverb_size = FloatSlider(min=0, max=1, step=0.05, value=0.6, description="reverb_size")
-    reverb_damp = FloatSlider(min=0, max=1, step=0.05, value=0.5, description="reverb_damp")
-    reverb_bal = FloatSlider(min=0, max=1, step=0.05, value=0.45, description="reverb_bal")
-    volume = FloatSlider(min=0, max=2, step=0.1, value=0.6, description="volume")
+    root_freq = FloatSlider(
+        min=110,
+        max=660,
+        step=1,
+        value=MID_ROOT,
+        description="root_freq",
+    )
+    note_period = FloatSlider(
+        min=1,
+        max=12,
+        step=0.5,
+        value=4.5,
+        description="note_period",
+    )
+    note_duration = FloatSlider(
+        min=0.5,
+        max=10,
+        step=0.5,
+        value=3.5,
+        description="note_duration",
+    )
+    fm_ratio = FloatSlider(
+        min=0.5,
+        max=4,
+        step=0.1,
+        value=1.5,
+        description="fm_ratio",
+    )
+    fm_index = FloatSlider(
+        min=0,
+        max=6,
+        step=0.1,
+        value=1.5,
+        description="fm_index",
+    )
+    reverb_size = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.6,
+        description="reverb_size",
+    )
+    reverb_damp = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.5,
+        description="reverb_damp",
+    )
+    reverb_bal = FloatSlider(
+        min=0,
+        max=1,
+        step=0.05,
+        value=0.45,
+        description="reverb_bal",
+    )
+    volume = FloatSlider(
+        min=0,
+        max=2,
+        step=0.1,
+        value=0.6,
+        description="volume",
+    )
 
     controls = {
         "enabled": enabled,
@@ -160,8 +321,15 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
 
     output = interactive_output(set_params, controls)
     slider_rows = [
-        HBox([root_freq, HTML("Base frequency the drawn scale intervals are applied to.")]),
-        HBox([note_period, HTML("Seconds between random note draws - larger is sparser.")]),
+        HBox(
+            [root_freq, HTML("Base frequency the drawn scale intervals are applied to.")]
+        ),
+        HBox(
+            [
+                note_period,
+                HTML("Seconds between random note draws - larger is sparser."),
+            ]
+        ),
         HBox(
             [
                 note_duration,
@@ -169,7 +337,10 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
             ]
         ),
         HBox(
-            [fm_ratio, HTML("Modulator/carrier ratio - controls harmonic versus dissonant tone.")]
+            [
+                fm_ratio,
+                HTML("Modulator/carrier ratio - controls harmonic versus dissonant tone."),
+            ]
         ),
         HBox([fm_index, HTML("FM modulation depth - higher is brighter and buzzier.")]),
         HBox([reverb_size, HTML("Reverb room size - larger is more distant.")]),
@@ -178,3 +349,4 @@ def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

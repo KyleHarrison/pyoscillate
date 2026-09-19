@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 from pyo.lib.tableprocess import Osc
@@ -10,6 +10,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import SIXTEENTH, Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 # one bar = 16 steps (16th notes)
@@ -18,9 +19,69 @@ from pyoscillate.tempo import Tempo
 NOTE_PATTERN = [0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0]
 
 # louder on the "and" of each beat for a driving feel
-ACCENT_PATTERN = [1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.6, 1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.7]
+ACCENT_PATTERN = [
+    1.0,
+    0.6,
+    0.6,
+    0.6,
+    0.9,
+    0.6,
+    0.6,
+    0.6,
+    1.0,
+    0.6,
+    0.6,
+    0.6,
+    0.9,
+    0.6,
+    0.6,
+    0.7,
+]
 
 ROOT_FREQ = 92  # A#2, current notebook default
+
+PARAMETERS = (
+    SliderSpec(
+        "root_freq",
+        30,
+        110,
+        1,
+        ROOT_FREQ,
+        "Root frequency",
+        "Bass root.",
+        (PyoParamRef(Osc, "freq"),),
+    ),
+    SliderSpec(
+        "filter_res",
+        0,
+        1,
+        0.05,
+        0.75,
+        "Filter resonance",
+        "Resonance.",
+        (PyoParamRef(MoogLP, "res"),),
+    ),
+    SliderSpec(
+        "filter_base",
+        200,
+        2000,
+        10,
+        1380,
+        "Filter base",
+        "Average cutoff.",
+        (PyoParamRef(LFO, "add"),),
+    ),
+    SliderSpec(
+        "filter_range",
+        0,
+        1000,
+        10,
+        400,
+        "Filter range",
+        "Cutoff sweep range.",
+        (PyoParamRef(LFO, "mul"),),
+    ),
+)
 
 
 def build(
@@ -60,7 +121,9 @@ def build(
     step_trig = Trig()
 
     envelope_table = CosTable([(0, 0), (100, 1), (2000, 0.3), (8191, 0)])
-    amp_env = TrigEnv(step_trig, table=envelope_table, dur=tempo.sixteenth * 0.9, mul=1.0)
+    amp_env = TrigEnv(
+        step_trig, table=envelope_table, dur=tempo.sixteenth * 0.9, mul=1.0
+    )
 
     bass_table = HarmTable([1, 0, 0.4, 0, 0.2, 0, 0.1])
     bass_osc = Osc(table=bass_table, freq=root_freq, mul=amp_env)
@@ -79,13 +142,35 @@ def build(
         step["i"] += 1
 
     sequencer = clock.subscribe(SIXTEENTH, next_step)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "root_freq": lambda value: setattr(bass_osc, "freq", value),
+            "filter_res": lambda value: setattr(voice, "res", value),
+            "filter_base": lambda value: setattr(cutoff_lfo, "add", value),
+            "filter_range": lambda value: setattr(cutoff_lfo, "mul", value),
+        },
+    )
 
 
 def widget(
-    rack: PatchRack, tempo: Tempo, clock: Clock, controller: PresetController | None = None
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
 ) -> VBox:
-    """Create bass controls with parameter descriptions beside each slider."""
+    """Create bass controls."""
+    return patch_widget(
+        rack,
+        "bass",
+        build,
+        PARAMETERS,
+        controller=controller,
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+
+    """
 
     def set_params(enabled, root_freq, filter_res, filter_base, filter_range, volume):
         if controller is not None and controller.applying:
@@ -137,3 +222,4 @@ def widget(
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """

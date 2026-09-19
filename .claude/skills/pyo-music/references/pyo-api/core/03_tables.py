@@ -5,7 +5,7 @@ pre-computed arrays of samples (a waveform, a window, a breakpoint curve)
 rather than live signals.
 """
 
-__all__ = ['SquareTable', 'SawTable', 'CosTable', 'CurveTable']
+__all__ = ["SquareTable", "SawTable", "CosTable", "CurveTable"]
 
 from pyo import SquareTable
 

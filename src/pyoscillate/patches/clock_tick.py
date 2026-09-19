@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import HTML, Checkbox, FloatSlider, HBox, VBox, interactive_output
+from ipywidgets import VBox
 from pyo.lib.filters import ButBP, ButHP, ButLP
 from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
@@ -11,9 +11,27 @@ from pyo.lib.triggers import Metro, TrigEnv
 
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
+
+PARAMETERS = (
+    SliderSpec("level", 0, 1, 0.05, OVERALL_LEVEL, "Level", "Overall tick level.", ()),
+    SliderSpec(
+        "wood_q", 1, 10, 0.5, 3, "Wood Q", "Wood resonance.", (PyoParamRef(ButBP, "q"),)
+    ),
+    SliderSpec(
+        "glass_q",
+        1,
+        15,
+        0.5,
+        6,
+        "Glass Q",
+        "Glass resonance.",
+        (PyoParamRef(ButBP, "q"),),
+    ),
+)
 
 
 @dataclass
@@ -84,7 +102,9 @@ def build(
     # bright, thin wristwatch tick - fastest and quietest of the four
     bright_metro = Metro(time=0.63)
     metros.append(bright_metro)
-    bright_env = TrigEnv(bright_metro, table=tick_envelope, dur=0.05, mul=Noise(mul=0.3))
+    bright_env = TrigEnv(
+        bright_metro, table=tick_envelope, dur=0.05, mul=Noise(mul=0.3)
+    )
     bright_voice = ButHP(bright_env, freq=6500)
     keepalive += [bright_env, bright_voice]
 
@@ -111,11 +131,31 @@ def build(
 
     voice = (bright_voice + wood_voice + deep_voice + glass_voice) * level
     sequencer = _Clocks(metros=metros, keepalive=keepalive)
-    return Patch(sequencer=sequencer, voice=voice)
+    return Patch(
+        sequencer=sequencer,
+        voice=voice,
+        controls={
+            "level": lambda value: setattr(voice, "mul", value),
+            "wood_q": lambda value: setattr(wood_voice, "q", value),
+            "glass_q": lambda value: setattr(glass_voice, "q", value),
+        },
+    )
 
 
-def widget(rack: PatchRack, tempo: Tempo, controller: PresetController | None = None) -> VBox:
-    """Create clock-tick controls with parameter descriptions beside each slider."""
+def widget(
+    rack: PatchRack, tempo: Tempo, controller: PresetController | None = None
+) -> VBox:
+    """Create clock-tick controls."""
+    return patch_widget(
+        rack,
+        "clock_tick",
+        build,
+        PARAMETERS,
+        controller=controller,
+        build_kwargs={"tempo": tempo},
+    )
+
+    """
 
     def set_params(enabled, level, wood_q, glass_q, volume):
         if controller is not None and controller.applying:
@@ -159,3 +199,4 @@ def widget(rack: PatchRack, tempo: Tempo, controller: PresetController | None = 
         HBox([volume, HTML("Output level for this patch, limited so it won't clip.")]),
     ]
     return VBox([enabled, *slider_rows, output])
+    """
