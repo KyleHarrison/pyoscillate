@@ -8,7 +8,7 @@ description: Use whenever the user wants music, sound design, or procedural/gene
 This skill connects two knowledge layers that must stay separate:
 
 - **`../music-theory/`** — the music-composition reference skill. Answers "what is the musical/sonic idea?" It knows nothing about Pyo. Load it for the theory/composition layer before choosing synthesis mechanisms.
-- **`references/pyo-api/`** — the authoritative, hand-written documentation of every Pyo object this project uses or has evaluated. Answers "what implementation primitives exist?" It knows nothing about music theory. **Never invent Pyo behaviour or constructor arguments — if `pyo-api/` documents it, read the file; don't answer from general Pyo knowledge.**
+- **`references/pyo-api/`** — the authoritative documentation of every Pyo object exposed by the installed `pyo` package, one reference file per real `pyo/lib/*.py` source module (organized into the category folders below by use). Answers "what implementation primitives exist?" It knows nothing about music theory. **Never invent Pyo behaviour or constructor arguments — if `pyo-api/` documents it, read the file; don't answer from general Pyo knowledge.**
 
 Neither layer talks about the other. Routing between them is this file's only job — it deliberately does not restate either layer's content.
 

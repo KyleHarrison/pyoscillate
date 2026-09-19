@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "flet": {
+      "command": "flet",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
