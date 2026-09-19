@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from pyo import PyoObject
+from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Compress
+
+# ramp-to-silence time before a stopped patch's objects are actually cut, so
+# stop() never truncates a voice mid-sample and produces a click/pop
+STOP_FADE = 0.2
 
 
 class Sequencer(Protocol):
@@ -29,6 +34,7 @@ class Patch:
     voice: PyoObject
     volume: float = 1.0
     _output: PyoObject | None = field(default=None, repr=False)
+    _fade: SigTo | None = field(default=None, repr=False)
 
     def start(self) -> Patch:
         # `volume` boosts *before* Compress, not after: Compress's own mul
@@ -41,16 +47,26 @@ class Patch:
         # at its normal level.
         boosted = self.voice * self.volume
         compressed = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05)
+        # pyo's stop(wait=...) only delays the hard cutoff, it doesn't fade
+        # the signal itself - multiplying by this ramp is what actually
+        # brings the level to zero before that cutoff lands, on both this
+        # start (from silence) and the next stop() (see below)
+        self._fade = SigTo(value=1.0, time=STOP_FADE)
         # mono voices only have one stream, so .out() alone would only reach channel 0
-        self._output = compressed.mix(2).out()
+        self._output = (compressed * self._fade).mix(2).out()
         self.sequencer.play()
         return self
 
     def stop(self) -> Patch:
         self.sequencer.stop()
-        self.voice.stop()
+        if self._fade is not None:
+            self._fade.value = 0.0
+        # delay the hard stop until the fade above has finished ramping to
+        # zero, otherwise the underlying objects (and the click) get cut
+        # off before the ramp ever reaches silence
+        self.voice.stop(wait=STOP_FADE)
         if self._output is not None:
-            self._output.stop()
+            self._output.stop(wait=STOP_FADE)
         return self
 
 
