@@ -6,8 +6,8 @@ from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
 from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.psyambient.common import ContinuousSequencer
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 165  # E3, current default

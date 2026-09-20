@@ -27,7 +27,7 @@ class KickNativeCrashTests(unittest.TestCase):
         code = """
 from pyoscillate.clock import Clock
 from pyoscillate.patches import PatchRack, start_server
-from pyoscillate.patches.deep_house import kick
+from pyoscillate.patches.kick import deep_house as kick
 from pyoscillate.tempo import Tempo
 
 server = start_server(audio="manual")

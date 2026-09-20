@@ -6,8 +6,8 @@ from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
 from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.psyambient.common import ContinuousSequencer
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 110  # A2, current default
@@ -155,16 +155,10 @@ def build(
         }.items()
     }
 
-    ratio_chaos = Rossler(
-        pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5
-    )
-    index_chaos = Lorenz(
-        pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4
-    )
+    ratio_chaos = Rossler(pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5)
+    index_chaos = Lorenz(pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4)
 
-    fm_voice = FM(
-        carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2
-    )
+    fm_voice = FM(carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2)
     reverb_voice = Freeverb(
         fm_voice,
         size=live["reverb_size"],

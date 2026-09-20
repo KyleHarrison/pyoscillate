@@ -36,7 +36,7 @@ app + patch rack, not a single patch edit), use this workflow in order:
 1. **Ground the request.** Start with the musical and sonic brief, then translate it through the music and pyo-music skills before creating files.
 2. **Choose the project layout.** Create the project package under `src/flet/{project_name}/` and the rack under `src/pyoscillate/projects/{project_name}/` when a new app/rack is required.
 3. **Reuse or extend existing patch families first.** Search the nearest patch family before creating a new module. Extend an existing family or builder when possible.
-4. **Implement the patch set.** Use the real patch modules under `src/pyoscillate/patches/` and the canonical runtime conventions there as the implementation source of truth.
+4. **Implement the patch set.** Use the existing patch-type directories under `src/pyoscillate/patches/` and the runtime conventions described in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md) as the implementation source of truth.
 5. **Wire the rack.** Put the `PATCH_DEFS` list in the project rack module and keep the app layer thin.
 6. **Add README and notebook support.** Document the musical brief and concept-to-patch mapping; create the notebook preset structure and patch widgets when relevant.
 7. **Validate the runtime contract.** Keep the patch graph and runtime state aligned with the project's patch architecture rules.
@@ -64,11 +64,6 @@ modules under that folder.
 
 ## Implementation authority
 
-The authoritative implementation references are:
+Implementation authority is distributed, not centralized in this file: the shared patch lifecycle/runtime contract lives in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md), and the concrete sonic concept for any given patch type lives in that patch-type directory's own instruction file (e.g. `src/pyoscillate/patches/<type>/CLAUDE.md`). Consult the nearest nested instruction set for a patch family rather than a fixed list of files here — specific modules move and get renamed as the patch set grows, so this file intentionally does not cite them.
 
-- `src/pyoscillate/patches/base.py` — shared patch lifecycle and runtime safety
-- `src/pyoscillate/patches/widgets.py` — `SliderSpec` and UI conventions
-- `src/pyoscillate/patches/deep_house/kick.py` — canonical profile-based family pattern
-- `src/pyoscillate/projects/*/rack.py` — rack wiring for concrete projects
-
-Those are the actual sources of truth for the patch architecture. The skill files should route into them and explain the musical reasoning, not duplicate their implementation contracts.
+The skill files should route into that implementation layer and explain the musical reasoning, not duplicate its implementation contracts.

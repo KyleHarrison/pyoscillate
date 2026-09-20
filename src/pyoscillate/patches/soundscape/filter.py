@@ -9,8 +9,8 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.psyambient.common import ContinuousSequencer
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 
 ROOT_FREQ = 220  # A3, current default

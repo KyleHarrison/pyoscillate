@@ -1,16 +1,14 @@
 """Patch definitions for the free-running psyambient rack."""
 
-from pyoscillate.patches.psyambient import (
-    bass_chaos,
-    bass_drone,
-    bass_rumble,
-    mid_arp,
-    mid_canon,
-    mid_generative,
-    soundscape_filter,
-    soundscape_fm,
-    soundscape_wash,
-)
+from pyoscillate.patches.arp import arp as mid_arp
+from pyoscillate.patches.bass import chaos as bass_chaos
+from pyoscillate.patches.bass import drone as bass_drone
+from pyoscillate.patches.bass import rumble as bass_rumble
+from pyoscillate.patches.canon import canon as mid_canon
+from pyoscillate.patches.generative import generative as mid_generative
+from pyoscillate.patches.soundscape import filter as soundscape_filter
+from pyoscillate.patches.soundscape import fm as soundscape_fm
+from pyoscillate.patches.soundscape import wash as soundscape_wash
 from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [

@@ -28,11 +28,6 @@ The music skill should still inform the sonic and musical brief, but the actual 
 
 ## Implementation authority
 
-Concrete implementation guidance remains in the actual project modules, especially:
-
-- `src/pyoscillate/patches/base.py`
-- `src/pyoscillate/patches/widgets.py`
-- `src/pyoscillate/patches/deep_house/kick.py`
-- `src/pyoscillate/projects/*/rack.py`
+Concrete implementation guidance is distributed rather than listed here: the shared patch lifecycle/runtime contract lives in [CLAUDE.md](CLAUDE.md) and [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md), and the sonic concept for any given patch type lives in that patch-type directory's own instruction file. Consult the nearest nested instruction set rather than a fixed file list \u2014 specific modules move and get renamed as the patch set grows.
 
 These are the real sources of truth for patch architecture and runtime behavior.

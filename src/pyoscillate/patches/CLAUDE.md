@@ -1,16 +1,26 @@
 # Patch architecture
 
-This directory is not a place to dump boilerplate examples. Use the real implementation modules as the source of truth and keep this file as a concise operating guide.
+This directory is organized by patch type — one subdirectory per sonic/musical
+role (a bass family, a kick family, a drone family, and so on), never per
+project. This file stays deliberately free of hard references to specific
+modules: implementations move, get renamed, and get replaced as the patch set
+grows, so citing one file as "the" canonical example just goes stale. Treat
+this file as the operating guide for the contract every patch must satisfy,
+not as an index of example code.
 
 ## Read these first
 
 - `.claude/skills/pyo-music/SKILL.md` — musical intent, synthesis strategy, and choice of Pyo objects
-- `src/pyoscillate/patches/base.py` — `Patch`, `PatchRack`, start/stop behavior, resource retention
-- `src/pyoscillate/patches/widgets.py` — `SliderSpec`, `patch_widget`, shared notebook UI
-- `src/pyoscillate/patches/deep_house/kick.py` — canonical profile-based patch family
-- Another conceptually close patch in the same family before adding new code
+- The nested `CLAUDE.md` inside the patch-type directory you're working in — the concrete, concept-level authority for that sonic role (its sonic function, minimal architecture, and design alternatives)
+- The other modules already living in that same directory — read them as working examples of the contract below, not this file
 
-The goal is simple: musical reasoning is handled by the skill, while implementation and runtime discipline are handled here.
+The goal is simple: musical reasoning is handled by the skill, the sonic concept for a given patch type is handled by that directory's own instruction file, and this file only covers the shared implementation/runtime contract every patch must follow.
+
+## Directory model
+
+- Each patch-type directory is self-contained: its own `CLAUDE.md` (sonic concept, described abstractly) plus one or more implementation modules (concrete builders/profiles for that concept).
+- Before creating a new directory, check whether an existing one already covers the musical role you need and extend it instead.
+- When a patch-type directory's `CLAUDE.md` is still empty, treat the existing modules in that directory as the working reference for style and shape until it is filled in — do not backfill this file with citations to fill that gap.
 
 ## Patch contract
 
@@ -79,17 +89,6 @@ Patch modules should not manually reconstruct the same UI plumbing each time.
 - use `patch_widget(...)` for the standard controls
 - keep patch-specific ranges, labels, and descriptions in the patch module
 - do not duplicate preset registration or `interactive_output` wiring
-
-## Canonical examples
-
-Use these as the real templates for any new patch work:
-
-- `src/pyoscillate/patches/base.py` — shared runtime contract and safety rules
-- `src/pyoscillate/patches/widgets.py` — UI and slider metadata conventions
-- `src/pyoscillate/patches/deep_house/kick.py` — profile family pattern and live-update behavior
-- `src/pyoscillate/patches/psyambient/*.py` — other families with different sonic roles and control shapes
-
-Treat code samples in this file as obsolete. The code under `src/pyoscillate/patches/` is the authoritative example set.
 
 ## Quality bar
 
