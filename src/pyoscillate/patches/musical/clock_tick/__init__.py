@@ -109,32 +109,38 @@ def build(
     # bright, thin wristwatch tick - fastest and quietest of the four
     bright_metro = Metro(time=0.63)
     metros.append(bright_metro)
-    bright_env = TrigEnv(bright_metro, table=tick_envelope, dur=0.05, mul=Noise(mul=0.3))
+    bright_noise = Noise(mul=0.3)
+    bright_env = TrigEnv(bright_metro, table=tick_envelope, dur=0.05, mul=bright_noise)
     bright_voice = ButHP(bright_env, freq=6500)
-    keepalive += [bright_env, bright_voice]
+    keepalive += [bright_noise, bright_env, bright_voice]
 
     # woodblock-ish tock - band-passed around a low-mid resonance
     wood_metro = Metro(time=0.97)
     metros.append(wood_metro)
-    wood_env = TrigEnv(wood_metro, table=tick_envelope, dur=0.1, mul=Noise(mul=0.4))
+    wood_noise = Noise(mul=0.4)
+    wood_env = TrigEnv(wood_metro, table=tick_envelope, dur=0.1, mul=wood_noise)
     wood_voice = ButBP(wood_env, freq=500, q=wood_q)
-    keepalive += [wood_env, wood_voice]
+    keepalive += [wood_noise, wood_env, wood_voice]
 
     # deep pendulum tock - warm, longer decay, the slowest of the four
     deep_metro = Metro(time=1.58)
     metros.append(deep_metro)
-    deep_env = TrigEnv(deep_metro, table=tick_envelope, dur=0.2, mul=Noise(mul=0.45))
+    deep_noise = Noise(mul=0.45)
+    deep_env = TrigEnv(deep_metro, table=tick_envelope, dur=0.2, mul=deep_noise)
     deep_voice = ButLP(deep_env, freq=350)
-    keepalive += [deep_env, deep_voice]
+    keepalive += [deep_noise, deep_env, deep_voice]
 
     # thin metallic tick - like a mantel clock's escapement, rarer and brighter
     glass_metro = Metro(time=2.44)
     metros.append(glass_metro)
-    glass_env = TrigEnv(glass_metro, table=tick_envelope, dur=0.06, mul=Noise(mul=0.3))
+    glass_noise = Noise(mul=0.3)
+    glass_env = TrigEnv(glass_metro, table=tick_envelope, dur=0.06, mul=glass_noise)
     glass_voice = ButBP(glass_env, freq=4200, q=glass_q)
-    keepalive += [glass_env, glass_voice]
+    keepalive += [glass_noise, glass_env, glass_voice]
 
-    voice = (bright_voice + wood_voice + deep_voice + glass_voice) * level
+    source = bright_voice + wood_voice + deep_voice + glass_voice
+    keepalive.append(source)
+    voice = source * level
     sequencer = _Clocks(metros=metros, keepalive=keepalive)
     return Patch(
         sequencer=sequencer,
@@ -144,6 +150,7 @@ def build(
             "wood_q": lambda value: setattr(wood_voice, "q", value),
             "glass_q": lambda value: setattr(glass_voice, "q", value),
         },
+        resources=tuple(keepalive),
     )
 
 

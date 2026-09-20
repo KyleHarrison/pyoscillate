@@ -186,6 +186,7 @@ def build(
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
+        resources=(note_metro, envelope_table, note_env, fm_voice, note_func),
     )
 
 

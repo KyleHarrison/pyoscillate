@@ -182,6 +182,7 @@ def build(
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
+        resources=(arp_trig, arp_swell, envelope_table, arp_env, fm_voice),
     )
 
 

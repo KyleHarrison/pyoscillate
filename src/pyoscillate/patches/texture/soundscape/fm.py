@@ -156,7 +156,8 @@ def build(
     }
 
     ratio_chaos = Rossler(pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5)
-    index_chaos = Lorenz(pitch=live["chaos_speed"] * 1.3, chaos=live["chaos_amount"], mul=3, add=4)
+    index_speed = live["chaos_speed"] * 1.3
+    index_chaos = Lorenz(pitch=index_speed, chaos=live["chaos_amount"], mul=3, add=4)
 
     fm_voice = FM(carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2)
     reverb_voice = Freeverb(
@@ -179,6 +180,14 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(
+            *live.values(),
+            ratio_chaos,
+            index_speed,
+            index_chaos,
+            fm_voice,
+            reverb_voice,
+        ),
     )
 
 

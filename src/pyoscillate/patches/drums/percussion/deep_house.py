@@ -45,12 +45,14 @@ VOLUME_DEFAULT = 0.28
 def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: float = 1100) -> Patch:
     """Build claps, rims, or conga-like resonance from the same rhythmic layer."""
     trigger = Trig()
+    envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
     envelope = TrigEnv(
-        trigger, CosTable([(0, 0), (30, 1), (8191, 0)]), dur=DURATIONS[style], mul=level
+        trigger, envelope_table, dur=DURATIONS[style], mul=level
     )
     source = Sine(freq=tone)
+    shaped_source = source * envelope
     voice = Biquad(
-        source * envelope,
+        shaped_source,
         freq=tone,
         q=5,
         type=2,
@@ -70,6 +72,7 @@ def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: flo
             "level": lambda value: setattr(envelope, "mul", value),
             "tone": lambda value: setattr(voice, "freq", value),
         },
+        resources=(trigger, envelope_table, envelope, source, shaped_source),
     )
 
 

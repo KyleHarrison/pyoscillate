@@ -32,10 +32,13 @@ def build(
 ) -> Patch:
     """Build a style-specific, grid-locked hat pattern."""
     trigger = Trig()
+    envelope_table = CosTable([(0, 0), (35, 1), (8191, 0)])
     envelope = TrigEnv(
-        trigger, CosTable([(0, 0), (35, 1), (8191, 0)]), dur=DURATIONS[style], mul=level
+        trigger, envelope_table, dur=DURATIONS[style], mul=level
     )
-    voice = ButHP(Noise() * envelope, freq=cutoff)
+    noise = Noise()
+    source = noise * envelope
+    voice = ButHP(source, freq=cutoff)
     state = {"step": 0}
 
     def next_step() -> None:
@@ -52,6 +55,7 @@ def build(
             "level": lambda value: setattr(envelope, "mul", value),
             "cutoff": lambda value: setattr(voice, "freq", value),
         },
+        resources=(trigger, envelope_table, envelope, noise, source),
     )
 
 

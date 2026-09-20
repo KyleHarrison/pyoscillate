@@ -141,6 +141,7 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(*live.values(), pitch_chaos, sub_table, sub_osc),
     )
 
 

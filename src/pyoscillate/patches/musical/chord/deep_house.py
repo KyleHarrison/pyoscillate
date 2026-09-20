@@ -29,21 +29,27 @@ def build(
 ) -> Patch:
     """Build an offbeat minor-seventh chord stab from four explicit voices."""
     profiles = {
-        "velvet": (HarmTable([1, 0.25, 0.12]), 0.34, 0.42),
-        "organ": (HarmTable([1, 0.7, 0.4, 0.2]), 0.22, 0.2),
-        "shimmer": (SawTable(order=12), 0.42, 0.58),
+        "velvet": (lambda: HarmTable([1, 0.25, 0.12]), 0.34, 0.42),
+        "organ": (lambda: HarmTable([1, 0.7, 0.4, 0.2]), 0.22, 0.2),
+        "shimmer": (lambda: SawTable(order=12), 0.42, 0.58),
     }
-    table, duration, wet = profiles[style]
+    table_factory, duration, wet = profiles[style]
+    table = table_factory()
     trigger = Trig()
-    envelope = TrigEnv(trigger, CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)]), dur=duration)
+    envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
+    envelope = TrigEnv(trigger, envelope_table, dur=duration)
+    amplitude = envelope * 0.19
     voices = [
-        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=envelope * 0.19)
+        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude)
         for interval in INTERVALS
     ]
-    filter_voice = Biquad(sum(voices), freq=brightness, q=1.2, type=0)
+    source = sum(voices)
+    filter_voice = Biquad(source, freq=brightness, q=1.2, type=0)
     voice = filter_voice
+    chorus = None
     if style == "shimmer":
-        voice = Chorus(voice, depth=1.2, feedback=0.15, bal=0.28)
+        chorus = Chorus(voice, depth=1.2, feedback=0.15, bal=0.28)
+        voice = chorus
     voice = Freeverb(voice, size=0.72, damp=0.45, bal=wet)
     state = {"step": 0, "root": root_freq}
 
@@ -63,6 +69,17 @@ def build(
             "root_freq": lambda value: state.update(root=value),
             "brightness": lambda value: setattr(filter_voice, "freq", value),
         },
+        resources=(
+            table,
+            trigger,
+            envelope_table,
+            envelope,
+            amplitude,
+            *voices,
+            source,
+            filter_voice,
+            chorus,
+        ),
     )
 
 

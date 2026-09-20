@@ -103,8 +103,10 @@ def build(
             "tone_cutoff": tone_cutoff,
         }.items()
     }
-    noise_voice = MoogLP(BrownNoise(mul=live["noise_level"]), freq=live["noise_cutoff"], res=0)
-    sub_voice = Tone(Sine(freq=live["sub_freq"], mul=live["sub_level"]), freq=live["tone_cutoff"])
+    noise = BrownNoise(mul=live["noise_level"])
+    noise_voice = MoogLP(noise, freq=live["noise_cutoff"], res=0)
+    sub = Sine(freq=live["sub_freq"], mul=live["sub_level"])
+    sub_voice = Tone(sub, freq=live["tone_cutoff"])
     voice = noise_voice + sub_voice
 
     return Patch(
@@ -114,6 +116,7 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(*live.values(), noise, noise_voice, sub, sub_voice),
     )
 
 

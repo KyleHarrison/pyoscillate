@@ -240,6 +240,13 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(
+            *live.values(),
+            pitch_wander,
+            saw_voice,
+            chorused,
+            reverb_voice,
+        ),
     )
 
 

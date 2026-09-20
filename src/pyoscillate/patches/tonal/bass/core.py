@@ -54,8 +54,9 @@ def build_bass(
         table=envelope_table,
         dur=tempo.sixteenth * profile.envelope_decay,
     )
+    oscillator_table = HarmTable(list(profile.harmonics))
     oscillator = Osc(
-        HarmTable(list(profile.harmonics)),
+        oscillator_table,
         freq=root_freq,
         mul=envelope,
     )
@@ -104,5 +105,12 @@ def build_bass(
         sequencer=clock.subscribe(SIXTEENTH, next_step),
         voice=voice,
         controls=controls,
-        resources=(trigger, envelope_table, envelope, oscillator, cutoff_lfo),
+        resources=(
+            trigger,
+            envelope_table,
+            envelope,
+            oscillator_table,
+            oscillator,
+            cutoff_lfo,
+        ),
     )

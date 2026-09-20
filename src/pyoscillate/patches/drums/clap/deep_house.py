@@ -40,8 +40,11 @@ VOLUME_DEFAULT = 0.28
 def build(tempo: Tempo, clock: Clock, level: float = 0.18, tone: float = 1100) -> Patch:
     """Build a bright, filtered noise clap on beats two and four."""
     trigger = Trig()
-    envelope = TrigEnv(trigger, CosTable([(0, 0), (30, 1), (8191, 0)]), dur=DURATION, mul=level)
-    voice = Biquad(Noise() * envelope, freq=tone, q=1.1, type=1)
+    envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
+    envelope = TrigEnv(trigger, envelope_table, dur=DURATION, mul=level)
+    noise = Noise()
+    source = noise * envelope
+    voice = Biquad(source, freq=tone, q=1.1, type=1)
     state = {"step": 0}
 
     def next_step() -> None:
@@ -56,7 +59,7 @@ def build(tempo: Tempo, clock: Clock, level: float = 0.18, tone: float = 1100) -
             "level": lambda value: setattr(envelope, "mul", value),
             "tone": lambda value: setattr(voice, "freq", value),
         },
-        resources=(trigger, envelope, voice),
+        resources=(trigger, envelope_table, envelope, noise, source),
     )
 
 

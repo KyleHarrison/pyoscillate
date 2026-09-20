@@ -96,6 +96,7 @@ def build(
             "cutoff_freq": lambda value: setattr(voice, "freq", value),
             "level": lambda value: setattr(hat_noise, "mul", value),
         },
+        resources=(hat_trig, hat_noise, envelope_table, hat_env, hat_swell),
     )
 
 

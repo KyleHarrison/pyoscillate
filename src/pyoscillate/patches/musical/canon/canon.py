@@ -201,7 +201,8 @@ def build(
     voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14)
     voice_b_fm = FM(carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env)
 
-    voice = Freeverb(voice_a_fm + voice_b_fm, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
+    source = voice_a_fm + voice_b_fm
+    voice = Freeverb(source, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
 
     def next_voice_a() -> None:
         interval = random.choice(CANON_SCALE)
@@ -241,6 +242,18 @@ def build(
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
+        resources=(
+            envelope_table,
+            voice_a_metro,
+            voice_a_env,
+            voice_a_fm,
+            voice_b_metro,
+            voice_b_env,
+            voice_b_fm,
+            source,
+            voice_a_func,
+            voice_b_func,
+        ),
     )
 
 

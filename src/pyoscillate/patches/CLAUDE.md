@@ -112,11 +112,41 @@ If a parameter can change without changing the graph topology, it should be expo
 
 `build()` must return a patch that strongly owns the Python objects needed by the running DSP chain.
 
-- name tables, triggers, envelopes, generators, and arithmetic intermediates
-- include graph-critical objects in `Patch(resources=(...))` when needed
-- do not rely on anonymous constructor expressions to keep the graph alive
+- Every `Patch(...)` returned by a builder must provide a non-empty
+	`resources=(...)` tuple. This is mandatory even when callbacks, controls,
+	downstream Pyo objects, or a sequencer's `keepalive` currently appear to
+	retain the same objects.
+- Assign every table, trigger, envelope, generator, modulation source, effect
+	input, and Pyo arithmetic result to a named local. Put every graph-critical
+	local in `resources`; the final `voice` and `sequencer` are already retained
+	by their dedicated `Patch` fields.
+- Never embed a Pyo constructor or arithmetic expression anonymously inside
+	another Pyo constructor. For example, replace `TrigEnv(trigger,
+	CosTable(...))`, `Biquad(Noise() * envelope, ...)`, and
+	`Lorenz(pitch=speed * 1.3, ...)` with named table, source, product, and
+	modulation variables, then retain those variables.
+- Profile/configuration dictionaries must store plain data or factories, not
+	already-instantiated Pyo objects. Construct only the selected profile's
+	native objects; creating all variants and discarding the unused ones while
+	audio is running can race the audio callback.
+- Treat closure capture and transitive ownership by a downstream Pyo object as
+	implementation details, not lifetime guarantees.
 
-This is important because Pyo native nodes can outlive their Python wrappers and cause nondeterministic crashes when patches are updated or multiple instances are active.
+Pyo native nodes can outlive their Python wrappers. If a wrapper is collected
+while PortAudio/CoreAudio is processing its node, the process can fail with an
+intermittent native `SIGSEGV` in frames such as `TrigEnv_readframes_i` and
+`Server_process_buffers`; Python exception handling cannot catch that crash.
+
+Before considering a builder complete, audit its graph from sources to final
+voice and account for each object in exactly one of these places:
+
+- `Patch.voice`
+- `Patch.sequencer`
+- `Patch.resources`
+
+Run the graph-ownership test after adding any builder. Passing that structural
+check does not prove the tuple is complete, so review it against the named
+locals in `build()` as well.
 
 ### 5. Keep timing/state explicit
 

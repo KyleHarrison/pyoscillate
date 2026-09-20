@@ -1,10 +1,13 @@
+import ast
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock
 from pyoscillate.patches import Patch, PatchRack, start_server
+from pyoscillate.patches.musical.chord import deep_house as chord
 from pyoscillate.projects.deep_house.rack import PATCH_DEFS
 from pyoscillate.tempo import Tempo
 
@@ -20,6 +23,31 @@ class ServerStartupTests(unittest.TestCase):
             start_server(output_device=99)
 
         server.start.assert_not_called()
+
+
+class PatchGraphOwnershipTests(unittest.TestCase):
+    def test_every_patch_builder_declares_resources(self) -> None:
+        patch_root = Path(__file__).parents[1] / "src" / "pyoscillate" / "patches"
+        missing_resources = []
+
+        for source_path in patch_root.rglob("*.py"):
+            tree = ast.parse(source_path.read_text(), filename=str(source_path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Call):
+                    continue
+                if not isinstance(node.value.func, ast.Name) or node.value.func.id != "Patch":
+                    continue
+                resources = next(
+                    (keyword.value for keyword in node.value.keywords if keyword.arg == "resources"),
+                    None,
+                )
+                if resources is None or (
+                    isinstance(resources, (ast.Tuple, ast.List)) and not resources.elts
+                ):
+                    relative_path = source_path.relative_to(patch_root.parents[2])
+                    missing_resources.append(f"{relative_path}:{node.lineno}")
+
+        self.assertEqual(missing_resources, [])
 
 
 class KickNativeCrashTests(unittest.TestCase):
@@ -86,6 +114,14 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         rack.start(patch_def.name, patch)
         patch.update(values)
         rack.stop(patch_def.name)
+
+    def test_chord_retains_native_trigger_graph(self) -> None:
+        patch = chord.build(self.tempo, self.clock, "velvet")
+        resource_types = [type(resource).__name__ for resource in patch.resources]
+
+        self.assertIn("Trig", resource_types)
+        self.assertIn("TrigEnv", resource_types)
+        self.assertEqual(resource_types.count("Osc"), len(chord.INTERVALS))
 
 
 def make_lifecycle_test(patch_def):

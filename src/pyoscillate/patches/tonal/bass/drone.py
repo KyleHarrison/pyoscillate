@@ -108,9 +108,11 @@ def build(
             "filter_res": filter_res,
         }.items()
     }
+    swell_frequency = 1 / live["swell_period"]
+    swell_amplitude = live["swell_depth"] / 2
     swell = Sine(
-        freq=1 / live["swell_period"],
-        mul=live["swell_depth"] / 2,
+        freq=swell_frequency,
+        mul=swell_amplitude,
         add=1 - swell_depth / 2,
     )
 
@@ -125,6 +127,14 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(
+            *live.values(),
+            swell_frequency,
+            swell_amplitude,
+            swell,
+            sub_table,
+            sub_osc,
+        ),
     )
 
 

@@ -233,6 +233,14 @@ def build(
             name: lambda value, control=control: setattr(control, "value", value)
             for name, control in live.items()
         },
+        resources=(
+            *live.values(),
+            pad_table,
+            pad_osc,
+            cutoff_chaos_lfo,
+            filtered,
+            reverb_voice,
+        ),
     )
 
 

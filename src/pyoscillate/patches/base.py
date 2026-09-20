@@ -87,6 +87,7 @@ class Patch:
     _output: PyoObject | None = field(default=None, repr=False)
     _fade: SigTo | None = field(default=None, repr=False)
     _volume_control: SigTo | None = field(default=None, repr=False)
+    _output_resources: tuple[PyoObject, ...] = field(default=(), repr=False)
 
     def set(self, name: str, value: Any) -> None:
         """Update one live parameter without rebuilding the Pyo graph."""
@@ -130,7 +131,10 @@ class Patch:
         # start (from silence) and the next stop() (see below)
         self._fade = SigTo(value=1.0, time=STOP_FADE)
         # mono voices only have one stream, so .out() alone would only reach channel 0
-        self._output = (limited * self._fade).mix(2).out()
+        faded = limited * self._fade
+        mixed = faded.mix(2)
+        self._output = mixed.out()
+        self._output_resources = (boosted, compressed, limited, faded, mixed)
         self.sequencer.play()
         return self
 

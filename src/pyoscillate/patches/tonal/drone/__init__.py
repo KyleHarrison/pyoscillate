@@ -126,6 +126,7 @@ def build(
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
+        resources=(drone_freq, ratio_lfo, index_lfo, fm_voice),
     )
 
 
