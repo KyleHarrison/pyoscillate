@@ -21,8 +21,8 @@ PARAMETERS = (
         12000,
         100,
         CUTOFF_FREQ,
-        "Cutoff",
-        "High-pass cutoff.",
+        "Brightness",
+        "Moves the tick from fuller and more present (lower) to thinner, airier, and more distant-sounding (higher).",
         (PyoParamRef(ButHP, "freq"),),
     ),
     SliderSpec(
@@ -31,8 +31,8 @@ PARAMETERS = (
         1,
         0.05,
         0.2,
-        "Level",
-        "Noise burst level.",
+        "Presence",
+        "Sets how upfront the tick sits in the mix, from a subtle texture to a louder, more foregrounded pulse.",
         (PyoParamRef(Noise, "mul"),),
     ),
     SliderSpec(
@@ -41,8 +41,8 @@ PARAMETERS = (
         1,
         0.05,
         0.75,
-        "Decay",
-        "Envelope duration; changing it rebuilds the envelope.",
+        "Tightness",
+        "Shapes the tick's tail; shorter feels tight and click-like, longer blurs into more of a hiss.",
         (PyoParamRef(TrigEnv, "dur"),),
     ),
 )

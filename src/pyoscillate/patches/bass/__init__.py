@@ -25,8 +25,8 @@ PARAMETERS = (
         110,
         1,
         ROOT_FREQ,
-        "Root frequency",
-        "Bass root.",
+        "Register",
+        "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings it closer to the mid range and easier to pick out melodically.",
         (PyoParamRef(Osc, "freq"),),
     ),
     SliderSpec(
@@ -35,8 +35,8 @@ PARAMETERS = (
         1,
         0.05,
         0.75,
-        "Filter resonance",
-        "Resonance.",
+        "Growl",
+        "Adds resonant emphasis around the filter cutoff; higher makes the bass squelchier and more vocal, lower keeps it smoother and rounder.",
         (PyoParamRef(MoogLP, "res"),),
     ),
     SliderSpec(
@@ -45,8 +45,8 @@ PARAMETERS = (
         2000,
         10,
         1380,
-        "Filter base",
-        "Average cutoff.",
+        "Brightness",
+        "Sets the average tone of the bass filter sweep; higher opens it up and brightens it, lower keeps it duller and more closed.",
         (PyoParamRef(LFO, "add"),),
     ),
     SliderSpec(
@@ -55,8 +55,8 @@ PARAMETERS = (
         1000,
         10,
         400,
-        "Filter range",
-        "Cutoff sweep range.",
+        "Sweep depth",
+        "Controls how far the filter sweeps each cycle; wider ranges create a more dramatic wah-like motion, narrower keeps the tone more static.",
         (PyoParamRef(LFO, "mul"),),
     ),
 )

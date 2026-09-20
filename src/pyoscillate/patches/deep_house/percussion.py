@@ -15,8 +15,8 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("level", 0.02, 0.6, 0.01, 0.18, "Level", "Percussion burst level."),
-    SliderSpec("tone", 180, 4000, 20, 1100, "Tone", "Percussion resonant frequency."),
+    SliderSpec("level", 0.02, 0.6, 0.01, 0.18, "Presence", "Sets how loud and upfront the percussion accent sits in the mix."),
+    SliderSpec("tone", 180, 4000, 20, 1100, "Pitch character", "Shifts the percussion's resonant tone; lower is deeper and woodier, higher is thinner and sharper."),
 )
 PATTERNS = {
     "clap": {4, 12},

@@ -17,7 +17,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "soundscape_fm",
         "Soundscape - chaotic FM pad",
-        "Free-running FM pad driven by Rossler/Lorenz attractors.",
+        "Slow-morphing, unpredictable pad that never quite repeats itself.",
         soundscape_fm.build,
         soundscape_fm.PARAMETERS,
         0.6,
@@ -25,7 +25,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "soundscape_filter",
         "Soundscape - filter-swept pad",
-        "Static drone carved by a chaotically-swept resonant lowpass filter.",
+        "Sustained drone whose brightness sweeps and breathes unpredictably.",
         soundscape_filter.build,
         soundscape_filter.PARAMETERS,
         0.6,
@@ -33,7 +33,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "soundscape_wash",
         "Soundscape - washy detuned pad",
-        "SuperSaw smeared with chorus, reverb, and delay.",
+        "Wide, hazy detuned wash that dissolves into echoing space.",
         soundscape_wash.build,
         soundscape_wash.PARAMETERS,
         0.6,
@@ -41,7 +41,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "mid_arp",
         "Mid - slow pentatonic arpeggio",
-        "Fixed pentatonic melody, phase-locked to the shared clock.",
+        "Calm, consonant melodic line locked to the groove.",
         mid_arp.build,
         mid_arp.PARAMETERS,
         0.6,
@@ -52,7 +52,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "mid_generative",
         "Mid - generative melody",
-        "Free-running generative melody, drawn at random every few seconds.",
+        "Ever-changing generative melody that never quite repeats.",
         mid_generative.build,
         mid_generative.PARAMETERS,
         0.6,
@@ -61,7 +61,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "mid_canon",
         "Mid - two-voice canon",
-        "Two generative melodic voices drifting in and out of alignment.",
+        "Two melodic voices in a slow-shifting call and response.",
         mid_canon.build,
         mid_canon.PARAMETERS,
         0.6,
@@ -75,7 +75,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_drone",
         "Bass - slow-swelling sub drone",
-        "Near-static low fundamental that breathes in level.",
+        "Slow-breathing sub bed that swells and recedes.",
         bass_drone.build,
         bass_drone.PARAMETERS,
         0.8,
@@ -83,7 +83,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_chaos",
         "Bass - chaotic sub drift",
-        "Near-static low fundamental whose pitch wanders unpredictably.",
+        "Living, unstable sub rumble whose pitch subtly wanders.",
         bass_chaos.build,
         bass_chaos.PARAMETERS,
         0.8,
@@ -91,7 +91,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_rumble",
         "Bass - textural noise rumble",
-        "Filtered BrownNoise blended with a faint sub sine.",
+        "Unpitched, earthquake-like low-end texture.",
         bass_rumble.build,
         bass_rumble.PARAMETERS,
         0.8,

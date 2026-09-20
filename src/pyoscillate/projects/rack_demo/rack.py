@@ -7,7 +7,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass",
         "Bass",
-        "Rolling 16-step bassline through a resonant, LFO-swept lowpass filter.",
+        "Rolling, resonant bassline that sweeps in tone across the groove.",
         bass.build,
         bass.PARAMETERS,
         1.0,
@@ -17,7 +17,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "atmosphere",
         "Atmosphere (FM pad + arpeggiator)",
-        "FM pad voice arpeggiated at 8th notes, with a slow amplitude swell and reverb.",
+        "Breathing melodic pad that arpeggiates and swells overhead.",
         atmosphere.build,
         atmosphere.PARAMETERS,
         0.6,
@@ -28,7 +28,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "hat",
         "Hi-hat",
-        "Subtle high-passed noise tick, once per 8th note.",
+        "Subtle, airy top-end pulse.",
         hat.build,
         hat.PARAMETERS,
         0.2,
@@ -39,7 +39,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "low_hat",
         "Low hat",
-        "Darker noise tick, once per quarter note, as a rarer accent.",
+        "Darker, rarer accent beneath the main hat.",
         low_hat.build,
         low_hat.PARAMETERS,
         0.2,
@@ -50,7 +50,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "clock_tick",
         "Clock tick",
-        "Four free-running, resonant noise ticks.",
+        "Drifting clockwork texture of overlapping ticks.",
         clock_tick.build,
         clock_tick.PARAMETERS,
         1.0,
@@ -59,7 +59,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "drone",
         "Drone",
-        "Slow-winding FM drone: note changes once every 8 bars.",
+        "Slow-winding sustained drone that rarely changes note.",
         drone.build,
         drone.PARAMETERS,
         1.0,

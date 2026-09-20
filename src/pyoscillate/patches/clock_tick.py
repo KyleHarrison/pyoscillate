@@ -17,16 +17,25 @@ from pyoscillate.tempo import Tempo
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
 
 PARAMETERS = (
-    SliderSpec("level", 0, 1, 0.05, OVERALL_LEVEL, "Level", "Overall tick level.", ()),
-    SliderSpec("wood_q", 1, 10, 0.5, 3, "Wood Q", "Wood resonance.", (PyoParamRef(ButBP, "q"),)),
+    SliderSpec("level", 0, 1, 0.05, OVERALL_LEVEL, "Presence", "Sets how far forward the clock-shop texture sits in the mix, from a background murmur to a foreground element.", ()),
+    SliderSpec(
+        "wood_q",
+        1,
+        10,
+        0.5,
+        3,
+        "Wood tone",
+        "Focuses the woodblock tock around a single pitch for a more tonal, ringing sound, or widens it into a duller, more percussive thud.",
+        (PyoParamRef(ButBP, "q"),),
+    ),
     SliderSpec(
         "glass_q",
         1,
         15,
         0.5,
         6,
-        "Glass Q",
-        "Glass resonance.",
+        "Glass tone",
+        "Focuses the metallic tick around a single ringing pitch, or widens it into a softer, less metallic click.",
         (PyoParamRef(ButBP, "q"),),
     ),
 )

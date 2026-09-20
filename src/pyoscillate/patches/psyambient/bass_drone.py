@@ -21,8 +21,8 @@ PARAMETERS = (
         80,
         1,
         ROOT_FREQ,
-        "Root frequency",
-        "Fundamental frequency of the sub tone.",
+        "Register",
+        "Sets the fixed pitch of the sub drone.",
         (PyoParamRef(Osc, "freq"),),
     ),
     SliderSpec(
@@ -31,8 +31,8 @@ PARAMETERS = (
         30,
         0.5,
         9.0,
-        "Swell period",
-        "Seconds per swell cycle.",
+        "Breathing rate",
+        "How long one swell cycle takes; longer feels like a slow tide, shorter reads as a more rhythmic pulse.",
         (PyoParamRef(Sine, "freq"),),
     ),
     SliderSpec(
@@ -42,7 +42,7 @@ PARAMETERS = (
         0.05,
         0.4,
         "Swell depth",
-        "Depth of the level swell.",
+        "How dramatic the level swell is; higher makes the breathing more audible, lower keeps the drone closer to constant.",
         (PyoParamRef(Sine, "mul"),),
     ),
     SliderSpec(
@@ -51,8 +51,8 @@ PARAMETERS = (
         500,
         10,
         180,
-        "Filter cutoff",
-        "Lowpass cutoff.",
+        "Brightness",
+        "Darkens or brightens the low end; lower keeps it duller and softer, higher lets more harmonic content through.",
         (PyoParamRef(MoogLP, "freq"),),
     ),
     SliderSpec(
@@ -61,8 +61,8 @@ PARAMETERS = (
         1,
         0.05,
         0.2,
-        "Filter resonance",
-        "Lowpass resonance.",
+        "Resonance",
+        "Adds emphasis around the cutoff; kept low here so the drone stays smooth rather than whistly.",
         (PyoParamRef(MoogLP, "res"),),
     ),
 )

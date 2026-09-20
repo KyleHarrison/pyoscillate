@@ -23,8 +23,8 @@ PARAMETERS = (
         220,
         1,
         DRONE_ROOT,
-        "Root frequency",
-        "Drone root.",
+        "Register",
+        "Moves the drone's register; higher brings it closer to the arp and reads as more melodic, lower pushes it toward a sustained sub layer.",
         (PyoParamRef(FM, "carrier"),),
     ),
     SliderSpec(
@@ -33,8 +33,8 @@ PARAMETERS = (
         1,
         0.05,
         0.7,
-        "Reverb size",
-        "Room size.",
+        "Space",
+        "Sets how vast the drone's reverb tail feels, from a tighter presence to a huge, cavernous wash.",
         (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
@@ -43,8 +43,8 @@ PARAMETERS = (
         1,
         0.05,
         0.7,
-        "Reverb damping",
-        "High-frequency damping.",
+        "Tail darkness",
+        "Controls how bright or muffled the reverb tail sounds as it decays; lower keeps it shimmering, higher makes it warmer and duller.",
         (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
@@ -53,8 +53,8 @@ PARAMETERS = (
         1,
         0.05,
         0.9,
-        "Reverb balance",
-        "Dry/wet balance.",
+        "Distance",
+        "Blends dry tone against reverb; higher dissolves the drone into a diffuse atmospheric bed, lower keeps the raw pitch more present.",
         (PyoParamRef(Freeverb, "bal"),),
     ),
 )

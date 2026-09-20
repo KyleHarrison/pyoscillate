@@ -16,8 +16,8 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("root_freq", 90, 220, 1, 146, "Root", "Chord root frequency in Hz."),
-    SliderSpec("brightness", 300, 5000, 50, 1500, "Brightness", "Chord low-pass cutoff."),
+    SliderSpec("root_freq", 90, 220, 1, 146, "Register", "Shifts the chord stab up or down in pitch relative to the bass and kick."),
+    SliderSpec("brightness", 300, 5000, 50, 1500, "Brightness", "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting one."),
 )
 ROOTS = [0, 5, 10, 7]
 INTERVALS = (0, 3, 7, 10)

@@ -7,7 +7,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "kick_round",
         "Kick - Round",
-        "Four-on-the-floor foundation.",
+        "Deep, rounded low-end thump anchoring the groove.",
         kick.make_builder("round"),
         kick.PARAMETERS,
         kick.VOLUME_DEFAULT,
@@ -17,7 +17,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "kick_punch",
         "Kick - Punch",
-        "Four-on-the-floor foundation.",
+        "Tighter, punchier kick with more transient snap.",
         kick.make_builder("punch"),
         kick.PARAMETERS,
         kick.VOLUME_DEFAULT,
@@ -27,7 +27,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "kick_soft",
         "Kick - Soft",
-        "Four-on-the-floor foundation.",
+        "Soft, cushioned kick that sits back in the mix.",
         kick.make_builder("soft"),
         kick.PARAMETERS,
         kick.VOLUME_DEFAULT,
@@ -37,7 +37,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_rolling",
         "Bass - Rolling",
-        "16th-note low-end movement.",
+        "Constantly moving, rolling low-end groove.",
         bass.make_builder("rolling"),
         bass.PARAMETERS,
         bass.VOLUME_DEFAULT,
@@ -47,7 +47,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_dub",
         "Bass - Dub",
-        "16th-note low-end movement.",
+        "Sparser, more resonant dub-style bass hits.",
         bass.make_builder("dub"),
         bass.PARAMETERS,
         bass.VOLUME_DEFAULT,
@@ -57,7 +57,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass_muted",
         "Bass - Muted",
-        "16th-note low-end movement.",
+        "Short, muted bass stabs that stay soft and out of the way.",
         bass.make_builder("muted"),
         bass.PARAMETERS,
         bass.VOLUME_DEFAULT,
@@ -67,7 +67,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "chord_velvet",
         "Chord Stab - Velvet",
-        "Offbeat minor-seventh harmony.",
+        "Warm, rounded minor-seventh chord stabs.",
         chord.make_builder("velvet"),
         chord.PARAMETERS,
         chord.VOLUME_DEFAULT,
@@ -77,7 +77,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "chord_organ",
         "Chord Stab - Organ",
-        "Offbeat minor-seventh harmony.",
+        "Sustained, organ-like harmonic bed.",
         chord.make_builder("organ"),
         chord.PARAMETERS,
         chord.VOLUME_DEFAULT,
@@ -87,7 +87,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "chord_shimmer",
         "Chord Stab - Shimmer",
-        "Offbeat minor-seventh harmony.",
+        "Bright, shimmering chord stabs with more edge.",
         chord.make_builder("shimmer"),
         chord.PARAMETERS,
         chord.VOLUME_DEFAULT,
@@ -97,7 +97,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "hat_crisp",
         "Hat - Crisp",
-        "Offbeat and shuffled top texture.",
+        "Tight, crisp top-end pulse.",
         hat.make_builder("crisp"),
         hat.PARAMETERS,
         hat.VOLUME_DEFAULT,
@@ -107,7 +107,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "hat_open",
         "Hat - Open",
-        "Offbeat and shuffled top texture.",
+        "Airier, more open top-end texture with longer tails.",
         hat.make_builder("open"),
         hat.PARAMETERS,
         hat.VOLUME_DEFAULT,
@@ -117,7 +117,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "hat_shuffle",
         "Hat - Shuffle",
-        "Offbeat and shuffled top texture.",
+        "Loosely shuffled, syncopated top-end groove.",
         hat.make_builder("shuffle"),
         hat.PARAMETERS,
         hat.VOLUME_DEFAULT,
@@ -127,7 +127,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "percussion_clap",
         "Percussion - Clap",
-        "Clap, rim, or conga rhythmic color.",
+        "Sharp, bright clap accent.",
         percussion.make_builder("clap"),
         percussion.PARAMETERS,
         percussion.VOLUME_DEFAULT,
@@ -137,7 +137,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "percussion_rim",
         "Percussion - Rim",
-        "Clap, rim, or conga rhythmic color.",
+        "Tight, woody rim-click accent.",
         percussion.make_builder("rim"),
         percussion.PARAMETERS,
         percussion.VOLUME_DEFAULT,
@@ -147,7 +147,7 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "percussion_conga",
         "Percussion - Conga",
-        "Clap, rim, or conga rhythmic color.",
+        "Warm, resonant conga-like rhythmic color.",
         percussion.make_builder("conga"),
         percussion.PARAMETERS,
         percussion.VOLUME_DEFAULT,

@@ -15,8 +15,8 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("level", 0.02, 0.5, 0.01, 0.14, "Level", "Hat burst level."),
-    SliderSpec("cutoff", 3500, 14000, 100, 9000, "Cutoff", "High-pass cutoff."),
+    SliderSpec("level", 0.02, 0.5, 0.01, 0.14, "Presence", "Sets how loud and upfront the hat pattern sits in the mix."),
+    SliderSpec("cutoff", 3500, 14000, 100, 9000, "Brightness", "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher)."),
 )
 PATTERNS = {
     "crisp": {2, 6, 10, 14},

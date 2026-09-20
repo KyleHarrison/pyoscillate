@@ -21,8 +21,8 @@ PARAMETERS = (
         6000,
         100,
         CUTOFF_FREQ,
-        "Cutoff",
-        "High-pass cutoff.",
+        "Darkness",
+        "Sets how dark and low this accent sits against the main hat; lower is closer to a thud, higher brightens it toward the main hat's character.",
         (PyoParamRef(ButHP, "freq"),),
     ),
     SliderSpec(
@@ -31,8 +31,8 @@ PARAMETERS = (
         1,
         0.05,
         0.55,
-        "Level",
-        "Noise burst level.",
+        "Presence",
+        "Controls how prominent this accent is against the main hat.",
         (PyoParamRef(Noise, "mul"),),
     ),
     SliderSpec(
@@ -41,8 +41,8 @@ PARAMETERS = (
         1,
         0.05,
         0.25,
-        "Decay",
-        "Envelope duration; changing it rebuilds the envelope.",
+        "Tail length",
+        "Shapes the accent's decay; shorter feels tight and clipped, longer trails into a dubbier tock.",
         (PyoParamRef(TrigEnv, "dur"),),
     ),
 )

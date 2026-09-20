@@ -13,8 +13,12 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("root_freq", 35, 82, 1, 55, "Root", "Bass root frequency in Hz."),
-    SliderSpec("cutoff", 180, 2400, 20, 720, "Cutoff", "Bass low-pass cutoff."),
+    SliderSpec(
+        "root_freq", 35, 82, 1, 55, "Register", "Moves the bassline up or down in pitch; lower sits deeper and heavier, higher brings it closer to the chords."
+    ),
+    SliderSpec(
+        "cutoff", 180, 2400, 20, 720, "Brightness", "Opens or closes the bass's low-pass filter; higher lets more upper harmonics through for a brighter tone, lower keeps it rounder and darker."
+    ),
 )
 PATTERNS = {name: list(profile.pattern) for name, profile in DEEP_HOUSE.items()}
 PROFILES = {

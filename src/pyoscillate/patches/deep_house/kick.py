@@ -15,8 +15,8 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("level", 0.1, 1.0, 0.05, 0.62, "Level", "Kick body level."),
-    SliderSpec("drive", 0.0, 0.8, 0.05, 0.12, "Drive", "Soft saturation amount."),
+    SliderSpec("level", 0.1, 1.0, 0.05, 0.62, "Body", "Controls the fullness and weight of the kick's low end."),
+    SliderSpec("drive", 0.0, 0.8, 0.05, 0.12, "Grit", "Adds soft saturation warmth and edge; higher pushes the kick toward a grittier, more aggressive thump."),
 )
 PROFILES = {
     "round": (118.0, 0.24, 0.16),
