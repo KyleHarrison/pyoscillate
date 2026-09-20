@@ -17,7 +17,16 @@ from pyoscillate.tempo import Tempo
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
 
 PARAMETERS = (
-    SliderSpec("level", 0, 1, 0.05, OVERALL_LEVEL, "Presence", "Sets how far forward the clock-shop texture sits in the mix, from a background murmur to a foreground element.", ()),
+    SliderSpec(
+        "level",
+        0,
+        1,
+        0.05,
+        OVERALL_LEVEL,
+        "Presence",
+        "Sets how far forward the clock-shop texture sits in the mix, from a background murmur to a foreground element.",
+        (),
+    ),
     SliderSpec(
         "wood_q",
         1,

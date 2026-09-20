@@ -16,8 +16,24 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("root_freq", 90, 220, 1, 146, "Register", "Shifts the chord stab up or down in pitch relative to the bass and kick."),
-    SliderSpec("brightness", 300, 5000, 50, 1500, "Brightness", "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting one."),
+    SliderSpec(
+        "root_freq",
+        90,
+        220,
+        1,
+        146,
+        "Register",
+        "Shifts the chord stab up or down in pitch relative to the bass and kick.",
+    ),
+    SliderSpec(
+        "brightness",
+        300,
+        5000,
+        50,
+        1500,
+        "Brightness",
+        "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting one.",
+    ),
 )
 ROOTS = [0, 5, 10, 7]
 INTERVALS = (0, 3, 7, 10)
@@ -40,8 +56,7 @@ def build(
     envelope = TrigEnv(trigger, envelope_table, dur=duration)
     amplitude = envelope * 0.19
     voices = [
-        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude)
-        for interval in INTERVALS
+        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude) for interval in INTERVALS
     ]
     source = sum(voices)
     filter_voice = Biquad(source, freq=brightness, q=1.2, type=0)

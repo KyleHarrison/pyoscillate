@@ -38,7 +38,11 @@ class PatchGraphOwnershipTests(unittest.TestCase):
                 if not isinstance(node.value.func, ast.Name) or node.value.func.id != "Patch":
                     continue
                 resources = next(
-                    (keyword.value for keyword in node.value.keywords if keyword.arg == "resources"),
+                    (
+                        keyword.value
+                        for keyword in node.value.keywords
+                        if keyword.arg == "resources"
+                    ),
                     None,
                 )
                 if resources is None or (

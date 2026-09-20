@@ -46,9 +46,7 @@ def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: flo
     """Build claps, rims, or conga-like resonance from the same rhythmic layer."""
     trigger = Trig()
     envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
-    envelope = TrigEnv(
-        trigger, envelope_table, dur=DURATIONS[style], mul=level
-    )
+    envelope = TrigEnv(trigger, envelope_table, dur=DURATIONS[style], mul=level)
     source = Sine(freq=tone)
     shaped_source = source * envelope
     voice = Biquad(

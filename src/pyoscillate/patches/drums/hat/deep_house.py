@@ -15,8 +15,24 @@ from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("level", 0.02, 0.5, 0.01, 0.14, "Presence", "Sets how loud and upfront the hat pattern sits in the mix."),
-    SliderSpec("cutoff", 3500, 14000, 100, 9000, "Brightness", "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher)."),
+    SliderSpec(
+        "level",
+        0.02,
+        0.5,
+        0.01,
+        0.14,
+        "Presence",
+        "Sets how loud and upfront the hat pattern sits in the mix.",
+    ),
+    SliderSpec(
+        "cutoff",
+        3500,
+        14000,
+        100,
+        9000,
+        "Brightness",
+        "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher).",
+    ),
 )
 PATTERNS = {
     "crisp": {2, 6, 10, 14},
@@ -33,9 +49,7 @@ def build(
     """Build a style-specific, grid-locked hat pattern."""
     trigger = Trig()
     envelope_table = CosTable([(0, 0), (35, 1), (8191, 0)])
-    envelope = TrigEnv(
-        trigger, envelope_table, dur=DURATIONS[style], mul=level
-    )
+    envelope = TrigEnv(trigger, envelope_table, dur=DURATIONS[style], mul=level)
     noise = Noise()
     source = noise * envelope
     voice = ButHP(source, freq=cutoff)
