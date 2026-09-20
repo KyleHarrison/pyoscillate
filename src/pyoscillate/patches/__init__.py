@@ -1,23 +1,18 @@
-from pyoscillate.patches import (
-    arp,
-    atmosphere,
-    bass,
-    bell,
-    canon,
-    chord,
+from pyoscillate.patches.base import Patch, PatchRack, setup_notebook, start_server
+from pyoscillate.patches.drums import (
     clap,
-    clock_tick,
     cymbal,
-    drone,
-    generative,
     hat,
     kick,
     low_hat,
     percussion,
     snare,
-    soundscape,
+    tom,
 )
-from pyoscillate.patches.base import Patch, PatchRack, setup_notebook, start_server
+from pyoscillate.patches.musical import arp, canon, chord, clock_tick, generative
+from pyoscillate.patches.pitched_percussion import bell
+from pyoscillate.patches.texture import atmosphere, soundscape, texture
+from pyoscillate.patches.tonal import bass, drone, lead, pad, pluck
 
 __all__ = [
     "Patch",
@@ -35,10 +30,15 @@ __all__ = [
     "generative",
     "hat",
     "kick",
+    "lead",
     "low_hat",
+    "pad",
     "percussion",
+    "pluck",
     "setup_notebook",
     "snare",
     "soundscape",
     "start_server",
+    "texture",
+    "tom",
 ]

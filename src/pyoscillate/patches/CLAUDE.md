@@ -22,6 +22,50 @@ The goal is simple: musical reasoning is handled by the skill, the sonic concept
 - Before creating a new directory, check whether an existing one already covers the musical role you need and extend it instead.
 - When a patch-type directory's `CLAUDE.md` is still empty, treat the existing modules in that directory as the working reference for style and shape until it is filled in — do not backfill this file with citations to fill that gap.
 
+## Layered archetype model
+
+Organize the patch collection by function, not by implementation detail.
+
+### Layer A: fundamental sound mechanisms
+
+These are reusable DSP ideas that can appear in many families:
+
+- oscillator and resonator behavior
+- attack, decay, and release envelopes
+- pitch envelopes and filter envelopes
+- noise excitation and transient generation
+- amplitude shaping and saturation
+- FM, detuning, ring modulation, and waveshaping
+- delay, chorus, and reverb
+- slow LFO motion and chaotic drift
+
+These answer: “What physical signal change creates this sound?”
+
+### Layer B: sound archetypes
+
+These are recognisable sound families, each defined by how the mechanism is combined into a musical object:
+
+- drums: kick, snare, clap, hat, cymbal, tom, percussion
+- pitched percussion: bell
+- tonal voices: bass, pluck, lead, pad, drone
+- texture families: atmosphere, texture, soundscape
+
+These answer: “How are those mechanisms combined to create a recognisable sound family?”
+
+### Layer C: musical structure
+
+These are not synthesis archetypes. They describe how a sound is organised in musical time:
+
+- arp
+- chord
+- generative
+- canon
+- clock_tick
+
+These answer: “How is the sound arranged rhythmically, melodically, or structurally over time?”
+
+The operational rule is simple: sound archetypes describe construction; musical structures describe organisation.
+
 ## Patch contract
 
 Every patch module should expose the same public interface:

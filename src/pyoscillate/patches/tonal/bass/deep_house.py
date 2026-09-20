@@ -6,9 +6,9 @@ from ipywidgets import VBox
 
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.bass import build_bass
-from pyoscillate.patches.bass.profiles import DEEP_HOUSE
 from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.tonal.bass import build_bass
+from pyoscillate.patches.tonal.bass.profiles import DEEP_HOUSE
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 

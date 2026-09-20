@@ -1,11 +1,11 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
-from pyoscillate.patches.bass import deep_house as bass
-from pyoscillate.patches.chord import deep_house as chord
-from pyoscillate.patches.clap import deep_house as clap
-from pyoscillate.patches.hat import deep_house as hat
-from pyoscillate.patches.kick import deep_house as kick
-from pyoscillate.patches.percussion import deep_house as percussion
+from pyoscillate.patches.drums.clap import deep_house as clap
+from pyoscillate.patches.drums.hat import deep_house as hat
+from pyoscillate.patches.drums.kick import deep_house as kick
+from pyoscillate.patches.drums.percussion import deep_house as percussion
+from pyoscillate.patches.musical.chord import deep_house as chord
+from pyoscillate.patches.tonal.bass import deep_house as bass
 from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [

@@ -1,6 +1,6 @@
 """Patch definitions for the standalone FM soundscape."""
 
-from pyoscillate.patches.soundscape import fm as soundscape_fm
+from pyoscillate.patches.texture.soundscape import fm as soundscape_fm
 from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [

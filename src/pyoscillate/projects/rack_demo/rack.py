@@ -1,6 +1,9 @@
 """Patch definitions for the clock-locked groove demo."""
 
-from pyoscillate.patches import atmosphere, bass, clock_tick, drone, hat, low_hat
+from pyoscillate.patches.drums import hat, low_hat
+from pyoscillate.patches.musical import clock_tick
+from pyoscillate.patches.texture import atmosphere
+from pyoscillate.patches.tonal import bass, drone
 from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [
