@@ -2,6 +2,7 @@
 
 from pyoscillate.patches.bass import deep_house as bass
 from pyoscillate.patches.chord import deep_house as chord
+from pyoscillate.patches.clap import deep_house as clap
 from pyoscillate.patches.hat import deep_house as hat
 from pyoscillate.patches.kick import deep_house as kick
 from pyoscillate.patches.percussion import deep_house as percussion
@@ -129,12 +130,12 @@ PATCH_DEFS: list[PatchDef] = [
         needs_clock=True,
     ),
     PatchDef(
-        "percussion_clap",
-        "Percussion - Clap",
+        "clap",
+        "Clap",
         "Sharp, bright clap accent.",
-        percussion.make_builder("clap"),
-        percussion.PARAMETERS,
-        percussion.VOLUME_DEFAULT,
+        clap.build,
+        clap.PARAMETERS,
+        clap.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
     ),
@@ -165,5 +166,6 @@ PATCH_GROUPS: list[PatchGroupDef] = [
     PatchGroupDef("bass", "Bass", tuple(PATCH_DEFS[3:6])),
     PatchGroupDef("chords", "Chord Stabs", tuple(PATCH_DEFS[6:9])),
     PatchGroupDef("hats", "Hi-hats", tuple(PATCH_DEFS[9:12])),
-    PatchGroupDef("percussion", "Percussion", tuple(PATCH_DEFS[12:15])),
+    PatchGroupDef("percussion", "Percussion", tuple(PATCH_DEFS[13:15])),
+    PatchGroupDef("claps", "Claps", (PATCH_DEFS[12],)),
 ]

@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from ipywidgets import VBox
 from pyo.lib.filters import Biquad
-from pyo.lib.generators import Noise, Sine
+from pyo.lib.generators import Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
@@ -19,11 +19,10 @@ PARAMETERS = (
     SliderSpec("tone", 180, 4000, 20, 1100, "Pitch character", "Shifts the percussion's resonant tone; lower is deeper and woodier, higher is thinner and sharper."),
 )
 PATTERNS = {
-    "clap": {4, 12},
     "rim": {3, 7, 11, 15},
     "conga": {3, 6, 9, 11, 14},
 }
-DURATIONS = {"clap": 0.16, "rim": 0.07, "conga": 0.19}
+DURATIONS = {"rim": 0.07, "conga": 0.19}
 VOLUME_DEFAULT = 0.28
 
 
@@ -35,12 +34,12 @@ def build(
     envelope = TrigEnv(
         trigger, CosTable([(0, 0), (30, 1), (8191, 0)]), dur=DURATIONS[style], mul=level
     )
-    source = Noise() if style == "clap" else Sine(freq=tone)
+    source = Sine(freq=tone)
     voice = Biquad(
         source * envelope,
         freq=tone,
-        q=5 if style != "clap" else 1.1,
-        type=2 if style != "clap" else 1,
+        q=5,
+        type=2,
     )
     state = {"step": 0}
 

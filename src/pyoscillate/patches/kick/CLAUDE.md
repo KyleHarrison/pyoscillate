@@ -19,6 +19,11 @@ Optional:
 → nonlinear saturation
 → filtering
 
+The classic drum-voice version is intentionally simple: a sine oscillator is
+started by a trigger, its pitch falls quickly, and a decaying amplitude
+envelope shapes the body. The transient and saturation layers are optional
+ways to adapt that core to a particular mix or style.
+
 ## Body
 
 Sine oscillator is a common starting point because it provides
@@ -64,6 +69,10 @@ Long decay:
 - weighty
 - boomy
 - potentially masks bass
+
+For a conventional electronic kick, the attack is zero because the impact
+starts at maximum amplitude. A moderate decay with an exponential slope gives
+a compact body; increasing the decay moves toward a booming 808-style result.
 
 ## Transient
 
@@ -114,5 +123,9 @@ There is no universal:
 - decay time
 - click duration
 - distortion amount
+
+The useful starting point is a relationship, not a preset: low sine body,
+fast downward pitch movement, immediate attack, and a decay chosen around the
+bassline. The kick should be judged in context with the rest of the groove.
 
 These are style- and context-dependent.
