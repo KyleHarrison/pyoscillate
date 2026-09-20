@@ -1,174 +1,292 @@
 ---
 name: pyo-music
-description: Use whenever the user wants music, sound design, or procedural/generative audio *built or edited in this project's Pyo patches* — e.g. "make a dark evolving drone," "make the filter wander more organically," "add a clock-like ticking texture," "make this pad breathe," "make something inspired by [a track/artist]'s sound," or any request to write, adjust, or reason about code under `src/pyoscillate/patches/`. Also use for pure music-theory/composition questions (harmony, melody, rhythm, form, genre) even without a synthesis component, and for scaffolding a whole new named project ("new project called {project_name}") that needs a Flet app module, a patch rack, and its own patches/README. Do not use for unrelated Python/project tooling questions that don't touch music or the patches.
+description: Use when a request needs music/sound-design reasoning that turns musical intent into sonic behaviour, DSP mechanism, parameter meaning, and user-facing patch descriptions before the exact Pyo implementation is chosen.
 ---
 
 # Pyo Music
 
-This skill connects two knowledge layers that must stay separate:
+This skill is the bridge between the music-theory layer and the implementation layer. It does not replace either one.
 
-- **`../music-theory/`** — the music-composition reference skill. Answers "what is the musical/sonic idea?" It knows nothing about Pyo. Load it for the theory/composition layer before choosing synthesis mechanisms.
-- **`references/pyo-api/`** — the authoritative documentation of every Pyo object exposed by the installed `pyo` package, one reference file per real `pyo/lib/*.py` source module (organized into the category folders below by use). Answers "what implementation primitives exist?" It knows nothing about music theory. **Never invent Pyo behaviour or constructor arguments — if `pyo-api/` documents it, read the file; don't answer from general Pyo knowledge.**
+## Entry points and routing
 
-Neither layer talks about the other. Routing between them is this file's only job — it deliberately does not restate either layer's content.
+- Start with [../music-theory/SKILL.md](../music-theory/SKILL.md) for musical intent, genre, form, harmony, rhythm, and arrangement.
+- Use [references/pyo-api-navigation.md](./references/pyo-api-navigation.md) to route from a synthesis idea into the authoritative Pyo docs in [references/pyo-api/](./references/pyo-api/).
+- Use [../../../CLAUDE.md](../../../CLAUDE.md) for project architecture, `Patch` / `PatchDef` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
 
-## Reference map
+If a request is about new-project creation, app scaffolding, rack architecture, or patch implementation, do not keep that workflow inside this skill. That belongs in the project-level entry point: [../../../CLAUDE.md](../../../CLAUDE.md).
 
-For musical reasoning, load the sibling
-[`music-theory/SKILL.md`](../music-theory/SKILL.md), then its
-[`references/00-navigation.md`](../music-theory/references/00-navigation.md).
+## Core responsibility
 
-If the theory layer produced pitch/harmonic content (a chord, scale, or
-interval set) rather than just a mechanism idea, first read
-[`references/pitch-and-harmony-implementation.md`](./references/pitch-and-harmony-implementation.md)
-to turn it into frequencies and a voice-count strategy.
+This skill answers:
 
-For synthesis mechanism reasoning, start with
-[`references/pyo-api-navigation.md`](./references/pyo-api-navigation.md),
-then open the specific linked API reference it selects:
+> Given a musical intention, what should it sound like, what physical signal changes create that effect, what does the listener perceive, and how should the control or patch be described to a user?
 
-- [`references/pyo-api/core/`](./references/pyo-api/core/) for generators, timing, modulation, envelopes, effects, dynamics, and output
-- [`references/pyo-api/analysis/`](./references/pyo-api/analysis/) for signal analysis and DSP expressions
-- [`references/pyo-api/control/`](./references/pyo-api/control/) for random sources and value mapping
-- [`references/pyo-api/external_io/`](./references/pyo-api/external_io/) for MIDI and network control
-- [`references/pyo-api/playback_routing/`](./references/pyo-api/playback_routing/) for players, routing, and matrices
-- [`references/pyo-api/sequencing/`](./references/pyo-api/sequencing/) for event and pattern sequencing
-- [`references/pyo-api/spectral/`](./references/pyo-api/spectral/) for FFT and phase-vocoder processing
+It is not a second implementation framework and it does not duplicate the patch architecture in [../../../CLAUDE.md](../../../CLAUDE.md).
 
-## Concept bridges
+## Reasoning model
 
-Most theory concepts (orchestration density, groove feel, genre convention,
-production-aware arrangement...) don't need a dedicated bridge file — step 2
-below plus `pyo-api-navigation.md`'s mechanism table already handles them,
-because there's no unit mismatch, only a mechanism choice.
-
-A dedicated bridge is only worth writing where the theory layer's units
-don't exist in Pyo natively and require real conversion. Before adding a new
-one, check whether the codebase already solves that conversion — point to
-the existing utility instead of re-deriving it in a doc:
-
-| Concept | Unit gap | Bridge |
-|---|---|---|
-| Pitch / harmony (single pitch) | semitones, chord tones ↔ Hz | already solved in code: `root_freq * 2 ** (semitones / 12)`, as used in `atmosphere.py`'s `ARP_INTERVALS` and `mid_arp.py` — or `MToF`/`FToM` in [`pyo-api/analysis/utils.py`](./references/pyo-api/analysis/utils.py) for MIDI-derived pitch. Read those directly; don't re-derive |
-| Pitch / harmony (multiple pitches at once) | no existing convention for sounding a chord — every patch so far arpeggiates one pitch at a time | [`references/pitch-and-harmony-implementation.md`](./references/pitch-and-harmony-implementation.md) — genuinely undocumented territory, not solved in code yet |
-| Rhythm / tempo | BPM, bars, 16ths ↔ seconds | `src/pyoscillate/tempo.py`'s `Tempo` and `clock.py`'s `Clock`/`Division` — already solved in code; read those directly rather than re-deriving BPM math, and use `Clock.subscribe()` for anything tempo-locked instead of a raw `Metro` |
-
-Add a new row here only when a request exposes a real gap of this kind —
-don't pre-build one per theory topic speculatively.
-
-## Reasoning chain
-
-Move through these steps in order. Don't skip from natural language straight to a Pyo class name.
+The central chain is:
 
 ```
-user's musical/sonic description
-        ↓  (1)
-../music-theory/  → musical/sonic reference file(s)
-        ↓  (2)
-translate into a synthesis-level idea: what changes, how, at what timescale,
-gated or free-running, periodic or stochastic, harmonic or noisy...
-        ↓  (2b, only if step 1 produced more than one simultaneous pitch — a chord/voicing)
-references/pitch-and-harmony-implementation.md  → how to sound them together
-        ↓  (3)
-references/pyo-api-navigation.md  → candidate pyo-api/ file(s)
-        ↓  (4)
-read the actual pyo-api/ docstrings for the real constructor signature
-        ↓  (5)
-wire it into a patch (see "Writing/editing a patch" below)
+MUSICAL INTENT
+    ↓
+SONIC INTENT
+    ↓
+DSP MECHANISM
+    ↓
+PERCEPTUAL AFFORDANCE
+    ↓
+MUSICAL CONSEQUENCE
+    ↓
+USER CONTROL
+    ↓
+PYO IMPLEMENTATION
 ```
 
-**Step 2 is the one that's easy to skip and shouldn't be.** "Dark," "organic," "metallic," "breathing" do not map to one Pyo object each — each has several valid synthesis interpretations (register, spectrum, envelope shape, modulation type, density...). Decide *which* interpretation fits this request before opening `pyo-api-navigation.md`. If more than one interpretation is plausible and the user hasn't disambiguated, say so and offer 2-3 concrete options rather than silently picking one.
+Do not jump from "dark" or "metallic" straight to a Pyo object. First decide what the listener is meant to hear, then what physical change can create it, then which Pyo primitives can implement that change.
 
-## Step 1 in detail — musical/sonic reasoning
+## Parameter reasoning standard
 
-Always start by loading `../music-theory/SKILL.md`, then begin at its `references/00-navigation.md`. It routes theory/composition/genre/vague-feeling requests to specific files (harmony, rhythm, form, genre, production-aware, etc.) and explains its own loading discipline (1-3 files for most requests; 5+ means the question is too broad). Follow that discipline here too.
+For every exposed parameter, reason through this sequence:
 
-The music-theory skill's `references/music-composition-skill-notes.md` holds its own philosophy and conventions (how to frame techniques, notation conventions, genre framing) — read it once if you need the reasoning style, not per request.
+```
+Pyo parameter
+    ↓
+physical change
+    ↓
+perceptual effect
+    ↓
+musical consequence
+    ↓
+user-facing label
+    ↓
+user-facing help text
+```
 
-This layer is genuinely sufficient on its own for pure composition questions (chord progressions, melodic advice, arrangement) that have no synthesis/patch component — answer from it directly and skip step 3 onward.
+This is a reasoning framework, not a schema. It informs the language of the GUI and patch summary without replacing the existing `SliderSpec` architecture.
 
-## Step 3 in detail — synthesis reasoning
+### 1. What physically changes?
 
-`references/pyo-api-navigation.md` is the linking table: it takes a synthesis-level idea (a category of mechanism — continuous modulation, triggered events, filtering, dynamics, spectral processing, etc.) and points to the specific `pyo-api/` file(s) that document real candidates, with one-line hints on what distinguishes them. It also points to worked examples already in `src/pyoscillate/patches/` — reading a working patch is often the fastest way to see how categories combine into a real signal chain.
+Ask what the DSP parameter actually changes in the signal chain:
 
-That file's candidates are deliberately not 1:1 (e.g. "continuous organic modulation" lists both `Rossler` and `Lorenz`, plus a plain slow LFO as the non-chaotic alternative). Read the actual docstrings in `pyo-api/` before choosing between them — the navigation file narrows the search, it doesn't make the final call.
+- oscillator frequency
+- filter cutoff or resonance
+- modulation depth
+- envelope attack or release
+- reverb damping or density
+- amplitude or drive
+- modulation rate
+- stereo spread or panning
 
-## Reference-track requests
+This is where the Pyo API remains authoritative.
 
-("Make something like the clock ticks in Pink Floyd's *Time*", "give me the vibe of [artist]'s intro".)
+### 2. What does the listener perceive?
 
-Never treat the reference as a recipe to reproduce and never hard-code a patch keyed to a specific track/artist. Instead: use the music-theory skill's reference-track guidance and relevant genre/production-aware file to extract sonic/musical *characteristics* → step 2/3 above to turn those characteristics into synthesis mechanisms → an original patch. `pyo-api-navigation.md` documents one worked instance of this (`clock_tick.py`, derived from "several unsynchronized periodic ticks, each a distinct resonant timbre" — not from looking up the track).
+Translate that signal change into perceptual language:
 
-## Writing or editing a patch
+- filter frequency: darker ↔ brighter, closed ↔ open, muted ↔ present
+- FM index: simple ↔ spectrally complex, pure ↔ bright/metallic/harsh depending on ratio, register, and carrier
+- attack: immediate ↔ gradual, punchy ↔ soft/swelling
+- reverb amount: dry/close ↔ spacious/distant, tight ↔ diffuse
+- kick body amplitude: lighter ↔ fuller/heavier
 
-- Every patch is a `build(...) -> Patch` function plus a `widget(...)` for the notebook UI, living either directly under `src/pyoscillate/patches/` (e.g. `drone.py`, `clock_tick.py`) or under a concept subfolder `src/pyoscillate/patches/{concept}/{patch}.py` (`concept` = a logical layer like `bass/`, `mid/`, `drone/`, `soundscape/`, `percussion/` — `patches/psyambient/` is the existing precedent for this, via its `bass_*`/`mid_*`/`soundscape_*` filename prefixes). Look at an existing patch for the shape before adding a new one, and match whichever layout the patch's project already uses.
-- **Extend before you fork.** Before adding a new patch, search `src/pyoscillate/patches/**` for one that's already conceptually close. If one exists, add new *optional* parameters to it (default = current behavior) instead of writing a new file — this keeps every project/rack that already imports it working unchanged. When a family has the same controls and graph shape but several fixed profiles, keep it in one module and expose `make_builder(profile)` so the project rack can create one `PatchDef` per profile. Only create a new patch file — under `patches/{concept}/{new_patch}.py` — when reuse would break backward compatibility or the sound is genuinely a new concept with its own controls, lifecycle, or topology.
-- `base.py`'s `Patch`/`PatchRack` handle start/stop, fade, and the shared `Compress` gain-stage tail — don't reimplement gain staging or click-free stop/start per patch.
-- **Retain the complete Pyo graph.** Native Pyo DSP nodes may still reference upstream Python objects after `build()` returns. Name every table, generator, envelope, arithmetic intermediate, trigger, and other auxiliary node, then include nodes not otherwise strongly owned in `Patch(resources=(...))`. Do not leave graph-critical objects only as constructor or arithmetic temporaries; this has caused nondeterministic kernel segmentation faults when multiple patches ran together.
-- Prefer high-level, musically-named parameters (e.g. `reverb_size`, `wood_q`) with docstring explanations of what raising/lowering them does perceptually, matching the existing patches' style.
-- After wiring a patch, trace it backward from `.out()`/the returned `voice` and check each stage against the `pyo-api/` file it came from — this is the fastest way to catch a misremembered parameter name before running it.
-- Validate concurrent and live-update behavior with Pyo's `audio="manual"` backend and repeated `server.process()` calls. Put any regression for a prior native crash in a subprocess with `-X faulthandler`, so a segfault fails the test without terminating the test runner. Construction-only smoke tests are necessary but do not exercise DSP object lifetimes.
+### 3. What musical outcome can that support?
 
-## New project workflow
+Translate the perceptual effect into musical role:
 
-When the user asks for a new project named `{project_name}` (a whole new Flet
-app + patch rack, not a single patch edit), run this sequence in order:
+- brighter → presence, lead, articulation, energetic texture
+- darker → subbed, atmospheric bed, background layer
+- longer attack → gentle swell, pad, ambient onset
+- short attack → pluck, percussion, rhythmic articulation
+- stronger rhythmic modulation → pulse, groove, movement
 
-1. **Ground the request.** Run the usual reasoning chain above (music-theory
-   → sonic reasoning → synthesis strategy) for whatever musical/sonic brief
-   defines this project, before creating any files.
-2. **Flet app module.** Create `src/flet/{project_name}/` as a package
-   (`__init__.py` + `app.py`). **No reusable starter template exists yet** —
-   this is a known TODO. Until one is built, copy-adapt the closest existing
-   example: `rack_demo_app.py` or `psyambient_app.py` for a multi-voice rack,
-   `app.py` for a single-patch app. `app.py`'s `main()` must build a
-   `PatchRackApp` (`src/flet/base.py`) from the `PATCH_DEFS` defined in step
-   3's `rack.py`, with a `CATALOG_DIR` under `src/flet/presets/{project_name}/`.
-3. **Project rack module.** Create `src/pyoscillate/projects/{project_name}/`
-   with `__init__.py` and `rack.py`. `rack.py` owns `PATCH_DEFS:
-   list[PatchDef]` — this replaces today's convention of defining that list
-   inline in the `*_app.py` file; the app module should only import it.
-4. **Reuse or add patches.** Follow "Writing or editing a patch" above for
-   every patch this project needs: extend a conceptually close existing
-   patch with new optional parameters where possible, and only create a
-   genuinely new patch (under `patches/{concept}/{new_patch}.py`) when that
-   isn't possible.
-5. **Wire the rack.** Once every needed patch exists or has been extended,
-   `rack.py`'s `PATCH_DEFS` lists a `PatchDef` per patch for this project,
-   same shape as `PATCH_DEFS` in `psyambient_app.py`/`rack_demo_app.py`
-   today.
-6. **Project README.** Generate
-   `src/pyoscillate/projects/{project_name}/README.md` documenting: the
-   musical/theory brief from step 1, the concept→patch mapping decided in
-   steps 4-5, and per-patch parameter docs explaining what each control does
-   perceptually and how it serves the musical goal — matching the docstring
-   voice already used in existing patch files.
-7. **Notebook.** Create `notebooks/{project_name}/{project_name}.ipynb`
-   (plus its `notebooks/{project_name}/catalog/` preset folder), matching
-   the shape of existing notebooks (`notebooks/psyambient/psyambient.ipynb`,
-   `notebooks/rack_demo/rack_demo.ipynb`): one setup cell that builds the
-   shared `server`/`tempo`/`clock`/`rack`/`preset_controller`, then one
-        markdown + code cell pair per patch that instantiates it independently
-        via its `widget(...)` function (add one to the patch module if it
-        doesn't already expose one — see `build`/`make_builder`/`widget` in
-        `patches/deep_house/kick.py` for a family with fixed style profiles and
-        one widget entry point per profile), and a final save-preset cell.
-   This notebook is the manual/interactive counterpart to the Flet
-   app from step 2 — both should end up exposing every patch in
-   `PATCH_DEFS`.
+This is contextual and not deterministic.
 
-This workflow (the `projects/{project_name}/rack.py` + `patches/{concept}/`
-split) applies going forward only — existing projects (`rack_demo`,
-`psyambient`, `deep_house`, `soundscape_fm`) keep their current inline
-`PATCH_DEFS`/flat-patch layout unless a future task asks to migrate them.
+## Do not overclaim mappings
 
-## Known gaps
+Perceptual mappings depend on context.
 
-`pyo-api-navigation.md` ends with a short list of categories (`analysis/`, `spectral/`, `sequencing/`, `external_io/`, `playback_routing/`, `control/`) whose mapping is inferred from their docstrings rather than from an existing patch using them — treat a mismatch there as a cue to refine that file, not as ground truth.
+Examples:
 
-No patch in this codebase currently sustains a chord (simultaneous pitches) — everything arpeggiates one note at a time. `pitch-and-harmony-implementation.md`'s multi-voice options are therefore reasoned from the Pyo API, not distilled from a working example here; treat a mismatch as a cue to refine that file once a real chord/pad patch exists.
+- increasing FM index does not always mean "brighter"; it may sound rich, buzzy, metallic, harsh, or unstable depending on the carrier, ratio, register, envelope, and whether it is heard as a pitched tone or texture
+- increasing reverb does not simply mean "more space"; it can change distance, density, sustain, clarity, and rhythmic definition
+- shorter attack can sharpen articulation or create brittleness depending on the rest of the signal chain
 
-The "new project workflow" section above is untested — no project has been
-scaffolded through it yet. Treat the first real usage as the place to
-sanity-check the `rack.py`/app-package split before treating it as settled
-convention.
+Use this shape:
+
+```
+physical change
+    ↓
+likely perceptual effect
+    ↓
+depending on context
+    ↓
+possible musical use
+```
+
+## Modulation and timescale
+
+Modulation is a relationship, not a class:
+
+```
+source + destination + rate/timescale + depth
+    ↓
+perceptual result
+    ↓
+musical affordance
+```
+
+Examples:
+
+- LFO → pitch → vibrato / pitch movement
+- LFO → amplitude → tremolo / pulsing
+- LFO → filter cutoff → wah / brightness sweep
+- LFO → stereo position → spatial motion
+- envelope → amplitude → articulation
+- envelope → filter cutoff → brightness contour over time
+
+Timescale matters too:
+
+- very slow modulation → evolution, drift, breathing
+- note-rate modulation → movement, contour, articulation
+- rhythmic modulation → pulse, groove, texture
+- audio-rate modulation → timbral transformation
+
+## Patch-level summary reasoning
+
+At patch level, the useful question is:
+
+> What musical or perceptual role does this patch contribute when it is enabled?
+
+Prefer summaries such as:
+
+- "Four-on-the-floor foundation."
+- "Slow-moving atmospheric texture."
+- "Bright, expressive melodic lead."
+- "Warm sustained harmonic bed."
+- "Rhythmic spectral movement."
+
+Avoid implementation-led summaries such as:
+
+- "Kick using an oscillator, envelope, and saturation."
+- "Pad with filtered FM and reverb."
+
+The patch reasoning chain is:
+
+```
+patch architecture
+    ↓
+sonic character
+    ↓
+musical role
+    ↓
+short user-facing summary
+```
+
+## User-facing control descriptions
+
+Prefer the perceptual or musical affordance over the raw DSP name.
+
+Examples:
+
+- raw: "Level" / "Kick body level."
+- better: label = "Body" ; help = "Controls the fullness and weight of the kick."
+
+- raw: "Cutoff" / "Filter cutoff frequency."
+- better: label = "Brightness" ; help = "Moves the sound from dark and muted to bright and open."
+
+The choice of wording should come from the actual patch and the real musical role it serves.
+
+## Relationship to the other layers
+
+### [../music-theory/SKILL.md](../music-theory/SKILL.md)
+
+This is the authority for musical intent: genre conventions, harmony, rhythm, form, arrangement, and composition. It tells the agent what the piece is meant to do musically.
+
+### [references/pyo-api-navigation.md](./references/pyo-api-navigation.md) and [references/pyo-api/](./references/pyo-api/)
+
+These are the authority for DSP truth: the actual Pyo objects, constructor signatures, and technical behaviour.
+
+### [../../../CLAUDE.md](../../../CLAUDE.md)
+
+This is the authority for project architecture and implementation rules:
+
+- patch module structure
+- `PARAMETERS`
+- `SliderSpec`
+- `Patch` / `PatchDef`
+- widget implementation
+- runtime safety and graph ownership
+- rack architecture
+- new-project scaffolding workflow
+
+This skill should not repeat those rules.
+
+## Project-level workflow entry point
+
+The project-scaffolding path is not owned by this skill. For new project creation, use the workflow in [../../../CLAUDE.md](../../../CLAUDE.md), especially its "New project workflow" section.
+
+That workflow is the correct location for:
+
+- app + rack generation
+- project folder layout
+- patch family reuse vs. new-module creation
+- notebook and preset structure
+- project README planning
+
+This skill simply provides the musical and sonic reasoning that feeds that project-level workflow.
+
+## Minimal working pattern
+
+For a new request, do this in order:
+
+1. Start with the musical idea and its role.
+2. Turn it into sonic intent: what should the listener hear?
+3. Identify the real DSP mechanism that can produce it.
+4. Ask what physically changes and what perceptually follows.
+5. Map that to the relevant musical consequence.
+6. Choose user-facing names and help text.
+7. Only then implement with the actual Pyo objects and parameters.
+
+This keeps the agent from collapsing the creative chain too early and from treating the Pyo API as if it were the musical meaning itself.
+
+## Examples of the intended reasoning
+
+### FM example
+
+- physical change: increasing FM index increases the amount of carrier/modulator interaction
+- perceptual effect: more spectral complexity, often brighter or more metallic depending on ratio and register
+- musical consequence: can support a lead, a sharper transient, or a more unstable textural layer
+- user-facing language: "Brightness" or "Complexity" depending on the patch
+- not universal: the same change can sound rich, harsh, or smooth depending on context
+
+### Modulation example
+
+- source: LFO
+- destination: filter cutoff
+- rate: slow vs. note-rate vs. rhythmic
+- perceptual effect: subtle movement, wobble, spectral wash, or pulsing brightness
+- musical consequence: motion, breathing, groove, texture, or accent
+- user-facing label: "Motion" or "Brightness" depending on the role
+
+### Envelope example
+
+- physical change: longer attack and slower release
+- perceptual effect: softer onset and more bloom
+- musical consequence: pad, atmospheric bed, long swell
+- short attack would instead imply pluck, rhythmic articulation, or percussive bite
+
+### Reverb example
+
+- physical change: more decay or density
+- perceptual effect: more distance and diffusion, but possible loss of clarity if overdone
+- musical consequence: space, ambience, or wash
+- user-facing wording should describe the resulting musical experience rather than the DSP object name
+
+### Patch-summary example
+
+- "Four-on-the-floor foundation."
+- "Slow-moving atmospheric texture."
+- "Bright, expressive melodic lead."
+
+These descriptions answer what the patch contributes to the music, not what DSP building blocks were used.

@@ -2,30 +2,22 @@
 
 ## Project: Agentic Procedural Music and Sound Design with Pyo
 
-This project's agentic music/sound-design behaviour is implemented as a Claude
-Code skill:
+This project has three entry points, each with a distinct job:
 
-```text
-.claude/skills/pyo-music/SKILL.md
-```
+- [SKILL.md](SKILL.md) — project-level routing and top-level entry point
+- [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md) — composition and music-theory reasoning
+- [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md) — sonic/perceptual translation before implementation
 
-**Read that file to operate as this project's music/sound-design agent.**
-It routes a natural-language musical or sonic request through two knowledge
-layers and into working Pyo code:
+## Project-level routing
 
-```text
-.claude/skills/pyo-music/
-├── SKILL.md                          ← routing/operating layer, read first
-└── references/
-    ├── 00-navigation.md              ← music-composition knowledge (theory, genre, form, ...)
-    ├── pyo-api-navigation.md         ← links synthesis concepts to pyo-api/ files
-    ├── pyo-api/                      ← authoritative Pyo object documentation
-    └── ...                           ← the rest of the music-composition reference library
-```
+For a request involving a real patch, a rack, or a new project, follow this order:
 
-This file (`CLAUDE.md`) intentionally stays short: it exists to point at
-`SKILL.md`, not to duplicate its routing logic or the knowledge underneath
-it.
+1. Determine whether the task is purely musical, sonic-to-DSP translation, or implementation/project scaffolding.
+2. If it is musical theory/composition-only, read [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md).
+3. If it is sound design or synthesis translation, read [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md).
+4. If it is project architecture, rack creation, `PatchDef` structure, or new project scaffolding, use this file and its workflow below.
+
+This file is the correct place for concrete implementation and project-flow rules. The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
 
 ## Foundational principle
 
@@ -33,8 +25,23 @@ it.
 → `Resonx`, "ambient" → `Reverb`). A single perceptual description can have
 many valid synthesis strategies, and one Pyo object can serve many different
 musical purposes. Move through musical reasoning → sonic reasoning →
-synthesis strategy → Pyo implementation, as `SKILL.md` describes — don't
+synthesis strategy → Pyo implementation, as the skill chain describes — don't
 collapse that chain early.
+
+## New project workflow
+
+When the user asks for a new project named `{project_name}` (a whole new Flet
+app + patch rack, not a single patch edit), use this workflow in order:
+
+1. **Ground the request.** Start with the musical and sonic brief, then translate it through the music and pyo-music skills before creating files.
+2. **Choose the project layout.** Create the project package under `src/flet/{project_name}/` and the rack under `src/pyoscillate/projects/{project_name}/` when a new app/rack is required.
+3. **Reuse or extend existing patch families first.** Search the nearest patch family before creating a new module. Extend an existing family or builder when possible.
+4. **Implement the patch set.** Use the real patch modules under `src/pyoscillate/patches/` and the canonical runtime conventions there as the implementation source of truth.
+5. **Wire the rack.** Put the `PATCH_DEFS` list in the project rack module and keep the app layer thin.
+6. **Add README and notebook support.** Document the musical brief and concept-to-patch mapping; create the notebook preset structure and patch widgets when relevant.
+7. **Validate the runtime contract.** Keep the patch graph and runtime state aligned with the project's patch architecture rules.
+
+This is a project-level workflow, not a music-skill workflow. It lives here so it remains discoverable to agents and to future project creation tasks.
 
 ## Non-agentic project setup
 
@@ -50,7 +57,18 @@ script.py` or `uv run python -c "..."`) rather than invoking `python` directly.
 
 To run linting instead of: `source .venv/bin/activate && ruff check src` just use `uv run ruff check src`
 
-
 Patches live in `src/pyoscillate/patches/`; each is a `build(...) -> Patch` /
-`widget(...)` pair driven from the notebooks in `notebooks/`. `SKILL.md`
-covers how to extend or reason about these.
+`widget(...)` pair driven from the notebooks in `notebooks/`. The actual
+implementation and runtime discipline live in the project patch docs and the real
+modules under that folder.
+
+## Implementation authority
+
+The authoritative implementation references are:
+
+- `src/pyoscillate/patches/base.py` — shared patch lifecycle and runtime safety
+- `src/pyoscillate/patches/widgets.py` — `SliderSpec` and UI conventions
+- `src/pyoscillate/patches/deep_house/kick.py` — canonical profile-based family pattern
+- `src/pyoscillate/projects/*/rack.py` — rack wiring for concrete projects
+
+Those are the actual sources of truth for the patch architecture. The skill files should route into them and explain the musical reasoning, not duplicate their implementation contracts.
