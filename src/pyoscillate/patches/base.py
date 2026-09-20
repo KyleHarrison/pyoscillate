@@ -6,12 +6,15 @@ from typing import Any, Protocol
 
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
-from pyo.lib.dynamics import Compress
+from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server, pa_list_devices
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
 STOP_FADE = 0.2
+# Absolute peak cap for a single patch before it reaches the shared hardware
+# output. The Flet rack adds a separate, capped master gain for the sum.
+PATCH_OUTPUT_CEILING = 0.18
 
 
 def setup_notebook(
@@ -89,8 +92,11 @@ class Patch:
         # at its normal level.
         self._volume_control = SigTo(value=self.volume, time=0.05)
         boosted = self.voice * self._volume_control
-        compressed = Compress(
-            boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05
+        compressed = Compress(boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05)
+        limited = Clip(
+            compressed,
+            min=-PATCH_OUTPUT_CEILING,
+            max=PATCH_OUTPUT_CEILING,
         )
         # pyo's stop(wait=...) only delays the hard cutoff, it doesn't fade
         # the signal itself - multiplying by this ramp is what actually
@@ -98,7 +104,7 @@ class Patch:
         # start (from silence) and the next stop() (see below)
         self._fade = SigTo(value=1.0, time=STOP_FADE)
         # mono voices only have one stream, so .out() alone would only reach channel 0
-        self._output = (compressed * self._fade).mix(2).out()
+        self._output = (limited * self._fade).mix(2).out()
         self.sequencer.play()
         return self
 

@@ -35,6 +35,8 @@ TILE_BG = "#1D2B28"
 TEXT = "#F4F7F6"
 MUTED = "#A9B8B4"
 ERROR = "#FF8A80"
+MASTER_OUTPUT_DEFAULT = 0.1
+MASTER_OUTPUT_MAX = 0.2
 
 Preset = dict[str, dict[str, Any]]
 
@@ -280,6 +282,8 @@ class EngineSpec:
     nchnls: int = 2
     bpm: float | None = None
     needs_clock: bool = False
+    master_output_default: float = MASTER_OUTPUT_DEFAULT
+    master_output_max: float = MASTER_OUTPUT_MAX
 
 
 class PatchRackApp:
@@ -304,6 +308,7 @@ class PatchRackApp:
         self.tempo: Tempo | None = None
         self.clock: Clock | None = None
         self.rack = PatchRack()
+        self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir)
         self.panels = {patch_def.name: PatchPanel(self.rack, patch_def) for patch_def in patch_defs}
 
@@ -314,6 +319,18 @@ class PatchRackApp:
             bgcolor=ACCENT,
             color="#07110F",
             on_click=self._toggle_engine,
+        )
+        self.master_output_text = ft.Text(
+            f"{self.master_output:.2f}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        self.master_output_slider = ft.Slider(
+            min=0,
+            max=engine.master_output_max,
+            divisions=20,
+            value=self.master_output,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_master_output,
         )
         self.preset_dropdown = ft.Dropdown(
             label="Preset",
@@ -368,6 +385,27 @@ class PatchRackApp:
                 ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
             ]
         )
+        master_row = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text("Master output", color=TEXT, size=14),
+                            self.master_output_text,
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    self.master_output_slider,
+                    ft.Text(
+                        f"Safety-capped at {self.engine.master_output_max:.2f}; starts at a low level.",
+                        color=MUTED,
+                        size=11,
+                    ),
+                ],
+                spacing=2,
+            ),
+            padding=ft.padding.Padding(left=28, top=0, right=28, bottom=12),
+        )
         panel_list = ft.ListView(
             controls=[panel.control for panel in self.panels.values()],
             spacing=0,
@@ -381,6 +419,7 @@ class PatchRackApp:
                         content=preset_row,
                         padding=ft.padding.Padding(left=28, top=12, right=28, bottom=12),
                     ),
+                    master_row,
                     ft.Container(
                         content=panel_list,
                         padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
@@ -401,9 +440,17 @@ class PatchRackApp:
             self._start_engine()
         self.page.update()
 
+    def _handle_master_output(self, e: ft.ControlEvent) -> None:
+        self.master_output = float(e.control.value)
+        self.master_output_text.value = f"{self.master_output:.2f}"
+        if self.server is not None:
+            self.server.setAmp(self.master_output)
+        e.page.update()
+
     def _start_engine(self) -> None:
         try:
             self.server = Server(nchnls=self.engine.nchnls).boot()
+            self.server.setAmp(self.master_output)
             self.server.start()
             build_kwargs_common: dict[str, Any] = {}
             if self.engine.bpm is not None:

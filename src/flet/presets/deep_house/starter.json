@@ -1,0 +1,92 @@
+{
+    "kick_round": {
+        "enabled": true,
+        "level": 0.62,
+        "drive": 0.12,
+        "volume": 0.8
+    },
+    "kick_punch": {
+        "enabled": false,
+        "level": 0.62,
+        "drive": 0.12,
+        "volume": 0.8
+    },
+    "kick_soft": {
+        "enabled": false,
+        "level": 0.62,
+        "drive": 0.12,
+        "volume": 0.8
+    },
+    "bass_rolling": {
+        "enabled": true,
+        "root_freq": 55,
+        "cutoff": 720,
+        "volume": 0.62
+    },
+    "bass_dub": {
+        "enabled": false,
+        "root_freq": 55,
+        "cutoff": 720,
+        "volume": 0.62
+    },
+    "bass_muted": {
+        "enabled": false,
+        "root_freq": 55,
+        "cutoff": 720,
+        "volume": 0.62
+    },
+    "chord_velvet": {
+        "enabled": true,
+        "root_freq": 146,
+        "brightness": 1500,
+        "volume": 0.4
+    },
+    "chord_organ": {
+        "enabled": false,
+        "root_freq": 146,
+        "brightness": 1500,
+        "volume": 0.4
+    },
+    "chord_shimmer": {
+        "enabled": false,
+        "root_freq": 146,
+        "brightness": 1500,
+        "volume": 0.4
+    },
+    "hat_crisp": {
+        "enabled": true,
+        "level": 0.14,
+        "cutoff": 9000,
+        "volume": 0.25
+    },
+    "hat_open": {
+        "enabled": false,
+        "level": 0.14,
+        "cutoff": 9000,
+        "volume": 0.25
+    },
+    "hat_shuffle": {
+        "enabled": false,
+        "level": 0.14,
+        "cutoff": 9000,
+        "volume": 0.25
+    },
+    "percussion_clap": {
+        "enabled": true,
+        "level": 0.18,
+        "tone": 1100,
+        "volume": 0.28
+    },
+    "percussion_rim": {
+        "enabled": false,
+        "level": 0.18,
+        "tone": 1100,
+        "volume": 0.28
+    },
+    "percussion_conga": {
+        "enabled": false,
+        "level": 0.18,
+        "tone": 1100,
+        "volume": 0.28
+    }
+}

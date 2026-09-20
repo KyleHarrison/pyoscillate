@@ -79,6 +79,16 @@ uv run flet pack main.py \
   --yes
 ```
 
+## Run the Deep House Rack
+
+Launch the Flet rack in a browser from the project root:
+
+```bash
+uv run flet run --web --port 8551 src/flet/deep_house_app.py
+```
+
+Open http://127.0.0.1:8551 in the VS Code browser.
+
 ## Quick start
 
 Open the notebook environment and start the live rig:
