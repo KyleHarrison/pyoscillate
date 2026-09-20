@@ -1,7 +1,7 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
 from pyoscillate.patches.deep_house import bass, chord, hat, kick, percussion
-from src.flet.base import PatchDef
+from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
@@ -154,4 +154,12 @@ PATCH_DEFS: list[PatchDef] = [
         needs_tempo=True,
         needs_clock=True,
     ),
+]
+
+PATCH_GROUPS: list[PatchGroupDef] = [
+    PatchGroupDef("kicks", "Kicks", tuple(PATCH_DEFS[0:3])),
+    PatchGroupDef("bass", "Bass", tuple(PATCH_DEFS[3:6])),
+    PatchGroupDef("chords", "Chord Stabs", tuple(PATCH_DEFS[6:9])),
+    PatchGroupDef("hats", "Hi-hats", tuple(PATCH_DEFS[9:12])),
+    PatchGroupDef("percussion", "Percussion", tuple(PATCH_DEFS[12:15])),
 ]

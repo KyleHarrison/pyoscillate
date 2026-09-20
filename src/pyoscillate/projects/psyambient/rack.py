@@ -11,7 +11,7 @@ from pyoscillate.patches.psyambient import (
     soundscape_fm,
     soundscape_wash,
 )
-from src.flet.base import PatchDef
+from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
@@ -95,5 +95,26 @@ PATCH_DEFS: list[PatchDef] = [
         bass_rumble.build,
         bass_rumble.PARAMETERS,
         0.8,
+    ),
+]
+
+PATCH_GROUPS: list[PatchGroupDef] = [
+    PatchGroupDef(
+        "soundscapes",
+        "Soundscapes",
+        tuple(PATCH_DEFS[0:3]),
+        "Choose and combine evolving atmospheric beds.",
+    ),
+    PatchGroupDef(
+        "mid",
+        "Mid Voices",
+        tuple(PATCH_DEFS[3:6]),
+        "Melodic movement in the center of the arrangement.",
+    ),
+    PatchGroupDef(
+        "bass",
+        "Bass",
+        tuple(PATCH_DEFS[6:9]),
+        "Low-frequency foundations and textures.",
     ),
 ]

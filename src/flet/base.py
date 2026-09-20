@@ -66,6 +66,16 @@ class PatchDef:
     needs_clock: bool = False
 
 
+@dataclass
+class PatchGroupDef:
+    """A named set of related patch alternatives presented together."""
+
+    name: str
+    title: str
+    patch_defs: tuple[PatchDef, ...]
+    summary: str = ""
+
+
 class PresetStore:
     """Loads/saves the same `{patch_name: {param: value}}` JSON preset shape
     used by `pyoscillate.patches.presets`, so catalogs are interchangeable
@@ -104,6 +114,7 @@ class PatchPanel:
         self.values: dict[str, float] = {spec.name: spec.default for spec in patch_def.parameters}
         self.build_kwargs: dict[str, Any] = {}
         self._engine_ready = False
+        self._group_enabled = True
         self._built_values: dict[str, Any] | None = None
         self._value_texts: dict[str, ft.Text] = {}
         self._sliders: dict[str, ft.Slider] = {}
@@ -202,6 +213,11 @@ class PatchPanel:
             self._built_values = None
             self.rack.stop(self.patch_def.name)
 
+    def set_group_enabled(self, enabled: bool) -> None:
+        self._group_enabled = enabled
+        self.switch.disabled = not self._engine_ready or not enabled
+        self._apply()
+
     # -- event handlers ----------------------------------------------------
 
     def _handle_enabled(self, e: ft.ControlEvent) -> None:
@@ -227,7 +243,7 @@ class PatchPanel:
 
     def _apply(self) -> None:
         name = self.patch_def.name
-        if not self.enabled or not self._engine_ready:
+        if not self.enabled or not self._engine_ready or not self._group_enabled:
             self.rack.stop(name)
             return
 
@@ -274,6 +290,71 @@ class PatchPanel:
         self._apply()
 
 
+class PatchGroup:
+    """Named group control that gates a row of related patch panels."""
+
+    def __init__(self, group_def: PatchGroupDef, panels: list[PatchPanel]) -> None:
+        self.group_def = group_def
+        self.panels = panels
+        self.enabled = True
+        self.switch = ft.Switch(
+            value=True,
+            active_color=ACCENT,
+            on_change=self._handle_enabled,
+            disabled=True,
+        )
+        self.control = self._build_control()
+
+    def _build_control(self) -> ft.Control:
+        heading_controls: list[ft.Control] = [
+            ft.Text(self.group_def.title, color=TEXT, size=18, weight=ft.FontWeight.BOLD)
+        ]
+        if self.group_def.summary:
+            heading_controls.append(ft.Text(self.group_def.summary, color=MUTED, size=12))
+
+        patch_columns = []
+        for panel in self.panels:
+            panel.control.width = 320
+            patch_columns.append(panel.control)
+
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Column(controls=heading_controls, spacing=2, expand=True),
+                            self.switch,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=patch_columns,
+                        spacing=8,
+                        scroll=ft.ScrollMode.AUTO,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                ],
+                spacing=12,
+            ),
+            bgcolor=PANEL,
+            border=ft.Border.all(1, "#2A3A36"),
+            border_radius=8,
+            padding=16,
+            margin=ft.margin.Margin(left=0, top=0, right=0, bottom=12),
+        )
+
+    def set_engine_ready(self, ready: bool) -> None:
+        self.switch.disabled = not ready
+        for panel in self.panels:
+            panel.set_group_enabled(self.enabled)
+
+    def _handle_enabled(self, e: ft.ControlEvent) -> None:
+        self.enabled = bool(e.control.value)
+        for panel in self.panels:
+            panel.set_group_enabled(self.enabled)
+        e.page.update()
+
+
 @dataclass
 class EngineSpec:
     """How to boot the shared Pyo engine for a `PatchRackApp`: nchnls plus
@@ -296,7 +377,7 @@ class PatchRackApp:
         page: ft.Page,
         title: str,
         subtitle: str,
-        patch_defs: list[PatchDef],
+        patch_groups: list[PatchGroupDef],
         engine: EngineSpec,
         catalog_dir: Path | None = None,
     ) -> None:
@@ -310,7 +391,14 @@ class PatchRackApp:
         self.rack = PatchRack()
         self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
+        patch_defs = [patch_def for group in patch_groups for patch_def in group.patch_defs]
         self.panels = {patch_def.name: PatchPanel(self.rack, patch_def) for patch_def in patch_defs}
+        if len(self.panels) != len(patch_defs):
+            raise ValueError("Patch names must be unique across rack groups")
+        self.groups = [
+            PatchGroup(group, [self.panels[patch_def.name] for patch_def in group.patch_defs])
+            for group in patch_groups
+        ]
 
         self.status = ft.Text("Engine stopped", color=MUTED, size=13)
         self.engine_button = ft.Button(
@@ -349,7 +437,7 @@ class PatchRackApp:
         self.page.bgcolor = BACKGROUND
         self.page.padding = 0
         self.page.theme = ft.Theme(font_family="Avenir Next")
-        self.page.window.width = 760
+        self.page.window.width = 1100
         self.page.window.height = 900
         self.page.window.min_width = 420
         self.page.window.min_height = 600
@@ -359,31 +447,50 @@ class PatchRackApp:
         header = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                self.title.upper(), size=12, color=ACCENT, weight=ft.FontWeight.BOLD
-                            ),
-                            ft.Text(self.subtitle, size=28, color=TEXT, weight=ft.FontWeight.BOLD),
-                            self.status,
-                        ],
-                        spacing=3,
-                        expand=True,
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Text(
+                                    self.title.upper(),
+                                    size=12,
+                                    color=ACCENT,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text(
+                                    self.subtitle, size=28, color=TEXT, weight=ft.FontWeight.BOLD
+                                ),
+                                self.status,
+                            ],
+                            spacing=3,
+                        ),
+                        width=320,
                     ),
                     self.engine_button,
                 ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+                run_spacing=12,
             ),
             padding=28,
             bgcolor="#121D1B",
         )
-        preset_row = ft.Row(
+        preset_controls = ft.Column(
             controls=[
-                self.preset_dropdown,
-                ft.Button("Load", on_click=self._load_preset),
-                self.preset_name_field,
-                ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
-            ]
+                ft.Row(
+                    controls=[
+                        self.preset_dropdown,
+                        ft.Button("Load", on_click=self._load_preset),
+                    ]
+                ),
+                ft.Row(
+                    controls=[
+                        self.preset_name_field,
+                        ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
+                    ]
+                ),
+            ],
+            spacing=8,
         )
         master_row = ft.Container(
             content=ft.Column(
@@ -406,8 +513,8 @@ class PatchRackApp:
             ),
             padding=ft.padding.Padding(left=28, top=0, right=28, bottom=12),
         )
-        panel_list = ft.ListView(
-            controls=[panel.control for panel in self.panels.values()],
+        group_list = ft.ListView(
+            controls=[group.control for group in self.groups],
             spacing=0,
             expand=True,
         )
@@ -416,12 +523,12 @@ class PatchRackApp:
                 controls=[
                     header,
                     ft.Container(
-                        content=preset_row,
+                        content=preset_controls,
                         padding=ft.padding.Padding(left=28, top=12, right=28, bottom=12),
                     ),
                     master_row,
                     ft.Container(
-                        content=panel_list,
+                        content=group_list,
                         padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
                         expand=True,
                     ),
@@ -466,6 +573,8 @@ class PatchRackApp:
                 if panel.patch_def.needs_clock and self.clock is not None:
                     kwargs["clock"] = self.clock
                 panel.set_engine_ready(True, kwargs)
+            for group in self.groups:
+                group.set_engine_ready(True)
 
             self.status.value = "Engine running"
             self.status.color = ACCENT
@@ -477,6 +586,8 @@ class PatchRackApp:
             self._stop_engine()
 
     def _stop_engine(self) -> None:
+        for group in self.groups:
+            group.set_engine_ready(False)
         for panel in self.panels.values():
             panel.set_engine_ready(False)
         self.rack.stop_all()

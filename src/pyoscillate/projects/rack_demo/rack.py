@@ -1,7 +1,7 @@
 """Patch definitions for the clock-locked groove demo."""
 
 from pyoscillate.patches import atmosphere, bass, clock_tick, drone, hat, low_hat
-from src.flet.base import PatchDef
+from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
@@ -66,4 +66,10 @@ PATCH_DEFS: list[PatchDef] = [
         needs_tempo=True,
         needs_clock=True,
     ),
+]
+
+PATCH_GROUPS: list[PatchGroupDef] = [
+    PatchGroupDef("rhythm", "Rhythm", (PATCH_DEFS[0], PATCH_DEFS[2], PATCH_DEFS[3])),
+    PatchGroupDef("atmosphere", "Atmosphere", (PATCH_DEFS[1], PATCH_DEFS[5])),
+    PatchGroupDef("utility", "Utility", (PATCH_DEFS[4],)),
 ]

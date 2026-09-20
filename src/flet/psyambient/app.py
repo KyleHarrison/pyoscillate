@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.psyambient.rack import PATCH_DEFS
+from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
 from src.flet.base import EngineSpec, PatchRackApp
 
 
@@ -12,7 +12,7 @@ def main(page: ft.Page) -> None:
         page,
         "Psyambient",
         "Ambient rack",
-        PATCH_DEFS,
+        PATCH_GROUPS,
         EngineSpec(nchnls=2, bpm=70, needs_clock=True),
         catalog_dir=Path(__file__).parent / "presets",
     )

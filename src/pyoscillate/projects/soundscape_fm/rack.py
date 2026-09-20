@@ -1,7 +1,7 @@
 """Patch definitions for the standalone FM soundscape."""
 
 from pyoscillate.patches.psyambient import soundscape_fm
-from src.flet.base import PatchDef
+from src.flet.base import PatchDef, PatchGroupDef
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
@@ -12,4 +12,8 @@ PATCH_DEFS: list[PatchDef] = [
         parameters=soundscape_fm.PARAMETERS,
         volume_default=0.6,
     )
+]
+
+PATCH_GROUPS: list[PatchGroupDef] = [
+    PatchGroupDef("soundscapes", "Soundscapes", tuple(PATCH_DEFS))
 ]
