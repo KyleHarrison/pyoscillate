@@ -1,48 +1,157 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
-from pyoscillate.patches import deep_house
+from pyoscillate.patches.deep_house import bass, chord, hat, kick, percussion
 from src.flet.base import PatchDef
 
-ROLE_SPECS = (
-    ("kick", "Kick", "Four-on-the-floor foundation.", deep_house.KICK_PARAMETERS, 0.8),
-    ("bass", "Bass", "16th-note low-end movement.", deep_house.BASS_PARAMETERS, 0.62),
-    ("chord", "Chord Stab", "Offbeat minor-seventh harmony.", deep_house.CHORD_PARAMETERS, 0.4),
-    ("hat", "Hat", "Offbeat and shuffled top texture.", deep_house.HAT_PARAMETERS, 0.25),
-    (
-        "percussion",
-        "Percussion",
-        "Clap, rim, or conga rhythmic color.",
-        deep_house.PERC_PARAMETERS,
-        0.28,
+PATCH_DEFS: list[PatchDef] = [
+    PatchDef(
+        "kick_round",
+        "Kick - Round",
+        "Four-on-the-floor foundation.",
+        kick.make_builder("round"),
+        kick.PARAMETERS,
+        kick.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
     ),
-)
-
-STYLE_LABELS = {
-    "kick": (("round", "Round"), ("punch", "Punch"), ("soft", "Soft")),
-    "bass": (("rolling", "Rolling"), ("dub", "Dub"), ("muted", "Muted")),
-    "chord": (("velvet", "Velvet"), ("organ", "Organ"), ("shimmer", "Shimmer")),
-    "hat": (("crisp", "Crisp"), ("open", "Open"), ("shuffle", "Shuffle")),
-    "percussion": (("clap", "Clap"), ("rim", "Rim"), ("conga", "Conga")),
-}
-
-
-def _build_patch_defs() -> list[PatchDef]:
-    definitions: list[PatchDef] = []
-    for role, title, summary, parameters, volume in ROLE_SPECS:
-        for style, label in STYLE_LABELS[role]:
-            definitions.append(
-                PatchDef(
-                    name=f"{role}_{style}",
-                    title=f"{title} - {label}",
-                    summary=summary,
-                    build=deep_house.make_builder(role, style),
-                    parameters=parameters,
-                    volume_default=volume,
-                    needs_tempo=True,
-                    needs_clock=True,
-                )
-            )
-    return definitions
-
-
-PATCH_DEFS: list[PatchDef] = _build_patch_defs()
+    PatchDef(
+        "kick_punch",
+        "Kick - Punch",
+        "Four-on-the-floor foundation.",
+        kick.make_builder("punch"),
+        kick.PARAMETERS,
+        kick.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "kick_soft",
+        "Kick - Soft",
+        "Four-on-the-floor foundation.",
+        kick.make_builder("soft"),
+        kick.PARAMETERS,
+        kick.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "bass_rolling",
+        "Bass - Rolling",
+        "16th-note low-end movement.",
+        bass.make_builder("rolling"),
+        bass.PARAMETERS,
+        bass.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "bass_dub",
+        "Bass - Dub",
+        "16th-note low-end movement.",
+        bass.make_builder("dub"),
+        bass.PARAMETERS,
+        bass.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "bass_muted",
+        "Bass - Muted",
+        "16th-note low-end movement.",
+        bass.make_builder("muted"),
+        bass.PARAMETERS,
+        bass.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "chord_velvet",
+        "Chord Stab - Velvet",
+        "Offbeat minor-seventh harmony.",
+        chord.make_builder("velvet"),
+        chord.PARAMETERS,
+        chord.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "chord_organ",
+        "Chord Stab - Organ",
+        "Offbeat minor-seventh harmony.",
+        chord.make_builder("organ"),
+        chord.PARAMETERS,
+        chord.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "chord_shimmer",
+        "Chord Stab - Shimmer",
+        "Offbeat minor-seventh harmony.",
+        chord.make_builder("shimmer"),
+        chord.PARAMETERS,
+        chord.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "hat_crisp",
+        "Hat - Crisp",
+        "Offbeat and shuffled top texture.",
+        hat.make_builder("crisp"),
+        hat.PARAMETERS,
+        hat.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "hat_open",
+        "Hat - Open",
+        "Offbeat and shuffled top texture.",
+        hat.make_builder("open"),
+        hat.PARAMETERS,
+        hat.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "hat_shuffle",
+        "Hat - Shuffle",
+        "Offbeat and shuffled top texture.",
+        hat.make_builder("shuffle"),
+        hat.PARAMETERS,
+        hat.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "percussion_clap",
+        "Percussion - Clap",
+        "Clap, rim, or conga rhythmic color.",
+        percussion.make_builder("clap"),
+        percussion.PARAMETERS,
+        percussion.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "percussion_rim",
+        "Percussion - Rim",
+        "Clap, rim, or conga rhythmic color.",
+        percussion.make_builder("rim"),
+        percussion.PARAMETERS,
+        percussion.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "percussion_conga",
+        "Percussion - Conga",
+        "Clap, rim, or conga rhythmic color.",
+        percussion.make_builder("conga"),
+        percussion.PARAMETERS,
+        percussion.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+]

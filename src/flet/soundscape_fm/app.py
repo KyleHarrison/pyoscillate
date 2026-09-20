@@ -6,10 +6,16 @@ import flet as ft
 from pyoscillate.projects.soundscape_fm.rack import PATCH_DEFS
 from src.flet.base import EngineSpec, PatchRackApp
 
-CATALOG_DIR = Path(__file__).parent.parent / "presets" / "soundscape_fm"
-
-
 def main(page: ft.Page) -> None:
     PatchRackApp(
-        page, "FM Soundscape", "Chaotic drift", CATALOG_DIR, PATCH_DEFS, EngineSpec(nchnls=2)
+        page,
+        "FM Soundscape",
+        "Chaotic drift",
+        PATCH_DEFS,
+        EngineSpec(nchnls=2),
+        catalog_dir=Path(__file__).parent / "presets",
     )
+
+
+if __name__ == "__main__":
+    ft.run(main)

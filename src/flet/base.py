@@ -296,9 +296,9 @@ class PatchRackApp:
         page: ft.Page,
         title: str,
         subtitle: str,
-        catalog_dir: Path,
         patch_defs: list[PatchDef],
         engine: EngineSpec,
+        catalog_dir: Path | None = None,
     ) -> None:
         self.page = page
         self.title = title
@@ -309,7 +309,7 @@ class PatchRackApp:
         self.clock: Clock | None = None
         self.rack = PatchRack()
         self.master_output = engine.master_output_default
-        self.preset_store = PresetStore(catalog_dir)
+        self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
         self.panels = {patch_def.name: PatchPanel(self.rack, patch_def) for patch_def in patch_defs}
 
         self.status = ft.Text("Engine stopped", color=MUTED, size=13)

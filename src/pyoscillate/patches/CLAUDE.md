@@ -6,6 +6,104 @@ This directory contains notebook-first Pyo patches. Every patch module follows o
 - `build(...) -> Patch`: constructs the Pyo graph once and returns its runtime state.
 - `widget(rack, ..., controller=None)`: delegates standard controls to `patch_widget(...)`.
 
+## Module template
+
+Use this shape for a normal patch module. Its project rack passes `build`
+directly to `PatchDef`; the notebook calls `widget(...)` once.
+
+```python
+from __future__ import annotations
+
+from ipywidgets import VBox
+
+from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.widgets import SliderSpec, patch_widget
+
+PARAMETERS = (
+    SliderSpec("amount", 0.0, 1.0, 0.05, 0.5, "Amount", "Musical effect."),
+)
+
+
+def build(amount: float = 0.5) -> Patch:
+    """Build one independently addressable patch."""
+    # Create the Pyo graph and any live controls here.
+    return Patch(sequencer=..., voice=..., controls={"amount": ...})
+
+
+def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
+    """Create this patch's standard notebook controls."""
+    return patch_widget(rack, "patch_name", build, PARAMETERS, controller=controller)
+```
+
+For a clocked patch, add `tempo: Tempo, clock: Clock` to both `build` and
+`widget`, then pass them through `build_kwargs={"tempo": tempo, "clock": clock}`.
+The project rack sets `needs_tempo=True` and `needs_clock=True`. Pass
+`rebuild_parameters` to both `patch_widget` and `PatchDef` only for structural
+parameters that cannot update the existing Pyo graph.
+
+## Profile variants
+
+Most patch modules expose `build` directly to a `PatchDef`. A module may also
+expose `make_builder(profile)` when several independently selectable rack
+patches share the same parameters, live controls, lifecycle, and signal-graph
+shape, but differ in fixed construction data such as a rhythmic pattern,
+envelope profile, wavetable, or effect balance. This avoids near-identical
+modules while keeping every profile independently addressable in presets and
+the rack.
+
+```python
+PROFILES = {"soft": (...), "bright": (...)}
+
+
+def build(tempo: Tempo, clock: Clock, profile: str, amount: float = 0.5) -> Patch:
+    """Build one profile of this patch family."""
+    fixed_value = PROFILES[profile]
+    return Patch(sequencer=..., voice=..., controls={"amount": ...})
+
+
+def make_builder(profile: str) -> Callable[..., Patch]:
+    """Fix a profile for one independent rack entry."""
+    return lambda tempo, clock, **values: build(tempo, clock, profile, **values)
+
+
+def widget(
+    rack: PatchRack,
+    tempo: Tempo,
+    clock: Clock,
+    controller: PresetController | None = None,
+    profile: str = "soft",
+) -> VBox:
+    """Create controls for one profile."""
+    return patch_widget(
+        rack,
+        f"patch_name_{profile}",
+        make_builder(profile),
+        PARAMETERS,
+        controller=controller,
+        build_kwargs={"tempo": tempo, "clock": clock},
+    )
+```
+
+The project rack creates one `PatchDef` per profile:
+
+```python
+PatchDef(
+    name="patch_name_soft",
+    title="Patch Name - Soft",
+    summary="...",
+    build=patch_name.make_builder("soft"),
+    parameters=patch_name.PARAMETERS,
+    needs_tempo=True,
+    needs_clock=True,
+)
+```
+
+Use this pattern only when the common controls genuinely mean the same thing
+for every profile. Split variants into separate modules when they require a
+different control surface, rebuild behavior, or substantially different
+sequencing or signal topology.
+
 ## Construction and runtime
 
 Keep `build` as a function. Do not create a class for every patch. A function keeps the signal graph local and easy for an agent to inspect. Use a small private class only when a patch owns unusual persistent sequencing behavior, such as multiple Metros or callback keepalive references.

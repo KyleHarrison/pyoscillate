@@ -102,7 +102,7 @@ Never treat the reference as a recipe to reproduce and never hard-code a patch k
 ## Writing or editing a patch
 
 - Every patch is a `build(...) -> Patch` function plus a `widget(...)` for the notebook UI, living either directly under `src/pyoscillate/patches/` (e.g. `drone.py`, `clock_tick.py`) or under a concept subfolder `src/pyoscillate/patches/{concept}/{patch}.py` (`concept` = a logical layer like `bass/`, `mid/`, `drone/`, `soundscape/`, `percussion/` — `patches/psyambient/` is the existing precedent for this, via its `bass_*`/`mid_*`/`soundscape_*` filename prefixes). Look at an existing patch for the shape before adding a new one, and match whichever layout the patch's project already uses.
-- **Extend before you fork.** Before adding a new patch, search `src/pyoscillate/patches/**` for one that's already conceptually close. If one exists, add new *optional* parameters to it (default = current behavior) instead of writing a new file — this keeps every project/rack that already imports it working unchanged. Only create a new patch file — under `patches/{concept}/{new_patch}.py` — when reuse would break backward compatibility or the sound is genuinely a new concept.
+- **Extend before you fork.** Before adding a new patch, search `src/pyoscillate/patches/**` for one that's already conceptually close. If one exists, add new *optional* parameters to it (default = current behavior) instead of writing a new file — this keeps every project/rack that already imports it working unchanged. When a family has the same controls and graph shape but several fixed profiles, keep it in one module and expose `make_builder(profile)` so the project rack can create one `PatchDef` per profile. Only create a new patch file — under `patches/{concept}/{new_patch}.py` — when reuse would break backward compatibility or the sound is genuinely a new concept with its own controls, lifecycle, or topology.
 - `base.py`'s `Patch`/`PatchRack` handle start/stop, fade, and the shared `Compress` gain-stage tail — don't reimplement gain staging or click-free stop/start per patch.
 - Prefer high-level, musically-named parameters (e.g. `reverb_size`, `wood_q`) with docstring explanations of what raising/lowering them does perceptually, matching the existing patches' style.
 - After wiring a patch, trace it backward from `.out()`/the returned `voice` and check each stage against the `pyo-api/` file it came from — this is the fastest way to catch a misremembered parameter name before running it.
@@ -141,6 +141,19 @@ app + patch rack, not a single patch edit), run this sequence in order:
    steps 4-5, and per-patch parameter docs explaining what each control does
    perceptually and how it serves the musical goal — matching the docstring
    voice already used in existing patch files.
+7. **Notebook.** Create `notebooks/{project_name}/{project_name}.ipynb`
+   (plus its `notebooks/{project_name}/catalog/` preset folder), matching
+   the shape of existing notebooks (`notebooks/psyambient/psyambient.ipynb`,
+   `notebooks/rack_demo/rack_demo.ipynb`): one setup cell that builds the
+   shared `server`/`tempo`/`clock`/`rack`/`preset_controller`, then one
+        markdown + code cell pair per patch that instantiates it independently
+        via its `widget(...)` function (add one to the patch module if it
+        doesn't already expose one — see `build`/`make_builder`/`widget` in
+        `patches/deep_house/kick.py` for a family with fixed style profiles and
+        one widget entry point per profile), and a final save-preset cell.
+   This notebook is the manual/interactive counterpart to the Flet
+   app from step 2 — both should end up exposing every patch in
+   `PATCH_DEFS`.
 
 This workflow (the `projects/{project_name}/rack.py` + `patches/{concept}/`
 split) applies going forward only — existing projects (`rack_demo`,
