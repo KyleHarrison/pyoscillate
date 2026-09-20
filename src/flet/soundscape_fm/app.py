@@ -6,6 +6,7 @@ import flet as ft
 from pyoscillate.projects.soundscape_fm.rack import PATCH_DEFS
 from src.flet.base import EngineSpec, PatchRackApp
 
+
 def main(page: ft.Page) -> None:
     PatchRackApp(
         page,
