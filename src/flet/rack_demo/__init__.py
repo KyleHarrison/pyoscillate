@@ -1,0 +1,1 @@
+"""Rack-demo Flet application."""

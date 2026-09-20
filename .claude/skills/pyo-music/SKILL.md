@@ -1,6 +1,6 @@
 ---
 name: pyo-music
-description: Use whenever the user wants music, sound design, or procedural/generative audio *built or edited in this project's Pyo patches* — e.g. "make a dark evolving drone," "make the filter wander more organically," "add a clock-like ticking texture," "make this pad breathe," "make something inspired by [a track/artist]'s sound," or any request to write, adjust, or reason about code under `src/pyoscillate/patches/`. Also use for pure music-theory/composition questions (harmony, melody, rhythm, form, genre) even without a synthesis component. Do not use for unrelated Python/project tooling questions that don't touch music or the patches.
+description: Use whenever the user wants music, sound design, or procedural/generative audio *built or edited in this project's Pyo patches* — e.g. "make a dark evolving drone," "make the filter wander more organically," "add a clock-like ticking texture," "make this pad breathe," "make something inspired by [a track/artist]'s sound," or any request to write, adjust, or reason about code under `src/pyoscillate/patches/`. Also use for pure music-theory/composition questions (harmony, melody, rhythm, form, genre) even without a synthesis component, and for scaffolding a whole new named project ("new project called {project_name}") that needs a Flet app module, a patch rack, and its own patches/README. Do not use for unrelated Python/project tooling questions that don't touch music or the patches.
 ---
 
 # Pyo Music
@@ -101,13 +101,59 @@ Never treat the reference as a recipe to reproduce and never hard-code a patch k
 
 ## Writing or editing a patch
 
-- Every patch lives in `src/pyoscillate/patches/` as a `build(...) -> Patch` function plus a `widget(...)` for the notebook UI — look at an existing patch (e.g. `drone.py`, `clock_tick.py`) for the shape before adding a new one.
+- Every patch is a `build(...) -> Patch` function plus a `widget(...)` for the notebook UI, living either directly under `src/pyoscillate/patches/` (e.g. `drone.py`, `clock_tick.py`) or under a concept subfolder `src/pyoscillate/patches/{concept}/{patch}.py` (`concept` = a logical layer like `bass/`, `mid/`, `drone/`, `soundscape/`, `percussion/` — `patches/psyambient/` is the existing precedent for this, via its `bass_*`/`mid_*`/`soundscape_*` filename prefixes). Look at an existing patch for the shape before adding a new one, and match whichever layout the patch's project already uses.
+- **Extend before you fork.** Before adding a new patch, search `src/pyoscillate/patches/**` for one that's already conceptually close. If one exists, add new *optional* parameters to it (default = current behavior) instead of writing a new file — this keeps every project/rack that already imports it working unchanged. Only create a new patch file — under `patches/{concept}/{new_patch}.py` — when reuse would break backward compatibility or the sound is genuinely a new concept.
 - `base.py`'s `Patch`/`PatchRack` handle start/stop, fade, and the shared `Compress` gain-stage tail — don't reimplement gain staging or click-free stop/start per patch.
 - Prefer high-level, musically-named parameters (e.g. `reverb_size`, `wood_q`) with docstring explanations of what raising/lowering them does perceptually, matching the existing patches' style.
 - After wiring a patch, trace it backward from `.out()`/the returned `voice` and check each stage against the `pyo-api/` file it came from — this is the fastest way to catch a misremembered parameter name before running it.
+
+## New project workflow
+
+When the user asks for a new project named `{project_name}` (a whole new Flet
+app + patch rack, not a single patch edit), run this sequence in order:
+
+1. **Ground the request.** Run the usual reasoning chain above (music-theory
+   → sonic reasoning → synthesis strategy) for whatever musical/sonic brief
+   defines this project, before creating any files.
+2. **Flet app module.** Create `src/flet/{project_name}/` as a package
+   (`__init__.py` + `app.py`). **No reusable starter template exists yet** —
+   this is a known TODO. Until one is built, copy-adapt the closest existing
+   example: `rack_demo_app.py` or `psyambient_app.py` for a multi-voice rack,
+   `app.py` for a single-patch app. `app.py`'s `main()` must build a
+   `PatchRackApp` (`src/flet/base.py`) from the `PATCH_DEFS` defined in step
+   3's `rack.py`, with a `CATALOG_DIR` under `src/flet/presets/{project_name}/`.
+3. **Project rack module.** Create `src/pyoscillate/projects/{project_name}/`
+   with `__init__.py` and `rack.py`. `rack.py` owns `PATCH_DEFS:
+   list[PatchDef]` — this replaces today's convention of defining that list
+   inline in the `*_app.py` file; the app module should only import it.
+4. **Reuse or add patches.** Follow "Writing or editing a patch" above for
+   every patch this project needs: extend a conceptually close existing
+   patch with new optional parameters where possible, and only create a
+   genuinely new patch (under `patches/{concept}/{new_patch}.py`) when that
+   isn't possible.
+5. **Wire the rack.** Once every needed patch exists or has been extended,
+   `rack.py`'s `PATCH_DEFS` lists a `PatchDef` per patch for this project,
+   same shape as `PATCH_DEFS` in `psyambient_app.py`/`rack_demo_app.py`
+   today.
+6. **Project README.** Generate
+   `src/pyoscillate/projects/{project_name}/README.md` documenting: the
+   musical/theory brief from step 1, the concept→patch mapping decided in
+   steps 4-5, and per-patch parameter docs explaining what each control does
+   perceptually and how it serves the musical goal — matching the docstring
+   voice already used in existing patch files.
+
+This workflow (the `projects/{project_name}/rack.py` + `patches/{concept}/`
+split) applies going forward only — existing projects (`rack_demo`,
+`psyambient`, `deep_house`, `soundscape_fm`) keep their current inline
+`PATCH_DEFS`/flat-patch layout unless a future task asks to migrate them.
 
 ## Known gaps
 
 `pyo-api-navigation.md` ends with a short list of categories (`analysis/`, `spectral/`, `sequencing/`, `external_io/`, `playback_routing/`, `control/`) whose mapping is inferred from their docstrings rather than from an existing patch using them — treat a mismatch there as a cue to refine that file, not as ground truth.
 
 No patch in this codebase currently sustains a chord (simultaneous pitches) — everything arpeggiates one note at a time. `pitch-and-harmony-implementation.md`'s multi-voice options are therefore reasoned from the Pyo API, not distilled from a working example here; treat a mismatch as a cue to refine that file once a real chord/pad patch exists.
+
+The "new project workflow" section above is untested — no project has been
+scaffolded through it yet. Treat the first real usage as the place to
+sanity-check the `rack.py`/app-package split before treating it as settled
+convention.

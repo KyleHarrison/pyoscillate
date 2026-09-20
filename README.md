@@ -84,7 +84,7 @@ uv run flet pack main.py \
 Launch the Flet rack in a browser from the project root:
 
 ```bash
-uv run flet run --web --port 8551 src/flet/deep_house_app.py
+uv run flet run --web --port 8551 src/flet/deep_house/app.py
 ```
 
 Open http://127.0.0.1:8551 in the VS Code browser.

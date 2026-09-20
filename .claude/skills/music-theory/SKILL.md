@@ -51,3 +51,11 @@ which routes a request to the smallest relevant set of files.
 - [`references/research/`](./references/research/) for reference-track and style analysis
 - [`references/creative-workflows/`](./references/creative-workflows/) for brainstorming and iterative collaboration
 - [Asset lookup table](./references/00-navigation.md#cheatsheets--when-to-use-assets) for compact lookup tables and reusable templates in `assets/`
+
+## Attribution and license
+
+Adapted from [Music Composition Agent Skill](https://github.com/SJY051/music-composition)
+by SJY051 and contributors, licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+This version has been reorganized and adapted for the pyoscillate project.
