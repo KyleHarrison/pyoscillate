@@ -70,6 +70,15 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
+## Build macos dist
+```bash
+uv run flet pack main.py \
+  --name FMSoundscape \
+  --product-name "FM Soundscape" \
+  --bundle-id com.kyleharrison.fmsoundscape \
+  --yes
+```
+
 ## Quick start
 
 Open the notebook environment and start the live rig:

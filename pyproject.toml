@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A Python project for creating audio in jupyter notebooks"
 readme = "README.md"
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "flet>=1.0.0",
     "flet-mcp>=1.0.0",
@@ -22,7 +22,10 @@ requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = ["ruff>=0.16.8"]
+dev = [
+    "pyinstaller>=6.22.3",
+    "ruff>=0.16.8",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # __all__ is ordered to match each conceptual-map section, not alphabetically.
