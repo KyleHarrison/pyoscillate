@@ -112,6 +112,32 @@ Keep `build` as a function. Do not create a class for every patch. A function ke
 
 A graph rebuild is appropriate only for structural changes: changing the number of voices, routing topology, fixed tables, or a buffer limit. Structural rebuild behavior must be explicit rather than accidental.
 
+### Pyo graph ownership
+
+`build()` must return a `Patch` that strongly owns every Python-side Pyo object
+needed by its running DSP graph. Pyo's native nodes can retain pointers to
+upstream objects without keeping the corresponding Python wrappers alive.
+Garbage collection can then produce a nondeterministic segmentation fault,
+often only when multiple patches run or a widget callback changes a value.
+
+Name graph nodes instead of creating them only inside another constructor or
+arithmetic expression. Pass auxiliary nodes to `Patch(resources=(...))` when
+they are not already guaranteed to remain alive through `voice`, `sequencer`,
+or a control closure. Include tables, triggers, generators, envelopes, and
+arithmetic intermediates conservatively. See `deep_house/kick.py` for the
+known-good pattern.
+
+Do not diagnose this failure from the last Python callback alone. A slider can
+make the fault occur more often without being its cause. Minimize suspected
+native crashes in a child process using `audio="manual"`, advance DSP with
+repeated `server.process()` calls, and enable `-X faulthandler`.
+
+Native-crash regressions must remain subprocess tests so a future segfault is
+reported as a nonzero child exit instead of killing the test runner. Exercise
+multiple simultaneous instances and live control updates. A test that only
+constructs or starts a patch does not validate native graph lifetime. The
+reference regression is `tests/test_deep_house_patches.py`.
+
 ## Parameter metadata
 
 `SliderSpec` contains the project-level parameter name, UI range/default, musical description, and optional `PyoParamRef` values. `PyoParamRef` points to the actual imported Pyo class and constructor parameter so IDE hover/navigation reaches Pyo documentation:
@@ -153,6 +179,8 @@ When adding or migrating a patch:
 2. Add real Pyo references where they accurately describe the control.
 3. Create live Pyo controls in `build` for non-structural parameters.
 4. Return `Patch(..., controls={...})` with setters that preserve runtime state.
-5. Use `patch_widget` for standard controls.
-6. Keep custom timing/state setters explicit and test that slider changes preserve the active `Patch`.
-7. Run targeted diagnostics and Ruff checks.
+5. Retain all auxiliary Pyo graph nodes with `Patch(resources=(...))`.
+6. Use `patch_widget` for standard controls.
+7. Keep custom timing/state setters explicit and test that slider changes preserve the active `Patch`.
+8. Run manual-backend DSP processing for concurrent instances; isolate native-crash regressions in a subprocess.
+9. Run targeted diagnostics and Ruff checks.

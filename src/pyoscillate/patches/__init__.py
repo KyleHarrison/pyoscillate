@@ -8,7 +8,7 @@ from pyoscillate.patches import (
     low_hat,
     psyambient,
 )
-from pyoscillate.patches.base import Patch, PatchRack, setup_notebook
+from pyoscillate.patches.base import Patch, PatchRack, setup_notebook, start_server
 
 __all__ = [
     "Patch",
@@ -22,4 +22,5 @@ __all__ = [
     "low_hat",
     "psyambient",
     "setup_notebook",
+    "start_server",
 ]

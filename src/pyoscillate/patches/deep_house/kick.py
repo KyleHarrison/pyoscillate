@@ -34,9 +34,15 @@ def build(
     trigger = Trig()
     pitch = TrigLinseg(trigger, [(0, pitch_start), (0.055, 52), (decay, 48)])
     body = Sine(freq=pitch)
-    envelope = TrigEnv(trigger, CosTable([(0, 0), (45, 1), (8191, 0)]), dur=decay, mul=level)
-    click_env = TrigEnv(trigger, CosTable([(0, 0), (8, 1), (420, 0)]), dur=0.035, mul=click)
-    voice = Disto((body * envelope) + (Noise() * click_env), drive=drive, slope=0.85)
+    envelope_table = CosTable([(0, 0), (45, 1), (8191, 0)])
+    envelope = TrigEnv(trigger, envelope_table, dur=decay, mul=level)
+    noise = Noise()
+    click_table = CosTable([(0, 0), (8, 1), (420, 0)])
+    click_env = TrigEnv(trigger, click_table, dur=0.035, mul=click)
+    body_signal = body * envelope
+    click_signal = noise * click_env
+    source = body_signal + click_signal
+    voice = Disto(source, drive=drive, slope=0.85)
     return Patch(
         sequencer=clock.subscribe(FOURTH, trigger.play),
         voice=voice,
@@ -44,6 +50,19 @@ def build(
             "level": lambda value: setattr(envelope, "mul", value),
             "drive": lambda value: setattr(voice, "drive", value),
         },
+        resources=(
+            trigger,
+            pitch,
+            body,
+            envelope_table,
+            envelope,
+            noise,
+            click_table,
+            click_env,
+            body_signal,
+            click_signal,
+            source,
+        ),
     )
 
 

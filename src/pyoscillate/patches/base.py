@@ -17,6 +17,36 @@ STOP_FADE = 0.2
 PATCH_OUTPUT_CEILING = 0.18
 
 
+def start_server(
+    *,
+    output_device: int | None = None,
+    nchnls: int = 2,
+    audio: str = "portaudio",
+) -> Server:
+    """Start a Pyo server or raise before any audio objects can be built."""
+    server = Server(nchnls=nchnls, duplex=0, audio=audio)
+    if output_device is not None:
+        server.setOutputDevice(output_device)
+
+    try:
+        server.boot()
+        if not server.getIsBooted():
+            raise RuntimeError(
+                f"Pyo could not boot the {audio!r} audio backend"
+                + (f" with output device {output_device}" if output_device is not None else "")
+            )
+        server.start()
+        if not server.getIsStarted():
+            raise RuntimeError(f"Pyo booted but could not start the {audio!r} audio backend")
+    except Exception:
+        if server.getIsStarted():
+            server.stop()
+        if server.getIsBooted():
+            server.shutdown()
+        raise
+    return server
+
+
 def setup_notebook(
     *,
     output_device: int | None = None,
@@ -28,13 +58,7 @@ def setup_notebook(
     `pa_list_devices()`.
     """
     pa_list_devices()
-
-    server = Server(nchnls=nchnls)
-    if output_device is not None:
-        server.setOutputDevice(output_device)
-    server.boot()
-    server.start()
-    return server
+    return start_server(output_device=output_device, nchnls=nchnls)
 
 
 class Sequencer(Protocol):
@@ -51,13 +75,15 @@ class Patch:
 
     Building a patch only wires up the pyo object graph - nothing is audible
     or ticking until `start()` is called, and nothing keeps running after
-    `stop()`.
+    `stop()`. `resources` strongly retains auxiliary Pyo graph nodes whose
+    native DSP objects can otherwise outlive their Python wrappers.
     """
 
     sequencer: Sequencer
     voice: PyoObject
     controls: dict[str, Callable[[Any], None]] = field(default_factory=dict)
     volume: float = 1.0
+    resources: tuple[Any, ...] = field(default=(), repr=False)
     _output: PyoObject | None = field(default=None, repr=False)
     _fade: SigTo | None = field(default=None, repr=False)
     _volume_control: SigTo | None = field(default=None, repr=False)

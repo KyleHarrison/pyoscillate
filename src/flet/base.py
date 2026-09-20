@@ -24,7 +24,7 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.widgets import SliderSpec
 from pyoscillate.tempo import Tempo
 
@@ -449,9 +449,8 @@ class PatchRackApp:
 
     def _start_engine(self) -> None:
         try:
-            self.server = Server(nchnls=self.engine.nchnls).boot()
+            self.server = start_server(nchnls=self.engine.nchnls)
             self.server.setAmp(self.master_output)
-            self.server.start()
             build_kwargs_common: dict[str, Any] = {}
             if self.engine.bpm is not None:
                 self.tempo = Tempo(bpm=self.engine.bpm)
