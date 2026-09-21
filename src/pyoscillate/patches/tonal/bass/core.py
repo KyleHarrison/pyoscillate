@@ -11,7 +11,7 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import SIXTEENTH, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.tempo import Tempo
 
@@ -102,7 +102,7 @@ def build_bass(
         controls["filter_res"] = lambda value: setattr(voice, "res", value)
 
     return Patch(
-        sequencer=clock.subscribe(SIXTEENTH, next_step),
+        sequencer=clock.subscribe(clock.sixteenth, next_step),
         voice=voice,
         controls=controls,
         resources=(

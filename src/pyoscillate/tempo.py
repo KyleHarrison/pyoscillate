@@ -11,8 +11,12 @@ class Tempo:
     bpm: float
 
     @property
+    def thirtysecond(self) -> float:
+        return 60.0 / self.bpm / 8
+
+    @property
     def sixteenth(self) -> float:
-        return 60.0 / self.bpm / 4
+        return self.thirtysecond * 2
 
     @property
     def eighth(self) -> float:

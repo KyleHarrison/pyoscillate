@@ -11,6 +11,10 @@ from pyoscillate.patches.tonal.bass import drone as bass_drone
 from pyoscillate.patches.tonal.bass import rumble as bass_rumble
 from src.flet.base import PatchDef, PatchGroupDef
 
+# this project's own tempo - other projects set their own value instead of
+# sharing one hardcoded in app.py
+BPM = 70
+
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "soundscape_fm",

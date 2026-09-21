@@ -5,7 +5,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
-from pyoscillate.clock import BAR, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
@@ -149,7 +149,7 @@ def build(
         mid_freq.value = root_freq * pow(2, MID_INTERVALS[i] / 12)
         step["i"] += 1
 
-    sequencer = clock.subscribe(BAR * step_bars, next_step)
+    sequencer = clock.subscribe(clock.bar * step_bars, next_step)
     return Patch(
         sequencer=sequencer,
         voice=voice,

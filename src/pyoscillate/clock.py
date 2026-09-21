@@ -2,18 +2,31 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import ClassVar
+from enum import IntEnum
 
 from pyo.lib.pattern import Pattern
 
 from pyoscillate.tempo import Tempo
 
-# step counts, in 16th notes, for each named subdivision - pass these (or a
-# multiple, e.g. `BAR * 8`) to `Clock.subscribe()`
-SIXTEENTH = 1
-EIGHTH = 2
-FOURTH = 4
-BAR = 16
+# default raw ticks per bar (a 32nd note in 4/4) when a project's rack
+# doesn't configure `Clock.ticks_per_bar` itself - see that field's docstring
+DEFAULT_TICKS_PER_BAR = 32
+
+
+class NoteDivision(IntEnum):
+    """Standard bar-fraction divisions, as the divisor of a bar. Members are
+    ordered slowest-to-fastest and each one doubles the previous, so a
+    patch's rate control can move a fixed number of steps up or down this
+    list to go slower or faster while always landing on a real musical
+    subdivision - never an arbitrary raw tick count."""
+
+    WHOLE = 1
+    HALF = 2
+    QUARTER = 4
+    EIGHTH = 8
+    SIXTEENTH = 16
+    THIRTYSECOND = 32
+    SIXTYFOURTH = 64
 
 
 @dataclass(eq=False)
@@ -43,9 +56,9 @@ class Division:
 
 @dataclass(eq=False)
 class Clock:
-    """Single master pulse, ticking once per 16th note, that every patch
-    divides down from via `subscribe()` instead of running its own
-    independent `Pattern`.
+    """Single master pulse, ticking once per `1/ticks_per_bar` of a bar,
+    that every patch divides down from via `subscribe()` instead of running
+    its own independent `Pattern`.
 
     A patch built with `Pattern(callback, time=tempo.eighth)` keeps its own
     private timer that starts counting from whenever `.play()` is called -
@@ -62,18 +75,49 @@ class Clock:
     whether to treat a rerun as an off/on toggle.
     """
 
-    SIXTEENTH: ClassVar[int] = SIXTEENTH
-    EIGHTH: ClassVar[int] = EIGHTH
-    FOURTH: ClassVar[int] = FOURTH
-    BAR: ClassVar[int] = BAR
-
     tempo: Tempo
+    # raw ticks per bar - the clock's timing resolution. Each project's rack
+    # owns this, not a static value in this module: a higher number gives
+    # patches a finer subdivision floor to tune down to (deep_house uses 128
+    # so its per-patch step-count sliders can go well below a 16th note).
+    ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
     _tick: int = field(default=0, init=False, repr=False)
     _divisions: list[Division] = field(default_factory=list, init=False, repr=False)
     _pattern: Pattern = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._pattern = Pattern(self._advance, time=self.tempo.sixteenth)
+        self._pattern = Pattern(self._advance, time=self.tempo.bar / self.ticks_per_bar)
+
+    def ticks(self, division: NoteDivision) -> int:
+        """Raw ticks for a standard bar-fraction division, clamped to at
+        least one tick (so a division finer than `ticks_per_bar` can express
+        still fires every tick instead of raising or going silent)."""
+        return max(1, self.ticks_per_bar // division)
+
+    @property
+    def bar(self) -> int:
+        """Raw ticks in one bar - `ticks_per_bar` itself."""
+        return self.ticks(NoteDivision.WHOLE)
+
+    @property
+    def fourth(self) -> int:
+        """Raw ticks in one quarter note."""
+        return self.ticks(NoteDivision.QUARTER)
+
+    @property
+    def eighth(self) -> int:
+        """Raw ticks in one 8th note."""
+        return self.ticks(NoteDivision.EIGHTH)
+
+    @property
+    def sixteenth(self) -> int:
+        """Raw ticks in one 16th note."""
+        return self.ticks(NoteDivision.SIXTEENTH)
+
+    @property
+    def thirtysecond(self) -> int:
+        """Raw ticks in one 32nd note."""
+        return self.ticks(NoteDivision.THIRTYSECOND)
 
     def start(self) -> None:
         self._pattern.play()
@@ -82,7 +126,12 @@ class Clock:
         self._pattern.stop()
 
     def subscribe(self, steps: int, callback: Callable[[], None]) -> Division:
-        """Return a Division that fires `callback` every `steps` 16th notes.
+        """Return a Division that fires `callback` every `steps` raw ticks.
+
+        Pass a value derived from this clock's own `sixteenth`/`eighth`/
+        `fourth`/`bar` properties (or a multiple of one, e.g. `clock.bar * 8`)
+        rather than a hardcoded number, so the same patch keeps its intended
+        musical timing regardless of this clock's `ticks_per_bar`.
 
         Not yet listening - call `.play()` on the result (as `Patch.start()`
         does) to join the grid, and `.stop()` to leave it.

@@ -6,6 +6,10 @@ from pyoscillate.patches.texture import atmosphere
 from pyoscillate.patches.tonal import bass, drone
 from src.flet.base import PatchDef, PatchGroupDef
 
+# this project's own tempo - other projects set their own value instead of
+# sharing one hardcoded in app.py
+BPM = 132
+
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "bass",

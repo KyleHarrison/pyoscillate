@@ -5,7 +5,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
-from pyoscillate.clock import BAR, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
@@ -73,8 +73,8 @@ def build(
     Args:
         tempo: Shared tempo grid; one drone step is `tempo.bar * 8`, and the
             ratio/index LFO periods are derived from that step time.
-        clock: Shared master pulse; the drone steps every 8 bars (`BAR * 8`),
-            phase-locked to every other patch on the clock.
+        clock: Shared master pulse; the drone steps every 8 bars
+            (`clock.bar * 8`), phase-locked to every other patch on the clock.
         root_freq: Fundamental frequency (Hz) the drone glides between, before
             the `DRONE_INTERVALS` semitone offsets are applied each step.
             Raising it brings the drone closer to the arp's register and
@@ -116,7 +116,7 @@ def build(
         drone_freq.value = root_freq * pow(2, DRONE_INTERVALS[i] / 12)
         step["i"] += 1
 
-    sequencer = clock.subscribe(BAR * 8, next_step)
+    sequencer = clock.subscribe(clock.bar * 8, next_step)
     return Patch(
         sequencer=sequencer,
         voice=voice,

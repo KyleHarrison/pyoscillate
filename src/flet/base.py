@@ -23,7 +23,7 @@ from pyo.lib._core import PyoError
 from pyo.lib.server import Server
 
 import flet as ft
-from pyoscillate.clock import Clock
+from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
 from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.widgets import SliderSpec
 from pyoscillate.tempo import Tempo
@@ -358,11 +358,18 @@ class PatchGroup:
 @dataclass
 class EngineSpec:
     """How to boot the shared Pyo engine for a `PatchRackApp`: nchnls plus
-    an optional shared tempo/clock for patches that need one."""
+    an optional shared tempo/clock for patches that need one.
+
+    `bpm` and `ticks_per_bar` should come from the project's own rack module
+    (e.g. `pyoscillate.projects.<project>.rack`), not be hardcoded here or
+    in `app.py` alone - each project owns its own tempo and clock timing
+    resolution.
+    """
 
     nchnls: int = 2
     bpm: float | None = None
     needs_clock: bool = False
+    ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
     master_output_default: float = MASTER_OUTPUT_DEFAULT
     master_output_max: float = MASTER_OUTPUT_MAX
 
@@ -563,7 +570,7 @@ class PatchRackApp:
                 self.tempo = Tempo(bpm=self.engine.bpm)
                 build_kwargs_common["tempo"] = self.tempo
                 if self.engine.needs_clock:
-                    self.clock = Clock(self.tempo)
+                    self.clock = Clock(self.tempo, ticks_per_bar=self.engine.ticks_per_bar)
                     self.clock.start()
 
             for panel in self.panels.values():

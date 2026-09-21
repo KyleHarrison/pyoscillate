@@ -6,7 +6,7 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import EIGHTH, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
@@ -60,8 +60,8 @@ def build(
     Args:
         tempo: Shared tempo grid; the level swell is derived from
             `tempo.sixteenth`.
-        clock: Shared master pulse; the hat ticks every 8th note (`EIGHTH`),
-            phase-locked to every other patch on the clock.
+        clock: Shared master pulse; the hat ticks every 8th note
+            (`clock.eighth`), phase-locked to every other patch on the clock.
         cutoff_freq: ButHP high-pass cutoff (Hz). Raising it strips away more
             low and mid content, making the tick thinner, more distant, and
             more "sizzly"; lowering it lets more body through, making the
@@ -88,7 +88,7 @@ def build(
     # high-pass to keep it thin and airy, not a full noise burst
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = clock.subscribe(EIGHTH, hat_trig.play)
+    sequencer = clock.subscribe(clock.eighth, hat_trig.play)
     return Patch(
         sequencer=sequencer,
         voice=voice,

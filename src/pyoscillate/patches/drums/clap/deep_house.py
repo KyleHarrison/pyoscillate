@@ -6,11 +6,13 @@ from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import SIXTEENTH, Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.SIXTEENTH
 
 PARAMETERS = (
     SliderSpec(
@@ -31,13 +33,36 @@ PARAMETERS = (
         "Brightness",
         "Moves the clap from fuller and softer to thinner and sharper.",
     ),
+    SliderSpec(
+        "rate",
+        -1,
+        2,
+        1,
+        0,
+        "Rate",
+        "Steps the clap pattern to a slower or faster bar division - -1 "
+        "drops to an 8th note (half speed), 0 is the default 16th note, "
+        "+1 rises to a 32nd note (double speed).",
+    ),
 )
 PATTERN = {4, 12}
 DURATION = 0.16
 VOLUME_DEFAULT = 0.28
 
 
-def build(tempo: Tempo, clock: Clock, level: float = 0.18, tone: float = 1100) -> Patch:
+def _steps_for_rate(clock: Clock, rate: float) -> int:
+    """Raw ticks for a `rate` slider step, always a real `NoteDivision`."""
+    note_division = NoteDivision(BASE_DIVISION * (2 ** round(rate)))
+    return clock.ticks(note_division)
+
+
+def build(
+    tempo: Tempo,
+    clock: Clock,
+    level: float = 0.18,
+    tone: float = 1100,
+    rate: float = 0,
+) -> Patch:
     """Build a bright, filtered noise clap on beats two and four."""
     trigger = Trig()
     envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
@@ -52,12 +77,18 @@ def build(tempo: Tempo, clock: Clock, level: float = 0.18, tone: float = 1100) -
             trigger.play()
         state["step"] += 1
 
+    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
+
+    def set_rate(value: float) -> None:
+        division.steps = _steps_for_rate(clock, value)
+
     return Patch(
-        sequencer=clock.subscribe(SIXTEENTH, next_step),
+        sequencer=division,
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),
             "tone": lambda value: setattr(voice, "freq", value),
+            "rate": set_rate,
         },
         resources=(trigger, envelope_table, envelope, noise, source),
     )

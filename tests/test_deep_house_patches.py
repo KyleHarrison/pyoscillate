@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from pyoscillate.clock import Clock
 from pyoscillate.patches import Patch, PatchRack, start_server
 from pyoscillate.patches.musical.chord import deep_house as chord
-from pyoscillate.projects.deep_house.rack import PATCH_DEFS
+from pyoscillate.projects.deep_house.rack import BPM, PATCH_DEFS, TICKS_PER_BAR
 from pyoscillate.tempo import Tempo
 
 
@@ -94,8 +94,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.server = start_server(audio="manual")
-        cls.tempo = Tempo(bpm=122)
-        cls.clock = Clock(cls.tempo)
+        cls.tempo = Tempo(bpm=BPM)
+        cls.clock = Clock(cls.tempo, ticks_per_bar=TICKS_PER_BAR)
         cls.clock.start()
 
     @classmethod

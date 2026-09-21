@@ -6,7 +6,7 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import FOURTH, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
@@ -61,7 +61,7 @@ def build(
         tempo: Shared tempo grid; the level swell is derived from
             `tempo.eighth`.
         clock: Shared master pulse; the tick fires every quarter note
-            (`FOURTH`), phase-locked to every other patch on the clock.
+            (`clock.fourth`), phase-locked to every other patch on the clock.
         cutoff_freq: ButHP high-pass cutoff (Hz). The default (3000) is much
             lower than the main hat's (8000), which is what makes this
             voice read as darker and lower. Raising it brings it closer to
@@ -87,7 +87,7 @@ def build(
 
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = clock.subscribe(FOURTH, hat_trig.play)
+    sequencer = clock.subscribe(clock.fourth, hat_trig.play)
     return Patch(
         sequencer=sequencer,
         voice=voice,

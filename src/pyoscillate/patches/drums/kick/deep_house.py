@@ -8,15 +8,31 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv, TrigLinseg
 
-from pyoscillate.clock import FOURTH, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 PARAMETERS = (
-    SliderSpec("level", 0.1, 1.0, 0.05, 0.62, "Body", "Controls the fullness and weight of the kick's low end."),
-    SliderSpec("drive", 0.0, 0.8, 0.05, 0.12, "Grit", "Adds soft saturation warmth and edge; higher pushes the kick toward a grittier, more aggressive thump."),
+    SliderSpec(
+        "level",
+        0.1,
+        1.0,
+        0.05,
+        0.62,
+        "Body",
+        "Controls the fullness and weight of the kick's low end.",
+    ),
+    SliderSpec(
+        "drive",
+        0.0,
+        0.8,
+        0.05,
+        0.12,
+        "Grit",
+        "Adds soft saturation warmth and edge; higher pushes the kick toward a grittier, more aggressive thump.",
+    ),
 )
 PROFILES = {
     "round": (118.0, 0.24, 0.16),
@@ -44,7 +60,7 @@ def build(
     source = body_signal + click_signal
     voice = Disto(source, drive=drive, slope=0.85)
     return Patch(
-        sequencer=clock.subscribe(FOURTH, trigger.play),
+        sequencer=clock.subscribe(clock.fourth, trigger.play),
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),

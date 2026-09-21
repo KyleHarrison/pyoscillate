@@ -8,7 +8,7 @@ from pyo.lib.generators import Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import SIXTEENTH, Clock
+from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
@@ -64,7 +64,7 @@ def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: flo
         state["step"] += 1
 
     return Patch(
-        sequencer=clock.subscribe(SIXTEENTH, next_step),
+        sequencer=clock.subscribe(clock.sixteenth, next_step),
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),

@@ -116,9 +116,9 @@ def build(
             the whole pad up in register; lowering it pushes the pad down
             toward the drone/bass range and can make the arpeggio read as
             muddier or more likely to clash with the bass.
-        step_division: How often the arpeggio advances, in 16th notes (see
-            `pyoscillate.clock`'s `SIXTEENTH`/`EIGHTH`/`FOURTH`/`BAR`, or any
-            multiple of them). Larger values space the notes further apart
+        step_division: How often the arpeggio advances, in raw clock ticks
+            (see `Clock.sixteenth`/`eighth`/`fourth`/`bar`, or any multiple
+            of one of those). Larger values space the notes further apart
             and slow the arpeggio down; smaller values speed it up. The
             swell period and envelope duration scale with this so the pad
             keeps sounding right at any speed.
