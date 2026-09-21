@@ -35,8 +35,8 @@ PARAMETERS = (
     ),
     SliderSpec(
         "rate",
-        -1,
-        2,
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
         1,
         0,
         "Rate",
@@ -51,9 +51,8 @@ VOLUME_DEFAULT = 0.28
 
 
 def _steps_for_rate(clock: Clock, rate: float) -> int:
-    """Raw ticks for a `rate` slider step, always a real `NoteDivision`."""
-    note_division = NoteDivision(BASE_DIVISION * (2 ** round(rate)))
-    return clock.ticks(note_division)
+    """Raw ticks for a `rate` slider step on a real note division."""
+    return clock.ticks_for_rate(BASE_DIVISION, rate)
 
 
 def build(

@@ -27,6 +27,7 @@ class NoteDivision(IntEnum):
     SIXTEENTH = 16
     THIRTYSECOND = 32
     SIXTYFOURTH = 64
+    ONE_TWENTY_EIGHTH = 128
 
 
 @dataclass(eq=False)
@@ -93,6 +94,25 @@ class Clock:
         least one tick (so a division finer than `ticks_per_bar` can express
         still fires every tick instead of raising or going silent)."""
         return max(1, self.ticks_per_bar // division)
+
+    @staticmethod
+    def rate_limits(base_division: NoteDivision) -> tuple[int, int]:
+        """Inclusive slider offsets that remain valid `NoteDivision` values."""
+        divisions = tuple(NoteDivision)
+        base_index = divisions.index(base_division)
+        return -base_index, len(divisions) - base_index - 1
+
+    def ticks_for_rate(self, base_division: NoteDivision, rate: float) -> int:
+        """Raw ticks for an offset from `base_division` in the rate slider."""
+        divisions = tuple(NoteDivision)
+        base_index = divisions.index(base_division)
+        division_index = base_index + round(rate)
+        if not 0 <= division_index < len(divisions):
+            minimum, maximum = self.rate_limits(base_division)
+            raise ValueError(
+                f"rate must be between {minimum} and {maximum} for {base_division.name}"
+            )
+        return self.ticks(divisions[division_index])
 
     @property
     def bar(self) -> int:

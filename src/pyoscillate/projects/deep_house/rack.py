@@ -10,8 +10,8 @@ from src.flet.base import PatchDef, PatchGroupDef
 
 # this project's own tempo and clock timing resolution - other projects set
 # their own values instead of sharing a static default from `pyoscillate.clock`
-BPM = 122
-TICKS_PER_BAR = 128
+BPM = 132
+TICKS_PER_BAR = 512
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(

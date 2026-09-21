@@ -5,8 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches import Patch, PatchRack, start_server
+from pyoscillate.patches.drums.clap import deep_house as clap
 from pyoscillate.patches.musical.chord import deep_house as chord
 from pyoscillate.projects.deep_house.rack import BPM, PATCH_DEFS, TICKS_PER_BAR
 from pyoscillate.tempo import Tempo
@@ -23,6 +24,27 @@ class ServerStartupTests(unittest.TestCase):
             start_server(output_device=99)
 
         server.start.assert_not_called()
+
+
+class ClockRateTests(unittest.TestCase):
+    def test_rate_limits_follow_supported_note_divisions(self) -> None:
+        self.assertEqual(Clock.rate_limits(NoteDivision.SIXTEENTH), (-4, 3))
+
+    @patch("pyoscillate.clock.Pattern")
+    def test_ticks_for_rate_supports_the_clap_slider_bounds(self, _: MagicMock) -> None:
+        clock = Clock(Tempo(bpm=132), ticks_per_bar=256)
+        minimum, maximum = Clock.rate_limits(NoteDivision.SIXTEENTH)
+
+        self.assertEqual(clock.ticks_for_rate(NoteDivision.SIXTEENTH, minimum), 256)
+        self.assertEqual(clock.ticks_for_rate(NoteDivision.SIXTEENTH, maximum), 2)
+
+    def test_clap_rate_slider_uses_clock_limits(self) -> None:
+        rate = next(spec for spec in clap.PARAMETERS if spec.name == "rate")
+
+        self.assertEqual(
+            (rate.minimum, rate.maximum),
+            Clock.rate_limits(NoteDivision.SIXTEENTH),
+        )
 
 
 class PatchGraphOwnershipTests(unittest.TestCase):
