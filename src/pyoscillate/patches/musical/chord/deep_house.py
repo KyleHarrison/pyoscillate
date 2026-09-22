@@ -9,11 +9,13 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable, SawTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.SIXTEENTH
 
 PARAMETERS = (
     SliderSpec(
@@ -34,6 +36,15 @@ PARAMETERS = (
         "Brightness",
         "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting one.",
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the chord-stab pattern speed for each step away from its 16th-note grid.",
+    ),
 )
 ROOTS = [0, 5, 10, 7]
 INTERVALS = (0, 3, 7, 10)
@@ -41,7 +52,12 @@ VOLUME_DEFAULT = 0.4
 
 
 def build(
-    tempo: Tempo, clock: Clock, style: str, root_freq: float = 146, brightness: float = 1500
+    tempo: Tempo,
+    clock: Clock,
+    style: str,
+    root_freq: float = 146,
+    brightness: float = 1500,
+    rate: float = 0,
 ) -> Patch:
     """Build an offbeat minor-seventh chord stab from four explicit voices."""
     profiles = {
@@ -77,12 +93,16 @@ def build(
             trigger.play()
         state["step"] += 1
 
+    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
     return Patch(
-        sequencer=clock.subscribe(clock.sixteenth, next_step),
+        sequencer=division,
         voice=voice,
         controls={
             "root_freq": lambda value: state.update(root=value),
             "brightness": lambda value: setattr(filter_voice, "freq", value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(
             table,

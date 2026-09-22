@@ -139,6 +139,9 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         self.assertIsInstance(patch, Patch)
         rack.start(patch_def.name, patch)
         patch.update(values)
+        rate = next((spec for spec in patch_def.parameters if spec.name == "rate"), None)
+        if rate is not None:
+            patch.set("rate", rate.maximum)
         rack.stop(patch_def.name)
 
     def test_chord_retains_native_trigger_graph(self) -> None:

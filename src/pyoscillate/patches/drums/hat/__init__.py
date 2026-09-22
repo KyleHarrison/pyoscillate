@@ -6,13 +6,14 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 CUTOFF_FREQ = 10300
+BASE_DIVISION = NoteDivision.EIGHTH
 
 PARAMETERS = (
     SliderSpec(
@@ -45,6 +46,15 @@ PARAMETERS = (
         "Shapes the tick's tail; shorter feels tight and click-like, longer blurs into more of a hiss.",
         (PyoParamRef(TrigEnv, "dur"),),
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the tick pattern speed for each step away from its 8th-note grid.",
+    ),
 )
 
 
@@ -54,6 +64,7 @@ def build(
     cutoff_freq: float = CUTOFF_FREQ,
     level: float = 0.2,
     decay: float = 0.75,
+    rate: float = 0,
 ) -> Patch:
     """Subtle high-passed noise tick, once per 8th note, for top-end texture.
 
@@ -88,13 +99,16 @@ def build(
     # high-pass to keep it thin and airy, not a full noise burst
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = clock.subscribe(clock.eighth, hat_trig.play)
+    sequencer = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play)
     return Patch(
         sequencer=sequencer,
         voice=voice,
         controls={
             "cutoff_freq": lambda value: setattr(voice, "freq", value),
             "level": lambda value: setattr(hat_noise, "mul", value),
+            "rate": lambda value: setattr(
+                sequencer, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(hat_trig, hat_noise, envelope_table, hat_env, hat_swell),
     )

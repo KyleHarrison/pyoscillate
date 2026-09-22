@@ -6,13 +6,14 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 CUTOFF_FREQ = 3000  # lower than the main hat (8000) so this reads as a darker, lower accent
+BASE_DIVISION = NoteDivision.QUARTER
 
 PARAMETERS = (
     SliderSpec(
@@ -45,6 +46,15 @@ PARAMETERS = (
         "Shapes the accent's decay; shorter feels tight and clipped, longer trails into a dubbier tock.",
         (PyoParamRef(TrigEnv, "dur"),),
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the accent pattern speed for each step away from its quarter-note grid.",
+    ),
 )
 
 
@@ -54,6 +64,7 @@ def build(
     cutoff_freq: float = CUTOFF_FREQ,
     level: float = 0.55,
     decay: float = 0.25,
+    rate: float = 0,
 ) -> Patch:
     """Darker noise tick, once per quarter note, as a rarer, dubbier accent.
 
@@ -87,13 +98,16 @@ def build(
 
     voice = ButHP(hat_env, freq=cutoff_freq, mul=hat_swell, add=-0.2)
 
-    sequencer = clock.subscribe(clock.fourth, hat_trig.play)
+    sequencer = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play)
     return Patch(
         sequencer=sequencer,
         voice=voice,
         controls={
             "cutoff_freq": lambda value: setattr(voice, "freq", value),
             "level": lambda value: setattr(hat_noise, "mul", value),
+            "rate": lambda value: setattr(
+                sequencer, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(hat_trig, hat_noise, envelope_table, hat_env, hat_swell),
     )

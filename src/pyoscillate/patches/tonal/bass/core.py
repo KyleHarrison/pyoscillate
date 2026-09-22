@@ -11,9 +11,11 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.SIXTEENTH
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ def build_bass(
     profile: BassProfile,
     root_freq: float,
     cutoff: float,
+    rate: float = 0,
     *,
     filter_base: float | None = None,
     filter_range: float = 0,
@@ -101,8 +104,12 @@ def build_bass(
     if filter_res is not None:
         controls["filter_res"] = lambda value: setattr(voice, "res", value)
 
+    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
+    controls["rate"] = lambda value: setattr(
+        division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+    )
     return Patch(
-        sequencer=clock.subscribe(clock.sixteenth, next_step),
+        sequencer=division,
         voice=voice,
         controls=controls,
         resources=(

@@ -8,11 +8,13 @@ from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.SIXTEENTH
 
 PARAMETERS = (
     SliderSpec(
@@ -33,6 +35,15 @@ PARAMETERS = (
         "Brightness",
         "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher).",
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the hat pattern speed for each step away from its 16th-note grid.",
+    ),
 )
 PATTERNS = {
     "crisp": {2, 6, 10, 14},
@@ -44,7 +55,12 @@ VOLUME_DEFAULT = 0.25
 
 
 def build(
-    tempo: Tempo, clock: Clock, style: str, level: float = 0.14, cutoff: float = 9000
+    tempo: Tempo,
+    clock: Clock,
+    style: str,
+    level: float = 0.14,
+    cutoff: float = 9000,
+    rate: float = 0,
 ) -> Patch:
     """Build a style-specific, grid-locked hat pattern."""
     trigger = Trig()
@@ -62,12 +78,16 @@ def build(
             trigger.play()
         state["step"] += 1
 
+    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
     return Patch(
-        sequencer=clock.subscribe(clock.sixteenth, next_step),
+        sequencer=division,
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),
             "cutoff": lambda value: setattr(voice, "freq", value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(trigger, envelope_table, envelope, noise, source),
     )

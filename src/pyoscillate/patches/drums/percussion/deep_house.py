@@ -8,11 +8,13 @@ from pyo.lib.generators import Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.SIXTEENTH
 
 PARAMETERS = (
     SliderSpec(
@@ -33,6 +35,15 @@ PARAMETERS = (
         "Pitch character",
         "Shifts the percussion's resonant tone; lower is deeper and woodier, higher is thinner and sharper.",
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the accent pattern speed for each step away from its 16th-note grid.",
+    ),
 )
 PATTERNS = {
     "rim": {3, 7, 11, 15},
@@ -42,7 +53,14 @@ DURATIONS = {"rim": 0.07, "conga": 0.19}
 VOLUME_DEFAULT = 0.28
 
 
-def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: float = 1100) -> Patch:
+def build(
+    tempo: Tempo,
+    clock: Clock,
+    style: str,
+    level: float = 0.18,
+    tone: float = 1100,
+    rate: float = 0,
+) -> Patch:
     """Build claps, rims, or conga-like resonance from the same rhythmic layer."""
     trigger = Trig()
     envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
@@ -63,12 +81,16 @@ def build(tempo: Tempo, clock: Clock, style: str, level: float = 0.18, tone: flo
             trigger.play()
         state["step"] += 1
 
+    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
     return Patch(
-        sequencer=clock.subscribe(clock.sixteenth, next_step),
+        sequencer=division,
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),
             "tone": lambda value: setattr(voice, "freq", value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(trigger, envelope_table, envelope, source, shaped_source),
     )

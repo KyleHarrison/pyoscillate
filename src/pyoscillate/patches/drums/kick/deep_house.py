@@ -8,11 +8,13 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv, TrigLinseg
 
-from pyoscillate.clock import Clock
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
+
+BASE_DIVISION = NoteDivision.QUARTER
 
 PARAMETERS = (
     SliderSpec(
@@ -33,6 +35,15 @@ PARAMETERS = (
         "Grit",
         "Adds soft saturation warmth and edge; higher pushes the kick toward a grittier, more aggressive thump.",
     ),
+    SliderSpec(
+        "rate",
+        Clock.rate_limits(BASE_DIVISION)[0],
+        Clock.rate_limits(BASE_DIVISION)[1],
+        1,
+        0,
+        "Rate",
+        "Halves or doubles the kick pattern speed for each step away from the four-on-the-floor default.",
+    ),
 )
 PROFILES = {
     "round": (118.0, 0.24, 0.16),
@@ -43,7 +54,12 @@ VOLUME_DEFAULT = 0.8
 
 
 def build(
-    tempo: Tempo, clock: Clock, style: str, level: float = 0.62, drive: float = 0.12
+    tempo: Tempo,
+    clock: Clock,
+    style: str,
+    level: float = 0.62,
+    drive: float = 0.12,
+    rate: float = 0,
 ) -> Patch:
     """Build a four-on-the-floor kick in the requested deep-house style."""
     pitch_start, decay, click = PROFILES[style]
@@ -59,12 +75,16 @@ def build(
     click_signal = noise * click_env
     source = body_signal + click_signal
     voice = Disto(source, drive=drive, slope=0.85)
+    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), trigger.play)
     return Patch(
-        sequencer=clock.subscribe(clock.fourth, trigger.play),
+        sequencer=division,
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),
             "drive": lambda value: setattr(voice, "drive", value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
         },
         resources=(
             trigger,
