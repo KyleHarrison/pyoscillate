@@ -37,13 +37,14 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        220,
-        880,
+        notes.A3,
+        notes.A5,
         1,
         notes.A4,
         "Register",
         "Moves the bell figure up or down; low reads as a church bell or gong, high as a glockenspiel or chime.",
         (PyoParamRef(ComplexRes, "freq"), PyoParamRef(FM, "carrier")),
+        scale="note",
     ),
     SliderSpec(
         "strike",

@@ -21,13 +21,14 @@ MID_ROOT = notes.E4  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        110,
-        660,
+        notes.A2,
+        notes.E5,
         1,
         MID_ROOT,
         "Register",
         "Shifts the generated melody up or down in pitch.",
         (PyoParamRef(FM, "carrier"),),
+        scale="note",
     ),
     SliderSpec(
         "note_period",

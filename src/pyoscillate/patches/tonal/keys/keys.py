@@ -38,13 +38,14 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        110,
-        330,
+        notes.A2,
+        notes.E4,
         1,
         notes.A3,
         "Register",
         "Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
         (PyoParamRef(FM, "carrier"),),
+        scale="note",
     ),
     SliderSpec(
         "bark",

@@ -47,7 +47,7 @@ These are recognisable sound families, each defined by how the mechanism is comb
 
 - drums: kick, snare, clap, hat, cymbal, tom, percussion, shaker
 - pitched percussion: bell
-- tonal voices: bass (with acid, fm, reese sub-families), pluck, lead, pad, drone, keys, strings
+- tonal voices: bass (with acid, fm, funk, reese sub-families), pluck, lead, pad, drone, keys, strings
 - texture families: atmosphere, texture, rumble, noise
 - sample families: playback, breakbeat, grains
 - transition families: riser
@@ -146,6 +146,13 @@ A slider should describe what the listener hears:
 Avoid exposing low-level implementation names such as filter cutoff, oscillator gain, wet/dry amount, or coefficient values when a perceptual label is clearer.
 
 The `help_text` should answer: “What will I hear if I move this slider?”
+
+A slider that sets a pitch in Hz (Register, `root_freq`) takes
+`scale="note"`: its ticks are equal-tempered semitones and its label shows
+the note name, so it can only land on in-tune notes. Keep the parameter in
+Hz and give its `minimum`, `maximum` and `default` as notes from
+`utility/notes` (`notes.A1`, not `55`). Continuous detune belongs in its own
+control, not in a Register slider with Hz steps.
 
 ### 3. Parameter changes should usually be live
 

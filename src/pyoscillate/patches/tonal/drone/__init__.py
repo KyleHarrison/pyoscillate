@@ -18,13 +18,14 @@ DRONE_ROOT = notes.Fs3  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        55,
-        220,
+        notes.A1,
+        notes.A3,
         1,
         DRONE_ROOT,
         "Register",
         "Moves the drone's register; higher brings it closer to the arp and reads as more melodic, lower pushes it toward a sustained sub layer.",
         (PyoParamRef(FM, "carrier"),),
+        scale="note",
     ),
     SliderSpec(
         "reverb_size",

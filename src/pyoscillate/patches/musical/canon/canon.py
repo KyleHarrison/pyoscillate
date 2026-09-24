@@ -21,13 +21,14 @@ CANON_ROOT = notes.A3  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        110,
-        440,
+        notes.A2,
+        notes.A4,
         1,
         CANON_ROOT,
         "Register",
         "Shifts voice A's melody up or down in pitch; voice B follows at its own interval offset.",
         (PyoParamRef(FM, "carrier"),),
+        scale="note",
     ),
     SliderSpec(
         "voice_a_period",

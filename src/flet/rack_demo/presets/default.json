@@ -1,7 +1,7 @@
 {
     "bass": {
         "enabled": false,
-        "root_freq": 92,
+        "root_freq": 92.499,
         "filter_res": 0.75,
         "filter_base": 1380,
         "filter_range": 400,
@@ -41,7 +41,7 @@
     },
     "drone": {
         "enabled": false,
-        "root_freq": 186,
+        "root_freq": 184.997,
         "reverb_size": 0.7,
         "reverb_damp": 0.7,
         "reverb_bal": 0.9,

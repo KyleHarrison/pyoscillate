@@ -1,7 +1,7 @@
 {
   "soundscape_fm": {
     "enabled": false,
-    "root_freq": 110,
+    "root_freq": 110.0,
     "chaos_speed": 0.04,
     "chaos_amount": 0.6,
     "reverb_size": 0.85,
@@ -13,7 +13,7 @@
   },
   "soundscape_filter": {
     "enabled": false,
-    "root_freq": 139.0,
+    "root_freq": 138.591,
     "cutoff_speed": 0.05,
     "cutoff_chaos": 0.1,
     "filter_res": 0.1,
@@ -28,7 +28,7 @@
   },
   "soundscape_wash": {
     "enabled": false,
-    "root_freq": 165,
+    "root_freq": 164.814,
     "detune": 0.6,
     "detune_bal": 0.7,
     "pitch_drift": 0.03,
@@ -44,7 +44,7 @@
   },
   "mid_arp": {
     "enabled": false,
-    "root_freq": 330,
+    "root_freq": 329.628,
     "step_bars": 2,
     "fm_ratio": 1.5,
     "fm_index": 1.5,
@@ -55,7 +55,7 @@
   },
   "mid_generative": {
     "enabled": false,
-    "root_freq": 330,
+    "root_freq": 329.628,
     "note_period": 3.0,
     "note_duration": 0.5,
     "fm_ratio": 1.5,
@@ -67,7 +67,7 @@
   },
   "mid_canon": {
     "enabled": false,
-    "root_freq": 304.0,
+    "root_freq": 311.127,
     "voice_a_period": 4.5,
     "voice_b_period": 7.5,
     "voice_b_interval": 7,
@@ -81,7 +81,7 @@
   },
   "bass_drone": {
     "enabled": false,
-    "root_freq": 56.0,
+    "root_freq": 55.0,
     "swell_period": 9.0,
     "swell_depth": 0.4,
     "filter_base": 180,
@@ -90,7 +90,7 @@
   },
   "bass_chaos": {
     "enabled": false,
-    "root_freq": 41,
+    "root_freq": 41.203,
     "chaos_speed": 0.03,
     "chaos_amount": 0.5,
     "drift_range": 3.0,

@@ -38,13 +38,14 @@ PROFILE = GROOVE["rolling"]
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        30,
-        110,
+        notes.B0,
+        notes.A2,
         1,
         notes.A1,
         "Register",
         "Moves the bassline up or down; low sits under the kick as weight, high brings the bark forward as a melodic line.",
         (PyoParamRef(FM, "carrier"), PyoParamRef(CrossFM, "carrier")),
+        scale="note",
     ),
     SliderSpec(
         "growl",

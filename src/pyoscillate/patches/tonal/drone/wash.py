@@ -14,13 +14,14 @@ ROOT_FREQ = notes.E3  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        55,
-        440,
+        notes.A1,
+        notes.A4,
         1,
         ROOT_FREQ,
         "Register",
         "Sets the wash's base pitch.",
         (PyoParamRef(SuperSaw, "freq"),),
+        scale="note",
     ),
     SliderSpec(
         "detune",

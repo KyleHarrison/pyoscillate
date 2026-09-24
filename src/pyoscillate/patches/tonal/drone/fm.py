@@ -14,13 +14,14 @@ ROOT_FREQ = notes.A2  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        55,
-        220,
+        notes.A1,
+        notes.A3,
         1,
         ROOT_FREQ,
         "Register",
         "Sets the pad's held pitch, the carrier tone everything else is built on.",
         (PyoParamRef(FM, "carrier"),),
+        scale="note",
     ),
     SliderSpec(
         "chaos_speed",

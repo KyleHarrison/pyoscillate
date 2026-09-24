@@ -51,6 +51,7 @@ GATED_PATCHES = {
     "pyoscillate.patches.tonal.bass.groove": {"style": "rolling"},
     "pyoscillate.patches.tonal.bass.fm.fm": {"style": "bark"},
     "pyoscillate.patches.tonal.bass.fm.fm#grit": {"style": "grit"},
+    "pyoscillate.patches.tonal.bass.funk.funk": {},
     "pyoscillate.patches.tonal.keys.keys": {},
     "pyoscillate.patches.transition.riser.riser": {"style": "noise"},
 }

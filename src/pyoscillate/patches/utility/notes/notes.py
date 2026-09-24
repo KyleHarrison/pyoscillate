@@ -1,7 +1,23 @@
+import math
 from enum import Enum
+
+from pyoscillate.harmony import NOTE_NAMES
 
 
 class Note(float, Enum):
+    C0 = 16.352
+    Cs0 = 17.324
+    D0 = 18.354
+    Ds0 = 19.445
+    E0 = 20.602
+    F0 = 21.827
+    Fs0 = 23.125
+    G0 = 24.500
+    Gs0 = 25.957
+    A0 = 27.500
+    As0 = 29.135
+    B0 = 30.868
+
     C1 = 32.703
     Cs1 = 34.648
     D1 = 36.708
@@ -133,8 +149,43 @@ class Note(float, Enum):
     B10 = 31608.531
 
 
+def midi_to_freq(note: float) -> float:
+    """Equal-tempered frequency (Hz) of MIDI note `note`, with A4 = 69 = 440 Hz."""
+    return 440 * 2 ** ((note - 69) / 12)
+
+
+def freq_to_midi(freq: float) -> float:
+    """MIDI note number of `freq` Hz; fractional when `freq` is between notes."""
+    return 69 + 12 * math.log2(freq / 440)
+
+
+def nearest_note(freq: float) -> float:
+    """The equal-tempered note frequency closest to `freq` Hz."""
+    return midi_to_freq(round(freq_to_midi(freq)))
+
+
+def note_name(freq: float) -> str:
+    """Scientific pitch name of the note nearest `freq` Hz, e.g. 55 -> "A1",
+    spelled as the rack's key picker spells it."""
+    note = round(freq_to_midi(freq))
+    return f"{NOTE_NAMES[note % 12]}{note // 12 - 1}"
+
+
 # Short aliases as plain floats, so importing individual notes remains clean;
 # pyo type-checks arguments exactly and rejects the `Note` members themselves.
+C0 = Note.C0.value
+Cs0 = Note.Cs0.value
+D0 = Note.D0.value
+Ds0 = Note.Ds0.value
+E0 = Note.E0.value
+F0 = Note.F0.value
+Fs0 = Note.Fs0.value
+G0 = Note.G0.value
+Gs0 = Note.Gs0.value
+A0 = Note.A0.value
+As0 = Note.As0.value
+B0 = Note.B0.value
+
 C1 = Note.C1.value
 Cs1 = Note.Cs1.value
 D1 = Note.D1.value
@@ -258,7 +309,7 @@ D10 = Note.D10.value
 Ds10 = Note.Ds10.value
 E10 = Note.E10.value
 F10 = Note.F10.value
-Fs10 = Note.F10.value
+Fs10 = Note.Fs10.value
 G10 = Note.G10.value
 Gs10 = Note.Gs10.value
 A10 = Note.A10.value

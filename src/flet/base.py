@@ -45,10 +45,6 @@ RACK_PRESET_KEY = "_rack"
 Preset = dict[str, dict[str, Any]]
 
 
-def decimal_places(step: float) -> int:
-    return max(0, len(str(step).partition(".")[2].rstrip("0")))
-
-
 @dataclass
 class PatchDef:
     """Static description of one patch.
@@ -143,16 +139,17 @@ class PatchPanel:
     # -- UI construction -------------------------------------------------
 
     def _slider_row(self, spec: SliderSpec) -> ft.Container:
-        precision = decimal_places(spec.step)
         value_text = ft.Text(
-            f"{spec.default:.{precision}f}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
         )
         self._value_texts[spec.name] = value_text
+        # the track runs in the spec's position space (semitones for a note
+        # slider), so its ticks are what the slider can actually produce
         slider = ft.Slider(
-            min=spec.minimum,
-            max=spec.maximum,
-            divisions=max(1, round((spec.maximum - spec.minimum) / spec.step)),
-            value=spec.default,
+            min=spec.to_position(spec.minimum),
+            max=spec.to_position(spec.maximum),
+            divisions=spec.divisions,
+            value=spec.to_position(spec.default),
             active_color=ACCENT,
             inactive_color="#31403D",
             on_change=lambda e, spec=spec: self._handle_slider(spec, e),
@@ -239,10 +236,9 @@ class PatchPanel:
         e.page.update()
 
     def _handle_slider(self, spec: SliderSpec, e: ft.ControlEvent) -> None:
-        value = float(e.control.value)
+        value = spec.from_position(float(e.control.value))
         self.values[spec.name] = value
-        precision = decimal_places(spec.step)
-        self._value_texts[spec.name].value = f"{value:.{precision}f}"
+        self._value_texts[spec.name].value = spec.format(value)
         self._apply()
         e.page.update()
 
@@ -284,11 +280,10 @@ class PatchPanel:
         self.switch.value = self.enabled
         for spec in self.patch_def.parameters:
             if spec.name in data:
-                value = float(data[spec.name])
+                value = spec.snap(float(data[spec.name]))
                 self.values[spec.name] = value
-                self._sliders[spec.name].value = value
-                precision = decimal_places(spec.step)
-                self._value_texts[spec.name].value = f"{value:.{precision}f}"
+                self._sliders[spec.name].value = spec.to_position(value)
+                self._value_texts[spec.name].value = spec.format(value)
         self.volume = float(data.get("volume", self.patch_def.volume_default))
         self.volume_slider.value = self.volume
         self.volume_text.value = f"{self.volume:.1f}"

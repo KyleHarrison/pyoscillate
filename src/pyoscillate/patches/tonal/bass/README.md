@@ -58,9 +58,10 @@ prompt asks for continuous bar-scale motion. The same reasoning can choose a
 different generator or filter for a different bass role.
 ## Sub-families
 
-`acid/`, `fm/` and `reese/` each need a different topology from
+`acid/`, `fm/`, `funk/` and `reese/` each need a different topology from
 `build_bass`: a per-note filter envelope with accent/slide, FM with an index
-envelope, and a detuned saw stack. `fm/` has patches (see its `CLAUDE.md`);
-`acid/` and `reese/` are still placeholders. A plain sub or harmonic bass
+envelope, a gated two-oscillator voice whose filter envelope swells open on
+every note, and a detuned saw stack. `fm/` and `funk/` have patches (see
+their `CLAUDE.md`); `acid/` and `reese/` are still placeholders. A plain sub or harmonic bass
 stays in the shared core as a profile, because sub is a register, not a
 family.

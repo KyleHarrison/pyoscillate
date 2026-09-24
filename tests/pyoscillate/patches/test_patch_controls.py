@@ -26,6 +26,7 @@ PATCHES: dict[str, list[dict]] = {
         {"style": "bark"},
         {"style": "grit"},
     ],
+    "pyoscillate.patches.tonal.bass.funk.funk": [{}],
     "pyoscillate.patches.tonal.keys.keys": [{}],
     "pyoscillate.patches.transition.riser.riser": [
         {"style": "noise"},

@@ -17,13 +17,14 @@ ROOT_FREQ = notes.A3  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        55,
-        440,
+        notes.A1,
+        notes.A4,
         1,
         ROOT_FREQ,
         "Register",
         "Sets the drone's fundamental pitch.",
         (PyoParamRef(Osc, "freq"),),
+        scale="note",
     ),
     SliderSpec(
         "cutoff_speed",

@@ -19,13 +19,14 @@ ROOT_FREQ = notes.Fs2
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        30,
-        110,
+        notes.B0,
+        notes.A2,
         1,
         ROOT_FREQ,
         "Register",
         "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings it closer to the mid range and easier to pick out melodically.",
         (PyoParamRef(Osc, "freq"),),
+        scale="note",
     ),
     SliderSpec(
         "filter_res",

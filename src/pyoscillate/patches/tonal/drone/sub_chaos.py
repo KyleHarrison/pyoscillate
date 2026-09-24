@@ -16,13 +16,14 @@ ROOT_FREQ = notes.E1  # current default
 PARAMETERS = (
     SliderSpec(
         "root_freq",
-        20,
-        80,
+        notes.E0,
+        notes.E2,
         1,
         ROOT_FREQ,
         "Register",
         "Sets the center pitch the sub wanders around.",
         (PyoParamRef(Rossler, "add"),),
+        scale="note",
     ),
     SliderSpec(
         "chaos_speed",
