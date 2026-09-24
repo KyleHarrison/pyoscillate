@@ -88,5 +88,39 @@
         "level": 0.18,
         "tune": 0,
         "volume": 0.28
+    },
+    "snare": {
+        "enabled": false,
+        "level": 0.2,
+        "tune": 0,
+        "snap": 1.0,
+        "tone": 2000,
+        "decay": 0.16,
+        "volume": 0.3
+    },
+    "tom": {
+        "enabled": false,
+        "level": 0.2,
+        "tune": 0,
+        "sweep": 1.0,
+        "length": 1.0,
+        "tone": 0.35,
+        "volume": 0.3
+    },
+    "cymbal_ride": {
+        "enabled": false,
+        "level": 0.1,
+        "tone": 7000,
+        "length": 1.0,
+        "movement": 0.1,
+        "volume": 0.15
+    },
+    "cymbal_crash": {
+        "enabled": false,
+        "level": 0.1,
+        "tone": 7000,
+        "length": 1.0,
+        "movement": 0.1,
+        "volume": 0.15
     }
 }

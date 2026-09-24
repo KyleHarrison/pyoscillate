@@ -105,7 +105,9 @@ def build(
     # high-pass to keep it thin and airy, out of the kick and bass range
     voice = ButHP(hat_burst, freq=cutoff_freq, mul=hat_swell)
 
-    sequencer = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play)
+    sequencer = clock.subscribe(
+        clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play
+    )
     return Patch(
         sequencer=sequencer,
         voice=voice,

@@ -104,7 +104,9 @@ def build(
     rate: float = 0,
 ) -> Patch:
     """Build a rim-click or conga-like accent from a bent sine body and transient."""
-    base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = PROFILES[style]
+    base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
+        PROFILES[style]
+    )
     trigger = Trig()
     tuning = Sig(_ratio(tune))
     body_freq = tuning * base_freq
@@ -119,7 +121,9 @@ def build(
 
     noise = Noise()
     click_table = ExpTable([(0, 1), (8191, 0)], exp=BEND_CURVE)
-    click_env = TrigEnv(trigger, click_table, dur=CLICK_DURATION, mul=click_level * click * level)
+    click_env = TrigEnv(
+        trigger, click_table, dur=CLICK_DURATION, mul=click_level * click * level
+    )
     click_burst = noise * click_env
     click_freq = body_freq * click_ratio
     click_signal = Biquad(click_burst, freq=click_freq, q=click_q, type=2)

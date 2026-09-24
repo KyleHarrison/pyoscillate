@@ -1,9 +1,12 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
 from pyoscillate.patches.drums.clap import deep_house as clap
+from pyoscillate.patches.drums.cymbal import deep_house as cymbal
 from pyoscillate.patches.drums.hat import deep_house as hat
 from pyoscillate.patches.drums.kick import deep_house as kick
 from pyoscillate.patches.drums.percussion import deep_house as percussion
+from pyoscillate.patches.drums.snare import deep_house as snare
+from pyoscillate.patches.drums.tom import deep_house as tom
 from pyoscillate.patches.musical.chord import deep_house as chord
 from pyoscillate.patches.tonal.bass import deep_house as bass
 from src.flet.base import PatchDef, PatchGroupDef
@@ -164,6 +167,46 @@ PATCH_DEFS: list[PatchDef] = [
         needs_tempo=True,
         needs_clock=True,
     ),
+    PatchDef(
+        "snare",
+        "Snare",
+        "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap.",
+        snare.build,
+        snare.PARAMETERS,
+        snare.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "tom",
+        "Tom",
+        "Sparse two-bar tom fill tuned to the bassline's minor pentatonic.",
+        tom.build,
+        tom.PARAMETERS,
+        tom.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "cymbal_ride",
+        "Cymbal - Ride",
+        "Quarter-note ride with slowly drifting metallic colour.",
+        cymbal.make_builder("ride"),
+        cymbal.PARAMETERS,
+        cymbal.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
+    PatchDef(
+        "cymbal_crash",
+        "Cymbal - Crash",
+        "Long crash wash marking the start of every eight-bar phrase.",
+        cymbal.make_builder("crash"),
+        cymbal.PARAMETERS,
+        cymbal.VOLUME_DEFAULT,
+        needs_tempo=True,
+        needs_clock=True,
+    ),
 ]
 
 PATCH_GROUPS: list[PatchGroupDef] = [
@@ -173,4 +216,5 @@ PATCH_GROUPS: list[PatchGroupDef] = [
     PatchGroupDef("hats", "Hi-hats", tuple(PATCH_DEFS[9:12])),
     PatchGroupDef("percussion", "Percussion", tuple(PATCH_DEFS[13:15])),
     PatchGroupDef("claps", "Claps", (PATCH_DEFS[12],)),
+    PatchGroupDef("drums", "Drums", tuple(PATCH_DEFS[15:19])),
 ]

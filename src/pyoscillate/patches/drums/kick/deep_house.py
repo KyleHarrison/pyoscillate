@@ -113,7 +113,9 @@ def build(
     trigger = Trig()
 
     pitch_table = ExpTable([(0, 1), (8191, 0)], exp=PITCH_CURVE)
-    pitch = TrigEnv(trigger, pitch_table, dur=sweep_time, mul=sweep_depth * punch, add=body_freq)
+    pitch = TrigEnv(
+        trigger, pitch_table, dur=sweep_time, mul=sweep_depth * punch, add=body_freq
+    )
     body = Sine(freq=pitch)
     envelope_table = ExpTable([(0, 1), (8191, 0)], exp=BODY_CURVE)
     envelope = TrigEnv(trigger, envelope_table, dur=decay * length, mul=level)
@@ -121,7 +123,9 @@ def build(
 
     noise = Noise()
     click_table = ExpTable([(0, 1), (8191, 0)], exp=PITCH_CURVE)
-    click_env = TrigEnv(trigger, click_table, dur=CLICK_DURATION, mul=click_level * click)
+    click_env = TrigEnv(
+        trigger, click_table, dur=CLICK_DURATION, mul=click_level * click
+    )
     click_signal = noise * click_env
 
     source = body_signal + click_signal

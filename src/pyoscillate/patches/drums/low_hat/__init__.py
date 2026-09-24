@@ -13,7 +13,9 @@ from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
-CUTOFF_FREQ = 3000  # lower than the main hat (10300) so this reads as a darker, lower accent
+CUTOFF_FREQ = (
+    3000  # lower than the main hat (10300) so this reads as a darker, lower accent
+)
 DECAY = 0.12
 BASE_DIVISION = NoteDivision.QUARTER
 # the top-end roll-off tracks the high-pass at this ratio, keeping the voice
@@ -110,7 +112,9 @@ def build(
     body = ButHP(hat_burst, freq=low_edge)
     voice = ButLP(body, freq=high_edge, mul=hat_swell)
 
-    sequencer = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play)
+    sequencer = clock.subscribe(
+        clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play
+    )
     return Patch(
         sequencer=sequencer,
         voice=voice,

@@ -108,10 +108,17 @@ def build(
     pattern = PATTERNS[style]
     trigger = Trig()
     envelope_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    envelope = TrigEnv(trigger, envelope_table, dur=DURATIONS[CLOSED] * length, mul=level)
+    envelope = TrigEnv(
+        trigger, envelope_table, dur=DURATIONS[CLOSED] * length, mul=level
+    )
     noise = Noise()
     operators = tuple(
-        FM(carrier=carrier, ratio=ratio, index=index, mul=METAL_GAIN / len(METAL_OPERATORS))
+        FM(
+            carrier=carrier,
+            ratio=ratio,
+            index=index,
+            mul=METAL_GAIN / len(METAL_OPERATORS),
+        )
         for carrier, ratio, index in METAL_OPERATORS
     )
     cluster = Mix(list(operators), voices=1)
