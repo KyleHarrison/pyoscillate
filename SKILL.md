@@ -21,7 +21,7 @@ When the user requests a new project such as a new named app or rack, this is a 
 - app package creation under `src/flet/{project_name}/`
 - rack definition under `src/pyoscillate/projects/{project_name}/`
 - patch-family reuse before new-module creation
-- notebook and preset structure
+- Flet app preset structure
 - README and musical brief documentation
 
 The music skill should still inform the sonic and musical brief, but the actual project scaffolding workflow belongs in the project-level file.

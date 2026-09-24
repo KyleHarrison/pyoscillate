@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 # major pentatonic - consonant, calm, no leading tones to create tension
 MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
 
-MID_ROOT = 330  # E4, current notebook default
+MID_ROOT = 330  # E4, current default
 
 PARAMETERS = (
     SliderSpec(
@@ -162,22 +160,4 @@ def build(
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
         resources=(mid_freq, fm_voice),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create mid_arp controls."""
-    return patch_widget(
-        rack,
-        "mid_arp",
-        build,
-        PARAMETERS,
-        controller=controller,
-        rebuild_parameters=("step_bars",),
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

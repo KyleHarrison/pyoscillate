@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-from ipywidgets import (
-    VBox,
-)
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 
-ARP_ROOT = 207  # current notebook default
+ARP_ROOT = 207  # current default
 
 PARAMETERS = (
     SliderSpec(
@@ -183,22 +179,4 @@ def build(
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
         resources=(arp_trig, arp_swell, envelope_table, arp_env, fm_voice),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create atmosphere controls."""
-    return patch_widget(
-        rack,
-        "atmosphere",
-        build,
-        PARAMETERS,
-        controller=controller,
-        rebuild_parameters=("step_division",),
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

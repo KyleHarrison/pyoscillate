@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib._core import Sig
 from pyo.lib.filters import ButHP, ButLP
 from pyo.lib.generators import Noise, Sine
@@ -8,9 +7,8 @@ from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 CUTOFF_FREQ = (
@@ -137,22 +135,4 @@ def build(
             high_edge,
             body,
         ),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create low-hat controls."""
-    return patch_widget(
-        rack,
-        "low_hat",
-        build,
-        PARAMETERS,
-        controller=controller,
-        volume_default=0.2,
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

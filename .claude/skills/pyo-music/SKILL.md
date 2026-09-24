@@ -218,7 +218,6 @@ This is the authority for project architecture and implementation rules:
 - `PARAMETERS`
 - `SliderSpec`
 - `Patch` / `PatchDef`
-- widget implementation
 - runtime safety and graph ownership
 - rack architecture
 - new-project scaffolding workflow
@@ -234,7 +233,7 @@ That workflow is the correct location for:
 - app + rack generation
 - project folder layout
 - patch family reuse vs. new-module creation
-- notebook and preset structure
+- Flet app preset structure
 - project README planning
 
 This skill simply provides the musical and sonic reasoning that feeds that project-level workflow.

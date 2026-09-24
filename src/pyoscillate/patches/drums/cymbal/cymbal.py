@@ -10,7 +10,6 @@ marks the start of each eight-bar phrase with a long, broad wash.
 import math
 from collections.abc import Callable
 
-from ipywidgets import VBox
 from pyo.lib._core import Mix, Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import FM, Noise, Sine
@@ -18,9 +17,8 @@ from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -183,22 +181,3 @@ def build(
 def make_builder(style: str) -> Callable[..., Patch]:
     """Return a builder with one cymbal style fixed for a rack entry."""
     return lambda tempo, clock, **values: build(tempo, clock, style, **values)
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-    style: str = "ride",
-) -> VBox:
-    """Create controls for one cymbal style."""
-    return patch_widget(
-        rack,
-        f"cymbal_{style}",
-        make_builder(style),
-        PARAMETERS,
-        controller=controller,
-        volume_default=VOLUME_DEFAULT,
-        build_kwargs={"tempo": tempo, "clock": clock},
-    )

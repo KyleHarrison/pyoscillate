@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Rossler
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
-ROOT_FREQ = 41  # E1, current notebook default
+ROOT_FREQ = 41  # E1, current default
 
 PARAMETERS = (
     SliderSpec(
@@ -142,11 +140,4 @@ def build(
             for name, control in live.items()
         },
         resources=(*live.values(), pitch_chaos, sub_table, sub_osc),
-    )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create bass_chaos controls."""
-    return patch_widget(
-        rack, "bass_chaos", build, PARAMETERS, controller=controller, volume_default=0.8
     )

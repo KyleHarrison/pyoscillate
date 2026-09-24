@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.filters import MoogLP, Tone
 from pyo.lib.generators import BrownNoise, Sine
 
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
-SUB_FREQ = 41  # E1, current notebook default
+SUB_FREQ = 41  # E1, current default
 
 PARAMETERS = (
     SliderSpec(
@@ -117,16 +115,4 @@ def build(
             for name, control in live.items()
         },
         resources=(*live.values(), noise, noise_voice, sub, sub_voice),
-    )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create bass_rumble controls."""
-    return patch_widget(
-        rack,
-        "bass_rumble",
-        build,
-        PARAMETERS,
-        controller=controller,
-        volume_default=0.8,
     )

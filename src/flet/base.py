@@ -1,14 +1,14 @@
 """Shared Flet <-> Pyo patch plumbing.
 
 This module abstracts the conversion between a `Patch` definition (a
-`build()` function plus a tuple of `SliderSpec` parameters, as already used
-by the ipywidgets notebooks under `pyoscillate.patches`) and a Flet UI: one
+`build()` function plus a tuple of `SliderSpec` parameters, as exposed by
+the modules under `pyoscillate.patches`) and a Flet UI: one
 `PatchDef` per patch, wrapped in a `PatchPanel` that renders an
 enable switch, parameter sliders, and a volume slider, all wired to a shared
 `PatchRack`. `PatchRackApp` composes any number of `PatchPanel`s into a single
 scrollable page with an audio-engine start/stop control and JSON preset
 save/load, so the same code drives a single-patch app (`soundscape_fm`) or a
-whole notebook's worth of patches (`psyambient`, `rack_demo`).
+whole rack of patches (`deep_house`, `psyambient`, `rack_demo`).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pyo.lib.server import Server
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
 from pyoscillate.patches.base import Patch, PatchRack, start_server
-from pyoscillate.patches.widgets import SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
 ACCENT = "#00A896"
@@ -47,7 +47,7 @@ def decimal_places(step: float) -> int:
 
 @dataclass
 class PatchDef:
-    """Static, ipywidgets-free description of one patch.
+    """Static description of one patch.
 
     `needs_tempo`/`needs_clock` tell `PatchRackApp` which shared objects to
     inject into `build_kwargs` once the audio engine is running, mirroring
@@ -77,9 +77,7 @@ class PatchGroupDef:
 
 
 class PresetStore:
-    """Loads/saves the same `{patch_name: {param: value}}` JSON preset shape
-    used by `pyoscillate.patches.presets`, so catalogs are interchangeable
-    between the notebooks and their Flet equivalents."""
+    """Loads/saves `{patch_name: {param: value}}` JSON presets for a rack."""
 
     def __init__(self, catalog_dir: Path) -> None:
         self.catalog_dir = catalog_dir
@@ -102,8 +100,8 @@ class PatchPanel:
     """One patch's live controls, wired to a shared `PatchRack`.
 
     Rebuilds the underlying `Patch` only when one of `rebuild_parameters`
-    changes value (matching `patch_widget`'s behaviour); every other slider
-    move just calls `Patch.update()` in place.
+    changes value; every other slider move just calls `Patch.update()` in
+    place.
     """
 
     def __init__(self, rack: PatchRack, patch_def: PatchDef) -> None:
@@ -377,7 +375,7 @@ class EngineSpec:
 class PatchRackApp:
     """A scrollable page of `PatchPanel`s sharing one `PatchRack`, one Pyo
     `Server`, and one JSON preset catalog - the generic shape behind both
-    the single-patch `soundscape_fm` app and the multi-patch notebook apps."""
+    the single-patch `soundscape_fm` app and the multi-patch rack apps."""
 
     def __init__(
         self,

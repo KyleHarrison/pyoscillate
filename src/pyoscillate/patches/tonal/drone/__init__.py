@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 # mostly small steps so the pitch glides rather than leaps
 DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 
-DRONE_ROOT = 186  # current notebook default
+DRONE_ROOT = 186  # current default
 
 PARAMETERS = (
     SliderSpec(
@@ -127,21 +125,4 @@ def build(
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
         resources=(drone_freq, ratio_lfo, index_lfo, fm_voice),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create drone controls."""
-    return patch_widget(
-        rack,
-        "drone",
-        build,
-        PARAMETERS,
-        controller=controller,
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

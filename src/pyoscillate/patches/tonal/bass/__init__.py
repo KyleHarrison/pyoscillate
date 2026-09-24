@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 from pyo.lib.tableprocess import Osc
 
-from pyoscillate.patches.base import PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 from .core import BassProfile, build_bass
@@ -83,23 +80,6 @@ def build(
     )
 
 
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create controls for the legacy techno bass."""
-    return patch_widget(
-        rack,
-        "bass",
-        build,
-        PARAMETERS,
-        controller=controller,
-        build_kwargs={"tempo": tempo, "clock": clock},
-    )
-
-
 __all__ = [
     "ACCENT_PATTERN",
     "NOTE_PATTERN",
@@ -107,5 +87,4 @@ __all__ = [
     "BassProfile",
     "build",
     "build_bass",
-    "widget",
 ]

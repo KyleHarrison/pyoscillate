@@ -38,7 +38,7 @@ app + patch rack, not a single patch edit), use this workflow in order:
 3. **Reuse or extend existing patch families first.** Search the nearest patch family before creating a new module. Extend an existing family or builder when possible.
 4. **Implement the patch set.** Use the existing patch-type directories under `src/pyoscillate/patches/` and the runtime conventions described in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md) as the implementation source of truth.
 5. **Wire the rack.** Put the `PATCH_DEFS` list in the project rack module and keep the app layer thin.
-6. **Add README and notebook support.** Document the musical brief and concept-to-patch mapping; create the notebook preset structure and patch widgets when relevant.
+6. **Add README and presets.** Document the musical brief and concept-to-patch mapping; add a `presets/` folder for the Flet app when relevant.
 7. **Validate the runtime contract.** Keep the patch graph and runtime state aligned with the project's patch architecture rules.
 
 This is a project-level workflow, not a music-skill workflow. It lives here so it remains discoverable to agents and to future project creation tasks.
@@ -57,10 +57,10 @@ script.py` or `uv run python -c "..."`) rather than invoking `python` directly.
 
 To run linting instead of: `source .venv/bin/activate && ruff check src` just use `uv run ruff check src`
 
-Patches live in `src/pyoscillate/patches/`; each is a `build(...) -> Patch` /
-`widget(...)` pair driven from the notebooks in `notebooks/`. The actual
-implementation and runtime discipline live in the project patch docs and the real
-modules under that folder.
+Patches live in `src/pyoscillate/patches/`; each exposes `PARAMETERS` and a
+`build(...) -> Patch`, wired into a project rack as `PatchDef`s and played
+through the Flet apps in `src/flet/`. The actual implementation and runtime
+discipline live in the project patch docs and the real modules under that folder.
 
 ## Implementation authority
 

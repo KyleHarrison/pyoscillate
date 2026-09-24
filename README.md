@@ -1,20 +1,20 @@
 # Pyoscillate
 
-Agentic DSP patches for Pyo, built for interactive experimentation in Jupyter notebooks.
+Agentic DSP patches for Pyo, played live as a modular synthesizer through a Flet GUI.
 
-Pyoscillate is a small, notebook-first toolkit for assembling reusable audio voices into a live modular performance environment. The core idea is simple: build synth components as expressive, tweakable building blocks, then audition them in real time from notebook cells while a shared timing system keeps everything in sync.
+Pyoscillate is a small toolkit for assembling reusable audio voices into a live modular performance environment. The core idea is simple: build synth components as expressive, tweakable building blocks, wire them into a rack, and play that rack in real time from a Flet app while a shared clock keeps everything in sync.
 
-This project is meant for a workflow where sound design and patching feel more like a live instrument than a static script. You prototype a voice, tune its controls, route it into a larger arrangement, and iterate quickly without leaving the notebook.
+This project is meant for a workflow where sound design and patching feel more like a live instrument than a static script. You prototype a voice, expose its musical controls, route it into a rack alongside other voices, and shape the whole rig from the GUI's switches and sliders.
 
 ## What this project does
 
 Pyoscillate helps you:
 
 - design custom Pyo-based synth voices and effects
-- compose systems of patches that share a tempo and timing grid
-- experiment interactively with controls in a notebook UI
-- prototyping modular-synth ideas as live, audible building blocks
-- save and reload patch states for quick recall and iteration
+- compose racks of patches that share a tempo and timing grid
+- perform and tweak those racks live in a Flet modular-synth GUI
+- prototype modular-synth ideas as live, audible building blocks
+- save and reload whole-rack presets for quick recall and iteration
 
 The emphasis is on rapid exploration: small patches, live auditioning, fast tuning, and compositional experimentation in context.
 
@@ -28,13 +28,13 @@ Each patch behaves like a small module in a larger synth rig: it has its own sou
 
 Rather than treating every patch as an isolated loop, the system is designed to let multiple voices lock into a common rhythmic reference. That makes layered textures feel coherent even when each element has its own character.
 
-### Interactive prototyping
+### Flet rack GUI
 
-The notebook is the main interface: patch cells can be run, adjusted, stopped, and replayed in place. This makes the workflow feel closer to a live performance tool than a one-off script.
+The Flet app is the main interface. Each project defines a rack of `PatchDef`s (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared `PatchRack`, clock, and audio engine.
 
 ### Preset-driven exploration
 
-A patch rig can be tuned, saved, and reloaded as a whole. That keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
+A rack can be tuned, saved, and reloaded as a whole from the GUI. Presets are JSON files in each app's `presets/` folder, which keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
 
 ## Installation
 
@@ -70,7 +70,20 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-## Build macos dist
+## Quick start
+
+Launch a rack from the project root. For the deep-house rack in a browser:
+
+```bash
+uv run flet run --web --port 8551 src/flet/deep_house/app.py
+```
+
+Open http://127.0.0.1:8551 (for example in the VS Code browser), start the audio engine, and switch patches on.
+
+Other racks live alongside it under `src/flet/` (`psyambient`, `rack_demo`, `soundscape_fm`). Drop `--web --port ...` to open a rack as a desktop window instead.
+
+## Build macOS dist
+
 ```bash
 uv run flet pack main.py \
   --name FMSoundscape \
@@ -79,44 +92,25 @@ uv run flet pack main.py \
   --yes
 ```
 
-## Run the Deep House Rack
-
-Launch the Flet rack in a browser from the project root:
-
-```bash
-uv run flet run --web --port 8551 src/flet/deep_house/app.py
-```
-
-Open http://127.0.0.1:8551 in the VS Code browser.
-
-## Quick start
-
-Open the notebook environment and start the live rig:
-
-```bash
-jupyter lab
-```
-
-Then run the notebook that initializes the audio server, sets up the shared timing, and launches the patch rack. The intended experience is a live studio setup where patch cells are rerun as you shape the sound.
-
 ## Typical workflow
 
 A typical session looks like this:
 
-1. start the audio engine
-2. create a shared tempo and timing context
-3. load a notebook rig or build one from small patch modules
-4. audition each voice in context
-5. tweak controls and rerun cells immediately
-6. save useful combinations as presets for later recall
+1. launch a project's Flet rack
+2. start the audio engine and set the shared tempo
+3. switch voices on and audition each one in context
+4. shape each voice with its musical sliders while the rack plays
+5. save useful combinations as presets for later recall
+6. edit patch modules or the rack definition, then relaunch to hear the change
 
-This is the heart of the project: not just writing DSP code, but iterating on a living system in real time.
+## Debugging patches
+
+`notebooks/deep_house/deep_house.ipynb` is a patch build debugger, not a performance interface. Each section calls a patch's real `build()` and then runs start, live `set()` and stop as separate cells, so you can see which lifecycle stage fails. Autoreload picks up saved changes in the patch modules.
 
 ## Why it exists
 
-Pyoscillate is for building musical systems with a procedural, agentic mindset: small, composable pieces of DSP that can be tested, tuned, and combined into something larger. It is a tool for exploring how synth components behave when they are treated as interactive building blocks rather than fixed one-off patches.
+Pyoscillate is for building musical systems with a procedural, agentic mindset: small, composable pieces of DSP that can be tested, tuned, and combined into something larger. It is a tool for exploring how synth components behave when they are treated as modules in an interactive rack rather than fixed one-off patches.
 
 ## License
 
-This project is under active development and is intended as a creative coding environment for experimentation with Pyo, DSP, and live notebook-based sound design.
-
+This project is under active development and is intended as a creative coding environment for experimentation with Pyo, DSP, and live modular sound design through a Flet GUI.

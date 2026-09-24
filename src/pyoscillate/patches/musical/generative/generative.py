@@ -4,20 +4,18 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import VBox
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 GENERATIVE_SCALE = [0, 2, 4, 7, 9, 12]
 
-MID_ROOT = 330  # E4, current notebook default
+MID_ROOT = 330  # E4, current default
 
 PARAMETERS = (
     SliderSpec(
@@ -187,16 +185,4 @@ def build(
             "reverb_bal": lambda value: setattr(voice, "bal", value),
         },
         resources=(note_metro, envelope_table, note_env, fm_voice, note_func),
-    )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create mid_generative controls."""
-    return patch_widget(
-        rack,
-        "mid_generative",
-        build,
-        PARAMETERS,
-        controller=controller,
-        rebuild_parameters=("note_period", "note_duration"),
     )

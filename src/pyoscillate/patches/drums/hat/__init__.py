@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 CUTOFF_FREQ = 10300
@@ -120,22 +118,4 @@ def build(
             ),
         },
         resources=(hat_trig, hat_noise, envelope_table, hat_env, hat_burst, hat_swell),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create hi-hat controls."""
-    return patch_widget(
-        rack,
-        "hat",
-        build,
-        PARAMETERS,
-        controller=controller,
-        volume_default=0.2,
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import MoogLP
@@ -8,10 +7,9 @@ from pyo.lib.generators import Lorenz
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 ROOT_FREQ = 220  # A3, current default
 
@@ -242,8 +240,3 @@ def build(
             reverb_voice,
         ),
     )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create soundscape_filter controls."""
-    return patch_widget(rack, "soundscape_filter", build, PARAMETERS, controller=controller)

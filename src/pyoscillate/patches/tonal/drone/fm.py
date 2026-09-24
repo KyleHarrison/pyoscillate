@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 ROOT_FREQ = 110  # A2, current default
 
@@ -188,15 +186,4 @@ def build(
             fm_voice,
             reverb_voice,
         ),
-    )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create live-updating soundscape_fm controls."""
-    return patch_widget(
-        rack=rack,
-        name="soundscape_fm",
-        build=build,
-        parameters=PARAMETERS,
-        controller=controller,
     )

@@ -34,7 +34,7 @@ uv run python -m pyoscillate.analysis pyoscillate.patches.drums.clap.clap \
   Pyo keeps one native server per process and does not survive repeated
   boot/shutdown reliably, so never boot a real server inside the pytest process.
 - `render()` plays the patch at the module's `VOLUME_DEFAULT` (the level its
-  widget starts at), so the output goes through the patch limiter the way the
+  volume slider starts at), so the output goes through the patch limiter the way the
   listener hears it. Pass `volume=` to override that.
 - `render(..., clock_running=False)` starts the patch but never ticks the
   clock. A gated patch must be silent in that state.

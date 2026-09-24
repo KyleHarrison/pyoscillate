@@ -7,16 +7,14 @@ whole envelope shapes white noise band-passed into the papery clap region.
 
 import math
 
-from ipywidgets import VBox
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise
 from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -175,22 +173,4 @@ def build(
             "rate": set_rate,
         },
         resources=(trigger, envelope_table, envelope, noise, source),
-    )
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-) -> VBox:
-    """Create controls for the clap voice."""
-    return patch_widget(
-        rack,
-        "clap",
-        build,
-        PARAMETERS,
-        controller=controller,
-        volume_default=VOLUME_DEFAULT,
-        build_kwargs={"tempo": tempo, "clock": clock},
     )

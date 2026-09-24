@@ -118,9 +118,8 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 Every patch module should expose the same public interface:
 
-- `PARAMETERS`: ordered `SliderSpec` values for the notebook controls
+- `PARAMETERS`: ordered `SliderSpec` values that the Flet rack renders as sliders
 - `build(...) -> Patch`: creates the DSP graph and returns the live patch
-- `widget(...)`: creates the standard control surface through `patch_widget(...)`
 
 Do not duplicate boilerplate in this file. Copy the structure from the actual modules that already work.
 
@@ -204,13 +203,13 @@ Clocked and generative patches must preserve their sequence index, callback stat
 - timing parameters often require custom setters or resubscription logic
 - do not treat timing as a normal live parameter unless the runtime is genuinely equivalent
 
-### 6. Keep the notebook contract small
+### 6. Keep the patch module UI-free
 
-Patch modules should not manually reconstruct the same UI plumbing each time.
+Patch modules describe sound and controls; the Flet layer owns the UI.
 
-- use `patch_widget(...)` for the standard controls
-- keep patch-specific ranges, labels, and descriptions in the patch module
-- do not duplicate preset registration or `interactive_output` wiring
+- keep patch-specific ranges, labels, and descriptions in `PARAMETERS`
+- expose the patch to a GUI through a `PatchDef` in the project rack, not UI code in the patch module
+- do not import Flet or build controls, preset handling, or slider wiring inside a patch module
 
 ## Quality bar
 
@@ -221,6 +220,6 @@ A patch is ready when it does all of the following:
 - updates live when the underlying topology is unchanged
 - preserves the full graph lifetime with explicit ownership
 - keeps timing behavior and state transitions deliberate
-- follows the standard `patch_widget` contract
+- follows the standard `PARAMETERS` / `build()` contract and plugs into a `PatchDef`
 
 If a concept belongs to the music skill rather than patch runtime discipline, move it there and keep this file focused on architecture and implementation rules.

@@ -3,15 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import VBox
 from pyo.lib.filters import ButBP, ButHP, ButLP
 from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv
 
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
@@ -160,16 +158,4 @@ def build(
             "glass_q": lambda value: setattr(glass_voice, "q", value),
         },
         resources=tuple(keepalive),
-    )
-
-
-def widget(rack: PatchRack, tempo: Tempo, controller: PresetController | None = None) -> VBox:
-    """Create clock-tick controls."""
-    return patch_widget(
-        rack,
-        "clock_tick",
-        build,
-        PARAMETERS,
-        controller=controller,
-        build_kwargs={"tempo": tempo},
     )

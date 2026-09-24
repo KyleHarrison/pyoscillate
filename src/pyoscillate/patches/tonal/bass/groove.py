@@ -2,14 +2,11 @@
 
 from collections.abc import Callable
 
-from ipywidgets import VBox
-
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import build_bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
-from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -66,22 +63,3 @@ def build(
 def make_builder(style: str) -> Callable[..., Patch]:
     """Return a builder with one bass style fixed for a rack entry."""
     return lambda tempo, clock, **values: build(tempo, clock, style, **values)
-
-
-def widget(
-    rack: PatchRack,
-    tempo: Tempo,
-    clock: Clock,
-    controller: PresetController | None = None,
-    style: str = "rolling",
-) -> VBox:
-    """Create controls for one bass style."""
-    return patch_widget(
-        rack,
-        f"bass_{style}",
-        make_builder(style),
-        PARAMETERS,
-        controller=controller,
-        volume_default=VOLUME_DEFAULT,
-        build_kwargs={"tempo": tempo, "clock": clock},
-    )

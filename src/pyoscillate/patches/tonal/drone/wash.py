@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from ipywidgets import VBox
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
-from pyoscillate.patches.base import Patch, PatchRack
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 ROOT_FREQ = 165  # E3, current default
 
@@ -248,8 +246,3 @@ def build(
             reverb_voice,
         ),
     )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create soundscape_wash controls."""
-    return patch_widget(rack, "soundscape_wash", build, PARAMETERS, controller=controller)

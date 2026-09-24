@@ -1,7 +1,7 @@
 [project]
 name = "pyoscillate"
 version = "0.1.0"
-description = "A Python project for creating audio in jupyter notebooks"
+description = "Agentic Pyo DSP patches played live as a modular synthesizer through a Flet GUI"
 readme = "README.md"
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
 requires-python = ">=3.12,<3.13"
@@ -9,7 +9,6 @@ dependencies = [
     "flet>=1.0.0",
     "flet-mcp>=1.0.0",
     "ipykernel>=7.3.0",
-    "ipywidgets>=8.1.9",
     "pyo>=1.0.5",
     "wxpython>=4.3.1",
 ]

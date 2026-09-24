@@ -129,7 +129,7 @@ value of interpolating between presets.
   - Continuous controls must be interpolable, so any blend between two presets sounds musical.
   - Categorical choices (waveform, topology, table) belong in profiles or rebuilds, never inside a slider's range.
 - Note this as the groundwork for a future preset-morph feature using `SigTo`
-  in the notebooks or Flet app. Don't build that feature as part of this task.
+  in the Flet app. Don't build that feature as part of this task.
 
 ### 6. Slider ranges as the space you can explore safely — [ ] not started
 

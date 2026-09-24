@@ -57,8 +57,8 @@ def render(
     With `clock_running=False` the patch is started but never receives a
     tick, so anything audible was not scheduled by its sequencer.
 
-    `volume` defaults to the module's `VOLUME_DEFAULT` (the level its widget
-    starts at), so the render passes through the output limiter the way the
+    `volume` defaults to the module's `VOLUME_DEFAULT` (the level its volume
+    slider starts at), so the render passes through the output limiter the way the
     listener hears it.
     """
     with tempfile.TemporaryDirectory() as directory:

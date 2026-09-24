@@ -4,20 +4,18 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
-from ipywidgets import VBox
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch, PatchRack
-from pyoscillate.patches.presets import PresetController
-from pyoscillate.patches.widgets import PyoParamRef, SliderSpec, patch_widget
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 CANON_SCALE = [0, 2, 4, 7, 9, 12]
 
-CANON_ROOT = 220  # A3, current notebook default
+CANON_ROOT = 220  # A3, current default
 
 PARAMETERS = (
     SliderSpec(
@@ -253,22 +251,5 @@ def build(
             source,
             voice_a_func,
             voice_b_func,
-        ),
-    )
-
-
-def widget(rack: PatchRack, controller: PresetController | None = None) -> VBox:
-    """Create mid_canon controls."""
-    return patch_widget(
-        rack,
-        "mid_canon",
-        build,
-        PARAMETERS,
-        controller=controller,
-        rebuild_parameters=(
-            "voice_a_period",
-            "voice_b_period",
-            "voice_b_interval",
-            "note_duration",
         ),
     )

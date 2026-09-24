@@ -130,7 +130,7 @@ These notes are about [src/pyoscillate/projects/deep_house/rack.py](../../src/py
   - [electronic-parts/chords-and-voicing.md](../../.claude/skills/music-theory/references/electronic-parts/chords-and-voicing.md)
   - [electronic-parts/scales-and-modes.md](../../.claude/skills/music-theory/references/electronic-parts/scales-and-modes.md)
 - Add a rack-level harmony source. It holds the key, the progression and the current chord root, and it advances on **bar** boundaries from the clock, not on patch steps.
-- Move the chord's `ROOTS` progression out of `chord.py` and into the harmony source, or the rack module. Keep a fallback so `chord.py` still works standalone in the notebooks.
+- Move the chord's `ROOTS` progression out of `chord.py` and into the harmony source, or the rack module. Keep a fallback so `chord.py` still works standalone outside a rack.
 - Make the bass, chord and tom read the current root from the harmony source.
 - Decide the bass's relationship to the chord musically: root, fifth, or pedal. Don't just copy the chord root.
 - Decide what the per-patch `root_freq` sliders become. Options: remove them, turn them into a rack-level "Key" control, or turn them into octave or offset controls.
