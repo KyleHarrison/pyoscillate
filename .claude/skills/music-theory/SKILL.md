@@ -48,6 +48,7 @@ which routes a request to the smallest relevant set of files.
 - [`references/genres/`](./references/genres/) for genre conventions
 - [`references/orchestration/`](./references/orchestration/) for register, texture, and density
 - [`references/production-aware/`](./references/production-aware/) for mix-aware arrangement and dynamics
+- [`references/electronic-parts/`](./references/electronic-parts/) for writing individual parts of loop-based electronic tracks: basslines, voicings, motif-based leads, drum grids, breakbeat chops
 - [`references/research/`](./references/research/) for reference-track and style analysis
 - [`references/creative-workflows/`](./references/creative-workflows/) for brainstorming and iterative collaboration
 - [Asset lookup table](./references/00-navigation.md#cheatsheets--when-to-use-assets) for compact lookup tables and reusable templates in `assets/`
@@ -59,3 +60,8 @@ by SJY051 and contributors, licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 This version has been reorganized and adapted for the pyoscillate project.
+
+The `references/electronic-parts/` folder is adapted from the `songwriting`
+skill in [claude-collider](https://github.com/jeremyruppel/claude-collider) by
+Jeremy Ruppel, licensed under the MIT License, and rewritten without
+SuperCollider-specific code.

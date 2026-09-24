@@ -1,6 +1,4 @@
-I searched for sources and grouped them by patch below. I checked that each one exists and roughly what it covers, but I haven't read any of them closely yet. I've added nothing to the repo.
-
-I left out every link that looked like a pirated copy: several Scribd and pdfcoffee uploads, plus copies of Farnell's book, Welsh's Cookbook, Roads' *Microsound* and the Szabo thesis. For the paid books I've linked the publisher.
+The next step is the sourced pass: read the Szabo supersaw thesis, the musicdsp chaotic-oscillator article and the Valhalla posts, fill in the drone doc's synthesis sections, then refactor the five drone patches against it. Do you want me to go ahead?
 
 ## Sources that cover several patches
 

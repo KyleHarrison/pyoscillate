@@ -78,6 +78,10 @@ implementation bridge, and owns the full reasoning chain from here forward.
 | Iterative revision, user feedback parsing, before/after edits | `creative-workflows/revision-and-feedback-loops.md` + `../assets/session-brief-and-decision-log.md` |
 | Answer length, controlled creative variation, loading discipline, response calibration | `creative-workflows/answer-calibration.md` + `../assets/response-templates.md` |
 | Hybrid genre requests (e.g., "K-pop with jazz harmony") | `workflow.md` (Multi-genre and hybrid requests) |
+| Writing an individual electronic part (bassline, pad/stab voicing, lead motif, drum pattern) for a loop-based track | `electronic-parts/overview.md` + the part file it lists |
+| Electronic bassline movement, kick interaction, filter-as-expression | `electronic-parts/bass-lines.md` |
+| Drum velocity accents, swing ratios, ghost notes, genre drum grids (house, techno, DnB, garage, boom-bap) | `electronic-parts/drums-and-rhythm.md` |
+| Breakbeat slicing, chopping, rearranging, per-slice pitch/rate | `electronic-parts/breakbeats.md` |
 | Critique, feedback on a finished piece, evaluating user's own work | `critique-and-feedback.md` |
 | Teaching, learning paths, exercises, pedagogical mode | `teaching-composition.md` |
 | User listening context, subscribed streaming services, playlists, Replay/Wrapped, personal reference library | `research/user-listening-context-and-streaming-services.md` + `research/reference-track-digging.md` |
@@ -170,6 +174,8 @@ Some requests genuinely span several files. Common patterns:
 **"Make this part playable / idiomatic"** — relevant `instrument-idiom/` file + `orchestration/instruments-ranges-character.md` + `orchestration/voicing-and-texture.md` if part density matters.
 
 **"Write a [solo / improv / lead line] over these changes"** — `harmony/jazz-harmony.md` (for any non-trivial changes) + `melody/melodic-construction.md` + the relevant genre file.
+
+**"Write the parts for a [house / techno / DnB / ambient] loop"** — `genres/electronic-edm.md` + `electronic-parts/overview.md` + the one or two part files the request centres on (`bass-lines.md`, `chords-and-voicing.md`, `melody-and-motifs.md`, `drums-and-rhythm.md`). Keep register separation and complementary rhythm across the parts.
 
 **"Make this groove harder / tighter / weirder"** — `rhythm-groove/groove-and-feel.md` + `rhythm-groove/rhythmic-devices.md` + the relevant genre file.
 

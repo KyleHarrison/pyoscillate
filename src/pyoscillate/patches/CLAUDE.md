@@ -45,12 +45,23 @@ These answer: “What physical signal change creates this sound?”
 
 These are recognisable sound families, each defined by how the mechanism is combined into a musical object:
 
-- drums: kick, snare, clap, hat, cymbal, tom, percussion
+- drums: kick, snare, clap, hat, cymbal, tom, percussion, shaker
 - pitched percussion: bell
-- tonal voices: bass, pluck, lead, pad, drone
-- texture families: atmosphere, texture, rumble
+- tonal voices: bass (with acid, fm, reese sub-families), pluck, lead, pad, drone, keys, strings
+- texture families: atmosphere, texture, rumble, noise
+- sample families: playback, breakbeat, grains
+- transition families: riser
 
 These answer: “How are those mechanisms combined to create a recognisable sound family?”
+
+Some directories are **placeholders**: they hold an `__init__.py` and a
+`CLAUDE.md` marked "Status: placeholder", but no patches yet. They record
+roles a complete electronic toolkit needs. When you implement the first patch
+in one, fill in its `CLAUDE.md` from sources first, then drop the placeholder
+status.
+
+Outside the archetype layers, `utility/` (click, sine) holds reference and
+test signals, not musical voices.
 
 #### Choosing a family
 
@@ -68,7 +79,9 @@ questions, borrowed from modular practice, decide it:
 ```text
 gated   → role decides: drums/, pitched_percussion/,
           tonal/bass (low-register note lines), tonal/lead, tonal/pluck,
-          tonal/pad (sustained chords whose harmony changes on events)
+          tonal/pad (sustained chords whose harmony changes on events),
+          tonal/keys, tonal/strings, sample/ (recorded source),
+          transition/ (one-shot gestures that mark form)
 ungated → stable pitch centre → tonal/drone   (any register; "sub" is a register, not a family)
         → no pitch centre     → texture/      (noise, grains, chaos-as-timbre)
 ```
