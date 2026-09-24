@@ -1,9 +1,16 @@
-"""Clap voice for the Deep House project."""
+"""Clap voice for the Deep House project.
+
+A clap is several nearly simultaneous noise bursts rather than one hit: a few
+short, sawtooth-like bursts are followed by a longer exponential tail, and the
+whole envelope shapes white noise band-passed into the papery clap region.
+"""
+
+import math
 
 from ipywidgets import VBox
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise
-from pyo.lib.tables import CosTable
+from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
@@ -26,12 +33,32 @@ PARAMETERS = (
     ),
     SliderSpec(
         "tone",
-        180,
+        400,
         4000,
         20,
         1100,
         "Brightness",
         "Moves the clap from fuller and softer to thinner and sharper.",
+    ),
+    SliderSpec(
+        "spread",
+        0.003,
+        0.02,
+        0.001,
+        0.009,
+        "Width",
+        "Spacing between the hands arriving; wider sounds fuzzier and more human, tighter moves toward a "
+        "single direct noise hit.",
+    ),
+    SliderSpec(
+        "decay",
+        0.04,
+        0.5,
+        0.01,
+        0.14,
+        "Tail",
+        "Length of the noisy tail after the burst; short is dry and crisp, long reads like a small room "
+        "around the clap.",
     ),
     SliderSpec(
         "rate",
@@ -46,7 +73,19 @@ PARAMETERS = (
     ),
 )
 PATTERN = {4, 12}
-DURATION = 0.16
+# short bursts before the tail; the tail's onset acts as the final hand
+BURSTS = 3
+# level each burst decays to before the next hand arrives
+BURST_FLOOR = 0.2
+TAIL_POINTS = 24
+TAIL_CURVE = 5.0
+TABLE_SIZE = 8192
+# moderate resonance gives a focused snap without ringing
+RESONANCE = 1.4
+# band-passing leaves much less energy than broadband noise; restores the
+# clap to roughly the same loudness as the rest of the kit at REFERENCE_TONE
+MAKEUP_GAIN = 5.0
+REFERENCE_TONE = 1100
 VOLUME_DEFAULT = 0.28
 
 
@@ -55,20 +94,52 @@ def _steps_for_rate(clock: Clock, rate: float) -> int:
     return clock.ticks_for_rate(BASE_DIVISION, rate)
 
 
+def _envelope(spread: float, decay: float) -> tuple[list[tuple[int, float]], float]:
+    """Envelope table points and total duration for one multi-burst clap."""
+    total = BURSTS * spread + decay
+    scale = (TABLE_SIZE - 1) / total
+    points: list[tuple[int, float]] = [(0, 0.0)]
+    for burst in range(BURSTS + 1):
+        start = round(burst * spread * scale)
+        if burst:
+            points.append((start, BURST_FLOOR))
+        points.append((start + 1, 1.0))
+    tail_start = points[-1][0]
+    for step in range(1, TAIL_POINTS + 1):
+        fraction = step / TAIL_POINTS
+        index = tail_start + round(fraction * (TABLE_SIZE - 1 - tail_start))
+        value = math.exp(-TAIL_CURVE * fraction) if step < TAIL_POINTS else 0.0
+        points.append((index, value))
+    return points, total
+
+
+def _makeup(tone: float) -> float:
+    """Gain that keeps loudness steady as Brightness moves.
+
+    A constant-Q band-pass lets through bandwidth proportional to its centre,
+    so noise power rises with `tone`; scaling by the square root cancels that.
+    """
+    return MAKEUP_GAIN * math.sqrt(REFERENCE_TONE / tone)
+
+
 def build(
     tempo: Tempo,
     clock: Clock,
     level: float = 0.18,
     tone: float = 1100,
+    spread: float = 0.009,
+    decay: float = 0.14,
     rate: float = 0,
 ) -> Patch:
-    """Build a bright, filtered noise clap on beats two and four."""
+    """Build a multi-burst, band-passed noise clap on beats two and four."""
+    shape = {"spread": spread, "decay": decay}
+    points, duration = _envelope(spread, decay)
     trigger = Trig()
-    envelope_table = CosTable([(0, 0), (30, 1), (8191, 0)])
-    envelope = TrigEnv(trigger, envelope_table, dur=DURATION, mul=level)
+    envelope_table = LinTable(points, size=TABLE_SIZE)
+    envelope = TrigEnv(trigger, envelope_table, dur=duration, mul=level)
     noise = Noise()
     source = noise * envelope
-    voice = Biquad(source, freq=tone, q=1.1, type=1)
+    voice = Biquad(source, freq=tone, q=RESONANCE, type=2, mul=_makeup(tone))
     state = {"step": 0}
 
     def next_step() -> None:
@@ -81,12 +152,26 @@ def build(
     def set_rate(value: float) -> None:
         division.steps = _steps_for_rate(clock, value)
 
+    def set_tone(value: float) -> None:
+        voice.freq = value
+        voice.mul = _makeup(value)
+
+    def set_shape(name: str, value: float) -> None:
+        # the burst structure lives in the table, so reshape it in place
+        # rather than rebuilding the graph
+        shape[name] = value
+        new_points, new_duration = _envelope(shape["spread"], shape["decay"])
+        envelope_table.replace(new_points)
+        envelope.dur = new_duration
+
     return Patch(
         sequencer=division,
         voice=voice,
         controls={
             "level": lambda value: setattr(envelope, "mul", value),
-            "tone": lambda value: setattr(voice, "freq", value),
+            "tone": set_tone,
+            "spread": lambda value: set_shape("spread", value),
+            "decay": lambda value: set_shape("decay", value),
             "rate": set_rate,
         },
         resources=(trigger, envelope_table, envelope, noise, source),

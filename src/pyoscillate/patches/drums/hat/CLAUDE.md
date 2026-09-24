@@ -1,4 +1,3 @@
-@@
 # Hi-hat
 
 ## Sonic function
@@ -45,4 +44,3 @@ Open electronic hat:
 There is no universal oscillator count, cutoff, or decay. The open/closed
 relationship and the amount of space left for the kick are more important than
 any fixed value.
-*** End Patch

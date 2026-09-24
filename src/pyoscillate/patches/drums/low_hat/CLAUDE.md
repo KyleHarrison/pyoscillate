@@ -1,4 +1,3 @@
-@@
 # Low hat
 
 ## Sonic function

@@ -80,13 +80,13 @@
     "percussion_rim": {
         "enabled": false,
         "level": 0.18,
-        "tone": 1100,
+        "tune": 0,
         "volume": 0.28
     },
     "percussion_conga": {
         "enabled": false,
         "level": 0.18,
-        "tone": 1100,
+        "tune": 0,
         "volume": 0.28
     }
 }
