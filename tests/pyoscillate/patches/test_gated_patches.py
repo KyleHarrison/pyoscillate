@@ -46,6 +46,7 @@ GATED_PATCHES = {
     "pyoscillate.patches.musical.chord.chord": {"style": "velvet"},
     "pyoscillate.patches.tonal.bass": {},
     "pyoscillate.patches.tonal.bass.groove": {"style": "rolling"},
+    "pyoscillate.patches.transition.riser.riser": {"style": "noise"},
 }
 # -80 dBFS: comfortably above numerical noise, far below anything audible
 SILENT_PEAK = 1e-4

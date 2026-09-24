@@ -9,6 +9,7 @@ cross-check; it tracks brightness on noisy material but not on tonal voices.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 
@@ -126,3 +127,66 @@ def _hits(render: Render) -> list[Hit]:
         # it is never mistaken for a new hit
         index = max(end, tail)
     return hits
+
+
+@dataclass(frozen=True)
+class Window:
+    """Level and brightness over one stretch of a continuous render."""
+
+    start: float
+    rms_db: float
+    centroid: float
+    # level in dB of each of BAND_EDGES' log-spaced bands
+    bands: tuple[float, ...] = ()
+
+
+def windows(render: Render, seconds: float = 0.25) -> tuple[Window, ...]:
+    """Split a render into fixed windows, for patches with no hits to select.
+
+    An ungated bed has no onsets, so its movement shows up as how much these
+    windows differ from each other rather than as a per-hit decay.
+    """
+    size = max(1, round(seconds * render.sample_rate))
+    return tuple(
+        Window(
+            start=start / render.sample_rate,
+            rms_db=to_db(_rms(render.samples[start : start + size])),
+            centroid=spectral_centroid(
+                render.samples[start : start + size], render.sample_rate
+            ),
+            bands=band_levels(render.samples[start : start + size], render.sample_rate),
+        )
+        for start in range(0, render.samples.size - size + 1, size)
+    )
+
+
+# third-octave-ish bands from 60 Hz to 16 kHz: fine enough to see a notch or
+# formant move, coarse enough that noise doesn't swamp it
+BAND_EDGES = tuple(60 * 2 ** (index / 3) for index in range(25))
+
+
+def band_levels(samples: np.ndarray, sample_rate: int) -> tuple[float, ...]:
+    """Level in dB of each band between consecutive `BAND_EDGES`."""
+    if not samples.size:
+        return ()
+    power = np.abs(np.fft.rfft(samples * np.hanning(samples.size))) ** 2
+    frequencies = np.fft.rfftfreq(samples.size, 1 / sample_rate)
+    levels = []
+    for low, high in pairwise(BAND_EDGES):
+        band = power[(frequencies >= low) & (frequencies < high)]
+        levels.append(10 * np.log10(band.mean()) if band.size and band.mean() > 0 else SILENCE_DB)
+    return tuple(float(level) for level in levels)
+
+
+def spectral_movement(stretch: tuple[Window, ...]) -> float:
+    """How much the spectrum's shape changes over time, in dB.
+
+    Each band's level is taken relative to the window's overall level, so a
+    plain swell doesn't count, and the result is the mean over bands of each
+    band's standard deviation across the windows. Moving notches, formants
+    or a breathing cutoff raise it; a still bed stays near the estimation
+    noise floor.
+    """
+    levels = np.array([window.bands for window in stretch])
+    relative = levels - levels.mean(axis=1, keepdims=True)
+    return float(relative.std(axis=0).mean())

@@ -63,3 +63,110 @@ All three need a decision on how a rack loads and owns a `SndTable`: where files
 
 x01, x02 (basics/GUI), x04/01–02 and 04–06 (disk playback and recording), x09 (callbacks: we already use `Pattern`/`TrigFunc`), x16/x17 (MIDI/OSC), x19 (multirate; revisit only if drive stages alias), x20 (multicore), x21 (utilities), x23 (`Expr`). One exception in x23: 04's phase-aligned formant (PAF) generator is a candidate "vocal/formant" lead profile if we want one.
 
+## Tasks
+
+Work the phases in order; tasks inside a phase can go in any order unless a
+dependency is noted. The tables above hold the detail for each example. Tick a
+box when the task lands and add a line to the Log.
+
+**Done means:** the family's `CLAUDE.md` is filled from sources (placeholder
+status dropped), the module exposes `PARAMETERS` + `build()`, every graph
+object is in `voice`/`sequencer`/`resources`, controls update live where the
+topology allows, the patch is registered in its family `__init__.py`, 
+
+### Phase 1: `texture/noise`
+
+- [x] Fill `texture/noise/CLAUDE.md` from sources; drop placeholder status
+- [x] x03/04 noise generators → first noise patch with a white/pink/brown "colour" control (`Selector`)
+- [x] x06/04 phasing → phaser movement profile (`Phaser(num=20)`, independent slow LFOs per channel)
+- [x] x06/07 Hilbert → barber-pole frequency-shift profile
+
+### Phase 2: `transition/riser`
+
+- [x] Fill `transition/riser/CLAUDE.md`; drop placeholder status
+- [x] x06/07 Hilbert → endless-rise source (single-sideband shift)
+- [x] x05/05 break-point functions → rise shape over a duration set in bars from the tempo (`Linseg`/`Expseg`)
+- [x] x05/02–03 linear/exponential ramps → pitch and level climb (`SigTo`, `Port`)
+
+### Phase 3: FM family (shared break-point-envelope pattern)
+
+- [ ] Add the modal/resonator route to `pitched_percussion/bell/CLAUDE.md` as a design alternative
+- [ ] x06/03 complex resonator → bell chime profile (`Metro` impulses into a `ComplexRes` bank)
+- [ ] x03/03 FM + x10/01 envelopes → Chowning FM bell profile (non-integer ratio, falling index)
+- [ ] Fill `tonal/bass/fm/CLAUDE.md`; drop placeholder status
+- [ ] x03/03 FM + x10/01 envelopes → FM bass with index envelope ("bark then settle")
+- [ ] x03/03 `CrossFM` → gritty FM bass profile
+- [ ] Fill `tonal/keys/CLAUDE.md`; drop placeholder status
+- [ ] x10/01 envelopes → electric-piano tine (amp/ratio/index tables, reader freq = `1/dur`, velocity scales index)
+
+### Phase 4: shared drive stage (before lead and acid)
+
+- [ ] x07/03 fuzz → asymmetric transfer-function drive helper in `common.py` (`ExpTable` halves + `Lookup`)
+- [ ] x10/08 table lookup → soft symmetric drive option (`AtanTable(slope)` + `Lookup`)
+
+### Phase 5: `tonal/lead` and `tonal/pluck`
+
+- [ ] x03/01 complex oscs → lead "character" control morphing `Blit.harms` / `RCOsc.sharp` / `SineLoop.feedback`
+- [ ] x05/03 exponential ramp → asymmetric portamento (`Port` rise ≠ fall)
+- [ ] x03/06 random generators → subtle pitch drift (`Randi`, ±0.7%)
+- [ ] Aggressive lead profile using the Phase 4 drive helper
+- [ ] (Optional) x23/04 let function → phase-aligned formant "vocal" lead profile via `Expr`
+- [ ] x06/03 complex resonator → pluck body (impulse into resonator)
+- [ ] x03/01 complex oscs → electronic pluck profile (`Blit` with fast-decaying `harms`)
+
+### Phase 6: `tonal/strings` and `tonal/pad`
+
+- [ ] Fill `tonal/strings/CLAUDE.md`; drop placeholder status
+- [ ] x07/05 hand-made chorus → reusable 8-line ensemble chorus helper
+- [ ] x03/01 `SuperSaw` → string section source feeding the ensemble chorus
+- [ ] x10/07 moving points → "breathing" pad (small `LinTable` rewritten by slow LFOs via `Pattern`)
+- [ ] x06/04 phasing → pad movement option
+
+### Phase 7: remaining bass sub-families
+
+- [ ] Fill `tonal/bass/reese/CLAUDE.md`; drop placeholder status
+- [ ] x03/01 `SuperSaw.detune` → Reese beating control
+- [ ] x07/05 hand-made chorus → optional Reese widening (reuse Phase 6 helper)
+- [ ] Fill `tonal/bass/acid/CLAUDE.md` (Devil Fish manual for the filter envelope); drop placeholder status
+- [ ] x05/03 exponential ramp → acid slide (`Port`)
+- [ ] x07/03 fuzz → acid overdrive (reuse Phase 4 helper)
+
+### Phase 8: new profiles for existing families
+
+- [ ] x15/01 wave terrain → drone profile (`NewMatrix` + `MatrixPointer`)
+- [ ] x15/02 matrix record → wave terrain fed by live FM
+- [ ] x03/06 random generators → generative two unsynchronised pitch streams (`Choice` list `freq`)
+- [ ] x22/07 managing scales → scale-bounded random walk, scale regenerated per phrase (port into our `Sequencer`)
+- [ ] x22/09 embedding generators → nested phrase/progression generation (port into our `Sequencer`)
+- [ ] x06/06 vocoder → atmosphere profile with a synth voice as the spectral source
+- [ ] x08/03 gated verb → gated-reverb option on snare/tom/clap (`Gate(outputAmp=True)` → `Freeverb` → `Compress`)
+
+### Phase 9: sample families
+
+- [ ] Decide how a rack loads and owns a `SndTable` (file location, which params force a rebuild) — ask the user
+- [ ] Fill `sample/playback/CLAUDE.md`; drop placeholder status
+- [ ] x10/03 looper → playback patch (`Looper`: pitch, start/dur, xfade, mode)
+- [ ] x04/03 read from RAM → one-shot playback profile
+- [ ] Fill `sample/grains/CLAUDE.md`; drop placeholder status
+- [ ] x10/04 granulation → grains patch (`Particle2` + `WinTable`, sine × noise position)
+- [ ] x10/05 micro-montage → random-chunk table profile
+- [ ] Fill `sample/breakbeat/CLAUDE.md`; drop placeholder status
+- [ ] x10/06 table stutter → stutter/retrigger mechanics (`Pointer` + `Linseg` + `Fader`)
+
+### Phase 10: rack-level (depends on `linked-rack-modulation.md`)
+
+- [ ] x08/02 ducking → hand to `linked-rack-modulation.md` task 5 (kick ducks pad/bass)
+- [ ] x08/04 auto-wah → hand to `linked-rack-modulation.md` (envelope follower → filter)
+- [ ] x07/01 flanger → shared effect
+- [ ] x07/02 Schroeder reverb → shared effect
+- [ ] x07/04 ping-pong delay → shared effect
+- [ ] x07/06 harmonizer → shared effect
+- [ ] x14/04 spectral delay → shared effect
+- [ ] x14/02 cross-synthesis → two-voice processor
+- [ ] x14/03 spectral morphing → two-voice processor
+
+## Log
+
+- 2026-09-24: examples surveyed and mapped; task list created.
+- 2026-09-24: Phase 1 done. `texture/noise/noise.py` (styles `air`, `surf`, `barber`); `frequency_shift`, `Stage` and `SequencerGroup` added to `patches/common.py`; `windows`/`spectral_movement` added to `analysis/features.py`. Finding: pyo's `Phaser` is a pure allpass, so x06/04's output alone has a flat spectrum; `surf` sums it with the dry bed (see `test_noise.py`).
+- 2026-09-25: Phase 2 done. `transition/riser/riser.py` (styles `noise`, `shift`, `pitch`) on an 8-bar phrase, Length 1–8 bars. One `Linseg` ramp raised to a live power (Surge) drives climb, filter and level, instead of `SigTo`/`Port`: `Port` is a one-pole lag (front-loaded, the wrong shape for a build) and neither restarts from zero per shot. The shift source climbs by SSB shift within the gesture, but it isn't a true endless barber-pole; that needs a shift inside a feedback delay, recorded as a design alternative in the riser `CLAUDE.md`. The noise band gets 1/√centre makeup (constant-Q bandwidth grows with the centre, which clipped at Climb 4). Also fixed ruff RUF007 in `analysis/features.py`.
