@@ -7,8 +7,9 @@ from pyo.lib.generators import Rossler, SuperSaw
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 
-ROOT_FREQ = 165  # E3, current default
+ROOT_FREQ = notes.E3  # current default
 
 PARAMETERS = (
     SliderSpec(

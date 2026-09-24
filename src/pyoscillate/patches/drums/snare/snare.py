@@ -16,6 +16,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -79,7 +80,7 @@ PARAMETERS = (
 )
 # step in the 16-step bar -> accent; the quiet final hit is a ghost note
 PATTERN = {4: 1.0, 12: 1.0, 15: 0.3}
-BODY_FREQ = 185.0
+BODY_FREQ = notes.Fs3
 # pitch bend at the strike, as a fraction above the body - kept well below a
 # kick's so the snare never turns into a zap or tom
 BEND_DEPTH = 0.35

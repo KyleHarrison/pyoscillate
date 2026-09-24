@@ -2,8 +2,8 @@
 
 A pitched drum hit: a sine body with a quick but audible downward sweep, a
 faster-decaying membrane overtone, and a short transient. It plays a sparse
-two-bar fill down an A minor pentatonic, adding pitched contour
-to the kit without the weight of the kick.
+two-bar fill down a minor pentatonic built on the rack's current chord root,
+adding pitched contour to the kit without the weight of the kick.
 """
 
 from pyo.lib._core import Sig
@@ -13,8 +13,10 @@ from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -77,12 +79,14 @@ PARAMETERS = (
         "Halves or doubles the fill speed for each step away from its 16th-note grid.",
     ),
 )
-# step in the two-bar (32-step) cycle -> semitones above the body pitch;
-# E, E, C, A walks down an A minor pentatonic; retune with Pitch
+# step in the two-bar (32-step) cycle -> semitones above the chord root;
+# fifth, fifth, minor third, root walks down the minor pentatonic, and all
+# four are tones of the rack's minor-seventh chords (E, E, C, A over Am7)
 PATTERN = {10: 7, 26: 7, 29: 3, 31: 0}
 CYCLE = 32
-# A2 - low-mid register, well above a kick
-BODY_FREQ = 110.0
+# A2 - low-mid register, well above a kick; each chord root snaps to the
+# octave nearest this before Pitch retunes it
+BODY_FREQ = notes.A2
 BEND_DEPTH = 0.4
 BEND_TIME = 0.06
 DECAY = 0.3
@@ -97,6 +101,8 @@ CLICK_DURATION = 0.01
 DECAY_CURVE = 3
 BEND_CURVE = 4
 VOLUME_DEFAULT = 0.3
+# a static key of A - used only outside a rack that shares its own `Harmony`
+FALLBACK_HARMONY = Harmony()
 
 
 def _ratio(semitones: float) -> float:
@@ -112,8 +118,14 @@ def build(
     length: float = 1.0,
     tone: float = 0.35,
     rate: float = 0,
+    harmony: Harmony | None = None,
 ) -> Patch:
-    """Build a pitched tom playing a sparse, bass-tuned two-bar fill."""
+    """Build a pitched tom playing a sparse two-bar fill on the current chord.
+
+    The fill follows the chord rather than only the key: the rack's chords
+    are parallel minor sevenths, so a pentatonic fixed to the key would land
+    on non-chord tones over some of them."""
+    harmony = harmony or FALLBACK_HARMONY
     trigger = Trig()
     tuning = Sig(_ratio(tune))
     body_freq = tuning * BODY_FREQ
@@ -139,9 +151,7 @@ def build(
 
     noise = Noise()
     click_table = ExpTable([(0, 1), (8191, 0)], exp=BEND_CURVE)
-    click_env = TrigEnv(
-        trigger, click_table, dur=CLICK_DURATION, mul=level * tone * CLICK_LEVEL
-    )
+    click_env = TrigEnv(trigger, click_table, dur=CLICK_DURATION, mul=level * tone * CLICK_LEVEL)
     click_burst = noise * click_env
     click_freq = body_freq * CLICK_RATIO
     click_signal = Biquad(click_burst, freq=click_freq, q=CLICK_RESONANCE, type=2)
@@ -158,7 +168,8 @@ def build(
     def next_step() -> None:
         offset = PATTERN.get(state["step"] % CYCLE)
         if offset is not None:
-            tuning.value = _ratio(state["tune"] + offset)
+            chord_ratio = harmony.chord_freq(BODY_FREQ, clock.bar_index) / BODY_FREQ
+            tuning.value = chord_ratio * _ratio(state["tune"] + offset)
             # restart both partials on a zero crossing so the immediate
             # attack doesn't click wherever the oscillators last stopped
             body.reset()

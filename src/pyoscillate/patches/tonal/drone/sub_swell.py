@@ -9,8 +9,9 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 
-ROOT_FREQ = 41  # E1, current default
+ROOT_FREQ = notes.E1  # current default
 
 PARAMETERS = (
     SliderSpec(

@@ -7,8 +7,9 @@ from pyo.lib.generators import BrownNoise, Sine
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 
-SUB_FREQ = 41  # E1, current default
+SUB_FREQ = notes.E1  # current default
 
 PARAMETERS = (
     SliderSpec(

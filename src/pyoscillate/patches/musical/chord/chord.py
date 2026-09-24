@@ -9,6 +9,7 @@ from pyo.lib.tables import CosTable, HarmTable, SawTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
@@ -17,13 +18,14 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 
 PARAMETERS = (
     SliderSpec(
-        "root_freq",
-        90,
-        220,
+        "octave",
+        -1,
         1,
-        146,
+        1,
+        0,
         "Register",
-        "Shifts the chord stab up or down in pitch relative to the bass and kick.",
+        "Moves the chord stabs down an octave for a darker, lower bed or up an octave to "
+        "sit clearer above the bass; the chords always follow the rack's key and progression.",
     ),
     SliderSpec(
         "brightness",
@@ -44,8 +46,12 @@ PARAMETERS = (
         "Halves or doubles the chord-stab pattern speed for each step away from its 16th-note grid.",
     ),
 )
-ROOTS = [0, 5, 10, 7]
+# i-iv-bVII-v as parallel minor-seventh stabs, one chord per bar - used
+# only when the patch runs outside a rack that shares its own `Harmony`
+FALLBACK_HARMONY = Harmony(progression=(0, 5, 10, 7))
 INTERVALS = (0, 3, 7, 10)
+# every chord root snaps to the octave nearest this, around D3
+REGISTER_CENTRE = 146
 VOLUME_DEFAULT = 0.4
 
 
@@ -53,11 +59,17 @@ def build(
     tempo: Tempo,
     clock: Clock,
     style: str,
-    root_freq: float = 146,
+    octave: float = 0,
     brightness: float = 1500,
     rate: float = 0,
+    harmony: Harmony | None = None,
 ) -> Patch:
-    """Build an offbeat minor-seventh chord stab from four explicit voices."""
+    """Build an offbeat minor-seventh chord stab from four explicit voices.
+
+    Each stab voices the chord `harmony` says is sounding in the current bar,
+    so the progression stays locked to the bass and tom whatever this
+    patch's rate or start time."""
+    harmony = harmony or FALLBACK_HARMONY
     profiles = {
         "velvet": (lambda: HarmTable([1, 0.25, 0.12]), 0.34, 0.42),
         "organ": (lambda: HarmTable([1, 0.7, 0.4, 0.2]), 0.22, 0.2),
@@ -70,7 +82,12 @@ def build(
     envelope = TrigEnv(trigger, envelope_table, dur=duration)
     amplitude = envelope * 0.19
     voices = [
-        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude)
+        Osc(
+            table,
+            freq=harmony.chord_freq(REGISTER_CENTRE, clock.bar_index)
+            * 2 ** (octave + interval / 12),
+            mul=amplitude,
+        )
         for interval in INTERVALS
     ]
     source = sum(voices)
@@ -81,12 +98,15 @@ def build(
         chorus = Chorus(voice, depth=1.2, feedback=0.15, bal=0.28)
         voice = chorus
     voice = Freeverb(voice, size=0.72, damp=0.45, bal=wet)
-    state = {"step": 0, "root": root_freq}
+    state = {"step": 0, "octave": octave}
 
     def next_step() -> None:
         step = state["step"] % 16
         if step % 4 == 2:
-            chord_root = state["root"] * 2 ** (ROOTS[(step // 4) % 4] / 12)
+            chord_root = (
+                harmony.chord_freq(REGISTER_CENTRE, clock.bar_index)
+                * 2 ** state["octave"]
+            )
             for oscillator, interval in zip(voices, INTERVALS, strict=True):
                 oscillator.freq = chord_root * 2 ** (interval / 12)
             trigger.play()
@@ -97,7 +117,7 @@ def build(
         sequencer=division,
         voice=voice,
         controls={
-            "root_freq": lambda value: state.update(root=value),
+            "octave": lambda value: state.update(octave=value),
             "brightness": lambda value: setattr(filter_voice, "freq", value),
             "rate": lambda value: setattr(
                 division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)

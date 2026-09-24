@@ -12,6 +12,7 @@ from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.tempo import Tempo
 
@@ -40,12 +41,20 @@ def build_bass(
     filter_base: float | None = None,
     filter_range: float = 0,
     filter_res: float | None = None,
+    harmony: Harmony | None = None,
+    octave: float = 0,
 ) -> Patch:
     """Build a triggered pitch voice from a musical profile.
 
     A fixed ``cutoff`` gives a compact, controlled bass. Supplying
     ``filter_base`` and ``filter_range`` adds a bar-long continuous sweep,
     which is useful for a more animated techno voice.
+
+    Without ``harmony`` the line sits on a fixed ``root_freq``, exposed as a
+    live ``root_freq`` control. With it, every note is re-rooted on the
+    current bar's chord in the octave nearest ``root_freq`` - the profile's
+    pattern stays relative to that chord root - and the live control is
+    ``octave`` instead, so the line can't be dragged out of key.
     """
     if len(profile.pattern) != len(profile.accents):
         raise ValueError("Bass pattern and accent pattern must have equal lengths")
@@ -81,19 +90,25 @@ def build_bass(
         freq=cutoff_source,
         res=profile.resonance if filter_res is None else filter_res,
     )
-    state = {"step": 0, "root": root_freq}
+    state = {"step": 0, "root": root_freq, "octave": octave}
+
+    def current_root() -> float:
+        if harmony is None:
+            return state["root"]
+        return harmony.chord_freq(root_freq, clock.bar_index) * 2 ** state["octave"]
 
     def next_step() -> None:
         step = state["step"] % len(profile.pattern)
-        oscillator.freq = state["root"] * 2 ** (profile.pattern[step] / 12)
+        oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
         envelope.mul = profile.accents[step]
         trigger.play()
         state["step"] += 1
 
-    controls = {
-        "root_freq": lambda value: state.update(root=value),
-        "cutoff": lambda value: setattr(voice, "freq", value),
-    }
+    controls = {"cutoff": lambda value: setattr(voice, "freq", value)}
+    if harmony is None:
+        controls["root_freq"] = lambda value: state.update(root=value)
+    else:
+        controls["octave"] = lambda value: state.update(octave=value)
     if filter_base is not None and cutoff_lfo is not None:
         controls.update(
             {

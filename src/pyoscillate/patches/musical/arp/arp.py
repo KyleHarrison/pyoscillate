@@ -7,12 +7,13 @@ from pyo.lib.generators import FM
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # major pentatonic - consonant, calm, no leading tones to create tension
 MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
 
-MID_ROOT = 330  # E4, current default
+MID_ROOT = notes.E4  # current default
 
 PARAMETERS = (
     SliderSpec(

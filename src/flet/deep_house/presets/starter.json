@@ -1,4 +1,7 @@
 {
+    "_rack": {
+        "key": "A"
+    },
     "kick_round": {
         "enabled": true,
         "level": 0.62,
@@ -19,37 +22,37 @@
     },
     "bass_rolling": {
         "enabled": true,
-        "root_freq": 55,
+        "octave": 0,
         "cutoff": 720,
         "volume": 0.62
     },
     "bass_dub": {
         "enabled": false,
-        "root_freq": 55,
+        "octave": 0,
         "cutoff": 720,
         "volume": 0.62
     },
     "bass_muted": {
         "enabled": false,
-        "root_freq": 55,
+        "octave": 0,
         "cutoff": 720,
         "volume": 0.62
     },
     "chord_velvet": {
         "enabled": true,
-        "root_freq": 146,
+        "octave": 0,
         "brightness": 1500,
         "volume": 0.4
     },
     "chord_organ": {
         "enabled": false,
-        "root_freq": 146,
+        "octave": 0,
         "brightness": 1500,
         "volume": 0.4
     },
     "chord_shimmer": {
         "enabled": false,
-        "root_freq": 146,
+        "octave": 0,
         "brightness": 1500,
         "volume": 0.4
     },

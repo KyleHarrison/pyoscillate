@@ -1,4 +1,5 @@
 import ast
+import math
 import subprocess
 import sys
 import unittest
@@ -6,9 +7,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import A, Harmony
 from pyoscillate.patches import Patch, PatchRack, start_server
 from pyoscillate.patches.drums.clap import clap
+from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
+from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import BPM, PATCH_DEFS, TICKS_PER_BAR
 from pyoscillate.tempo import Tempo
 
@@ -141,6 +145,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             build_kwargs["tempo"] = self.tempo
         if patch_def.needs_clock:
             build_kwargs["clock"] = self.clock
+        if patch_def.needs_harmony:
+            build_kwargs["harmony"] = Harmony(progression=(0, 5, 10, 7))
 
         patch = patch_def.build(**build_kwargs)
         self.assertIsInstance(patch, Patch)
@@ -160,6 +166,59 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         self.assertIn("Trig", resource_types)
         self.assertIn("TrigEnv", resource_types)
         self.assertEqual(resource_types.count("Osc"), len(chord.INTERVALS))
+
+    def sounding_roots(self, harmony: Harmony) -> dict[str, float]:
+        """Fire each pitched patch's sequencer up to its first note in the
+        clock's current bar, and return the pitch it played, divided by the
+        interval its pattern puts on that note - i.e. the chord root it used."""
+        chord_patch = chord.build(self.tempo, self.clock, "velvet", harmony=harmony)
+        bass_patch = bass.build(self.tempo, self.clock, "rolling", harmony=harmony)
+        tom_patch = tom.build(self.tempo, self.clock, harmony=harmony)
+        # the chord stabs on the third 16th, the bass on the first, the tom's
+        # first fill note (a fifth up) on the eleventh
+        for _ in range(3):
+            chord_patch.sequencer.callback()
+        bass_patch.sequencer.callback()
+        for _ in range(11):
+            tom_patch.sequencer.callback()
+        chord_osc = next(r for r in chord_patch.resources if type(r).__name__ == "Osc")
+        bass_osc = next(r for r in bass_patch.resources if type(r).__name__ == "Osc")
+        tom_tuning = next(r for r in tom_patch.resources if type(r).__name__ == "Sig")
+        fifth = 2 ** (7 / 12)
+        return {
+            "chord": chord_osc.freq,
+            "bass": bass_osc.freq,
+            "tom": tom_tuning.value * tom.BODY_FREQ / fifth,
+        }
+
+    def assert_same_pitch_class(self, roots: dict[str, float], expected: int) -> None:
+        for name, frequency in roots.items():
+            with self.subTest(part=name):
+                pitch_class = round(69 + 12 * math.log2(frequency / 440)) % 12
+                self.assertEqual(pitch_class, expected)
+
+    def test_bass_chord_and_tom_change_chord_on_the_same_bar(self) -> None:
+        harmony = Harmony(key=A, progression=(0, 5, 10, 7))
+        saved_tick = self.clock._tick
+        try:
+            for bar, pitch_class in enumerate((9, 2, 7, 4)):  # A, D, G, E
+                self.clock._tick = bar * self.clock.bar
+                with self.subTest(bar=bar):
+                    self.assert_same_pitch_class(
+                        self.sounding_roots(harmony), pitch_class
+                    )
+        finally:
+            self.clock._tick = saved_tick
+
+    def test_changing_the_key_moves_every_part_together(self) -> None:
+        harmony = Harmony(key=A, progression=(0, 5, 10, 7))
+        saved_tick = self.clock._tick
+        try:
+            self.clock._tick = 0
+            harmony.key = 0  # C
+            self.assert_same_pitch_class(self.sounding_roots(harmony), 0)
+        finally:
+            self.clock._tick = saved_tick
 
 
 def make_lifecycle_test(patch_def):

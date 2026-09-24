@@ -18,6 +18,15 @@ PATCHES: dict[str, list[dict]] = {
         {"style": "surf"},
         {"style": "barber"},
     ],
+    "pyoscillate.patches.pitched_percussion.bell.bell": [
+        {"style": "chime"},
+        {"style": "fm"},
+    ],
+    "pyoscillate.patches.tonal.bass.fm.fm": [
+        {"style": "bark"},
+        {"style": "grit"},
+    ],
+    "pyoscillate.patches.tonal.keys.keys": [{}],
     "pyoscillate.patches.transition.riser.riser": [
         {"style": "noise"},
         {"style": "shift"},

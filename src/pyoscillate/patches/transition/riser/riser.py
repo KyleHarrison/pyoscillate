@@ -31,6 +31,7 @@ from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import frequency_shift
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 STYLES = ("noise", "shift", "pitch")
@@ -98,8 +99,8 @@ NOISE_Q = 1.2
 # band-passing leaves much less energy than the saw sources; brings the noise
 # wash up to their loudness at the default settings
 NOISE_GAIN = 4.4
-# `shift` / `pitch`: an A2 root and fifth, as a detuned saw pair
-ROOT = 110
+# `shift` / `pitch`: a root and fifth, as a detuned saw pair
+ROOT = notes.A2
 CHORD = [ROOT, ROOT * 1.5]
 DETUNE = 0.5
 BALANCE = 0.7

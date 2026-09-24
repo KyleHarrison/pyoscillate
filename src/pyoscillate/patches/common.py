@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -53,6 +54,37 @@ class Stage:
 
     output: PyoObject
     resources: tuple[Any, ...] = field(default=(), repr=False)
+
+
+# pyo's default table length; break-point indices below are in table samples
+TABLE_SIZE = 8192
+# e-folds across a decay table: exp(-ln 100) is -40 dB, the level where a
+# struck tone reads as gone, so a reader's `dur` is the audible ring time
+RING_CURVE = math.log(100)
+
+
+def decay_points(
+    curve: float = RING_CURVE,
+    *,
+    attack: int = 8,
+    points: int = 24,
+) -> list[tuple[int, float]]:
+    """Break-points for a struck envelope: a rise over `attack` table samples,
+    then an exponential fall that is `curve` e-folds down at the end, and 0.
+
+    The shared shape of the FM family's break-point envelopes (pyo example
+    x10/01). A `TrigEnv` reading it with `dur` seconds plays it at reader
+    frequency 1/dur, so one table fits any note length and a live `dur`
+    rescales it without rewriting the table. `TrigEnv` outputs 0 once the
+    table ends, so a level that should remain after the fall has to be added
+    separately.
+    """
+    span = TABLE_SIZE - 1 - attack
+    fall = [
+        (attack + round(span * step / points), math.exp(-curve * step / points))
+        for step in range(points)
+    ]
+    return [(0, 0.0), *fall, (TABLE_SIZE - 1, 0.0)]
 
 
 def frequency_shift(source: PyoObject, shift: Any) -> Stage:

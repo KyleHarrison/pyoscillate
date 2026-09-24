@@ -7,12 +7,13 @@ from pyo.lib.generators import FM, Sine
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # mostly small steps so the pitch glides rather than leaps
 DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 
-DRONE_ROOT = 186  # current default
+DRONE_ROOT = notes.Fs3  # current default
 
 PARAMETERS = (
     SliderSpec(

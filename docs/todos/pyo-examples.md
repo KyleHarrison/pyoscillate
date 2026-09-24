@@ -90,14 +90,14 @@ topology allows, the patch is registered in its family `__init__.py`,
 
 ### Phase 3: FM family (shared break-point-envelope pattern)
 
-- [ ] Add the modal/resonator route to `pitched_percussion/bell/CLAUDE.md` as a design alternative
-- [ ] x06/03 complex resonator → bell chime profile (`Metro` impulses into a `ComplexRes` bank)
-- [ ] x03/03 FM + x10/01 envelopes → Chowning FM bell profile (non-integer ratio, falling index)
-- [ ] Fill `tonal/bass/fm/CLAUDE.md`; drop placeholder status
-- [ ] x03/03 FM + x10/01 envelopes → FM bass with index envelope ("bark then settle")
-- [ ] x03/03 `CrossFM` → gritty FM bass profile
-- [ ] Fill `tonal/keys/CLAUDE.md`; drop placeholder status
-- [ ] x10/01 envelopes → electric-piano tine (amp/ratio/index tables, reader freq = `1/dur`, velocity scales index)
+- [x] Add the modal/resonator route to `pitched_percussion/bell/CLAUDE.md` as a design alternative
+- [x] x06/03 complex resonator → bell chime profile (`Metro` impulses into a `ComplexRes` bank)
+- [x] x03/03 FM + x10/01 envelopes → Chowning FM bell profile (non-integer ratio, falling index)
+- [x] Fill `tonal/bass/fm/CLAUDE.md`; drop placeholder status
+- [x] x03/03 FM + x10/01 envelopes → FM bass with index envelope ("bark then settle")
+- [x] x03/03 `CrossFM` → gritty FM bass profile
+- [x] Fill `tonal/keys/CLAUDE.md`; drop placeholder status
+- [x] x10/01 envelopes → electric-piano tine (amp/ratio/index tables, reader freq = `1/dur`, velocity scales index)
 
 ### Phase 4: shared drive stage (before lead and acid)
 
@@ -170,3 +170,4 @@ topology allows, the patch is registered in its family `__init__.py`,
 - 2026-09-24: examples surveyed and mapped; task list created.
 - 2026-09-24: Phase 1 done. `texture/noise/noise.py` (styles `air`, `surf`, `barber`); `frequency_shift`, `Stage` and `SequencerGroup` added to `patches/common.py`; `windows`/`spectral_movement` added to `analysis/features.py`. Finding: pyo's `Phaser` is a pure allpass, so x06/04's output alone has a flat spectrum; `surf` sums it with the dry bed (see `test_noise.py`).
 - 2026-09-25: Phase 2 done. `transition/riser/riser.py` (styles `noise`, `shift`, `pitch`) on an 8-bar phrase, Length 1–8 bars. One `Linseg` ramp raised to a live power (Surge) drives climb, filter and level, instead of `SigTo`/`Port`: `Port` is a one-pole lag (front-loaded, the wrong shape for a build) and neither restarts from zero per shot. The shift source climbs by SSB shift within the gesture, but it isn't a true endless barber-pole; that needs a shift inside a feedback delay, recorded as a design alternative in the riser `CLAUDE.md`. The noise band gets 1/√centre makeup (constant-Q bandwidth grows with the centre, which clipped at Climb 4). Also fixed ruff RUF007 in `analysis/features.py`.
+- 2026-09-25: Phase 3 done. `pitched_percussion/bell/bell.py` (styles `chime`, `fm`), `tonal/bass/fm/fm.py` (styles `bark`, `grit`) and `tonal/keys/keys.py`, with `decay_points` and `RING_CURVE` in `patches/common.py` as the shared break-point envelope (`TrigEnv` `dur` plays the reader-frequency-1/dur role of x10/01's `TableRead`). The bell's modal route uses church-bell partial ratios with per-partial decay, not x06/03's random frequencies; that wind-chime version is recorded as a design alternative. Keys leave out x10/01's ratio table (a moving ratio sounds like a synth sweep, not a struck tine); a second, fixed 14:1 tine pair takes its place. Findings: ratio-1 FM puts a sideband on 0 Hz, and because pyo's `FM` integrates frequency it doesn't cancel, so the FM bass and keys carry a DC offset that follows the index envelope. Both got a 20 Hz `ButHP` (`DCBlock` is too slow). The keys' tine carrier, left ringing, partly cancelled the body after a hard strike (-7 dB), so the tine pair got its own 0.3 s envelope at half level. Both findings are in the test docstrings. `ComplexRes` `decay` is a 1/e time constant (-40 dB at ~4.6× decay).

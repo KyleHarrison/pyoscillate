@@ -24,6 +24,7 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
+from pyoscillate.harmony import NOTE_NAMES, Harmony
 from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
@@ -37,6 +38,9 @@ MUTED = "#A9B8B4"
 ERROR = "#FF8A80"
 MASTER_OUTPUT_DEFAULT = 0.1
 MASTER_OUTPUT_MAX = 0.2
+# preset entry for rack-wide settings; the leading underscore keeps it from
+# colliding with a patch name
+RACK_PRESET_KEY = "_rack"
 
 Preset = dict[str, dict[str, Any]]
 
@@ -52,7 +56,9 @@ class PatchDef:
     `needs_tempo`/`needs_clock` tell `PatchRackApp` which shared objects to
     inject into `build_kwargs` once the audio engine is running, mirroring
     the `build(tempo, clock, ...)` / `build(tempo, ...)` / `build(...)`
-    shapes used across `pyoscillate.patches`.
+    shapes used across `pyoscillate.patches`. `needs_harmony` injects the
+    rack's shared `Harmony` as a `harmony=` keyword, for pitched patches
+    that should follow the rack's key and chord changes.
     """
 
     name: str
@@ -64,6 +70,7 @@ class PatchDef:
     rebuild_parameters: tuple[str, ...] = ()
     needs_tempo: bool = False
     needs_clock: bool = False
+    needs_harmony: bool = False
 
 
 @dataclass
@@ -361,7 +368,9 @@ class EngineSpec:
     `bpm` and `ticks_per_bar` should come from the project's own rack module
     (e.g. `pyoscillate.projects.<project>.rack`), not be hardcoded here or
     in `app.py` alone - each project owns its own tempo and clock timing
-    resolution.
+    resolution. The same goes for `harmony`: when a rack shares one, the
+    app shows a Key control that retunes every `needs_harmony` patch
+    together, and saves the key with each preset.
     """
 
     nchnls: int = 2
@@ -370,6 +379,7 @@ class EngineSpec:
     ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
     master_output_default: float = MASTER_OUTPUT_DEFAULT
     master_output_max: float = MASTER_OUTPUT_MAX
+    harmony: Harmony | None = None
 
 
 class PatchRackApp:
@@ -393,6 +403,7 @@ class PatchRackApp:
         self.server: Server | None = None
         self.tempo: Tempo | None = None
         self.clock: Clock | None = None
+        self.harmony = engine.harmony
         self.rack = PatchRack()
         self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
@@ -431,6 +442,18 @@ class PatchRackApp:
             expand=True,
         )
         self.preset_name_field = ft.TextField(label="Save as", value="my_preset", expand=True)
+        self.key_dropdown: ft.Dropdown | None = None
+        if self.harmony is not None:
+            self.key_dropdown = ft.Dropdown(
+                label="Key",
+                options=[
+                    ft.dropdown.Option(key=str(pitch_class), text=name)
+                    for pitch_class, name in enumerate(NOTE_NAMES)
+                ],
+                value=str(self.harmony.key),
+                width=140,
+                on_select=self._handle_key,
+            )
 
         self._configure_page()
         self._build_view()
@@ -494,6 +517,7 @@ class PatchRackApp:
                         ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
                     ]
                 ),
+                *([self.key_dropdown] if self.key_dropdown is not None else []),
             ],
             spacing=8,
         )
@@ -559,6 +583,17 @@ class PatchRackApp:
             self.server.setAmp(self.master_output)
         e.page.update()
 
+    def _handle_key(self, e: ft.ControlEvent) -> None:
+        self._set_key(int(e.control.value))
+        e.page.update()
+
+    def _set_key(self, pitch_class: int) -> None:
+        # patches read the key on each note, so no rebuild is needed
+        if self.harmony is None or self.key_dropdown is None:
+            return
+        self.harmony.key = pitch_class
+        self.key_dropdown.value = str(pitch_class)
+
     def _start_engine(self) -> None:
         try:
             self.server = start_server(nchnls=self.engine.nchnls)
@@ -577,6 +612,8 @@ class PatchRackApp:
                     kwargs["tempo"] = self.tempo
                 if panel.patch_def.needs_clock and self.clock is not None:
                     kwargs["clock"] = self.clock
+                if panel.patch_def.needs_harmony and self.harmony is not None:
+                    kwargs["harmony"] = self.harmony
                 panel.set_engine_ready(True, kwargs)
             for group in self.groups:
                 group.set_engine_ready(True)
@@ -622,6 +659,9 @@ class PatchRackApp:
             self.status.color = ERROR
             self.page.update()
             return
+        rack_key = preset.get(RACK_PRESET_KEY, {}).get("key")
+        if rack_key in NOTE_NAMES:
+            self._set_key(NOTE_NAMES.index(rack_key))
         for patch_name, panel in self.panels.items():
             if patch_name in preset:
                 panel.apply_preset(preset[patch_name])
@@ -632,6 +672,8 @@ class PatchRackApp:
         if not name:
             return
         values = {patch_name: panel.to_preset() for patch_name, panel in self.panels.items()}
+        if self.harmony is not None:
+            values[RACK_PRESET_KEY] = {"key": NOTE_NAMES[self.harmony.key]}
         self.preset_store.save(name, values)
         self.preset_dropdown.options = [ft.dropdown.Option(n) for n in self.preset_store.names()]
         self.preset_dropdown.value = name

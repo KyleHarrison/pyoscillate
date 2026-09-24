@@ -8,12 +8,13 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 
-ARP_ROOT = 207  # current default
+ARP_ROOT = notes.Gs3  # current default
 
 PARAMETERS = (
     SliderSpec(

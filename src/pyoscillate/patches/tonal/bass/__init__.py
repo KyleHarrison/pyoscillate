@@ -7,6 +7,7 @@ from pyo.lib.generators import LFO
 from pyo.lib.tableprocess import Osc
 
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 from .core import BassProfile, build_bass
@@ -14,7 +15,7 @@ from .profiles import TECHNO
 
 NOTE_PATTERN = list(TECHNO.pattern)
 ACCENT_PATTERN = list(TECHNO.accents)
-ROOT_FREQ = 92
+ROOT_FREQ = notes.Fs2
 PARAMETERS = (
     SliderSpec(
         "root_freq",

@@ -120,7 +120,7 @@ These notes are about [src/pyoscillate/projects/deep_house/rack.py](../../src/py
 
 **Done when:** one route (for example, a 16-bar LFO on chord `brightness`) moves the parameter audibly, survives a patch rebuild, and stops cleanly when the engine stops.
 
-### 3. Shared harmony (key/root source) — [ ] not started (depends on 2)
+### 3. Shared harmony (key/root source) — [x] done 2026-09-25 (turned out not to need 2)
 
 **Why:** this is the biggest musical gain. The bass, chords and tom should move together through the progression.
 
@@ -216,3 +216,13 @@ These notes are about [src/pyoscillate/projects/deep_house/rack.py](../../src/py
 ## Log
 
 - 2026-09-24: design conversation held; this plan written. No code changed yet.
+- 2026-09-25: task 3 done without task 2. Harmony is *pulled*, not routed: `Harmony` ([harmony.py](../../src/pyoscillate/harmony.py)) is plain data (key, progression, bars per chord). Patches that take `harmony=` look up `harmony.chord_freq(centre, clock.bar_index)` on every note, so a rebuild or a preset restore needs no re-apply step. `Clock.bar_index` is the shared song position. Racks opt in with `PatchDef(needs_harmony=True)` and `EngineSpec(harmony=...)`, and the app then shows a Key dropdown that is saved in presets as `_rack.key`. Decisions:
+  - roots snap to the octave nearest each part's register centre, so the progression never climbs out of range
+  - the bass re-roots its pattern on each chord (the patterns only use minor-seventh chord tones)
+  - the tom follows the chord, not the key
+  - the `root_freq` sliders became octave `Register` sliders
+  - the harmonic rhythm is one chord per bar; before this, the chord cycled all four chords inside one bar
+  - standalone patches fall back to a module-level `FALLBACK_HARMONY`
+  - tests: `tests/pyoscillate/test_harmony.py`, plus the same-bar and key-change tests in `tests/test_deep_house_patches.py`
+- Found while doing task 3, not fixed: each patch's *rhythmic* position is still its own `state["step"]` counter, so a patch switched on mid-bar starts its pattern off the downbeat (for example, the chord's offbeat stabs can land on the beat). Deriving the step from the clock tick (`clock._tick // division.steps`) would fix it rack-wide.
+- Task 3's "depends on 2" note was wrong: pulling from a shared object avoids routing entirely. Task 2's routes may later modulate `Harmony` inputs, but they aren't needed for it.

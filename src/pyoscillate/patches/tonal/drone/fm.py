@@ -7,8 +7,9 @@ from pyo.lib.generators import FM, Lorenz, Rossler
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 
-ROOT_FREQ = 110  # A2, current default
+ROOT_FREQ = notes.A2  # current default
 
 PARAMETERS = (
     SliderSpec(

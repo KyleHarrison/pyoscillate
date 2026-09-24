@@ -11,11 +11,12 @@ from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.utility.notes import notes
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 CANON_SCALE = [0, 2, 4, 7, 9, 12]
 
-CANON_ROOT = 220  # A3, current default
+CANON_ROOT = notes.A3  # current default
 
 PARAMETERS = (
     SliderSpec(

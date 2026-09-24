@@ -18,6 +18,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -79,7 +80,7 @@ PATTERNS = {
 # transient resonance
 PROFILES = {
     "rim": (1100.0, 0.12, 0.008, 0.07, 0.9, 1.6, 6.0),
-    "conga": (220.0, 0.2, 0.03, 0.28, 0.2, 4.0, 3.0),
+    "conga": (notes.A3, 0.2, 0.03, 0.28, 0.2, 4.0, 3.0),
 }
 DECAY_CURVE = 3
 BEND_CURVE = 6

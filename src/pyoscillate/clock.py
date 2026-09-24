@@ -120,6 +120,14 @@ class Clock:
         return self.ticks(NoteDivision.WHOLE)
 
     @property
+    def bar_index(self) -> int:
+        """Bars elapsed since the clock was created - the shared song
+        position that rack-level state such as `Harmony` is counted in.
+        Inside a `Division` callback this is the bar of the tick being
+        fired."""
+        return self._tick // self.bar
+
+    @property
     def fourth(self) -> int:
         """Raw ticks in one quarter note."""
         return self.ticks(NoteDivision.QUARTER)

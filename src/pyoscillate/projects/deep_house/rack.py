@@ -1,5 +1,6 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
+from pyoscillate.harmony import A, Harmony
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
 from pyoscillate.patches.drums.hat import groove as hat
@@ -15,6 +16,11 @@ from src.flet.base import PatchDef, PatchGroupDef
 # their own values instead of sharing a static default from `pyoscillate.clock`
 BPM = 132
 TICKS_PER_BAR = 512
+# the rack's shared key and progression: every `needs_harmony` patch (bass,
+# chords, tom) re-roots on the same chord on the same bar. i-iv-bVII-v as
+# parallel minor sevenths - the deep-house "chord memory" sound - one chord
+# per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
+HARMONY = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
@@ -56,6 +62,7 @@ PATCH_DEFS: list[PatchDef] = [
         bass.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "bass_dub",
@@ -66,6 +73,7 @@ PATCH_DEFS: list[PatchDef] = [
         bass.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "bass_muted",
@@ -76,6 +84,7 @@ PATCH_DEFS: list[PatchDef] = [
         bass.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "chord_velvet",
@@ -86,6 +95,7 @@ PATCH_DEFS: list[PatchDef] = [
         chord.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "chord_organ",
@@ -96,6 +106,7 @@ PATCH_DEFS: list[PatchDef] = [
         chord.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "chord_shimmer",
@@ -106,6 +117,7 @@ PATCH_DEFS: list[PatchDef] = [
         chord.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "hat_crisp",
@@ -180,12 +192,13 @@ PATCH_DEFS: list[PatchDef] = [
     PatchDef(
         "tom",
         "Tom",
-        "Sparse two-bar tom fill tuned to the bassline's minor pentatonic.",
+        "Sparse two-bar tom fill on the current chord's minor pentatonic.",
         tom.build,
         tom.PARAMETERS,
         tom.VOLUME_DEFAULT,
         needs_tempo=True,
         needs_clock=True,
+        needs_harmony=True,
     ),
     PatchDef(
         "cymbal_ride",
