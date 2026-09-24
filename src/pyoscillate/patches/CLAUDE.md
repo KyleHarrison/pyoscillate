@@ -48,9 +48,44 @@ These are recognisable sound families, each defined by how the mechanism is comb
 - drums: kick, snare, clap, hat, cymbal, tom, percussion
 - pitched percussion: bell
 - tonal voices: bass, pluck, lead, pad, drone
-- texture families: atmosphere, texture, soundscape
+- texture families: atmosphere, texture, rumble
 
 These answer: “How are those mechanisms combined to create a recognisable sound family?”
+
+#### Choosing a family
+
+Place a patch by how it is *used*, not by register or mood words. Two
+questions, borrowed from modular practice, decide it:
+
+1. **Gated or ungated?** A gated voice is articulated by events: a trigger or
+   gate opens the amplitude through an envelope, so every note or hit has a
+   start and an end (in code: a clocked or metro-driven trigger feeding an
+   envelope). An ungated voice has its amplitude held open and runs
+   continuously; its interest comes from modulation — LFOs, random, chaos,
+   slow swells (in code: typically a `ContinuousSequencer`).
+2. **For ungated voices, is there a stable pitch centre?**
+
+```text
+gated   → role decides: drums/, pitched_percussion/,
+          tonal/bass (low-register note lines), tonal/lead, tonal/pluck,
+          tonal/pad (sustained chords whose harmony changes on events)
+ungated → stable pitch centre → tonal/drone   (any register; "sub" is a register, not a family)
+        → no pitch centre     → texture/      (noise, grains, chaos-as-timbre)
+```
+
+Consequences worth keeping explicit:
+
+- "Low" does not mean `tonal/bass`. A continuous sub bed is a drone; an
+  unpitched low rumble is texture. `tonal/bass` is for basslines.
+- "Ambient" or "atmospheric" does not name a family. Decide gated/ungated and
+  pitch centre first.
+- A pad carries changing harmony; a drone holds one centre and evolves in
+  timbre, level, or micro-pitch.
+- **Soundscape is a rack-level concept, not a patch family.** A soundscape is
+  an arrangement of layers — a keynote bed (drones, textures), foreground
+  signals (events, melodies), and distinctive soundmarks — so it belongs in a
+  project rack under `src/pyoscillate/projects/`, composed from these
+  families.
 
 ### Layer C: musical structure
 

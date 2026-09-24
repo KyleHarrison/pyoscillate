@@ -1,9 +1,16 @@
 # Bass Patch Family
 
+This family is for **gated, low-register note lines**: basslines that
+articulate notes on the clock and interact with the kick. Continuous low
+layers live elsewhere — a sustained or slowly moving sub with a pitch centre
+is a drone (`tonal/drone`), and an unpitched noise rumble is a texture
+(`texture/rumble`). See "Choosing a family" in `patches/CLAUDE.md`.
+
 Bass patches are selected in two stages.
 
 1. **Musical role:** decide whether the bass is a sub foundation, a repeating
-   groove voice, a resonant sequence, or a sustained/animated low layer.
+   groove voice, or a resonant sequence. (A sustained/animated low layer
+   is a drone, not a bassline.)
 2. **Sonic behavior:** translate that role into register, pitch density,
    trigger timing, envelope length, harmonic content, filter movement, and
    resonance.
@@ -42,7 +49,7 @@ The answers select a profile, not a Pyo class directly. For example:
 | “subby, steady, leaves room for the kick” | low root, short harmonic recipe, stable cutoff, restrained resonance |
 | “rolling deep-house bassline” | 16th-note pattern, accented downbeats, medium decay, fixed low-pass |
 | “squelchy, driving techno bass” | repeated root pattern, resonant low-pass, bar-synced cutoff LFO |
-| “dark evolving drone bass” | sustained trigger/envelope policy and slow continuous modulation, rather than a 16th-note sequencer |
+| “dark evolving drone bass” | not this family: a continuous sub bed is a `tonal/drone` patch |
 
 Only after this synthesis-level choice do we consult the Pyo API: `Trig` and
 `TrigEnv` for clocked articulation, `Osc` plus `HarmTable` for controllable

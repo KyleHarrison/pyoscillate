@@ -2,7 +2,9 @@
 
 ## Sonic function
 
-A texture is a dense or evolving timbral layer made from many small events, noise, spectral movement, or slow modulation. It is different from a soundscape because it emphasizes the material itself rather than a scene or environment.
+A texture is an ungated, continuous layer with no stable pitch centre: noise, many small events, grains, or chaos used as timbre. It emphasizes the material itself. Unpitched low-end rumble belongs here, not in `tonal/bass`.
+
+If the layer holds a pitch centre, it is a drone (`tonal/drone`). A soundscape is not a texture either: it is a rack-level arrangement of layers (textures, drones, and foreground events) and belongs in a project rack, not a patch family. Environmental sources such as wind, rain, or water are textures that a soundscape rack can arrange.
 
 ## Minimal architecture
 

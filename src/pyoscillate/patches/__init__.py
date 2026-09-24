@@ -11,7 +11,7 @@ from pyoscillate.patches.drums import (
 )
 from pyoscillate.patches.musical import arp, canon, chord, clock_tick, generative
 from pyoscillate.patches.pitched_percussion import bell
-from pyoscillate.patches.texture import atmosphere, soundscape, texture
+from pyoscillate.patches.texture import atmosphere, rumble, texture
 from pyoscillate.patches.tonal import bass, drone, lead, pad, pluck
 
 __all__ = [
@@ -35,9 +35,9 @@ __all__ = [
     "pad",
     "percussion",
     "pluck",
+    "rumble",
     "setup_notebook",
     "snare",
-    "soundscape",
     "start_server",
     "texture",
     "tom",

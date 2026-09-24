@@ -158,7 +158,7 @@ def build(
         reverb_size: Freeverb room size (0-1).
         reverb_damp: Freeverb high-frequency damping (0-1).
         reverb_bal: Freeverb dry/wet balance (0-1). Lower than the
-            soundscape patches by default, so the melodic line stays
+            drone patches by default, so the melodic line stays
             legible rather than fully diffused.
     """
     note_metro = Metro(time=note_period)

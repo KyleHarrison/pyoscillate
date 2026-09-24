@@ -3,12 +3,12 @@
 from pyoscillate.patches.musical.arp import arp as mid_arp
 from pyoscillate.patches.musical.canon import canon as mid_canon
 from pyoscillate.patches.musical.generative import generative as mid_generative
-from pyoscillate.patches.texture.soundscape import filter as soundscape_filter
-from pyoscillate.patches.texture.soundscape import fm as soundscape_fm
-from pyoscillate.patches.texture.soundscape import wash as soundscape_wash
-from pyoscillate.patches.tonal.bass import chaos as bass_chaos
-from pyoscillate.patches.tonal.bass import drone as bass_drone
-from pyoscillate.patches.tonal.bass import rumble as bass_rumble
+from pyoscillate.patches.texture.rumble import rumble as bass_rumble
+from pyoscillate.patches.tonal.drone import filter as soundscape_filter
+from pyoscillate.patches.tonal.drone import fm as soundscape_fm
+from pyoscillate.patches.tonal.drone import sub_chaos as bass_chaos
+from pyoscillate.patches.tonal.drone import sub_swell as bass_drone
+from pyoscillate.patches.tonal.drone import wash as soundscape_wash
 from src.flet.base import PatchDef, PatchGroupDef
 
 # this project's own tempo - other projects set their own value instead of

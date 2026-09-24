@@ -127,10 +127,10 @@ def build(
             than cutting through the mix.
         reverb_size: Freeverb room size (0-1). Moderate by default - present
             enough to sit clearly in the stereo field without dissolving
-            into the background as much as the drone/soundscape layers do.
+            into the background as much as the drone layers do.
         reverb_damp: Freeverb high-frequency damping (0-1).
         reverb_bal: Freeverb dry/wet balance (0-1). Lower than the
-            soundscape patches by default, so the melodic line stays
+            drone patches by default, so the melodic line stays
             legible rather than fully diffused.
     """
     step_time = tempo.bar * step_bars
