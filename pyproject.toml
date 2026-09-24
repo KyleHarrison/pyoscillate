@@ -23,7 +23,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "numpy>=2.5.3",
     "pyinstaller>=6.22.3",
+    "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
 
@@ -33,3 +35,11 @@ dev = [
 
 [tool.ruff.lint]
 ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# the Flet app is imported as `src.flet...`, which needs the project root on sys.path
+pythonpath = ["."]
+# importlib mode lets tests/ mirror the src/pyoscillate/ layout without a
+# tests/pyoscillate/ directory shadowing the real package
+addopts = "--import-mode=importlib"

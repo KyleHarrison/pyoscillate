@@ -10,6 +10,7 @@ This skill is the bridge between the music-theory layer and the implementation l
 ## Entry points and routing
 
 - Start with [../music-theory/SKILL.md](../music-theory/SKILL.md) for musical intent, genre, form, harmony, rhythm, and arrangement.
+- Use [references/timbre-descriptors.md](./references/timbre-descriptors.md) when a brief or control label uses a perceptual word ("bright", "warm", "metallic", "punchy"). It maps each word to a perception, a measurable correlate, and several alternative mechanisms.
 - Use [references/pyo-api-navigation.md](./references/pyo-api-navigation.md) to route from a synthesis idea into the authoritative Pyo docs in [references/pyo-api/](./references/pyo-api/).
 - Use [../../../CLAUDE.md](../../../CLAUDE.md) for project architecture, `Patch` / `PatchDef` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
 
@@ -43,7 +44,7 @@ USER CONTROL
 PYO IMPLEMENTATION
 ```
 
-Do not jump from "dark" or "metallic" straight to a Pyo object. First decide what the listener is meant to hear, then what physical change can create it, then which Pyo primitives can implement that change.
+Do not jump from "dark" or "metallic" straight to a Pyo object. First decide what the listener is meant to hear, then what physical change can create it, then which Pyo primitives can implement that change. [references/timbre-descriptors.md](./references/timbre-descriptors.md) covers that middle step for common descriptors.
 
 ## Parameter reasoning standard
 
@@ -89,6 +90,8 @@ Translate that signal change into perceptual language:
 - attack: immediate ↔ gradual, punchy ↔ soft/swelling
 - reverb amount: dry/close ↔ spacious/distant, tight ↔ diffuse
 - kick body amplitude: lighter ↔ fuller/heavier
+
+For the full descriptor vocabulary, use [references/timbre-descriptors.md](./references/timbre-descriptors.md). Each entry gives the measurable correlate (centroid, envelope, pitch stability, and so on) to name in the help text and to check when rendering. It also lists the descriptors a word is commonly confused with.
 
 ### 3. What musical outcome can that support?
 
