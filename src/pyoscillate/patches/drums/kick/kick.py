@@ -1,4 +1,4 @@
-"""Four-on-the-floor kick voices for the Deep House project.
+"""Four-on-the-floor kick voices.
 
 Each hit restarts a sine body at a zero crossing, so the impact starts at full
 amplitude without a phase click. An exponential pitch drop gives the attack
@@ -108,7 +108,7 @@ def build(
     click: float = 1.0,
     rate: float = 0,
 ) -> Patch:
-    """Build a four-on-the-floor kick in the requested deep-house style."""
+    """Build a four-on-the-floor kick in the requested style."""
     body_freq, sweep_depth, sweep_time, decay, click_level = PROFILES[style]
     trigger = Trig()
 

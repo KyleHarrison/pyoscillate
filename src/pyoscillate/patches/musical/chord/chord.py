@@ -1,4 +1,4 @@
-"""Offbeat chord-stab voices for the Deep House project."""
+"""Offbeat chord-stab voices."""
 
 from collections.abc import Callable
 
@@ -72,7 +72,8 @@ def build(
     envelope = TrigEnv(trigger, envelope_table, dur=duration)
     amplitude = envelope * 0.19
     voices = [
-        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude) for interval in INTERVALS
+        Osc(table, freq=root_freq * 2 ** (interval / 12), mul=amplitude)
+        for interval in INTERVALS
     ]
     source = sum(voices)
     filter_voice = Biquad(source, freq=brightness, q=1.2, type=0)

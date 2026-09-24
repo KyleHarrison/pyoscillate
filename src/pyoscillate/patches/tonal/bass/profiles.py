@@ -4,13 +4,30 @@ from .core import BassProfile
 
 TECHNO = BassProfile(
     pattern=(0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0),
-    accents=(1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.6, 1.0, 0.6, 0.6, 0.6, 0.9, 0.6, 0.6, 0.7),
+    accents=(
+        1.0,
+        0.6,
+        0.6,
+        0.6,
+        0.9,
+        0.6,
+        0.6,
+        0.6,
+        1.0,
+        0.6,
+        0.6,
+        0.6,
+        0.9,
+        0.6,
+        0.6,
+        0.7,
+    ),
     envelope_decay=0.9,
     resonance=0.75,
     harmonics=(1, 0, 0.4, 0, 0.2, 0, 0.1),
 )
 
-DEEP_HOUSE = {
+GROOVE = {
     "rolling": BassProfile(
         pattern=(0, 0, 7, 0, 0, 12, 7, 0, 0, 0, 3, 7, 0, 10, 7, 0),
         accents=(1.0, 0.72, 0.72, 0.72) * 4,

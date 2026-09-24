@@ -7,15 +7,17 @@ from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches import Patch, PatchRack, start_server
-from pyoscillate.patches.drums.clap import deep_house as clap
-from pyoscillate.patches.musical.chord import deep_house as chord
+from pyoscillate.patches.drums.clap import clap
+from pyoscillate.patches.musical.chord import chord
 from pyoscillate.projects.deep_house.rack import BPM, PATCH_DEFS, TICKS_PER_BAR
 from pyoscillate.tempo import Tempo
 
 
 class ServerStartupTests(unittest.TestCase):
     @patch("pyoscillate.patches.base.Server")
-    def test_silent_boot_failure_raises_before_start(self, server_type: MagicMock) -> None:
+    def test_silent_boot_failure_raises_before_start(
+        self, server_type: MagicMock
+    ) -> None:
         server = server_type.return_value
         server.getIsBooted.return_value = False
         server.getIsStarted.return_value = False
@@ -55,9 +57,14 @@ class PatchGraphOwnershipTests(unittest.TestCase):
         for source_path in patch_root.rglob("*.py"):
             tree = ast.parse(source_path.read_text(), filename=str(source_path))
             for node in ast.walk(tree):
-                if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Call):
+                if not isinstance(node, ast.Return) or not isinstance(
+                    node.value, ast.Call
+                ):
                     continue
-                if not isinstance(node.value.func, ast.Name) or node.value.func.id != "Patch":
+                if (
+                    not isinstance(node.value.func, ast.Name)
+                    or node.value.func.id != "Patch"
+                ):
                     continue
                 resources = next(
                     (
@@ -81,7 +88,7 @@ class KickNativeCrashTests(unittest.TestCase):
         code = """
 from pyoscillate.clock import Clock
 from pyoscillate.patches import PatchRack, start_server
-from pyoscillate.patches.drums.kick import deep_house as kick
+from pyoscillate.patches.drums.kick import kick
 from pyoscillate.tempo import Tempo
 
 server = start_server(audio="manual")
@@ -139,7 +146,9 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         self.assertIsInstance(patch, Patch)
         rack.start(patch_def.name, patch)
         patch.update(values)
-        rate = next((spec for spec in patch_def.parameters if spec.name == "rate"), None)
+        rate = next(
+            (spec for spec in patch_def.parameters if spec.name == "rate"), None
+        )
         if rate is not None:
             patch.set("rate", rate.maximum)
         rack.stop(patch_def.name)

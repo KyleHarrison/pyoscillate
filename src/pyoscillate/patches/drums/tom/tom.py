@@ -1,8 +1,8 @@
-"""Tom voice for the Deep House project.
+"""Pitched tom voice.
 
 A pitched drum hit: a sine body with a quick but audible downward sweep, a
 faster-decaying membrane overtone, and a short transient. It plays a sparse
-two-bar fill tuned to the bassline's minor pentatonic, adding pitched contour
+two-bar fill down an A minor pentatonic, adding pitched contour
 to the kit without the weight of the kick.
 """
 
@@ -80,10 +80,10 @@ PARAMETERS = (
     ),
 )
 # step in the two-bar (32-step) cycle -> semitones above the body pitch;
-# E, E, C, A walks down the bassline's A minor pentatonic
+# E, E, C, A walks down an A minor pentatonic; retune with Pitch
 PATTERN = {10: 7, 26: 7, 29: 3, 31: 0}
 CYCLE = 32
-# A2 - an octave above the bass root, well above the kick
+# A2 - low-mid register, well above a kick
 BODY_FREQ = 110.0
 BEND_DEPTH = 0.4
 BEND_TIME = 0.06

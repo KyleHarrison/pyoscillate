@@ -19,7 +19,7 @@ shared Clock -> Trig -> TrigEnv -> HarmTable/Osc -> MoogLP -> Patch output
 
 This is why the two original patches can share implementation without
 becoming the same instrument. The flat techno bass adds a free-running,
-bar-long `LFO` to the filter cutoff; Deep House profiles use a fixed cutoff
+bar-long `LFO` to the filter cutoff; the groove profiles (`groove.py`) use a fixed cutoff
 and distinguish themselves through interval pattern, decay, and resonance.
 
 ## Prompt-to-patch choice

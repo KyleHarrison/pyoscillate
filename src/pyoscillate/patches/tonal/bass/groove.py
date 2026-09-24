@@ -1,4 +1,4 @@
-"""16th-note bass voices for the Deep House project."""
+"""16th-note groove bass voices with a fixed low-pass."""
 
 from collections.abc import Callable
 
@@ -8,7 +8,7 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch, PatchRack
 from pyoscillate.patches.presets import PresetController
 from pyoscillate.patches.tonal.bass import build_bass
-from pyoscillate.patches.tonal.bass.profiles import DEEP_HOUSE
+from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.widgets import SliderSpec, patch_widget
 from pyoscillate.tempo import Tempo
 
@@ -43,9 +43,10 @@ PARAMETERS = (
         "Halves or doubles the bass pattern speed for each step away from its 16th-note grid.",
     ),
 )
-PATTERNS = {name: list(profile.pattern) for name, profile in DEEP_HOUSE.items()}
+PATTERNS = {name: list(profile.pattern) for name, profile in GROOVE.items()}
 PROFILES = {
-    name: (profile.envelope_decay, profile.resonance) for name, profile in DEEP_HOUSE.items()
+    name: (profile.envelope_decay, profile.resonance)
+    for name, profile in GROOVE.items()
 }
 VOLUME_DEFAULT = 0.62
 
@@ -59,7 +60,7 @@ def build(
     rate: float = 0,
 ) -> Patch:
     """Build a 16th-note bassline with a style-specific motion pattern."""
-    return build_bass(tempo, clock, DEEP_HOUSE[style], root_freq, cutoff, rate)
+    return build_bass(tempo, clock, GROOVE[style], root_freq, cutoff, rate)
 
 
 def make_builder(style: str) -> Callable[..., Patch]:

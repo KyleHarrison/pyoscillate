@@ -1,4 +1,4 @@
-"""Clap voice for the Deep House project.
+"""Multi-burst noise clap voice.
 
 A clap is several nearly simultaneous noise bursts rather than one hit: a few
 short, sawtooth-like bursts are followed by a longer exponential tail, and the

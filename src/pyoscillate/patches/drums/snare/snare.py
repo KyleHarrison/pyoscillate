@@ -1,4 +1,4 @@
-"""Snare voice for the Deep House project.
+"""Tone-and-rattle snare voice.
 
 Two layers share one trigger: a short sine body a little above the kick's
 register, with a modest downward pitch bend, and a louder high-passed noise

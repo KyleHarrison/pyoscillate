@@ -1,4 +1,4 @@
-"""Cymbal voices for the Deep House project.
+"""Ride and crash cymbal voices.
 
 A dense metallic source - high FM operators at inharmonic ratios with a little
 noise for diffusion - runs through a resonant band-pass and a long exponential

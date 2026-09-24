@@ -1,4 +1,4 @@
-"""Accent percussion voices for the Deep House project.
+"""Rim and conga-like accent percussion voices.
 
 Both styles share one construction: a sine body that bends slightly down in
 pitch as it strikes, plus a short noise transient rung through a band-pass

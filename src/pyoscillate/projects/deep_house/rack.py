@@ -1,14 +1,14 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
-from pyoscillate.patches.drums.clap import deep_house as clap
-from pyoscillate.patches.drums.cymbal import deep_house as cymbal
-from pyoscillate.patches.drums.hat import deep_house as hat
-from pyoscillate.patches.drums.kick import deep_house as kick
-from pyoscillate.patches.drums.percussion import deep_house as percussion
-from pyoscillate.patches.drums.snare import deep_house as snare
-from pyoscillate.patches.drums.tom import deep_house as tom
-from pyoscillate.patches.musical.chord import deep_house as chord
-from pyoscillate.patches.tonal.bass import deep_house as bass
+from pyoscillate.patches.drums.clap import clap
+from pyoscillate.patches.drums.cymbal import cymbal
+from pyoscillate.patches.drums.hat import groove as hat
+from pyoscillate.patches.drums.kick import kick
+from pyoscillate.patches.drums.percussion import percussion
+from pyoscillate.patches.drums.snare import snare
+from pyoscillate.patches.drums.tom import tom
+from pyoscillate.patches.musical.chord import chord
+from pyoscillate.patches.tonal.bass import groove as bass
 from src.flet.base import PatchDef, PatchGroupDef
 
 # this project's own tempo and clock timing resolution - other projects set

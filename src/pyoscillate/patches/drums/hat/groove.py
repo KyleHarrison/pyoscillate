@@ -1,4 +1,4 @@
-"""Hi-hat voices for the Deep House project.
+"""Groove hi-hat voices with closed and open articulations.
 
 The source blends white noise with a cluster of high FM operators at
 inharmonic ratios (a dense metallic spectrum), high-passed out of the kick and
