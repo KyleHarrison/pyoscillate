@@ -30,3 +30,12 @@ keeps the accent percussive even when the spectrum is darker.
 Low hat does not mean an unfiltered low-frequency drum. It is still a hat voice:
 its role is upper-rhythmic articulation, with a darker balance and typically a
 sparser pattern.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md` — "Ghost notes" and "Velocity and dynamic accents", since this voice is a sparser, quieter accent
+- `.claude/skills/music-theory/references/rhythm-groove/rhythmic-devices.md` — "Syncopation" and "Displacement", for placing the sparser pattern against the main hat

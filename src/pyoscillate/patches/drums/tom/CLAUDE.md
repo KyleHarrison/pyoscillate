@@ -54,3 +54,13 @@ A tom should not be collapsed into:
 - bell: more overt partials and a longer, brighter decay
 
 The primary identity is a pitched drum hit with a resonant body and a controllable sweep.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Fill design", for how tom runs lead into section changes
+- `.claude/skills/music-theory/references/rhythm-groove/rhythmic-devices.md` — "Hemiola", "Cross-rhythm" and "Displacement", for fill patterns that pull against the bar
+- `.claude/skills/music-theory/assets/intervals-and-scale-formulas.md` — for tuning a set of toms to intervals within the track's key rather than arbitrary pitches

@@ -32,3 +32,13 @@ a different balance and control vocabulary.
 "Percussion" is not a substitute for a sonic family. When a patch develops a
 stable architecture and user-facing controls of its own, give it a dedicated
 directory and instruction file.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Percussion layers" (shaker, tambourine, cowbell-type roles and what each adds)
+- `.claude/skills/music-theory/references/rhythm-groove/rhythmic-devices.md` — "Cross-rhythm" and "Polyrhythm vs. polymeter", for accent patterns that answer the kick
+- `.claude/skills/music-theory/references/genres/afrobeats-and-amapiano.md`, `brazilian-pop-and-funk.md` and `latin-pop-and-reggaeton.md` (same folder) — for conga-, rim- and woodblock-style pattern conventions

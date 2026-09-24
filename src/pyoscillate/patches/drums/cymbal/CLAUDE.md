@@ -49,3 +49,13 @@ Ride-like texture:
 
 Do not reuse hi-hat decay and filter settings unchanged. The longer tail and
 lower mix level are central to keeping a cymbal from masking the groove.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Fill design" and "Density arc", for crashes marking section changes vs. ride-like continuous motion
+- `.claude/skills/music-theory/references/orchestration/arrangement-density.md` — "The arc of density across a piece" and "EDM density arc", for when a cymbal adds energy
+- `.claude/skills/music-theory/references/production-aware/energy-and-dynamics.md` — "Sectional energy mapping" and "EDM build automations", for transition use

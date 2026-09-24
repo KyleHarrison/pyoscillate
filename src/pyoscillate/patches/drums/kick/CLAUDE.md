@@ -129,3 +129,14 @@ fast downward pitch movement, immediate attack, and a decay chosen around the
 bassline. The kick should be judged in context with the rest of the groove.
 
 These are style- and context-dependent.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/production-aware/energy-and-dynamics.md` — "The kick — production-side considerations" (layered sub + click, tuning the kick to the key, length vs. groove feel) and "Sidechaining"
+- `.claude/skills/music-theory/references/production-aware/arrangement-for-mix.md` — "Kick and bass — the perennial challenge", for choosing body pitch and decay around the bassline
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Four-on-floor", "Half-time" and "Double-time feel", for default pattern and `rate` choices
+- `.claude/skills/music-theory/references/genres/electronic-edm.md` — house, techno and deep-house sections, for style variants (clean house vs. aggressive techno kick)

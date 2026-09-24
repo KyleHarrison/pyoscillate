@@ -47,3 +47,17 @@ Metallic texture:
 ## What NOT to assume
 
 Texture is not a synonym for ambience. It is broader and more direct: a material that evolves, drifts, or shimmers, whether or not it is meant to suggest a physical place.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/orchestration/arrangement-density.md` — density as an arrangement arc (the musical counterpart to this family's `density` control)
+- `.claude/skills/music-theory/references/production-aware/energy-and-dynamics.md` — "Reverb and delay — atmosphere", for the `space` dimension
+- `.claude/skills/music-theory/references/techniques/20th-century-techniques.md` — "Spectralism", "Aleatoric / chance music" and "Minimalism and process music", for stochastic vs. periodic variation and evolving tone mass
+- `.claude/skills/music-theory/references/genres/game-music.md` — "Looping" / "Avoiding loop fatigue" and "Vertical layering", for long-running background layers
+- `.claude/skills/music-theory/references/genres/film-tv-scoring.md` — "Underscoring", for textures that support without taking focus
+
+Note: "texture" in `orchestration/voicing-and-texture.md` means monophony/homophony/polyphony, which is a different concept from this family.

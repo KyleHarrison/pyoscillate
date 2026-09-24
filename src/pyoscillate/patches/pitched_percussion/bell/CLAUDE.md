@@ -49,3 +49,14 @@ Realistic bell:
 Metallic complexity does not come from FM index alone. Carrier frequency, ratio,
 filtering, decay, and output level all affect whether the result reads as a
 bell, clang, zap, or noisy accent.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/assets/modes-cheatsheet.md` and `intervals-and-scale-formulas.md` (same folder) — for choosing bell pitches or a pattern's pitch set
+- `.claude/skills/music-theory/references/techniques/microtonal.md` — "Cents", "Just intonation" and "Indonesian gamelan", for tunings that suit inharmonic, metallic timbres
+- `.claude/skills/music-theory/references/orchestration/instruments-ranges-character.md` — glockenspiel / tubular bells / crotales entries, for register and character
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Percussion layers", for cowbell as a groove accent

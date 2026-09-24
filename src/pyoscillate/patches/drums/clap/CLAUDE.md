@@ -64,3 +64,13 @@ Processed clap:
 There is no universal repeat count, burst spacing, filter frequency, resonance,
 or decay. These depend on tempo, register, and the amount of space left by the
 other percussion voices.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Backbeat" and "Percussion layers" (claps as backbeat/community feel, layering with snare)
+- `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md` — "Microtiming", for laid-back or pushed placement relative to the grid (separate from the burst spacing inside the clap)
+- `.claude/skills/music-theory/references/genres/electronic-edm.md` — house and UK garage sections, for clap conventions by style

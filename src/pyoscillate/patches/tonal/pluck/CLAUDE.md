@@ -46,3 +46,15 @@ Electronic pluck:
 ## What NOT to assume
 
 A pluck is not just "a synth with a short envelope." The interesting part is the interaction of attack, brightness decay, and resonant body. That is what gives it a distinct plucked character instead of simply a short tone.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/piano-keyboards.md` — "Broken-chord arpeggio", for arpeggiated pluck patterns
+- `.claude/skills/music-theory/references/rhythm-groove/rhythmic-devices.md` — "Syncopation", since pluck lines often carry the off-beat motion
+- `.claude/skills/music-theory/references/melody/melodic-construction.md` — for short melodic figures
+- `.claude/skills/music-theory/assets/progressions-catalog.md` and `intervals-and-scale-formulas.md` (same folder) — for the chord and scale material the pluck outlines
+- `.claude/skills/pyo-music/references/pitch-and-harmony-implementation.md` — when a pluck sounds chords rather than single notes

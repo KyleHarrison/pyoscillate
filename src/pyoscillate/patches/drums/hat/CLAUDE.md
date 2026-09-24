@@ -44,3 +44,13 @@ Open electronic hat:
 There is no universal oscillator count, cutoff, or decay. The open/closed
 relationship and the amount of space left for the kick are more important than
 any fixed value.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md` — "Swing" (ratio, 8ths vs. 16ths), "Velocity and dynamic accents" and "Articulation — note length", which is the musical side of the open/closed decay choice
+- `.claude/skills/music-theory/references/rhythm-groove/rhythmic-devices.md` — "Syncopation" / off-beat accents, for offbeat open-hat patterns
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Groove building blocks" and "Groove by style", for subdivision choice

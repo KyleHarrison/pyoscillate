@@ -52,3 +52,13 @@ Zap-like percussion:
 
 Do not assume that every snare needs equal tone and noise, a fixed pitch, or a
 long tail. The balance is style- and arrangement-dependent.
+
+## Musical references
+
+These point to the music-theory layer for decisions *around* this voice
+(pattern, pitch material, role in the arrangement and mix). They do not
+cover synthesis; the sections above stay authoritative for the DSP.
+
+- `.claude/skills/music-theory/references/instrument-idiom/drums-percussion.md` — "Backbeat", "Half-time" and "Fill design", for where the snare lands
+- `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md` — "Ghost notes" and "Velocity and dynamic accents within a groove", for secondary, quieter hits
+- `.claude/skills/music-theory/references/production-aware/arrangement-for-mix.md` — "The frequency spectrum" and "The mid-range problem", for balancing body pitch and noise band against other voices
