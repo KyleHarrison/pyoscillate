@@ -1,3 +1,4 @@
+import itertools
 import math
 import subprocess
 import sys
@@ -193,7 +194,7 @@ def make_lifecycle_test(patch_def):
     return test_lifecycle
 
 
-for definition in PATCH_DEFS:
+for definition in itertools.chain.from_iterable(PATCH_DEFS.values()):
     setattr(
         DeepHousePatchSmokeTests,
         f"test_{definition.name}_lifecycle",

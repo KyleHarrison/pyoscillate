@@ -22,39 +22,55 @@ TICKS_PER_BAR = 512
 # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
 HARMONY = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
-PATCH_DEFS: list[PatchDef] = [
-    PatchDef(kick.KickRound()),
-    PatchDef(kick.KickPunch()),
-    PatchDef(kick.KickSoft()),
-    PatchDef(
-        bass.BassRolling(),
-        # a kick ducking the bass on every hit is a standard deep-house
-        # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
-        sidechain=SidechainSource("kick_round", depth=0.6, release=0.15),
+PATCH_DEFS: dict[str, tuple[PatchDef, ...]] = {
+    "kicks": (
+        PatchDef(kick.KickRound()),
+        PatchDef(kick.KickPunch()),
+        PatchDef(kick.KickSoft()),
     ),
-    PatchDef(bass.BassDub()),
-    PatchDef(bass.BassMuted()),
-    PatchDef(chord.ChordVelvet()),
-    PatchDef(chord.ChordOrgan()),
-    PatchDef(chord.ChordShimmer()),
-    PatchDef(hat.GrooveCrisp()),
-    PatchDef(hat.GrooveOpen()),
-    PatchDef(hat.GrooveShuffle()),
-    PatchDef(clap.Clap()),
-    PatchDef(percussion.PercussionRim()),
-    PatchDef(percussion.PercussionConga()),
-    PatchDef(snare.Snare()),
-    PatchDef(tom.Tom()),
-    PatchDef(cymbal.CymbalRide()),
-    PatchDef(cymbal.CymbalCrash()),
-]
+    "bass": (
+        PatchDef(
+            bass.BassRolling(),
+            # a kick ducking the bass on every hit is a standard deep-house
+            # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
+            sidechain=SidechainSource("kick_round", depth=0.6, release=0.15),
+        ),
+        PatchDef(bass.BassDub()),
+        PatchDef(bass.BassMuted()),
+    ),
+    "chords": (
+        PatchDef(chord.ChordVelvet()),
+        PatchDef(chord.ChordOrgan()),
+        PatchDef(chord.ChordShimmer()),
+    ),
+    "hats": (
+        PatchDef(hat.GrooveCrisp()),
+        PatchDef(hat.GrooveOpen()),
+        PatchDef(hat.GrooveShuffle()),
+    ),
+    "percussion": (
+        PatchDef(percussion.PercussionRim()),
+        PatchDef(percussion.PercussionConga()),
+    ),
+    "claps": (PatchDef(clap.Clap()),),
+    "drums": (
+        PatchDef(snare.Snare()),
+        PatchDef(tom.Tom()),
+        PatchDef(cymbal.CymbalRide()),
+        PatchDef(cymbal.CymbalCrash()),
+    ),
+}
+
+GROUP_TITLES: dict[str, str] = {
+    "kicks": "Kicks",
+    "bass": "Bass",
+    "chords": "Chord Stabs",
+    "hats": "Hi-hats",
+    "percussion": "Percussion",
+    "claps": "Claps",
+    "drums": "Drums",
+}
 
 PATCH_GROUPS: list[PatchGroupDef] = [
-    PatchGroupDef("kicks", "Kicks", tuple(PATCH_DEFS[0:3])),
-    PatchGroupDef("bass", "Bass", tuple(PATCH_DEFS[3:6])),
-    PatchGroupDef("chords", "Chord Stabs", tuple(PATCH_DEFS[6:9])),
-    PatchGroupDef("hats", "Hi-hats", tuple(PATCH_DEFS[9:12])),
-    PatchGroupDef("percussion", "Percussion", tuple(PATCH_DEFS[13:15])),
-    PatchGroupDef("claps", "Claps", (PATCH_DEFS[12],)),
-    PatchGroupDef("drums", "Drums", tuple(PATCH_DEFS[15:19])),
+    PatchGroupDef(key, GROUP_TITLES[key], defs) for key, defs in PATCH_DEFS.items()
 ]

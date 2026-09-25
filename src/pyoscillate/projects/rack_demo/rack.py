@@ -11,17 +11,25 @@ from src.flet.base import PatchDef, PatchGroupDef
 # sharing one hardcoded in app.py
 BPM = 132
 
-PATCH_DEFS: list[PatchDef] = [
-    PatchDef(TechnoBass()),
-    PatchDef(Atmosphere()),
-    PatchDef(hat.Tick()),
-    PatchDef(low_hat.LowHat()),
-    PatchDef(ClockTick()),
-    PatchDef(Drone()),
-]
+PATCH_DEFS: dict[str, tuple[PatchDef, ...]] = {
+    "rhythm": (
+        PatchDef(TechnoBass()),
+        PatchDef(hat.Tick()),
+        PatchDef(low_hat.LowHat()),
+    ),
+    "atmosphere": (
+        PatchDef(Atmosphere()),
+        PatchDef(Drone()),
+    ),
+    "utility": (PatchDef(ClockTick()),),
+}
+
+GROUP_TITLES: dict[str, str] = {
+    "rhythm": "Rhythm",
+    "atmosphere": "Atmosphere",
+    "utility": "Utility",
+}
 
 PATCH_GROUPS: list[PatchGroupDef] = [
-    PatchGroupDef("rhythm", "Rhythm", (PATCH_DEFS[0], PATCH_DEFS[2], PATCH_DEFS[3])),
-    PatchGroupDef("atmosphere", "Atmosphere", (PATCH_DEFS[1], PATCH_DEFS[5])),
-    PatchGroupDef("utility", "Utility", (PATCH_DEFS[4],)),
+    PatchGroupDef(key, GROUP_TITLES[key], defs) for key, defs in PATCH_DEFS.items()
 ]
