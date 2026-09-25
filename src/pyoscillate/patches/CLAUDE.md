@@ -116,22 +116,24 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 ## Patch contract
 
-The project is migrating between two forms of the same contract; both are
-legitimate today, and either satisfies `PatchDef` (`src/flet/base.py`),
-which only ever needs a `PatchVoice` instance:
+**Class-based is the contract**: a module defines one or more `Patch`
+subclasses - optionally under a directory-level base that factors out real
+shared behavior for that archetype (e.g. `pyoscillate.patches.common.GatedVoice`
+for the trigger/envelope/scheduling shape every gated voice shares -
+`drums.base.DrumVoice` is just that base's name within the drums family - or
+`pyoscillate.patches.common.ContinuousVoice` for an ungated, free-running
+voice's `live()` control shape). A project rack instantiates the class
+directly as a `PatchDef`'s `voice`; `name`/`title`/`summary` all default from
+the class itself (its name and docstring) rather than being restated at the
+call site - override one only when the default isn't the right rack key or
+UI copy. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
+`KickSoft`) for the worked example.
 
-- **Function-based (most patches today)**: a module exposes `PARAMETERS`
-  (ordered `SliderSpec` values) and `build(...) -> Patch`. A project rack
-  wraps it with `FunctionVoice.from_module(module, ...)`
-  (`pyoscillate.patches.base`) to get a `PatchVoice`.
-- **Class-based (the direction for migrated/new patches)**: a module
-  defines one or more `PatchVoice` subclasses - optionally under a
-  directory-level base that factors out real shared behavior for that
-  archetype (e.g. `pyoscillate.patches.drums.base.DrumVoice` for the
-  trigger/envelope/scheduling shape every gated drum voice shares). A
-  project rack instantiates the class directly as a `PatchDef`'s `voice`.
-  See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` / `KickSoft`)
-  for the worked example.
+A few modules haven't moved to a class yet: a module exposes `PARAMETERS`
+(ordered `SliderSpec` values) and `build(...) -> BuiltPatch`, and a caller
+wraps it directly as `FunctionVoice(module.build, module.PARAMETERS, ...)`
+(`pyoscillate.patches.base`) to get a `Patch`. Migrate one of these the next
+time you touch it instead of adding a new function-based module.
 
 Do not duplicate boilerplate in this file. Copy the structure from the actual modules that already work.
 

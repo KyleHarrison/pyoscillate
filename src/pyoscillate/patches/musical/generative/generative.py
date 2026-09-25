@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -123,69 +123,63 @@ class _Generative:
         self.metro.stop()
 
 
-def build(
-    root_freq: float = MID_ROOT,
-    note_period: float = 4.5,
-    note_duration: float = 3.5,
-    fm_ratio: float = 1.5,
-    fm_index: float = 1.5,
-    reverb_size: float = 0.6,
-    reverb_damp: float = 0.5,
-    reverb_bal: float = 0.45,
-) -> BuiltPatch:
+VOLUME_DEFAULT = 0.6
+
+
+class Generative(Patch):
     """Free-running generative melody: a new pentatonic note is drawn at random every `note_period` seconds, in real time rather than locked to the shared clock.
 
     Closer to Eno's tape-loop style generative ambient than a fixed
     arpeggio - notes never repeat in a predictable order, and because the
     period is measured in real seconds (not the shared `Clock`), this voice
     drifts in and out of phase with every other patch instead of locking to
-    a downbeat.
-
-    Args:
-        root_freq: Base frequency (Hz) the drawn intervals are applied to.
-            Raising it brings the melody closer to a lead register;
-            lowering it moves it toward the atmosphere/drone register.
-        note_period: Seconds between each new random note draw. Larger
-            values space notes further apart for a calmer, sparser melody;
-            smaller values make it read as more active.
-        note_duration: How long each note's envelope sustains, in seconds.
-            Longer than `note_period` lets notes overlap into each other
-            for a smoother, more legato feel; shorter values give each note
-            more separation.
-        fm_ratio: Modulator/carrier ratio in the FM voice. Values close to a
-            simple ratio (1, 1.5, 2) sound clean and bell-like.
-        fm_index: FM modulation index - how bright/buzzy the timbre is.
-            Kept low by default so the voice stays soft and rounded.
-        reverb_size: Freeverb room size (0-1).
-        reverb_damp: Freeverb high-frequency damping (0-1).
-        reverb_bal: Freeverb dry/wet balance (0-1). Lower than the
-            drone patches by default, so the melodic line stays
-            legible rather than fully diffused.
+    a downbeat. `note_period`/`note_duration` are `rebuild_parameters`:
+    each is baked into a `Metro`'s fixed `time` or a `TrigEnv`'s `dur` at
+    build time, so changing either live can't just update an existing
+    control.
     """
-    note_metro = Metro(time=note_period)
 
-    envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
-    note_env = TrigEnv(note_metro, table=envelope_table, dur=note_duration, mul=0.18)
+    name = "mid_generative"
+    title = "Mid - generative melody"
+    summary = "Ever-changing generative melody that never quite repeats."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    rebuild_parameters: ClassVar[tuple[str, ...]] = ("note_period", "note_duration")
 
-    fm_voice = FM(carrier=root_freq, ratio=fm_ratio, index=fm_index, mul=note_env)
-    voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
+    root_freq: float
+    note_period: float
+    note_duration: float
+    fm_ratio: float
+    fm_index: float
+    reverb_size: float
+    reverb_damp: float
+    reverb_bal: float
 
-    def next_note() -> None:
-        interval = random.choice(GENERATIVE_SCALE)
-        fm_voice.carrier = root_freq * pow(2, interval / 12)
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        root_freq = self.root_freq
+        note_metro = Metro(time=self.note_period)
 
-    note_func = TrigFunc(note_metro, next_note)
-    sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
-    return BuiltPatch(
-        sequencer=sequencer,
-        voice=voice,
-        controls={
+        envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
+        note_env = TrigEnv(note_metro, table=envelope_table, dur=self.note_duration, mul=0.18)
+
+        fm_voice = FM(carrier=root_freq, ratio=self.fm_ratio, index=self.fm_index, mul=note_env)
+        voice = Freeverb(fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+
+        def next_note() -> None:
+            interval = random.choice(GENERATIVE_SCALE)
+            fm_voice.carrier = root_freq * pow(2, interval / 12)
+
+        note_func = TrigFunc(note_metro, next_note)
+        self.sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
+        self.voice = voice
+        self.controls = {
             "root_freq": lambda value: setattr(fm_voice, "carrier", value),
             "fm_ratio": lambda value: setattr(fm_voice, "ratio", value),
             "fm_index": lambda value: setattr(fm_voice, "index", value),
             "reverb_size": lambda value: setattr(voice, "size", value),
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
-        },
-        resources=(note_metro, envelope_table, note_env, fm_voice, note_func),
-    )
+        }
+        self.resources = [note_metro, envelope_table, note_env, fm_voice, note_func]
+        return self

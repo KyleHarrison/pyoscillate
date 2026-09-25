@@ -1,4 +1,5 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.fm.fm
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.fm.fm style=bark
+#   style: bark | grit
 """FM bass: every note barks bright, then settles to a rounder tone.
 
 The index follows a break-point table (pyo example x10/01's index
@@ -7,27 +8,33 @@ top of a steady Edge floor. Accented steps scale the bark as well as the
 level, so the groove's accents hit harder and brighter. That is the FM
 equivalent of velocity opening the index.
 
-- `bark`: two-operator FM (x03/03 `FM`) at integer ratio 1, so the spectrum
-  stays harmonic and the note keeps a clear pitch at any index.
-- `grit`: `CrossFM` (x03/03) at ratio 2. The carrier modulates the modulator
-  back, which roughens the bark into a buzzier, less stable edge.
+- `bark` (`FmBassBark`): two-operator FM (x03/03 `FM`) at integer ratio 1, so
+  the spectrum stays harmonic and the note keeps a clear pitch at any index.
+- `grit` (`FmBassGrit`): `CrossFM` (x03/03) at ratio 2. The carrier modulates
+  the modulator back, which roughens the bark into a buzzier, less stable
+  edge.
 
-The note line is the `rolling` groove profile, on the shared clock.
+The note line is the `rolling` groove profile, on the shared clock. Both
+styles share the `FmBass` base below; only the operator pair built in
+`tone()` differs, since that is genuinely different behavior, not just
+different profile data (`patches/CLAUDE.md`'s design rule 1).
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Any, ClassVar
 
+from pyo import PyoObject
 from pyo.lib.controls import SigTo
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import FM, CrossFM
 from pyo.lib.tables import CosTable, LinTable
-from pyo.lib.triggers import Trig, TrigEnv
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -116,81 +123,99 @@ SUBSONIC = 20
 VOLUME_DEFAULT = 0.42
 
 
-def _steps_for_rate(clock: Clock, rate: float) -> int:
-    return clock.ticks_for_rate(BASE_DIVISION, rate)
+class FmBass(Bass):
+    """FM bass base: every note barks bright, then settles to a rounder
+    tone. Style variants subclass this and override `tone()` for FM vs.
+    CrossFM; the rest of the graph is identical. See the module docstring
+    for the sonic detail."""
 
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    style: str = "bark",
-    root_freq: float = notes.A1,
-    growl: float = 6,
-    settle: float = 0.12,
-    edge: float = 0.5,
-    length: float = 0.9,
-    rate: float = 0,
-) -> BuiltPatch:
-    """Build an FM bassline whose index barks on each note; `style` picks FM or CrossFM."""
-    if style not in STYLES:
-        raise ValueError(f"unknown FM bass style {style!r}; expected one of {STYLES}")
+    root_freq: float
+    growl: float
+    settle: float
+    edge: float
+    length: float
+    rate: float
 
-    state = {"step": 0, "root": root_freq, "growl": growl, "accent": 1.0}
-    trigger = Trig().stop()
-    index_table = LinTable(INDEX_POINTS)
-    amp_table = CosTable(AMP_POINTS)
-    bark = TrigEnv(trigger, index_table, dur=settle, mul=growl)
-    floor = SigTo(value=edge, time=0.05, init=edge)
-    index = bark + floor
-    amp = TrigEnv(trigger, amp_table, dur=tempo.sixteenth * length)
-    level = amp * GAIN
-    resources: list = [trigger, index_table, amp_table, bark, floor, index, amp, level]
+    ratio: ClassVar[int]
 
-    if style == "bark":
-        tone = FM(carrier=root_freq, ratio=RATIOS[style], index=index, mul=level)
-    else:
-        cross = index * CROSS
-        tone = CrossFM(
-            carrier=root_freq, ratio=RATIOS[style], ind1=cross, ind2=index, mul=level
+    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+        """This style's FM operator pair, unfiltered, plus any extra Pyo
+        objects it built for `build()` to retain. Overridden per style."""
+        raise NotImplementedError
+
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        """Build an FM bassline whose index barks on each note."""
+        self.configure(**values)
+        self._reset()
+        # matches the free `Trig()` this voice used before it was migrated
+        # onto `Bass`'s trigger: silent until the clock ticks (see
+        # tests/pyoscillate/patches/test_gated_patches.py)
+        self.trigger.stop()
+        state = {"step": 0, "root": self.root_freq, "growl": self.growl, "accent": 1.0}
+
+        index_table = LinTable(INDEX_POINTS)
+        amp_table = CosTable(AMP_POINTS)
+        bark = TrigEnv(self.trigger, index_table, dur=self.settle, mul=self.growl)
+        floor = SigTo(value=self.edge, time=0.05, init=self.edge)
+        index = bark + floor
+        amp = TrigEnv(self.trigger, amp_table, dur=tempo.sixteenth * self.length)
+        level = amp * GAIN
+        self.retain(index_table, amp_table, bark, floor, index, amp, level)
+
+        tone, tone_resources = self.tone(index, level)
+        self.retain(*tone_resources, tone)
+        # at ratio 1 the first lower sideband lands on 0 Hz, so the bark carries a
+        # DC offset that follows the index envelope: a subsonic thump that eats
+        # headroom. CrossFM's feedback does the same at high index. A 2nd-order
+        # high-pass below the lowest Register clears it; pyo's one-pole DCBlock
+        # is too slow for an offset that moves within a few milliseconds.
+        voice = ButHP(tone, freq=SUBSONIC)
+
+        def next_step() -> None:
+            step = state["step"] % len(PROFILE.pattern)
+            state["accent"] = PROFILE.accents[step]
+            tone.carrier = state["root"] * 2 ** (PROFILE.pattern[step] / 12)
+            bark.mul = state["growl"] * state["accent"]
+            amp.mul = state["accent"]
+            self.trigger.play()
+            state["step"] += 1
+
+        def set_growl(value: float) -> None:
+            state["growl"] = value
+            bark.mul = value * state["accent"]
+
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "root_freq": lambda value: state.update(root=value),
+                "growl": set_growl,
+                "settle": lambda value: setattr(bark, "dur", value),
+                "edge": lambda value: setattr(floor, "value", value),
+                "length": lambda value: setattr(amp, "dur", tempo.sixteenth * value),
+            },
         )
-        resources.append(cross)
-    # at ratio 1 the first lower sideband lands on 0 Hz, so the bark carries a
-    # DC offset that follows the index envelope: a subsonic thump that eats
-    # headroom. CrossFM's feedback does the same at high index. A 2nd-order
-    # high-pass below the lowest Register clears it; pyo's one-pole DCBlock
-    # is too slow for an offset that moves within a few milliseconds.
-    voice = ButHP(tone, freq=SUBSONIC)
-    resources.append(tone)
-
-    def next_step() -> None:
-        step = state["step"] % len(PROFILE.pattern)
-        state["accent"] = PROFILE.accents[step]
-        tone.carrier = state["root"] * 2 ** (PROFILE.pattern[step] / 12)
-        bark.mul = state["growl"] * state["accent"]
-        amp.mul = state["accent"]
-        trigger.play()
-        state["step"] += 1
-
-    def set_growl(value: float) -> None:
-        state["growl"] = value
-        bark.mul = value * state["accent"]
-
-    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return BuiltPatch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "root_freq": lambda value: state.update(root=value),
-            "growl": set_growl,
-            "settle": lambda value: setattr(bark, "dur", value),
-            "edge": lambda value: setattr(floor, "value", value),
-            "length": lambda value: setattr(amp, "dur", tempo.sixteenth * value),
-            "rate": lambda value: setattr(division, "steps", _steps_for_rate(clock, value)),
-        },
-        resources=tuple(resources),
-    )
 
 
-def make_builder(style: str) -> Callable[..., BuiltPatch]:
-    """Return a builder with one FM bass style fixed for a rack entry."""
-    return lambda **values: build(style=style, **values)
+class FmBassBark(FmBass):
+    """Clean, harmonic bark: two-operator FM at ratio 1."""
+
+    ratio = RATIOS["bark"]
+
+    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+        tone = FM(carrier=self.root_freq, ratio=self.ratio, index=index, mul=level)
+        return tone, ()
+
+
+class FmBassGrit(FmBass):
+    """Grittier, less stable bark: carrier and modulator cross-modulate at ratio 2."""
+
+    ratio = RATIOS["grit"]
+
+    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+        cross = index * CROSS
+        tone = CrossFM(carrier=self.root_freq, ratio=self.ratio, ind1=cross, ind2=index, mul=level)
+        return tone, (cross,)

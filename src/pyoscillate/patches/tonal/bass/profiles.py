@@ -1,6 +1,6 @@
 """Musical profiles shared by the project's bass patch families."""
 
-from .core import BassProfile
+from .base import BassProfile
 
 TECHNO = BassProfile(
     pattern=(0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0),

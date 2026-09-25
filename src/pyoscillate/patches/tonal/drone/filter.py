@@ -1,15 +1,16 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.drone.filter
 from __future__ import annotations
 
-from pyo.lib.controls import SigTo
+from typing import Any
+
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Lorenz
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import BuiltPatch
-from pyoscillate.patches.common import ContinuousSequencer
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -132,114 +133,73 @@ PARAMETERS = (
 # harmonic-rich static tone for the filter to carve movement into - the pad's
 # "color" comes entirely from the cutoff sweep below, not from this waveform changing
 PAD_HARMONICS = [1, 0.6, 0.4, 0.25, 0.15, 0.08, 0.04]
+VOLUME_DEFAULT = 0.6
 
 
-def build(
-    root_freq: float = ROOT_FREQ,
-    cutoff_speed: float = 0.05,
-    cutoff_chaos: float = 0.6,
-    filter_res: float = 0.6,
-    filter_base: float = 700,
-    filter_range: float = 600,
-    reverb_size: float = 0.8,
-    reverb_damp: float = 0.5,
-    reverb_bal: float = 0.75,
-    delay_time: float = 0.45,
-    delay_feedback: float = 0.3,
-) -> BuiltPatch:
+class SoundscapeFilter(ContinuousVoice):
     """Static harmonic-rich drone carved by a chaotically-swept resonant lowpass filter.
 
-    Unlike `soundscape_fm`'s smooth FM timbre drift, all the movement here
+    Unlike `SoundscapeFm`'s smooth FM timbre drift, all the movement here
     comes from the filter cutoff wandering - a more angular, "breathing"
     character closer to a classic 60s/70s psychedelic filter sweep than a
     softly evolving tone.
-
-    Args:
-        root_freq: Fundamental frequency (Hz) of the static harmonic tone
-            under the filter. The pitch never changes; only the filter
-            cutoff moves.
-        cutoff_speed: `pitch` parameter of the `Lorenz` attractor driving the
-            filter cutoff - how fast it wanders. Lower values give a slow,
-            spacious sweep; raising it makes the filter audibly restless.
-        cutoff_chaos: `chaos` parameter of the same attractor, 0-1. Higher
-            values make the sweep more unpredictable and angular; lower
-            values pull it toward smoother, more periodic movement.
-        filter_res: `MoogLP` resonance (0-1ish, self-oscillates as it
-            approaches/exceeds 1). Higher values emphasize whatever
-            frequency the sweep is currently sitting on, giving the pad a
-            more pronounced, vocal-like "wah" as the cutoff wanders; lower
-            values give a smoother, less colored response.
-        filter_base: Center cutoff frequency (Hz) the wander rides on top
-            of. Raising it lets more harmonics through on average, for a
-            brighter pad; lowering it darkens and rounds it off.
-        filter_range: How far (Hz) the attractor swings the cutoff above and
-            below `filter_base`. Larger values make the sweep more dramatic
-            - the pad audibly opens and closes; smaller values keep the
-            cutoff nearly static for a more constant tone.
-        reverb_size: Freeverb room size (0-1). Large by default so the pad
-            reads as an enveloping space rather than a distinct voice.
-        reverb_damp: Freeverb high-frequency damping (0-1). Higher values
-            darken the tail; lower values keep it bright and ringing.
-        reverb_bal: Freeverb dry/wet balance (0-1). Kept high so the pad is
-            heard mostly through its reverb space.
-        delay_time: Delay line time in seconds, thickening the sweep's
-            drift by echoing each moment of it slightly later.
-        delay_feedback: Delay feedback (0-1). Higher values repeat each
-            echo more times before decaying, for a denser wash.
     """
-    live = {
-        name: SigTo(value=value, time=0.15)
-        for name, value in {
-            "root_freq": root_freq,
-            "cutoff_speed": cutoff_speed,
-            "cutoff_chaos": cutoff_chaos,
-            "filter_res": filter_res,
-            "filter_base": filter_base,
-            "filter_range": filter_range,
-            "reverb_size": reverb_size,
-            "reverb_damp": reverb_damp,
-            "reverb_bal": reverb_bal,
-            "delay_time": delay_time,
-            "delay_feedback": delay_feedback,
-        }.items()
-    }
-    pad_table = HarmTable(PAD_HARMONICS)
-    pad_osc = Osc(table=pad_table, freq=live["root_freq"], mul=0.25)
 
-    cutoff_chaos_lfo = Lorenz(
-        pitch=live["cutoff_speed"],
-        chaos=live["cutoff_chaos"],
-        mul=live["filter_range"],
-        add=live["filter_base"],
-    )
-    filtered = MoogLP(pad_osc, freq=cutoff_chaos_lfo, res=live["filter_res"])
+    title = "Soundscape - filter-swept pad"
+    summary = "Sustained drone whose brightness sweeps and breathes unpredictably."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    reverb_voice = Freeverb(
-        filtered,
-        size=live["reverb_size"],
-        damp=live["reverb_damp"],
-        bal=live["reverb_bal"],
-    )
-    voice = Delay(
-        reverb_voice,
-        delay=live["delay_time"],
-        feedback=live["delay_feedback"],
-        maxdelay=2,
-    )
+    root_freq: float
+    cutoff_speed: float
+    cutoff_chaos: float
+    filter_res: float
+    filter_base: float
+    filter_range: float
+    reverb_size: float
+    reverb_damp: float
+    reverb_bal: float
+    delay_time: float
+    delay_feedback: float
 
-    return BuiltPatch(
-        sequencer=ContinuousSequencer(),
-        voice=voice,
-        controls={
-            name: lambda value, control=control: setattr(control, "value", value)
-            for name, control in live.items()
-        },
-        resources=(
-            *live.values(),
-            pad_table,
-            pad_osc,
-            cutoff_chaos_lfo,
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        live = self.live_all(
+            "root_freq",
+            "cutoff_speed",
+            "cutoff_chaos",
+            "filter_res",
+            "filter_base",
+            "filter_range",
+            "reverb_size",
+            "reverb_damp",
+            "reverb_bal",
+            "delay_time",
+            "delay_feedback",
+        )
+        pad_table = HarmTable(PAD_HARMONICS)
+        pad_osc = Osc(table=pad_table, freq=live["root_freq"], mul=0.25)
+
+        cutoff_chaos_lfo = Lorenz(
+            pitch=live["cutoff_speed"],
+            chaos=live["cutoff_chaos"],
+            mul=live["filter_range"],
+            add=live["filter_base"],
+        )
+        filtered = MoogLP(pad_osc, freq=cutoff_chaos_lfo, res=live["filter_res"])
+
+        reverb_voice = Freeverb(
             filtered,
+            size=live["reverb_size"],
+            damp=live["reverb_damp"],
+            bal=live["reverb_bal"],
+        )
+        voice = Delay(
             reverb_voice,
-        ),
-    )
+            delay=live["delay_time"],
+            feedback=live["delay_feedback"],
+            maxdelay=2,
+        )
+        self.retain(pad_table, pad_osc, cutoff_chaos_lfo, filtered, reverb_voice)
+        return self.finish(voice)

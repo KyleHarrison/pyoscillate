@@ -1,7 +1,6 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
 from pyoscillate.harmony import A, Harmony
-from pyoscillate.patches.base import FunctionVoice
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
 from pyoscillate.patches.drums.hat import groove as hat
@@ -23,63 +22,21 @@ TICKS_PER_BAR = 512
 # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
 HARMONY = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
-PITCHED_FLAGS = {"needs_tempo": True, "needs_clock": True, "needs_harmony": True}
-
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(kick.KickRound()),
     PatchDef(kick.KickPunch()),
     PatchDef(kick.KickSoft()),
     PatchDef(
-        FunctionVoice.from_module(
-            bass, style="rolling", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="bass_rolling",
-        title="Bass - Rolling",
-        summary="Constantly moving, rolling low-end groove.",
+        bass.BassRolling(),
         # a kick ducking the bass on every hit is a standard deep-house
         # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
         sidechain=SidechainSource("kick_round", depth=0.6, release=0.15),
     ),
-    PatchDef(
-        FunctionVoice.from_module(
-            bass, style="dub", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="bass_dub",
-        title="Bass - Dub",
-        summary="Sparser, more resonant dub-style bass hits.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(
-            bass, style="muted", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="bass_muted",
-        title="Bass - Muted",
-        summary="Short, muted bass stabs that stay soft and out of the way.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(
-            chord, style="velvet", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="chord_velvet",
-        title="Chord Stab - Velvet",
-        summary="Warm, rounded minor-seventh chord stabs.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(
-            chord, style="organ", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="chord_organ",
-        title="Chord Stab - Organ",
-        summary="Sustained, organ-like harmonic bed.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(
-            chord, style="shimmer", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
-        ),
-        name="chord_shimmer",
-        title="Chord Stab - Shimmer",
-        summary="Bright, shimmering chord stabs with more edge.",
-    ),
+    PatchDef(bass.BassDub()),
+    PatchDef(bass.BassMuted()),
+    PatchDef(chord.ChordVelvet()),
+    PatchDef(chord.ChordOrgan()),
+    PatchDef(chord.ChordShimmer()),
     PatchDef(hat.GrooveCrisp()),
     PatchDef(hat.GrooveOpen()),
     PatchDef(hat.GrooveShuffle()),

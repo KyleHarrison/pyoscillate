@@ -16,7 +16,8 @@ Bass patches are selected in two stages.
    resonance.
 
 `BassProfile` stores the musical policy: semitone pattern, accents, decay,
-resonance, and harmonic recipe. `build_bass` owns the common signal path:
+resonance, and harmonic recipe. `Bass.build_voice` (the shared family base,
+`base.py`) owns the common signal path:
 
 ```text
 shared Clock -> Trig -> TrigEnv -> HarmTable/Osc -> MoogLP -> Patch output
@@ -59,9 +60,11 @@ different generator or filter for a different bass role.
 ## Sub-families
 
 `acid/`, `fm/`, `funk/` and `reese/` each need a different topology from
-`build_bass`: a per-note filter envelope with accent/slide, FM with an index
-envelope, a gated two-oscillator voice whose filter envelope swells open on
-every note, and a detuned saw stack. `fm/` and `funk/` have patches (see
-their `CLAUDE.md`); `acid/` and `reese/` are still placeholders. A plain sub or harmonic bass
-stays in the shared core as a profile, because sub is a register, not a
-family.
+`Bass.build_voice`: a per-note filter envelope with accent/slide, FM with an
+index envelope, a gated two-oscillator voice whose filter envelope swells
+open on every note, and a detuned saw stack. All of them still subclass the
+shared `Bass` base for scheduling and chord-following (`note_root`); only the
+oscillator/filter graph itself is their own. `fm/` and `funk/` have patches
+(see their `CLAUDE.md`); `acid/` and `reese/` are still placeholders. A plain
+sub or harmonic bass stays in the shared core as a profile, because sub is a
+register, not a family.

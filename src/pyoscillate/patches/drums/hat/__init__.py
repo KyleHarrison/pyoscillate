@@ -17,9 +17,6 @@ BASE_DIVISION = NoteDivision.EIGHTH
 # exponent of the decay curve - a sharp, strongly exponential drop keeps the
 # hat ticking rather than hissing
 DECAY_CURVE = 5
-# not defined by this module before conversion to a class - VOLUME_DEFAULT
-# lives here now since a class attribute can't take a per-rack override the
-# way FunctionVoice.from_module(..., volume_default=) could
 VOLUME_DEFAULT = 0.2
 
 PARAMETERS = (

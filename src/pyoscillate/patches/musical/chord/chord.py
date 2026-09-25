@@ -1,8 +1,6 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.chord.chord style=velvet
-#   style: velvet | organ | shimmer
 """Offbeat chord-stab voices."""
 
-from collections.abc import Callable
+from typing import Any, ClassVar
 
 from pyo.lib.effects import Chorus, Freeverb
 from pyo.lib.filters import Biquad
@@ -12,7 +10,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import BuiltPatch, Patch
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
 
@@ -52,7 +50,7 @@ REGISTER_CENTRE = 146
 VOLUME_DEFAULT = 0.4
 
 
-def build(
+def _build(
     tempo: Tempo,
     clock: Clock,
     style: str,
@@ -134,6 +132,57 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., BuiltPatch]:
-    """Return a builder with one chord style fixed for a rack entry."""
-    return lambda tempo, clock, **values: build(tempo, clock, style, **values)
+class Chord(Patch):
+    """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
+    chord. Style variants subclass this and fix `style`; the graph itself
+    is identical across styles (see `_build`)."""
+
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_tempo: ClassVar[bool] = True
+    needs_clock: ClassVar[bool] = True
+    needs_harmony: ClassVar[bool] = True
+
+    style: ClassVar[str]
+
+    octave: float
+    brightness: float
+    rate: float
+
+    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any) -> Patch:
+        self.configure(**values)
+        built = _build(
+            tempo,
+            clock,
+            self.style,
+            octave=self.octave,
+            brightness=self.brightness,
+            rate=self.rate,
+            harmony=harmony,
+        )
+        self.sequencer = built.sequencer
+        self.voice = built.voice
+        self.controls = built.controls
+        self.resources = list(built.resources)
+        return self
+
+
+class ChordVelvet(Chord):
+    """Warm, rounded minor-seventh chord stabs."""
+
+    title = "Chord Stab - Velvet"
+    style = "velvet"
+
+
+class ChordOrgan(Chord):
+    """Sustained, organ-like harmonic bed."""
+
+    title = "Chord Stab - Organ"
+    style = "organ"
+
+
+class ChordShimmer(Chord):
+    """Bright, shimmering chord stabs with more edge."""
+
+    title = "Chord Stab - Shimmer"
+    style = "shimmer"

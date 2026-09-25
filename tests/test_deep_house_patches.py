@@ -161,7 +161,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         rack.stop(patch_def.name)
 
     def test_chord_retains_native_trigger_graph(self) -> None:
-        patch = chord.build(self.tempo, self.clock, "velvet")
+        patch = chord.ChordVelvet().build(self.tempo, self.clock)
         resource_types = [type(resource).__name__ for resource in patch.resources]
 
         self.assertIn("Trig", resource_types)
@@ -172,8 +172,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         """Fire each pitched patch's sequencer up to its first note in the
         clock's current bar, and return the pitch it played, divided by the
         interval its pattern puts on that note - i.e. the chord root it used."""
-        chord_patch = chord.build(self.tempo, self.clock, "velvet", harmony=harmony)
-        bass_patch = bass.build(self.tempo, self.clock, "rolling", harmony=harmony)
+        chord_patch = chord.ChordVelvet().build(self.tempo, self.clock, harmony=harmony)
+        bass_patch = bass.BassRolling().build(self.tempo, self.clock, harmony=harmony)
         tom_patch = tom.Tom().build(self.tempo, self.clock, harmony=harmony)
         # the chord stabs on the third 16th, the bass on the first, the tom's
         # first fill note (a fifth up) on the eleventh

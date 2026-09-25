@@ -1,12 +1,13 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.texture.rumble.rumble
 from __future__ import annotations
 
-from pyo.lib.controls import SigTo
+from typing import Any
+
 from pyo.lib.filters import MoogLP, Tone
 from pyo.lib.generators import BrownNoise, Sine
 
-from pyoscillate.patches.base import BuiltPatch
-from pyoscillate.patches.common import ContinuousSequencer
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -64,57 +65,32 @@ PARAMETERS = (
         (PyoParamRef(Tone, "freq"),),
     ),
 )
+VOLUME_DEFAULT = 0.8
 
 
-def build(
-    sub_freq: float = SUB_FREQ,
-    sub_level: float = 0.5,
-    noise_level: float = 0.5,
-    noise_cutoff: float = 90,
-    tone_cutoff: float = 300,
-) -> BuiltPatch:
-    """Textural noise rumble: `BrownNoise` through a very low lowpass, blended with a sub sine, for an unpitched "earthquake" low end rather than a tonal bass.
+class BassRumble(ContinuousVoice):
+    """Textural noise rumble: `BrownNoise` through a very low lowpass, blended with a sub sine, for an unpitched "earthquake" low end rather than a tonal bass."""
 
-    Args:
-        sub_freq: Frequency (Hz) of the sine layer underneath the noise -
-            gives the rumble a faint sense of pitch/weight without making
-            it read as a melodic bass note.
-        sub_level: Level of the sine layer relative to the noise layer.
-            Raising it makes the rumble feel more grounded and pitched;
-            lowering it (or setting it to 0) makes the patch read as pure
-            unpitched texture.
-        noise_level: Level of the filtered noise layer - the main
-            "rumbling" content of this patch.
-        noise_cutoff: `MoogLP` cutoff (Hz) applied to the noise. Very low
-            values (near the default) keep only the deepest rumble content
-            and remove any hiss; raising it lets more mid-low texture
-            through for a rougher, grittier rumble.
-        tone_cutoff: `Tone` cutoff (Hz) applied to the sine layer, rounding
-            off its edges so it blends into the noise rather than standing
-            out as a clean tone.
-    """
-    live = {
-        name: SigTo(value=value, time=0.15)
-        for name, value in {
-            "sub_freq": sub_freq,
-            "sub_level": sub_level,
-            "noise_level": noise_level,
-            "noise_cutoff": noise_cutoff,
-            "tone_cutoff": tone_cutoff,
-        }.items()
-    }
-    noise = BrownNoise(mul=live["noise_level"])
-    noise_voice = MoogLP(noise, freq=live["noise_cutoff"], res=0)
-    sub = Sine(freq=live["sub_freq"], mul=live["sub_level"])
-    sub_voice = Tone(sub, freq=live["tone_cutoff"])
-    voice = noise_voice + sub_voice
+    title = "Bass - textural noise rumble"
+    summary = "Unpitched, earthquake-like low-end texture."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    return BuiltPatch(
-        sequencer=ContinuousSequencer(),
-        voice=voice,
-        controls={
-            name: lambda value, control=control: setattr(control, "value", value)
-            for name, control in live.items()
-        },
-        resources=(*live.values(), noise, noise_voice, sub, sub_voice),
-    )
+    sub_freq: float
+    sub_level: float
+    noise_level: float
+    noise_cutoff: float
+    tone_cutoff: float
+
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        live = self.live_all("sub_freq", "sub_level", "noise_level", "noise_cutoff", "tone_cutoff")
+
+        noise = BrownNoise(mul=live["noise_level"])
+        noise_voice = MoogLP(noise, freq=live["noise_cutoff"], res=0)
+        sub = Sine(freq=live["sub_freq"], mul=live["sub_level"])
+        sub_voice = Tone(sub, freq=live["tone_cutoff"])
+        voice = noise_voice + sub_voice
+        self.retain(noise, noise_voice, sub, sub_voice)
+        return self.finish(voice)

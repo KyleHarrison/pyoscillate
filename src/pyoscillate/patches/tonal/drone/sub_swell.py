@@ -1,14 +1,15 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.drone.sub_swell
 from __future__ import annotations
 
-from pyo.lib.controls import SigTo
+from typing import Any
+
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Sine
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import BuiltPatch
-from pyoscillate.patches.common import ContinuousSequencer
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -70,70 +71,38 @@ PARAMETERS = (
 
 # mostly fundamental with a touch of 2nd/3rd harmonic - rounded, sub-heavy tone
 SUB_HARMONICS = [1, 0.15, 0.05]
+VOLUME_DEFAULT = 0.8
 
 
-def build(
-    root_freq: float = ROOT_FREQ,
-    swell_period: float = 9.0,
-    swell_depth: float = 0.4,
-    filter_base: float = 180,
-    filter_res: float = 0.2,
-) -> BuiltPatch:
-    """Slow-swelling sub drone: a near-static low fundamental that breathes in and out in level rather than changing pitch or timbre.
+class BassDrone(ContinuousVoice):
+    """Slow-swelling sub drone: a near-static low fundamental that breathes in and out in level rather than changing pitch or timbre."""
 
-    Args:
-        root_freq: Fundamental frequency (Hz) of the sub tone. Kept low and
-            fixed - this patch's movement comes entirely from the swell,
-            not from pitch or timbral change.
-        swell_period: Seconds for one full swell cycle (quiet-loud-quiet).
-            Longer periods make the rumble feel like a slow tide; shorter
-            periods make it read as a more rhythmic pulse.
-        swell_depth: How far the level dips below its peak each swell
-            cycle, 0-1. Higher values make the swell more dramatic and
-            audible; lower values keep the rumble closer to constant.
-        filter_base: Lowpass cutoff (Hz) applied after the oscillator,
-            rounding off anything above the sub range. Lower values darken
-            and soften the rumble further; higher values let more of the
-            harmonic content through for a slightly more present tone.
-        filter_res: `MoogLP` resonance (0-1ish). Kept low by default since
-            a rumbling sub bed benefits from a smooth, uncolored low end
-            rather than an emphasized, whistling resonant peak.
-    """
-    live = {
-        name: SigTo(value=value, time=0.15)
-        for name, value in {
-            "root_freq": root_freq,
-            "swell_period": swell_period,
-            "swell_depth": swell_depth,
-            "filter_base": filter_base,
-            "filter_res": filter_res,
-        }.items()
-    }
-    swell_frequency = 1 / live["swell_period"]
-    swell_amplitude = live["swell_depth"] / 2
-    swell = Sine(
-        freq=swell_frequency,
-        mul=swell_amplitude,
-        add=1 - swell_depth / 2,
-    )
+    title = "Bass - slow-swelling sub drone"
+    summary = "Slow-breathing sub bed that swells and recedes."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    sub_table = HarmTable(SUB_HARMONICS)
-    sub_osc = Osc(table=sub_table, freq=live["root_freq"], mul=swell)
-    voice = MoogLP(sub_osc, freq=live["filter_base"], res=live["filter_res"])
+    root_freq: float
+    swell_period: float
+    swell_depth: float
+    filter_base: float
+    filter_res: float
 
-    return BuiltPatch(
-        sequencer=ContinuousSequencer(),
-        voice=voice,
-        controls={
-            name: lambda value, control=control: setattr(control, "value", value)
-            for name, control in live.items()
-        },
-        resources=(
-            *live.values(),
-            swell_frequency,
-            swell_amplitude,
-            swell,
-            sub_table,
-            sub_osc,
-        ),
-    )
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        live = self.live_all("root_freq", "swell_period", "swell_depth", "filter_base", "filter_res")
+
+        swell_frequency = 1 / live["swell_period"]
+        swell_amplitude = live["swell_depth"] / 2
+        swell = Sine(
+            freq=swell_frequency,
+            mul=swell_amplitude,
+            add=1 - self.swell_depth / 2,
+        )
+
+        sub_table = HarmTable(SUB_HARMONICS)
+        sub_osc = Osc(table=sub_table, freq=live["root_freq"], mul=swell)
+        voice = MoogLP(sub_osc, freq=live["filter_base"], res=live["filter_res"])
+        self.retain(swell_frequency, swell_amplitude, swell, sub_table, sub_osc)
+        return self.finish(voice)

@@ -270,8 +270,10 @@ class Patch(ABC):
 @dataclass
 class FunctionVoice(Patch):
     """Adapts an unmigrated `build()`/`PARAMETERS` module to the `Patch`
-    contract, so a `PatchDef` only ever needs a `Patch` instance regardless
-    of whether a given patch has moved to a class yet.
+    contract, for the modules that haven't moved to a class yet - direct
+    construction only (`FunctionVoice(module.build, module.PARAMETERS)`),
+    since every project rack now instantiates a real `Patch` subclass
+    instead of naming a module and a `style` string.
     """
 
     _build: Callable[..., BuiltPatch]
@@ -292,24 +294,6 @@ class FunctionVoice(Patch):
         self.controls = built.controls
         self.resources = list(built.resources)
         return self
-
-    @classmethod
-    def from_module(
-        cls,
-        module: Any,
-        *,
-        volume_default: float,
-        style: str | None = None,
-        **flags: Any,
-    ) -> FunctionVoice:
-        """`style` selects a `make_builder(style)` variant; omit it for a
-        module with a single `build`. `volume_default` is always required
-        explicitly, since not every module defines its own `VOLUME_DEFAULT`
-        constant and callers already choose a rack-specific value today.
-        `flags` are the remaining `Patch` fields (`needs_tempo=True`, and so
-        on)."""
-        build = module.make_builder(style) if style is not None else module.build
-        return cls(build, module.PARAMETERS, volume_default, **flags)
 
 
 @dataclass

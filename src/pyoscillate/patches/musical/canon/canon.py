@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -144,18 +144,10 @@ class _Duet:
             metro.stop()
 
 
-def build(
-    root_freq: float = CANON_ROOT,
-    voice_a_period: float = 5.0,
-    voice_b_period: float = 7.5,
-    voice_b_interval: float = 7,
-    note_duration: float = 4.0,
-    fm_ratio: float = 1.5,
-    fm_index: float = 1.5,
-    reverb_size: float = 0.7,
-    reverb_damp: float = 0.5,
-    reverb_bal: float = 0.5,
-) -> BuiltPatch:
+VOLUME_DEFAULT = 0.6
+
+
+class Canon(Patch):
     """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on
     its own free-running period, so they drift in and out of alignment like an ever-shifting call and
     response.
@@ -164,72 +156,75 @@ def build(
     with each other, but their unrelated (non-integer-ratio) periods mean
     they rarely repeat the same relationship to one another - the "canon"
     quality comes from that drift, not from one voice literally echoing
-    the other.
-
-    Args:
-        root_freq: Base frequency (Hz) for voice A. Voice B sits
-            `voice_b_interval` semitones above it.
-        voice_a_period: Seconds between voice A's random note draws.
-        voice_b_period: Seconds between voice B's random note draws.
-            Deliberately not a simple multiple of `voice_a_period`, so the
-            two voices' note changes drift past each other over time
-            instead of ever locking into a fixed pattern.
-        voice_b_interval: Semitone offset of voice B's register above
-            `root_freq`. A fifth (7) or fourth (5) keeps a clear harmonic
-            relationship between the two voices; an octave (12) keeps them
-            in the same register class further apart in pitch space.
-        note_duration: How long each note's envelope sustains, in seconds.
-            Longer than either period lets notes overlap into each other
-            for a smoother, more legato feel.
-        fm_ratio: Modulator/carrier ratio in the FM voice, shared by both
-            voices. Values close to a simple ratio (1, 1.5, 2) sound clean
-            and bell-like.
-        fm_index: FM modulation index, shared by both voices - how
-            bright/buzzy the timbre is. Kept low by default so both voices
-            stay soft and rounded.
-        reverb_size: Freeverb room size (0-1), applied to the summed duet.
-        reverb_damp: Freeverb high-frequency damping (0-1).
-        reverb_bal: Freeverb dry/wet balance (0-1).
+    the other. `voice_a_period`/`voice_b_period`/`voice_b_interval`/
+    `note_duration` are all `rebuild_parameters`: each is baked into a
+    `Metro`'s fixed `time` or a `TrigEnv`'s `dur` at build time, so changing
+    any of them live can't just update an existing control.
     """
-    envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
 
-    voice_a_metro = Metro(time=voice_a_period)
-    voice_a_env = TrigEnv(voice_a_metro, table=envelope_table, dur=note_duration, mul=0.18)
-    voice_a_fm = FM(carrier=root_freq, ratio=fm_ratio, index=fm_index, mul=voice_a_env)
-
-    voice_b_root = root_freq * pow(2, voice_b_interval / 12)
-    voice_b_metro = Metro(time=voice_b_period)
-    voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=note_duration, mul=0.14)
-    voice_b_fm = FM(carrier=voice_b_root, ratio=fm_ratio, index=fm_index, mul=voice_b_env)
-
-    source = voice_a_fm + voice_b_fm
-    voice = Freeverb(source, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
-
-    def next_voice_a() -> None:
-        interval = random.choice(CANON_SCALE)
-        voice_a_fm.carrier = root_freq * pow(2, interval / 12)
-
-    def next_voice_b() -> None:
-        interval = random.choice(CANON_SCALE)
-        voice_b_fm.carrier = voice_b_root * pow(2, interval / 12)
-
-    voice_a_func = TrigFunc(voice_a_metro, next_voice_a)
-    voice_b_func = TrigFunc(voice_b_metro, next_voice_b)
-
-    sequencer = _Duet(
-        metros=[voice_a_metro, voice_b_metro],
-        keepalive=[
-            envelope_table,
-            voice_a_env,
-            voice_b_env,
-            voice_a_func,
-            voice_b_func,
-        ],
+    name = "mid_canon"
+    title = "Mid - two-voice canon"
+    summary = "Two melodic voices in a slow-shifting call and response."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    rebuild_parameters: ClassVar[tuple[str, ...]] = (
+        "voice_a_period",
+        "voice_b_period",
+        "voice_b_interval",
+        "note_duration",
     )
-    return BuiltPatch(
-        sequencer=sequencer,
-        voice=voice,
-        controls={
+
+    root_freq: float
+    voice_a_period: float
+    voice_b_period: float
+    voice_b_interval: float
+    note_duration: float
+    fm_ratio: float
+    fm_index: float
+    reverb_size: float
+    reverb_damp: float
+    reverb_bal: float
+
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        root_freq = self.root_freq
+        envelope_table = CosTable([(0, 0), (800, 1), (4000, 0.5), (8191, 0)])
+
+        voice_a_metro = Metro(time=self.voice_a_period)
+        voice_a_env = TrigEnv(voice_a_metro, table=envelope_table, dur=self.note_duration, mul=0.18)
+        voice_a_fm = FM(carrier=root_freq, ratio=self.fm_ratio, index=self.fm_index, mul=voice_a_env)
+
+        voice_b_root = root_freq * pow(2, self.voice_b_interval / 12)
+        voice_b_metro = Metro(time=self.voice_b_period)
+        voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=self.note_duration, mul=0.14)
+        voice_b_fm = FM(carrier=voice_b_root, ratio=self.fm_ratio, index=self.fm_index, mul=voice_b_env)
+
+        source = voice_a_fm + voice_b_fm
+        voice = Freeverb(source, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+
+        def next_voice_a() -> None:
+            interval = random.choice(CANON_SCALE)
+            voice_a_fm.carrier = root_freq * pow(2, interval / 12)
+
+        def next_voice_b() -> None:
+            interval = random.choice(CANON_SCALE)
+            voice_b_fm.carrier = voice_b_root * pow(2, interval / 12)
+
+        voice_a_func = TrigFunc(voice_a_metro, next_voice_a)
+        voice_b_func = TrigFunc(voice_b_metro, next_voice_b)
+
+        self.sequencer = _Duet(
+            metros=[voice_a_metro, voice_b_metro],
+            keepalive=[
+                envelope_table,
+                voice_a_env,
+                voice_b_env,
+                voice_a_func,
+                voice_b_func,
+            ],
+        )
+        self.voice = voice
+        self.controls = {
             "root_freq": lambda value: setattr(voice_a_fm, "carrier", value),
             "fm_ratio": lambda value: (
                 setattr(voice_a_fm, "ratio", value),
@@ -242,8 +237,8 @@ def build(
             "reverb_size": lambda value: setattr(voice, "size", value),
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
-        },
-        resources=(
+        }
+        self.resources = [
             envelope_table,
             voice_a_metro,
             voice_a_env,
@@ -254,5 +249,5 @@ def build(
             source,
             voice_a_func,
             voice_b_func,
-        ),
-    )
+        ]
+        return self

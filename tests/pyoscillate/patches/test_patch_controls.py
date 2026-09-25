@@ -11,7 +11,13 @@ import subprocess
 import sys
 import unittest
 
-# module -> build params needed to construct it (profile names and so on)
+# module -> build params needed to construct it (profile names and so on).
+# fm/fm and funk/funk migrated to Patch subclasses (see
+# tonal/bass/fm/fm.py, tonal/bass/funk/funk.py) and dropped out of this list
+# with it: it exercises `module.build`/`PARAMETERS` directly, the contract
+# for the patches still ported from the pyo examples as plain functions, not
+# a migrated family's own Patch classes (which get no equivalent full-range
+# sweep test, same as kick/hat/chord's classes already don't).
 PATCHES: dict[str, list[dict]] = {
     "pyoscillate.patches.texture.noise.noise": [
         {"style": "air"},
@@ -22,11 +28,6 @@ PATCHES: dict[str, list[dict]] = {
         {"style": "chime"},
         {"style": "fm"},
     ],
-    "pyoscillate.patches.tonal.bass.fm.fm": [
-        {"style": "bark"},
-        {"style": "grit"},
-    ],
-    "pyoscillate.patches.tonal.bass.funk.funk": [{}],
     "pyoscillate.patches.tonal.keys.keys": [{}],
     "pyoscillate.patches.transition.riser.riser": [
         {"style": "noise"},

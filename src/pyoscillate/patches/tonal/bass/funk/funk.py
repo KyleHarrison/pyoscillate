@@ -23,14 +23,15 @@ staying bright for the whole sustain. The cookbook's "envelope 85%" is a
 synth knob position; `QUACK` octaves is its reading here, tuned by ear.
 
 The line is a one-bar funk figure on chord tones, re-rooted on each bar's
-chord from the rack's `Harmony`. It is written as degrees of a minor-seventh
-chord, like the groove profiles. Accents scale the level and the filter
-sweep together, so accented notes quack harder and ghost notes stay dark.
+chord from the rack's `Harmony` (see `Bass.note_root`). It is written as
+degrees of a minor-seventh chord, like the groove profiles. Accents scale
+the level and the filter sweep together, so accented notes quack harder and
+ghost notes stay dark.
 """
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 from pyo.lib.arithmetic import Pow
 from pyo.lib.controls import Adsr, SigTo
@@ -38,12 +39,13 @@ from pyo.lib.dynamics import Clip
 from pyo.lib.filters import MoogLP
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import LinTable, SawTable
-from pyo.lib.triggers import Trig, TrigEnv, TrigFunc
+from pyo.lib.triggers import TrigEnv, TrigFunc
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -188,93 +190,67 @@ PARAMETERS = (
 )
 
 
-def _steps_for_rate(clock: Clock, rate: float) -> int:
-    return clock.ticks_for_rate(BASE_DIVISION, rate)
+class FunkBass(Bass):
+    """Funk bass: a syncopated line whose filter quacks open on every note.
+    See the module docstring for the sonic detail."""
 
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_harmony: ClassVar[bool] = True
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    octave: float = 0,
-    cutoff: float = CUTOFF,
-    quack: float = QUACK,
-    swell: float = FILTER_ENVELOPE["attack"],
-    resonance: float = RESONANCE,
-    length: float = 1.0,
-    rate: float = 0,
-    harmony: Harmony | None = None,
-) -> BuiltPatch:
-    """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
-    harmony = harmony or FALLBACK_HARMONY
-    state = {"step": 0, "octave": octave, "quack": quack, "length": length}
+    octave: float
+    cutoff: float
+    quack: float
+    swell: float
+    resonance: float
+    length: float
+    rate: float
 
-    pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
-    upper_pitch = pitch * 2
-    saw_table = SawTable(order=SAW_ORDER)
-    saw = Osc(saw_table, freq=pitch)
-    # a saw minus the same saw a fraction of a cycle later is a pulse of that
-    # width; both saws are zero-mean, so the pulse is too
-    pulse_lead = Osc(saw_table, freq=upper_pitch)
-    pulse_lag = Osc(saw_table, freq=upper_pitch, phase=PULSE_WIDTH)
-    pulse = pulse_lead - pulse_lag
-    mix = saw + pulse
-    trimmed = mix * FILTER_TRIM
+    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any) -> Patch:
+        """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
+        self.configure(**values)
+        self._reset()
+        # matches the free `Trig()` this voice used before it was migrated
+        # onto `Bass`'s trigger: silent until the clock ticks (see
+        # tests/pyoscillate/patches/test_gated_patches.py)
+        self.trigger.stop()
+        current_root = self.note_root(
+            REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY, octave=self.octave
+        )
+        state = {"step": 0, "quack": self.quack, "length": self.length}
 
-    # the gate: held open for the note's length, then its end trigger
-    # releases both envelopes. A new note restarts it, so a long note's
-    # release never lands on the note after it.
-    note_on = Trig().stop()
-    gate_table = LinTable([(0, 1), (8191, 1)])
-    gate = TrigEnv(note_on, gate_table, dur=tempo.sixteenth)
-    amp = Adsr(**AMP_ENVELOPE)
-    level = amp * GAIN
-    sweep = Adsr(
-        attack=swell,
-        decay=FILTER_ENVELOPE["decay"],
-        sustain=FILTER_ENVELOPE["sustain"],
-        release=FILTER_ENVELOPE["release"],
-        mul=quack,
-    )
-    # the envelope counts octaves above `cutoff`
-    cutoff_freq = Pow(base=2, exponent=sweep, mul=cutoff)
-    safe_cutoff = Clip(cutoff_freq, min=0, max=CUTOFF_CEILING)
-    filtered = MoogLP(trimmed, freq=safe_cutoff, res=resonance)
-    voice = filtered * level
+        pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
+        upper_pitch = pitch * 2
+        saw_table = SawTable(order=SAW_ORDER)
+        saw = Osc(saw_table, freq=pitch)
+        # a saw minus the same saw a fraction of a cycle later is a pulse of that
+        # width; both saws are zero-mean, so the pulse is too
+        pulse_lead = Osc(saw_table, freq=upper_pitch)
+        pulse_lag = Osc(saw_table, freq=upper_pitch, phase=PULSE_WIDTH)
+        pulse = pulse_lead - pulse_lag
+        mix = saw + pulse
+        trimmed = mix * FILTER_TRIM
 
-    def note_off() -> None:
-        amp.stop()
-        sweep.stop()
-
-    gate_end = TrigFunc(gate["trig"], note_off)
-
-    def next_step() -> None:
-        step = LINE[state["step"] % len(LINE)]
-        state["step"] += 1
-        if step.semitones is None:
-            return
-        root = harmony.chord_freq(REGISTER_CENTRE, clock.bar_index) * 2 ** state["octave"]
-        pitch.value = root * 2 ** (step.semitones / 12)
-        gate.dur = tempo.sixteenth * step.length * state["length"]
-        amp.mul = step.accent
-        sweep.mul = state["quack"] * step.accent
-        amp.play()
-        sweep.play()
-        note_on.play()
-
-    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return BuiltPatch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "octave": lambda value: state.update(octave=value),
-            "cutoff": lambda value: setattr(cutoff_freq, "mul", value),
-            "quack": lambda value: state.update(quack=value),
-            "swell": lambda value: setattr(sweep, "attack", value),
-            "resonance": lambda value: setattr(filtered, "res", value),
-            "length": lambda value: state.update(length=value),
-            "rate": lambda value: setattr(division, "steps", _steps_for_rate(clock, value)),
-        },
-        resources=(
+        # the gate: held open for the note's length, then its end trigger
+        # releases both envelopes. A new note restarts it, so a long note's
+        # release never lands on the note after it.
+        gate_table = LinTable([(0, 1), (8191, 1)])
+        gate = TrigEnv(self.trigger, gate_table, dur=tempo.sixteenth)
+        amp = Adsr(**AMP_ENVELOPE)
+        level = amp * GAIN
+        sweep = Adsr(
+            attack=self.swell,
+            decay=FILTER_ENVELOPE["decay"],
+            sustain=FILTER_ENVELOPE["sustain"],
+            release=FILTER_ENVELOPE["release"],
+            mul=self.quack,
+        )
+        # the envelope counts octaves above `cutoff`
+        cutoff_freq = Pow(base=2, exponent=sweep, mul=self.cutoff)
+        safe_cutoff = Clip(cutoff_freq, min=0, max=CUTOFF_CEILING)
+        filtered = MoogLP(trimmed, freq=safe_cutoff, res=self.resonance)
+        voice = filtered * level
+        self.retain(
             pitch,
             upper_pitch,
             saw_table,
@@ -284,15 +260,45 @@ def build(
             pulse,
             mix,
             trimmed,
-            note_on,
             gate_table,
             gate,
-            gate_end,
             amp,
             level,
             sweep,
             cutoff_freq,
             safe_cutoff,
             filtered,
-        ),
-    )
+        )
+
+        def note_off() -> None:
+            amp.stop()
+            sweep.stop()
+
+        gate_end = TrigFunc(gate["trig"], note_off)
+        self.retain(gate_end)
+
+        def next_step() -> None:
+            step = LINE[state["step"] % len(LINE)]
+            state["step"] += 1
+            if step.semitones is None:
+                return
+            root = current_root()
+            pitch.value = root * 2 ** (step.semitones / 12)
+            gate.dur = tempo.sixteenth * step.length * state["length"]
+            amp.mul = step.accent
+            sweep.mul = state["quack"] * step.accent
+            amp.play()
+            sweep.play()
+            self.trigger.play()
+
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "cutoff": lambda value: setattr(cutoff_freq, "mul", value),
+                "quack": lambda value: state.update(quack=value),
+                "swell": lambda value: setattr(sweep, "attack", value),
+                "resonance": lambda value: setattr(filtered, "res", value),
+                "length": lambda value: state.update(length=value),
+            },
+        )

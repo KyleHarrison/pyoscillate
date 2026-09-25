@@ -1,12 +1,13 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.drone.wash
 from __future__ import annotations
 
-from pyo.lib.controls import SigTo
+from typing import Any
+
 from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
-from pyoscillate.patches.base import BuiltPatch
-from pyoscillate.patches.common import ContinuousSequencer
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -135,117 +136,76 @@ PARAMETERS = (
         (PyoParamRef(Delay, "feedback"),),
     ),
 )
+VOLUME_DEFAULT = 0.6
 
 
-def build(
-    root_freq: float = ROOT_FREQ,
-    detune: float = 0.6,
-    detune_bal: float = 0.7,
-    pitch_drift: float = 0.03,
-    chorus_depth: float = 2.5,
-    chorus_feedback: float = 0.35,
-    chorus_bal: float = 0.6,
-    reverb_size: float = 0.9,
-    reverb_damp: float = 0.35,
-    reverb_bal: float = 0.9,
-    delay_time: float = 0.8,
-    delay_feedback: float = 0.25,
-) -> BuiltPatch:
+class SoundscapeWash(ContinuousVoice):
     """Washy detuned pad: a SuperSaw voice smeared with chorus, reverb, and delay for a shoegaze-style dream-pop ambience.
 
-    Unlike `soundscape_fm`/`soundscape_filter`, the "evolving" quality here
+    Unlike `SoundscapeFm`/`SoundscapeFilter`, the "evolving" quality here
     comes mostly from spatial smear (chorus/reverb/delay) rather than
     timbral or filter movement - the character is width and haze rather
     than wander.
-
-    Args:
-        root_freq: Base frequency (Hz) of the `SuperSaw` voice.
-        detune: `SuperSaw` detune depth (0-1). Higher values spread the
-            seven internal oscillators further apart in pitch, thickening
-            the wash and making it feel hazier; lower values keep it
-            closer to a single clean tone.
-        detune_bal: `SuperSaw` balance between the center oscillator and
-            the detuned ones (0-1). Higher values push the mix toward the
-            detuned layers for a wider, less centered tone; lower values
-            keep more of a stable, in-tune core audible underneath.
-        pitch_drift: Depth (in Hz added to `root_freq`) of a slow `Rossler`
-            attractor riding on the whole voice's pitch. Kept subtle by
-            default so it reads as a gentle, dreamy instability rather than
-            an audible wobble; raising it makes the pad noticeably detune
-            over time.
-        chorus_depth: `Chorus` modulation depth (0-5). Higher values widen
-            and thicken the wash further; lower values keep the chorus
-            effect subtle.
-        chorus_feedback: `Chorus` feedback (0-1). Higher values make the
-            chorused delay lines repeat more, adding density to the haze.
-        chorus_bal: `Chorus` dry/wet balance (0-1). Higher values dissolve
-            the pad further into the chorus effect.
-        reverb_size: Freeverb room size (0-1). Very large by default so the
-            pad reads as a huge, diffuse space rather than a distinct
-            voice.
-        reverb_damp: Freeverb high-frequency damping (0-1). Higher values
-            darken the tail; lower values keep it airy and bright.
-        reverb_bal: Freeverb dry/wet balance (0-1). Kept high so the pad is
-            heard almost entirely through its reverb space.
-        delay_time: Delay line time in seconds, adding a further layer of
-            spatial repetition on top of the chorus and reverb.
-        delay_feedback: Delay feedback (0-1). Higher values repeat each
-            echo more times before decaying, for a denser wash.
     """
-    live = {
-        name: SigTo(value=value, time=0.15)
-        for name, value in {
-            "root_freq": root_freq,
-            "detune": detune,
-            "detune_bal": detune_bal,
-            "pitch_drift": pitch_drift,
-            "chorus_depth": chorus_depth,
-            "chorus_feedback": chorus_feedback,
-            "chorus_bal": chorus_bal,
-            "reverb_size": reverb_size,
-            "reverb_damp": reverb_damp,
-            "reverb_bal": reverb_bal,
-            "delay_time": delay_time,
-            "delay_feedback": delay_feedback,
-        }.items()
-    }
 
-    # subtle, slow pitch instability rather than a discrete note pattern -
-    # keeps the pad "dreamy" without ever resolving to a new pitch
-    pitch_wander = Rossler(pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"])
+    title = "Soundscape - washy detuned pad"
+    summary = "Wide, hazy detuned wash that dissolves into echoing space."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    saw_voice = SuperSaw(freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2)
-    chorused = Chorus(
-        saw_voice,
-        depth=live["chorus_depth"],
-        feedback=live["chorus_feedback"],
-        bal=live["chorus_bal"],
-    )
-    reverb_voice = Freeverb(
-        chorused,
-        size=live["reverb_size"],
-        damp=live["reverb_damp"],
-        bal=live["reverb_bal"],
-    )
-    voice = Delay(
-        reverb_voice,
-        delay=live["delay_time"],
-        feedback=live["delay_feedback"],
-        maxdelay=2,
-    )
+    root_freq: float
+    detune: float
+    detune_bal: float
+    pitch_drift: float
+    chorus_depth: float
+    chorus_feedback: float
+    chorus_bal: float
+    reverb_size: float
+    reverb_damp: float
+    reverb_bal: float
+    delay_time: float
+    delay_feedback: float
 
-    return BuiltPatch(
-        sequencer=ContinuousSequencer(),
-        voice=voice,
-        controls={
-            name: lambda value, control=control: setattr(control, "value", value)
-            for name, control in live.items()
-        },
-        resources=(
-            *live.values(),
-            pitch_wander,
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        live = self.live_all(
+            "root_freq",
+            "detune",
+            "detune_bal",
+            "pitch_drift",
+            "chorus_depth",
+            "chorus_feedback",
+            "chorus_bal",
+            "reverb_size",
+            "reverb_damp",
+            "reverb_bal",
+            "delay_time",
+            "delay_feedback",
+        )
+
+        # subtle, slow pitch instability rather than a discrete note pattern -
+        # keeps the pad "dreamy" without ever resolving to a new pitch
+        pitch_wander = Rossler(pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"])
+
+        saw_voice = SuperSaw(freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2)
+        chorused = Chorus(
             saw_voice,
+            depth=live["chorus_depth"],
+            feedback=live["chorus_feedback"],
+            bal=live["chorus_bal"],
+        )
+        reverb_voice = Freeverb(
             chorused,
+            size=live["reverb_size"],
+            damp=live["reverb_damp"],
+            bal=live["reverb_bal"],
+        )
+        voice = Delay(
             reverb_voice,
-        ),
-    )
+            delay=live["delay_time"],
+            feedback=live["delay_feedback"],
+            maxdelay=2,
+        )
+        self.retain(pitch_wander, saw_voice, chorused, reverb_voice)
+        return self.finish(voice)

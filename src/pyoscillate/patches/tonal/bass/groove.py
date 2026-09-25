@@ -1,14 +1,12 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
-#   style: rolling | dub | muted
 """16th-note groove bass voices with a fixed low-pass."""
 
-from collections.abc import Callable
+from typing import Any, ClassVar
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec, rate_slider
-from pyoscillate.patches.tonal.bass import build_bass
+from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -52,32 +50,56 @@ REGISTER_CENTRE = notes.A1
 FALLBACK_HARMONY = Harmony()
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    style: str,
-    octave: float = 0,
-    cutoff: float = 720,
-    rate: float = 0,
-    harmony: Harmony | None = None,
-) -> BuiltPatch:
-    """Build a 16th-note bassline with a style-specific motion pattern.
+class GrooveBass(Bass):
+    """16th-note bassline with a style-specific motion pattern, following
+    the rack's chord. Style variants subclass this and fix `style`; the
+    graph itself is identical across styles (see `Bass.build_voice`).
 
     The pattern is written as root, fifth, octave, minor third and minor
     seventh, which are all tones of the rack's minor-seventh chords, so
     re-rooting it on each chord keeps every note consonant."""
-    return build_bass(
-        tempo,
-        clock,
-        GROOVE[style],
-        REGISTER_CENTRE,
-        cutoff,
-        rate,
-        harmony=harmony or FALLBACK_HARMONY,
-        octave=octave,
-    )
+
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_harmony: ClassVar[bool] = True
+
+    style: ClassVar[str]
+
+    octave: float
+    cutoff: float
+    rate: float
+
+    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        return self.build_voice(
+            tempo,
+            clock,
+            GROOVE[self.style],
+            REGISTER_CENTRE,
+            self.cutoff,
+            self.rate,
+            harmony=harmony or FALLBACK_HARMONY,
+            octave=self.octave,
+        )
 
 
-def make_builder(style: str) -> Callable[..., BuiltPatch]:
-    """Return a builder with one bass style fixed for a rack entry."""
-    return lambda tempo, clock, **values: build(tempo, clock, style, **values)
+class BassRolling(GrooveBass):
+    """Constantly moving, rolling low-end groove."""
+
+    title = "Bass - Rolling"
+    style = "rolling"
+
+
+class BassDub(GrooveBass):
+    """Sparser, more resonant dub-style bass hits."""
+
+    title = "Bass - Dub"
+    style = "dub"
+
+
+class BassMuted(GrooveBass):
+    """Short, muted bass stabs that stay soft and out of the way."""
+
+    title = "Bass - Muted"
+    style = "muted"

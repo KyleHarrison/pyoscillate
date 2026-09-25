@@ -1,10 +1,10 @@
 """Patch definitions for the clock-locked groove demo."""
 
-from pyoscillate.patches.base import FunctionVoice
 from pyoscillate.patches.drums import hat, low_hat
-from pyoscillate.patches.musical import clock_tick
-from pyoscillate.patches.texture import atmosphere
-from pyoscillate.patches.tonal import bass, drone
+from pyoscillate.patches.musical.clock_tick import ClockTick
+from pyoscillate.patches.texture.atmosphere import Atmosphere
+from pyoscillate.patches.tonal.bass import TechnoBass
+from pyoscillate.patches.tonal.drone import Drone
 from src.flet.base import PatchDef, PatchGroupDef
 
 # this project's own tempo - other projects set their own value instead of
@@ -12,38 +12,12 @@ from src.flet.base import PatchDef, PatchGroupDef
 BPM = 132
 
 PATCH_DEFS: list[PatchDef] = [
-    PatchDef(
-        FunctionVoice.from_module(bass, volume_default=1.0, needs_tempo=True, needs_clock=True),
-        name="bass",
-        title="Bass",
-        summary="Rolling, resonant bassline that sweeps in tone across the groove.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(
-            atmosphere,
-            volume_default=0.6,
-            rebuild_parameters=("step_division",),
-            needs_tempo=True,
-            needs_clock=True,
-        ),
-        name="atmosphere",
-        title="Atmosphere (FM pad + arpeggiator)",
-        summary="Breathing melodic pad that arpeggiates and swells overhead.",
-    ),
+    PatchDef(TechnoBass()),
+    PatchDef(Atmosphere()),
     PatchDef(hat.Tick()),
     PatchDef(low_hat.LowHat()),
-    PatchDef(
-        FunctionVoice.from_module(clock_tick, volume_default=1.0, needs_tempo=True),
-        name="clock_tick",
-        title="Clock tick",
-        summary="Drifting clockwork texture of overlapping ticks.",
-    ),
-    PatchDef(
-        FunctionVoice.from_module(drone, volume_default=1.0, needs_tempo=True, needs_clock=True),
-        name="drone",
-        title="Drone",
-        summary="Slow-winding sustained drone that rarely changes note.",
-    ),
+    PatchDef(ClockTick()),
+    PatchDef(Drone()),
 ]
 
 PATCH_GROUPS: list[PatchGroupDef] = [

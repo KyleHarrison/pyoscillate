@@ -21,7 +21,6 @@ BASE_DIVISION = NoteDivision.QUARTER
 # a darker band of noise rather than a full-range hiss with the lows removed
 TOP_RATIO = 3.0
 DECAY_CURVE = 5
-# not defined by this module before conversion to a class - see hat/__init__.py
 VOLUME_DEFAULT = 0.2
 
 PARAMETERS = (

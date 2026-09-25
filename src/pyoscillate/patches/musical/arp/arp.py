@@ -1,12 +1,14 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.arp.arp
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -91,76 +93,63 @@ PARAMETERS = (
 )
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    root_freq: float = MID_ROOT,
-    step_bars: int = 2,
-    fm_ratio: float = 1.5,
-    fm_index: float = 1.5,
-    reverb_size: float = 0.6,
-    reverb_damp: float = 0.5,
-    reverb_bal: float = 0.4,
-) -> BuiltPatch:
+VOLUME_DEFAULT = 0.6
+
+
+class Arp(Patch):
     """Slow, fixed pentatonic arpeggio locked to the shared clock, gliding between notes rather than plucking them.
 
-    Args:
-        tempo: Shared tempo grid; unused directly here beyond being passed
-            through to `clock`, but kept in the signature to match every
-            other clocked patch's `build(tempo, clock, ...)` shape.
-        clock: Shared master pulse; the melody steps every `step_bars`
-            bars, phase-locked to every other patch on the clock.
-        root_freq: Base frequency (Hz) of the melody's root note, before
-            the `MID_INTERVALS` offsets are applied each step. Raising it
-            brings the melody closer to a lead register and easier to pick
-            out; lowering it moves it toward the drone/atmosphere register
-            and lets it blend in more as a background element.
-        step_bars: How many bars pass between melody notes. Larger values
-            space the notes further apart for a calmer, more spacious
-            melody; smaller values make it read as more active and
-            foreground.
-        fm_ratio: Modulator/carrier ratio in the FM voice. Values close to a
-            simple ratio (1, 1.5, 2) sound clean and bell-like; the default
-            gives a calm, consonant timbre appropriate for a background
-            mid voice.
-        fm_index: FM modulation index - how bright/buzzy the timbre is.
-            Kept low by default so the voice stays soft and rounded rather
-            than cutting through the mix.
-        reverb_size: Freeverb room size (0-1). Moderate by default - present
-            enough to sit clearly in the stereo field without dissolving
-            into the background as much as the drone layers do.
-        reverb_damp: Freeverb high-frequency damping (0-1).
-        reverb_bal: Freeverb dry/wet balance (0-1). Lower than the
-            drone patches by default, so the melodic line stays
-            legible rather than fully diffused.
+    `step_bars` is a `rebuild_parameters` entry: it sets the `SigTo` glide
+    time and the clock division at build time, so changing it live can't
+    just update an existing control - the graph has to be rebuilt.
     """
-    step_time = tempo.bar * step_bars
 
-    # glides to each new note over most of the step time instead of snapping,
-    # so the melody drifts between pitches rather than plucking them
-    mid_freq = SigTo(value=root_freq, time=step_time * 0.85)
+    name = "mid_arp"
+    title = "Mid - slow pentatonic arpeggio"
+    summary = "Calm, consonant melodic line locked to the groove."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    rebuild_parameters: ClassVar[tuple[str, ...]] = ("step_bars",)
+    needs_tempo: ClassVar[bool] = True
+    needs_clock: ClassVar[bool] = True
 
-    fm_voice = FM(carrier=mid_freq, ratio=fm_ratio, index=fm_index, mul=0.18)
-    voice = Freeverb(fm_voice, size=reverb_size, damp=reverb_damp, bal=reverb_bal)
+    root_freq: float
+    step_bars: int
+    fm_ratio: float
+    fm_index: float
+    reverb_size: float
+    reverb_damp: float
+    reverb_bal: float
 
-    step = {"i": 0}
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        self.configure(**values)
+        step_time = tempo.bar * self.step_bars
 
-    def next_step() -> None:
-        i = step["i"] % len(MID_INTERVALS)
-        mid_freq.value = root_freq * pow(2, MID_INTERVALS[i] / 12)
-        step["i"] += 1
+        # glides to each new note over most of the step time instead of
+        # snapping, so the melody drifts between pitches rather than
+        # plucking them
+        mid_freq = SigTo(value=self.root_freq, time=step_time * 0.85)
 
-    sequencer = clock.subscribe(clock.bar * step_bars, next_step)
-    return BuiltPatch(
-        sequencer=sequencer,
-        voice=voice,
-        controls={
+        fm_voice = FM(carrier=mid_freq, ratio=self.fm_ratio, index=self.fm_index, mul=0.18)
+        voice = Freeverb(fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+
+        root_freq = self.root_freq
+        step = {"i": 0}
+
+        def next_step() -> None:
+            i = step["i"] % len(MID_INTERVALS)
+            mid_freq.value = root_freq * pow(2, MID_INTERVALS[i] / 12)
+            step["i"] += 1
+
+        self.sequencer = clock.subscribe(clock.bar * self.step_bars, next_step)
+        self.voice = voice
+        self.controls = {
             "root_freq": lambda value: setattr(mid_freq, "value", value),
             "fm_ratio": lambda value: setattr(fm_voice, "ratio", value),
             "fm_index": lambda value: setattr(fm_voice, "index", value),
             "reverb_size": lambda value: setattr(voice, "size", value),
             "reverb_damp": lambda value: setattr(voice, "damp", value),
             "reverb_bal": lambda value: setattr(voice, "bal", value),
-        },
-        resources=(mid_freq, fm_voice),
-    )
+        }
+        self.resources = [mid_freq, fm_voice]
+        return self
