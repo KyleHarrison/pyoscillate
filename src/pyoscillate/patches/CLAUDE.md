@@ -122,11 +122,13 @@ shared behavior for that archetype (e.g. `pyoscillate.patches.common.GatedVoice`
 for the trigger/envelope/scheduling shape every gated voice shares -
 `drums.base.DrumVoice` is just that base's name within the drums family - or
 `pyoscillate.patches.common.ContinuousVoice` for an ungated, free-running
-voice's `live()` control shape). A project rack instantiates the class
-directly as a `PatchDef`'s `voice`; `name`/`title`/`summary` all default from
-the class itself (its name and docstring) rather than being restated at the
-call site - override one only when the default isn't the right rack key or
-UI copy. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
+voice's `live()` control shape). A project rack lists an instance of the
+class directly (grouped by `PatchGroupDef`, no separate wrapper);
+`name`/`title`/`summary`/`sidechain` all default from the instance itself
+(its class name, docstring, and `Patch.__init__` args) rather than being
+restated at the call site - pass `name=`/`title=`/`summary=`/`sidechain=` to
+the constructor only when the default isn't the right rack key, UI copy, or
+duck target. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
 `KickSoft`) for the worked example.
 
 Every patch module is class-based; there is no function-based fallback contract. When a style's graph genuinely differs from its siblings (not just profile data), factor the shared build steps into the family's base class and give each style its own hook method to override - see `pyoscillate.patches.tonal.bass.fm.fm`'s `FmBass.tone()` for the worked example.
@@ -231,7 +233,7 @@ Clocked and generative patches must preserve their sequence index, callback stat
 Patch modules describe sound and controls; the Flet layer owns the UI.
 
 - keep patch-specific ranges, labels, and descriptions in `PARAMETERS`
-- expose the patch to a GUI through a `PatchDef` in the project rack, not UI code in the patch module
+- expose the patch to a GUI by listing an instance in the project rack's `PatchGroupDef`s, not UI code in the patch module
 - do not import Flet or build controls, preset handling, or slider wiring inside a patch module
 
 ## Quality bar
@@ -243,6 +245,6 @@ A patch is ready when it does all of the following:
 - updates live when the underlying topology is unchanged
 - preserves the full graph lifetime with explicit ownership
 - keeps timing behavior and state transitions deliberate
-- follows the standard `PARAMETERS` / `build()` contract and plugs into a `PatchDef`
+- follows the standard `PARAMETERS` / `build()` contract and plugs directly into a project rack's `PatchGroupDef`
 
 If a concept belongs to the music skill rather than patch runtime discipline, move it there and keep this file focused on architecture and implementation rules.

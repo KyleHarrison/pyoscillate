@@ -102,14 +102,32 @@ def _humanize(class_name: str) -> str:
     return " - ".join(words)
 
 
+@dataclass(frozen=True)
+class SidechainSource:
+    """Ducks a patch's output off another rack patch's live voice signal -
+    e.g. a kick ducking the bass on every hit.
+
+    The connection is resolved at the ducked patch's own build time: if
+    `patch_name` isn't already built (its switch was never turned on) when
+    the ducked patch is (re)built, it plays unducked. Turning the source on
+    afterward doesn't retroactively rewire an already-built target; toggle
+    the ducked patch again to pick it up. Making that reactive is future
+    work.
+    """
+
+    patch_name: str
+    depth: float = 0.6
+    release: float = 0.15
+
+
 class Patch(ABC):
     """A patch's live definition *and*, once built, the thing actually
     playing: owns `parameters`/`volume_default`/`rebuild_parameters`/
     `needs_*` as class attributes, wires the DSP graph onto `self` in
     `build()`, and drives it with `start()`/`stop()`/`set()`/`update()`. A
-    `PatchDef` reads everything it needs - including `name`/`title`/
-    `summary` - directly off an instance instead of having it restated at
-    the call site.
+    project rack lists instances of this class directly - `name`/`title`/
+    `summary`/`sidechain` all live on the instance rather than being restated
+    in a separate wrapper.
     """
 
     parameters: ClassVar[tuple[SliderSpec, ...]]
@@ -119,12 +137,22 @@ class Patch(ABC):
     needs_clock: ClassVar[bool] = False
     needs_harmony: ClassVar[bool] = False
 
-    def __init__(self, **values: Any) -> None:
+    def __init__(
+        self,
+        *,
+        sidechain: SidechainSource | None = None,
+        name: str | None = None,
+        title: str | None = None,
+        summary: str | None = None,
+        **values: Any,
+    ) -> None:
         """Seed this instance's current parameter values from `parameters`'
         defaults, overridden by any `values` given - so two instances of the
         same class can hold independent current settings instead of sharing
         behavior baked into `build()`'s own defaults - then set up fresh
-        build/lifecycle state."""
+        build/lifecycle state. `sidechain`/`name`/`title`/`summary` are only
+        ever restated at the rack call site when a project needs one to
+        differ from this instance's own default."""
         for spec in self.parameters:
             setattr(self, spec.name, values.get(spec.name, spec.default))
         self.resources: list[Any] = []
@@ -136,6 +164,26 @@ class Patch(ABC):
         self._fade: SigTo | None = None
         self._volume_control: SigTo | None = None
         self._output_resources: tuple[PyoObject, ...] = ()
+        self.sidechain = sidechain
+        # plain instance attributes, distinct from the `name`/`title`/
+        # `summary` properties below - a style subclass that shadows one of
+        # those properties with its own plain `title = "..."` class
+        # attribute (see the property docstrings) makes that property
+        # unreachable for its instances, so setting `self._title` alone
+        # wouldn't be seen; going through the property setters below instead
+        # (only when a constructor override was actually given, so an
+        # un-given one doesn't plant a stale `None` in `self.__dict__` ahead
+        # of a shadowing class attribute) writes an instance attribute that
+        # outranks that class attribute on lookup either way.
+        self._name: str | None = None
+        self._title: str | None = None
+        self._summary: str | None = None
+        if name is not None:
+            self.name = name
+        if title is not None:
+            self.title = title
+        if summary is not None:
+            self.summary = summary
 
     @property
     def name(self) -> str:
@@ -143,13 +191,21 @@ class Patch(ABC):
         plain `name = "..."` class attribute when the humanized class name
         isn't the right rack key (e.g. a style subclass whose class name
         doesn't mention its family)."""
-        return _slugify(type(self).__name__)
+        return self._name if self._name is not None else _slugify(type(self).__name__)
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value
 
     @property
     def title(self) -> str:
         """Rack-facing label; override the same way as `name` when the
         humanized class name isn't the right UI copy."""
-        return _humanize(type(self).__name__)
+        return self._title if self._title is not None else _humanize(type(self).__name__)
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._title = value
 
     @property
     def summary(self) -> str:
@@ -158,7 +214,11 @@ class Patch(ABC):
         thing twice. Override with a plain `summary = "..."` class
         attribute when the docstring is written for developers, not the UI.
         """
-        return " ".join((type(self).__doc__ or "").split())
+        return self._summary if self._summary is not None else " ".join((type(self).__doc__ or "").split())
+
+    @summary.setter
+    def summary(self, value: str) -> None:
+        self._summary = value
 
     def retain(self, *objects: Any) -> None:
         """Keep `objects` alive for the lifetime of the built patch."""

@@ -15,7 +15,7 @@ For a request involving a real patch, a rack, or a new project, follow this orde
 1. Determine whether the task is purely musical, sonic-to-DSP translation, or implementation/project scaffolding.
 2. If it is musical theory/composition-only, read [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md).
 3. If it is sound design or synthesis translation, read [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md).
-4. If it is project architecture, rack creation, `PatchDef` structure, or new project scaffolding, use this file and its workflow below.
+4. If it is project architecture, rack creation, `Patch`/`PatchGroupDef` structure, or new project scaffolding, use this file and its workflow below.
 
 This file is the correct place for concrete implementation and project-flow rules. The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
 
@@ -58,9 +58,10 @@ script.py` or `uv run python -c "..."`) rather than invoking `python` directly.
 To run linting instead of: `source .venv/bin/activate && ruff check src` just use `uv run ruff check src`
 
 Patches live in `src/pyoscillate/patches/`; each exposes `PARAMETERS` and a
-`build(...) -> Patch`, wired into a project rack as `PatchDef`s and played
-through the Flet apps in `src/flet/`. The actual implementation and runtime
-discipline live in the project patch docs and the real modules under that folder.
+`build(...) -> Patch`, wired into a project rack as `Patch` instances grouped
+by `PatchGroupDef` and played through the Flet apps in `src/flet/`. The
+actual implementation and runtime discipline live in the project patch docs
+and the real modules under that folder.
 
 ## Implementation authority
 

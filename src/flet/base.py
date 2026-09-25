@@ -1,13 +1,13 @@
 """Shared Flet <-> Pyo patch plumbing.
 
-This module abstracts the conversion between a `Patch` subclass (as exposed
-by the modules under `pyoscillate.patches`) and a Flet UI: one `PatchDef`
-per patch, wrapped in a `PatchPanel` that renders an
-enable switch, parameter sliders, and a volume slider, all wired to a shared
-`PatchRack`. `PatchRackApp` composes any number of `PatchPanel`s into a single
-scrollable page with an audio-engine start/stop control and JSON preset
-save/load, so the same code drives a single-patch app (`soundscape_fm`) or a
-whole rack of patches (`deep_house`, `psyambient`, `rack_demo`).
+This module abstracts the conversion between a `Patch` subclass instance (as
+exposed by the modules under `pyoscillate.patches`) and a Flet UI: one patch
+per `PatchPanel`, rendering an enable switch, parameter sliders, and a volume
+slider, all wired to a shared `PatchRack`. `PatchRackApp` composes any number
+of `PatchPanel`s into a single scrollable page with an audio-engine
+start/stop control and JSON preset save/load, so the same code drives a
+single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
+`psyambient`, `rack_demo`).
 """
 
 from __future__ import annotations
@@ -45,51 +45,13 @@ RACK_PRESET_KEY = "_rack"
 Preset = dict[str, dict[str, Any]]
 
 
-@dataclass(frozen=True)
-class SidechainSource:
-    """Ducks this patch's output off another rack patch's live voice signal
-    - e.g. a kick ducking the bass on every hit.
-
-    The connection is resolved at this patch's own build time: if
-    `patch_name` isn't already built (its switch was never turned on) when
-    this patch is (re)built, it plays unducked. Turning the source on
-    afterward doesn't retroactively rewire an already-built target; toggle
-    this patch again to pick it up. Making that reactive is future work.
-    """
-
-    patch_name: str
-    depth: float = 0.6
-    release: float = 0.15
-
-
-@dataclass
-class PatchDef:
-    """Static description of one patch: a `Patch` subclass instance plus
-    everything the rack needs to place it in the UI. `parameters`,
-    `volume_default`, `rebuild_parameters`, and the `needs_*` flags all come
-    from `voice` itself rather than being restated here - so do
-    `name`/`title`/`summary`, unless a project rack module overrides one.
-    """
-
-    voice: Patch
-    name: str | None = None
-    title: str | None = None
-    summary: str | None = None
-    sidechain: SidechainSource | None = None
-
-    def __post_init__(self) -> None:
-        self.name = self.name or self.voice.name
-        self.title = self.title or self.voice.title
-        self.summary = self.summary or self.voice.summary
-
-
 @dataclass
 class PatchGroupDef:
     """A named set of related patch alternatives presented together."""
 
     name: str
     title: str
-    patch_defs: tuple[PatchDef, ...]
+    patches: tuple[Patch, ...]
     summary: str = ""
 
 
@@ -121,14 +83,12 @@ class PatchPanel:
     place.
     """
 
-    def __init__(self, rack: PatchRack, patch_def: PatchDef) -> None:
+    def __init__(self, rack: PatchRack, patch: Patch) -> None:
         self.rack = rack
-        self.patch_def = patch_def
+        self.patch = patch
         self.enabled = False
-        self.volume = patch_def.voice.volume_default
-        self.values: dict[str, float] = {
-            spec.name: spec.default for spec in patch_def.voice.parameters
-        }
+        self.volume = patch.volume_default
+        self.values: dict[str, float] = {spec.name: spec.default for spec in patch.parameters}
         self.build_kwargs: dict[str, Any] = {}
         self._engine_ready = False
         self._group_enabled = True
@@ -187,7 +147,7 @@ class PatchPanel:
         )
 
     def _build_control(self) -> ft.Control:
-        rows = [self._slider_row(spec) for spec in self.patch_def.voice.parameters]
+        rows = [self._slider_row(spec) for spec in self.patch.parameters]
         rows.append(
             ft.Container(
                 content=ft.Column(
@@ -208,8 +168,8 @@ class PatchPanel:
         )
         return ft.Container(
             content=ft.ExpansionTile(
-                title=ft.Text(self.patch_def.title, color=TEXT, weight=ft.FontWeight.BOLD),
-                subtitle=ft.Text(self.patch_def.summary, color=MUTED, size=12),
+                title=ft.Text(self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD),
+                subtitle=ft.Text(self.patch.summary, color=MUTED, size=12),
                 leading=self.switch,
                 expanded=False,
                 controls=[ft.Container(content=ft.Column(controls=rows, spacing=0), padding=16)],
@@ -229,7 +189,7 @@ class PatchPanel:
             self.enabled = False
             self.switch.value = False
             self._built_values = None
-            self.rack.stop(self.patch_def.name)
+            self.rack.stop(self.patch.name)
 
     def set_group_enabled(self, enabled: bool) -> None:
         self._group_enabled = enabled
@@ -246,7 +206,7 @@ class PatchPanel:
     def _handle_volume(self, e: ft.ControlEvent) -> None:
         self.volume = float(e.control.value)
         self.volume_text.value = f"{self.volume:.1f}"
-        patch = self.rack.get(self.patch_def.name)
+        patch = self.rack.get(self.patch.name)
         if patch is not None:
             patch.set("volume", self.volume)
         e.page.update()
@@ -259,39 +219,39 @@ class PatchPanel:
         e.page.update()
 
     def _apply(self) -> None:
-        name = self.patch_def.name
+        name = self.patch.name
         if not self.enabled or not self._engine_ready or not self._group_enabled:
             self.rack.stop(name)
             return
 
-        patch = self.rack.get(name)
-        rebuild = patch is None or (
+        running = self.rack.get(name)
+        rebuild = running is None or (
             self._built_values is not None
             and any(
                 self.values[key] != self._built_values[key]
-                for key in self.patch_def.voice.rebuild_parameters
+                for key in self.patch.rebuild_parameters
             )
         )
         if rebuild:
-            patch = self.patch_def.voice.build(**self.build_kwargs, **self.values)
-            self._wire_sidechain(patch)
-            self.rack.start(name, patch)
+            running = self.patch.build(**self.build_kwargs, **self.values)
+            self._wire_sidechain(running)
+            self.rack.start(name, running)
         else:
-            patch.update(
+            running.update(
                 {
                     key: value
                     for key, value in self.values.items()
-                    if key not in self.patch_def.voice.rebuild_parameters
+                    if key not in self.patch.rebuild_parameters
                 }
             )
-        patch.set("volume", self.volume)
+        running.set("volume", self.volume)
         self._built_values = dict(self.values)
 
     def _wire_sidechain(self, patch: Patch) -> None:
         """If this patch declares a `SidechainSource` and that source is
         already built, duck this patch's voice off the source's live
         signal. See `SidechainSource` for the resolution-order limitation."""
-        sidechain = self.patch_def.sidechain
+        sidechain = patch.sidechain
         if sidechain is None:
             return
         source = self.rack.get(sidechain.patch_name)
@@ -310,13 +270,13 @@ class PatchPanel:
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
         self.switch.value = self.enabled
-        for spec in self.patch_def.voice.parameters:
+        for spec in self.patch.parameters:
             if spec.name in data:
                 value = spec.snap(float(data[spec.name]))
                 self.values[spec.name] = value
                 self._sliders[spec.name].value = spec.to_position(value)
                 self._value_texts[spec.name].value = spec.format(value)
-        self.volume = float(data.get("volume", self.patch_def.voice.volume_default))
+        self.volume = float(data.get("volume", self.patch.volume_default))
         self.volume_slider.value = self.volume
         self.volume_text.value = f"{self.volume:.1f}"
         self._apply()
@@ -434,12 +394,12 @@ class PatchRackApp:
         self.rack = PatchRack()
         self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
-        patch_defs = [patch_def for group in patch_groups for patch_def in group.patch_defs]
-        self.panels = {patch_def.name: PatchPanel(self.rack, patch_def) for patch_def in patch_defs}
-        if len(self.panels) != len(patch_defs):
+        patches = [patch for group in patch_groups for patch in group.patches]
+        self.panels = {patch.name: PatchPanel(self.rack, patch) for patch in patches}
+        if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
         self.groups = [
-            PatchGroup(group, [self.panels[patch_def.name] for patch_def in group.patch_defs])
+            PatchGroup(group, [self.panels[patch.name] for patch in group.patches])
             for group in patch_groups
         ]
 
@@ -635,11 +595,11 @@ class PatchRackApp:
 
             for panel in self.panels.values():
                 kwargs: dict[str, Any] = {}
-                if panel.patch_def.voice.needs_tempo and self.tempo is not None:
+                if panel.patch.needs_tempo and self.tempo is not None:
                     kwargs["tempo"] = self.tempo
-                if panel.patch_def.voice.needs_clock and self.clock is not None:
+                if panel.patch.needs_clock and self.clock is not None:
                     kwargs["clock"] = self.clock
-                if panel.patch_def.voice.needs_harmony and self.harmony is not None:
+                if panel.patch.needs_harmony and self.harmony is not None:
                     kwargs["harmony"] = self.harmony
                 panel.set_engine_ready(True, kwargs)
             for group in self.groups:

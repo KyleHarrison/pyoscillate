@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.deep_house.rack import PATCH_GROUPS as DEEP_HOUSE_GROUPS
 from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
-from src.flet.base import PatchDef, PatchGroup, PatchGroupDef, PatchPanel
+from src.flet.base import PatchGroup, PatchGroupDef, PatchPanel
 
 
 class _StubPatch(Patch):
@@ -23,15 +23,14 @@ class _StubPatch(Patch):
 
 class PatchGroupTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.voice = _StubPatch()
+        self.voice = _StubPatch(name="test_patch", title="Test Patch", summary="Test voice.")
         self.build = MagicMock(wraps=self.voice.build)
         self.voice.build = self.build
         self.rack = MagicMock()
         self.rack.get.return_value = None
-        patch_def = PatchDef(self.voice, name="test_patch", title="Test Patch", summary="Test voice.")
-        self.panel = PatchPanel(self.rack, patch_def)
+        self.panel = PatchPanel(self.rack, self.voice)
         self.group = PatchGroup(
-            PatchGroupDef("test", "Test Group", (patch_def,)), [self.panel]
+            PatchGroupDef("test", "Test Group", (self.voice,)), [self.panel]
         )
         self.panel.set_engine_ready(True)
         self.group.set_engine_ready(True)
@@ -67,14 +66,14 @@ class PatchGroupTests(unittest.TestCase):
             [group.name for group in PATCH_GROUPS],
             ["soundscapes", "mid", "bass"],
         )
-        self.assertEqual([len(group.patch_defs) for group in PATCH_GROUPS], [3, 3, 3])
+        self.assertEqual([len(group.patches) for group in PATCH_GROUPS], [3, 3, 3])
 
     def test_deep_house_drums_group_holds_snare_tom_and_cymbals(self) -> None:
         drums = next(group for group in DEEP_HOUSE_GROUPS if group.name == "drums")
 
         self.assertEqual(drums.title, "Drums")
         self.assertEqual(
-            [patch_def.name for patch_def in drums.patch_defs],
+            [patch.name for patch in drums.patches],
             ["snare", "tom", "cymbal_ride", "cymbal_crash"],
         )
 

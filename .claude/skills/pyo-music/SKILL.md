@@ -12,7 +12,7 @@ This skill is the bridge between the music-theory layer and the implementation l
 - Start with [../music-theory/SKILL.md](../music-theory/SKILL.md) for musical intent, genre, form, harmony, rhythm, and arrangement.
 - Use [references/timbre-descriptors.md](./references/timbre-descriptors.md) when a brief or control label uses a perceptual word ("bright", "warm", "metallic", "punchy"). It maps each word to a perception, a measurable correlate, and several alternative mechanisms.
 - Use [references/pyo-api-navigation.md](./references/pyo-api-navigation.md) to route from a synthesis idea into the authoritative Pyo docs in [references/pyo-api/](./references/pyo-api/).
-- Use [../../../CLAUDE.md](../../../CLAUDE.md) for project architecture, `Patch` / `PatchDef` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
+- Use [../../../CLAUDE.md](../../../CLAUDE.md) for project architecture, `Patch` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
 
 If a request is about new-project creation, app scaffolding, rack architecture, or patch implementation, do not keep that workflow inside this skill. That belongs in the project-level entry point: [../../../CLAUDE.md](../../../CLAUDE.md).
 
@@ -217,7 +217,7 @@ This is the authority for project architecture and implementation rules:
 - patch module structure
 - `PARAMETERS`
 - `SliderSpec`
-- `Patch` / `PatchDef`
+- `Patch`
 - runtime safety and graph ownership
 - rack architecture
 - new-project scaffolding workflow

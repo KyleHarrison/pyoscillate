@@ -12,7 +12,7 @@ from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
 from pyoscillate.patches.tonal.bass import groove as bass
-from pyoscillate.projects.deep_house.rack import BPM, PATCH_DEFS, TICKS_PER_BAR
+from pyoscillate.projects.deep_house.rack import BPM, PATCHES, TICKS_PER_BAR
 from pyoscillate.tempo import Tempo
 
 
@@ -102,9 +102,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         cls.server.stop()
         cls.server.shutdown()
 
-    def assert_patch_lifecycle(self, patch_def) -> None:
+    def assert_patch_lifecycle(self, voice) -> None:
         rack = PatchRack()
-        voice = patch_def.voice
         values = {spec.name: spec.default for spec in voice.parameters}
         build_kwargs = dict(values)
         if voice.needs_tempo:
@@ -116,14 +115,14 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
 
         patch = voice.build(**build_kwargs)
         self.assertIsInstance(patch, Patch)
-        rack.start(patch_def.name, patch)
+        rack.start(voice.name, patch)
         patch.update(values)
         rate = next(
             (spec for spec in voice.parameters if spec.name == "rate"), None
         )
         if rate is not None:
             patch.set("rate", rate.maximum)
-        rack.stop(patch_def.name)
+        rack.stop(voice.name)
 
     def test_chord_retains_native_trigger_graph(self) -> None:
         patch = chord.ChordVelvet().build(self.tempo, self.clock)
@@ -187,18 +186,18 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             self.clock._tick = saved_tick
 
 
-def make_lifecycle_test(patch_def):
+def make_lifecycle_test(voice):
     def test_lifecycle(self: DeepHousePatchSmokeTests) -> None:
-        self.assert_patch_lifecycle(patch_def)
+        self.assert_patch_lifecycle(voice)
 
     return test_lifecycle
 
 
-for definition in itertools.chain.from_iterable(PATCH_DEFS.values()):
+for voice in itertools.chain.from_iterable(PATCHES.values()):
     setattr(
         DeepHousePatchSmokeTests,
-        f"test_{definition.name}_lifecycle",
-        make_lifecycle_test(definition),
+        f"test_{voice.name}_lifecycle",
+        make_lifecycle_test(voice),
     )
 
 

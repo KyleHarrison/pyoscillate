@@ -2,70 +2,89 @@
 #      uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
 """Play any single patch module in the rack GUI, without a project rack.
 
-The `PatchDef` is read off the module itself: `build` and `PARAMETERS`, an
-optional `VOLUME_DEFAULT`, and the shared objects `build` asks for by name
-(`tempo`, `clock`, `harmony`), which decide what the engine starts.
+The module's `Patch` subclass is instantiated directly and dropped into a
+`PatchGroupDef` of one: `name`/`title`/`summary`/`parameters`/`volume_default`/
+`needs_*` all come from the instance itself, same as a project rack. When a
+module defines several style variants (e.g. `kick.py`'s `KickRound` /
+`KickPunch` / `KickSoft`), pass `style=<name fragment>` to pick one by a
+case-insensitive match against its class name; with only one concrete
+`Patch` subclass in the module, `style` is optional.
 
-Any `key=value` arguments after the module path are fixed into `build`, for
-the non-slider choices a rack would otherwise bake in (a bass or riser
-`style`).
+Any other `key=value` arguments after the module path are fixed into the
+instance's initial parameter values, for the non-slider choices a rack would
+otherwise bake in.
 """
 
-import functools
 import importlib
 import inspect
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import flet as ft
 from pyoscillate.harmony import Harmony
-from src.flet.base import EngineSpec, PatchDef, PatchGroupDef, PatchRackApp
+from pyoscillate.patches.base import Patch
+from src.flet.base import EngineSpec, PatchGroupDef, PatchRackApp
 
 BPM = 120
-INJECTED = ("tempo", "clock", "harmony")
+
+
+def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:
+    """The concrete, most-specific `Patch` subclasses defined directly in
+    `module` - excluding any class that's a shared base for another
+    candidate in the same module (e.g. `kick.py`'s `Kick`), since those
+    describe a style family rather than a playable voice on their own."""
+    candidates = {
+        name: obj
+        for name, obj in vars(module).items()
+        if inspect.isclass(obj)
+        and issubclass(obj, Patch)
+        and obj.__module__ == module.__name__
+        and not inspect.isabstract(obj)
+    }
+    bases = {ancestor for obj in candidates.values() for ancestor in obj.__mro__[1:]}
+    return {name: obj for name, obj in candidates.items() if obj not in bases}
+
+
+def _select_class(module: ModuleType, style: str | None) -> type[Patch]:
+    classes = _patch_classes(module)
+    if not classes:
+        raise SystemExit(f"{module.__name__} defines no playable Patch subclass")
+    if style is None:
+        if len(classes) == 1:
+            return next(iter(classes.values()))
+        raise SystemExit(
+            f"{module.__name__} defines several patches - pass style=<name>, one of: "
+            + ", ".join(sorted(classes))
+        )
+    matches = [cls for name, cls in classes.items() if style.lower() in name.lower()]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"style={style!r} matched {len(matches)} patches in {module.__name__} - available: "
+            + ", ".join(sorted(classes))
+        )
+    return matches[0]
 
 
 def main(page: ft.Page) -> None:
     module = importlib.import_module(sys.argv[1])
     fixed = dict(arg.split("=", 1) for arg in sys.argv[2:])
-    wants = inspect.signature(module.build).parameters
-    sliders = {spec.name for spec in module.PARAMETERS}
-    missing = [
-        param.name
-        for param in wants.values()
-        if param.default is inspect.Parameter.empty
-        and param.name not in (*INJECTED, *sliders, *fixed)
-    ]
-    if missing:
-        raise SystemExit(f"{module.__name__}.build needs {', '.join(f'{m}=...' for m in missing)}")
+    style = fixed.pop("style", None)
+    patch = _select_class(module, style)(**fixed)
 
-    name = "_".join([module.__name__.rsplit(".", 1)[-1], *fixed.values()])
-    summary = (module.__doc__ or "").strip().split("\n")[0]
-    needs_tempo = "tempo" in wants or "clock" in wants
-
-    patch_def = PatchDef(
-        name=name,
-        title=name.replace("_", " ").title(),
-        summary=summary,
-        build=functools.partial(module.build, **fixed),
-        parameters=module.PARAMETERS,
-        volume_default=getattr(module, "VOLUME_DEFAULT", 0.6),
-        needs_tempo=needs_tempo,
-        needs_clock="clock" in wants,
-        needs_harmony="harmony" in wants,
-    )
+    needs_tempo = patch.needs_tempo or patch.needs_clock
     PatchRackApp(
         page,
-        patch_def.title,
-        summary,
-        [PatchGroupDef(name, patch_def.title, (patch_def,))],
+        patch.title,
+        patch.summary,
+        [PatchGroupDef(patch.name, patch.title, (patch,))],
         EngineSpec(
             nchnls=2,
             bpm=BPM if needs_tempo else None,
-            needs_clock=patch_def.needs_clock,
-            harmony=Harmony() if patch_def.needs_harmony else None,
+            needs_clock=patch.needs_clock,
+            harmony=Harmony() if patch.needs_harmony else None,
         ),
-        catalog_dir=Path(__file__).parent / "presets" / name,
+        catalog_dir=Path(__file__).parent / "presets" / patch.name,
     )
 
 

@@ -1,6 +1,7 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
 from pyoscillate.harmony import A, Harmony
+from pyoscillate.patches.base import Patch, SidechainSource
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
 from pyoscillate.patches.drums.hat import groove as hat
@@ -10,7 +11,7 @@ from pyoscillate.patches.drums.snare import snare
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
 from pyoscillate.patches.tonal.bass import groove as bass
-from src.flet.base import PatchDef, PatchGroupDef, SidechainSource
+from src.flet.base import PatchGroupDef
 
 # this project's own tempo and clock timing resolution - other projects set
 # their own values instead of sharing a static default from `pyoscillate.clock`
@@ -22,42 +23,39 @@ TICKS_PER_BAR = 512
 # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
 HARMONY = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
-PATCH_DEFS: dict[str, tuple[PatchDef, ...]] = {
+PATCHES: dict[str, tuple[Patch, ...]] = {
     "kicks": (
-        PatchDef(kick.KickRound()),
-        PatchDef(kick.KickPunch()),
-        PatchDef(kick.KickSoft()),
+        kick.KickRound(),
+        kick.KickPunch(),
+        kick.KickSoft(),
     ),
     "bass": (
-        PatchDef(
-            bass.BassRolling(),
-            # a kick ducking the bass on every hit is a standard deep-house
-            # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
-            sidechain=SidechainSource("kick_round", depth=0.6, release=0.15),
-        ),
-        PatchDef(bass.BassDub()),
-        PatchDef(bass.BassMuted()),
+        # a kick ducking the bass on every hit is a standard deep-house
+        # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
+        bass.BassRolling(sidechain=SidechainSource("kick_round", depth=0.6, release=0.15)),
+        bass.BassDub(),
+        bass.BassMuted(),
     ),
     "chords": (
-        PatchDef(chord.ChordVelvet()),
-        PatchDef(chord.ChordOrgan()),
-        PatchDef(chord.ChordShimmer()),
+        chord.ChordVelvet(),
+        chord.ChordOrgan(),
+        chord.ChordShimmer(),
     ),
     "hats": (
-        PatchDef(hat.GrooveCrisp()),
-        PatchDef(hat.GrooveOpen()),
-        PatchDef(hat.GrooveShuffle()),
+        hat.GrooveCrisp(),
+        hat.GrooveOpen(),
+        hat.GrooveShuffle(),
     ),
     "percussion": (
-        PatchDef(percussion.PercussionRim()),
-        PatchDef(percussion.PercussionConga()),
+        percussion.PercussionRim(),
+        percussion.PercussionConga(),
     ),
-    "claps": (PatchDef(clap.Clap()),),
+    "claps": (clap.Clap(),),
     "drums": (
-        PatchDef(snare.Snare()),
-        PatchDef(tom.Tom()),
-        PatchDef(cymbal.CymbalRide()),
-        PatchDef(cymbal.CymbalCrash()),
+        snare.Snare(),
+        tom.Tom(),
+        cymbal.CymbalRide(),
+        cymbal.CymbalCrash(),
     ),
 }
 
@@ -72,5 +70,5 @@ GROUP_TITLES: dict[str, str] = {
 }
 
 PATCH_GROUPS: list[PatchGroupDef] = [
-    PatchGroupDef(key, GROUP_TITLES[key], defs) for key, defs in PATCH_DEFS.items()
+    PatchGroupDef(key, GROUP_TITLES[key], patches) for key, patches in PATCHES.items()
 ]

@@ -1,5 +1,6 @@
 """Patch definitions for the free-running psyambient rack."""
 
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.musical.arp.arp import Arp
 from pyoscillate.patches.musical.canon.canon import Canon
 from pyoscillate.patches.musical.generative.generative import Generative
@@ -9,27 +10,27 @@ from pyoscillate.patches.tonal.drone.fm import SoundscapeFm
 from pyoscillate.patches.tonal.drone.sub_chaos import BassChaos
 from pyoscillate.patches.tonal.drone.sub_swell import BassDrone
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
-from src.flet.base import PatchDef, PatchGroupDef
+from src.flet.base import PatchGroupDef
 
 # this project's own tempo - other projects set their own value instead of
 # sharing one hardcoded in app.py
 BPM = 70
 
-PATCH_DEFS: dict[str, tuple[PatchDef, ...]] = {
+PATCHES: dict[str, tuple[Patch, ...]] = {
     "soundscapes": (
-        PatchDef(SoundscapeFm()),
-        PatchDef(SoundscapeFilter()),
-        PatchDef(SoundscapeWash()),
+        SoundscapeFm(),
+        SoundscapeFilter(),
+        SoundscapeWash(),
     ),
     "mid": (
-        PatchDef(Arp()),
-        PatchDef(Generative()),
-        PatchDef(Canon()),
+        Arp(),
+        Generative(),
+        Canon(),
     ),
     "bass": (
-        PatchDef(BassDrone()),
-        PatchDef(BassChaos()),
-        PatchDef(BassRumble()),
+        BassDrone(),
+        BassChaos(),
+        BassRumble(),
     ),
 }
 
@@ -46,6 +47,6 @@ GROUP_SUMMARIES: dict[str, str] = {
 }
 
 PATCH_GROUPS: list[PatchGroupDef] = [
-    PatchGroupDef(key, GROUP_TITLES[key], defs, GROUP_SUMMARIES[key])
-    for key, defs in PATCH_DEFS.items()
+    PatchGroupDef(key, GROUP_TITLES[key], patches, GROUP_SUMMARIES[key])
+    for key, patches in PATCHES.items()
 ]
