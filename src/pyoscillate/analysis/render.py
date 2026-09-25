@@ -98,15 +98,28 @@ def _read_wav(path: Path) -> Render:
     )
 
 
-def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dict[str, Any]]:
-    """Bound build callable, volume default, and remaining params for either
-    patch contract: a free `build()`/`PARAMETERS` module, or one exposing
-    `Patch` subclasses (a single-voice module has one; a multi-variant
-    family like `Kick` has a base plus one leaf subclass per `style`)."""
-    from pyoscillate.patches.base import Patch
+def _resolve_build(
+    module: Any, params: dict[str, Any]
+) -> tuple[Any, Any, float, dict[str, Any]]:
+    """Signature-source callable, invocable build callable, volume default,
+    and remaining params for either patch contract: a free `build()`/
+    `PARAMETERS` module, or one exposing `Patch` subclasses (a single-voice
+    module has one; a multi-variant family like `Kick` has a base plus one
+    leaf subclass per `style`).
+
+    The two callables are the same bound method for a `Patch` subclass, but
+    differ for a free module: `_render_in_process` introspects the
+    *original* `module.build` for its real `tempo`/`clock`/... parameters
+    (a `FunctionVoice`'s own `build` only ever shows `**kwargs`) while
+    actually calling the `FunctionVoice`-adapted one, so what comes back is
+    always a `Patch` it can call `.start()`/`.stop()`/`.volume` on,
+    regardless of which contract the module used.
+    """
+    from pyoscillate.patches.base import FunctionVoice, Patch
 
     if hasattr(module, "build"):
-        return module.build, getattr(module, "VOLUME_DEFAULT", 1.0), params
+        voice = FunctionVoice(module.build, module.PARAMETERS, getattr(module, "VOLUME_DEFAULT", 1.0))
+        return module.build, voice.build, voice.volume_default, params
 
     remaining = dict(params)
     style = remaining.pop("style", None)
@@ -122,14 +135,17 @@ def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dic
     bases = {base for cls in candidates for base in cls.__bases__}
     leaves = [cls for cls in candidates if cls not in bases]
     if style is not None:
-        leaves = [cls for cls in leaves if getattr(cls, "style", None) == style]
+        # each style subclass's own rack `name` ends in its style, e.g.
+        # `KickRound().name` is "kick_round" - reusing it here instead of a
+        # separate `style` attribute keeps one name per subclass authoritative
+        leaves = [cls for cls in leaves if cls().name.rsplit("_", 1)[-1] == style]
     if len(leaves) != 1:
         raise ValueError(
             f"{module.__name__}: expected exactly one Patch for style={style!r}, "
             f"found {len(leaves)}"
         )
     voice = leaves[0]()
-    return voice.build, voice.volume_default, remaining
+    return voice.build, voice.build, voice.volume_default, remaining
 
 
 def _render_in_process(request: dict[str, Any]) -> None:
@@ -150,11 +166,13 @@ def _render_in_process(request: dict[str, Any]) -> None:
     )
 
     module = importlib.import_module(request["module"])
-    build, module_volume_default, params = _resolve_build(module, request["params"])
+    signature_source, build, module_volume_default, params = _resolve_build(
+        module, request["params"]
+    )
     tempo = Tempo(bpm=request["bpm"])
     clock = Clock(tempo, ticks_per_bar=DEFAULT_TICKS_PER_BAR)
     context = {"tempo": tempo, "clock": clock}
-    accepted = inspect.signature(build).parameters
+    accepted = inspect.signature(signature_source).parameters
     kwargs = {name: value for name, value in context.items() if name in accepted}
 
     # keep the patch and clock referenced for the whole render so their

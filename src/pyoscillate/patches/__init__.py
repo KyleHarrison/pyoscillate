@@ -1,4 +1,10 @@
-from pyoscillate.patches.base import BuiltPatch, PatchRack, setup_notebook, start_server
+from pyoscillate.patches.base import (
+    BuiltPatch,
+    Patch,
+    PatchRack,
+    setup_notebook,
+    start_server,
+)
 from pyoscillate.patches.drums import (
     clap,
     cymbal,
@@ -16,6 +22,7 @@ from pyoscillate.patches.tonal import bass, drone, lead, pad, pluck
 
 __all__ = [
     "BuiltPatch",
+    "Patch",
     "PatchRack",
     "arp",
     "atmosphere",

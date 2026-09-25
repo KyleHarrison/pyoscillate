@@ -39,6 +39,7 @@ SCRIPT = """
 import importlib, inspect, json, sys
 from pyoscillate.clock import Clock
 from pyoscillate.patches import PatchRack, start_server
+from pyoscillate.patches.base import FunctionVoice
 from pyoscillate.tempo import Tempo
 
 cases = json.loads(sys.argv[1])
@@ -53,7 +54,8 @@ for module_name, params in cases:
     accepted = inspect.signature(module.build).parameters
     context = {name: value for name, value in {"tempo": tempo, "clock": clock}.items()
                if name in accepted}
-    patch = rack.start(module_name, module.build(**context, **params))
+    voice = FunctionVoice(module.build, module.PARAMETERS)
+    patch = rack.start(module_name, voice.build(**context, **params))
     names = [spec.name for spec in module.PARAMETERS]
     missing = sorted(set(names) - set(patch.controls))
     if missing:

@@ -26,7 +26,7 @@ from pyo.lib.server import Server
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
 from pyoscillate.harmony import NOTE_NAMES, Harmony
-from pyoscillate.patches.base import BuiltPatch, Patch, PatchRack, start_server
+from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
@@ -69,14 +69,22 @@ class PatchDef:
     subclass or a `FunctionVoice`-wrapped legacy module) plus everything the
     rack needs to place it in the UI. `parameters`, `volume_default`,
     `rebuild_parameters`, and the `needs_*` flags all come from `voice`
-    itself rather than being restated here.
+    itself rather than being restated here - so do `name`/`title`/`summary`,
+    unless a project rack module overrides one (always needed for a
+    `FunctionVoice`, which can't derive UI copy from an arbitrary wrapped
+    module).
     """
 
-    name: str
-    title: str
-    summary: str
     voice: Patch
+    name: str | None = None
+    title: str | None = None
+    summary: str | None = None
     sidechain: SidechainSource | None = None
+
+    def __post_init__(self) -> None:
+        self.name = self.name or self.voice.name
+        self.title = self.title or self.voice.title
+        self.summary = self.summary or self.voice.summary
 
 
 @dataclass
@@ -112,8 +120,8 @@ class PresetStore:
 class PatchPanel:
     """One patch's live controls, wired to a shared `PatchRack`.
 
-    Rebuilds the underlying `BuiltPatch` only when one of `rebuild_parameters`
-    changes value; every other slider move just calls `BuiltPatch.update()` in
+    Rebuilds the underlying `Patch` only when one of `rebuild_parameters`
+    changes value; every other slider move just calls `Patch.update()` in
     place.
     """
 
@@ -283,7 +291,7 @@ class PatchPanel:
         patch.set("volume", self.volume)
         self._built_values = dict(self.values)
 
-    def _wire_sidechain(self, patch: BuiltPatch) -> None:
+    def _wire_sidechain(self, patch: Patch) -> None:
         """If this patch declares a `SidechainSource` and that source is
         already built, duck this patch's voice off the source's live
         signal. See `SidechainSource` for the resolution-order limitation."""
@@ -296,7 +304,7 @@ class PatchPanel:
         follower = Follower2(source.voice, falltime=sidechain.release)
         duck = 1 - Clip(follower, min=0, max=1) * sidechain.depth
         patch.voice = patch.voice * duck
-        patch.resources = patch.resources + (follower, duck)
+        patch.retain(follower, duck)
 
     # -- presets -------------------------------------------------------------
 

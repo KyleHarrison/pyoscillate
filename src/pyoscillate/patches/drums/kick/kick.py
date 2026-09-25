@@ -8,13 +8,13 @@ its gesture, an exponential amplitude decay sets the body length, a short
 noise burst clarifies the transient, and gentle saturation adds density.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pyo.lib.effects import Disto
 from pyo.lib.generators import Noise, Sine
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
@@ -93,6 +93,13 @@ class Kick(DrumVoice):
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
+    level: float
+    drive: float
+    punch: float
+    length: float
+    click: float
+    rate: float
+
     # settled body pitch (Hz), pitch-drop depth (Hz above body), pitch-drop
     # time (s), body decay (s), transient level - overridden per style
     body_freq: ClassVar[float]
@@ -101,30 +108,21 @@ class Kick(DrumVoice):
     decay: ClassVar[float]
     click_level: ClassVar[float]
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.62,
-        drive: float = 0.12,
-        punch: float = 1.0,
-        length: float = 1.0,
-        click: float = 1.0,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
         """Build a four-on-the-floor kick in this instance's style."""
+        self.configure(**values)
         self._reset()
 
         pitch = self.envelope(
             [(0, 1), (8191, 0)],
             dur=self.sweep_time,
-            mul=self.sweep_depth * punch,
+            mul=self.sweep_depth * self.punch,
             add=self.body_freq,
             exp=PITCH_CURVE,
         )
         body = Sine(freq=pitch)
         envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.decay * length, mul=level, exp=BODY_CURVE
+            [(0, 1), (8191, 0)], dur=self.decay * self.length, mul=self.level, exp=BODY_CURVE
         )
         body_signal = body * envelope
 
@@ -132,13 +130,13 @@ class Kick(DrumVoice):
         click_env = self.envelope(
             [(0, 1), (8191, 0)],
             dur=CLICK_DURATION,
-            mul=self.click_level * click,
+            mul=self.click_level * self.click,
             exp=PITCH_CURVE,
         )
         click_signal = noise * click_env
 
         source = body_signal + click_signal
-        voice = Disto(source, drive=drive, slope=0.85)
+        voice = Disto(source, drive=self.drive, slope=0.85)
         self.retain(body, body_signal, noise, click_signal, source)
 
         def strike() -> None:
@@ -148,7 +146,7 @@ class Kick(DrumVoice):
             body.reset()
             self.trigger.play()
 
-        self.schedule(BASE_DIVISION, rate, clock, strike)
+        self.schedule(BASE_DIVISION, self.rate, clock, strike)
         return self.finish(
             voice,
             {
@@ -164,19 +162,17 @@ class Kick(DrumVoice):
 class KickRound(Kick):
     """Deep, rounded low-end thump."""
 
-    style = "round"
+    summary = "Deep, rounded low-end thump anchoring the groove."
     body_freq, sweep_depth, sweep_time, decay, click_level = 50.0, 80.0, 0.05, 0.27, 0.12
 
 
 class KickPunch(Kick):
     """Tighter, punchier kick with more transient snap."""
 
-    style = "punch"
     body_freq, sweep_depth, sweep_time, decay, click_level = 54.0, 140.0, 0.035, 0.2, 0.28
 
 
 class KickSoft(Kick):
     """Soft, cushioned kick that sits back in the mix."""
 
-    style = "soft"
     body_freq, sweep_depth, sweep_time, decay, click_level = 46.0, 50.0, 0.07, 0.37, 0.05

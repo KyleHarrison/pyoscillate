@@ -9,14 +9,14 @@ transient bright and woody; the conga uses a lower, longer body with only a
 soft touch of transient, a warmer answer to the kick.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -86,6 +86,12 @@ class Percussion(DrumVoice):
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
+    level: float
+    tune: float
+    length: float
+    click: float
+    rate: float
+
     # step-in-16 pattern; body pitch (Hz), pitch bend (fraction above body
     # at the strike), bend time (s), body decay (s), transient level,
     # transient pitch (ratio to body), transient resonance - overridden per
@@ -99,18 +105,10 @@ class Percussion(DrumVoice):
     click_ratio: ClassVar[float]
     click_q: ClassVar[float]
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.18,
-        tune: float = 0,
-        length: float = 1.0,
-        click: float = 1.0,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        self.configure(**values)
         self._reset()
-        tuning = Sig(semitone_ratio(tune))
+        tuning = Sig(semitone_ratio(self.tune))
         body_freq = tuning * self.base_freq
 
         bend = self.envelope(
@@ -119,7 +117,7 @@ class Percussion(DrumVoice):
         pitch = body_freq * bend
         body = Sine(freq=pitch)
         envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.decay * length, mul=level, exp=DECAY_CURVE
+            [(0, 1), (8191, 0)], dur=self.decay * self.length, mul=self.level, exp=DECAY_CURVE
         )
         body_signal = body * envelope
 
@@ -127,7 +125,7 @@ class Percussion(DrumVoice):
         click_env = self.envelope(
             [(0, 1), (8191, 0)],
             dur=CLICK_DURATION,
-            mul=self.click_level * click * level,
+            mul=self.click_level * self.click * self.level,
             exp=BEND_CURVE,
         )
         click_burst = noise * click_env
@@ -136,7 +134,7 @@ class Percussion(DrumVoice):
 
         voice = body_signal + click_signal
         self.retain(tuning, body_freq, pitch, body, body_signal, noise, click_burst, click_freq, click_signal)
-        state = {"level": level, "click": click}
+        state = {"level": self.level, "click": self.click}
 
         step = self.step_pattern(16, self.pattern)
 
@@ -157,7 +155,7 @@ class Percussion(DrumVoice):
             state["click"] = value
             click_env.mul = self.click_level * value * state["level"]
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {
@@ -172,7 +170,6 @@ class Percussion(DrumVoice):
 class PercussionRim(Percussion):
     """Tight, woody rim-click accent."""
 
-    style = "rim"
     pattern: ClassVar[set[int]] = {3, 7, 11, 15}
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         1100.0,
@@ -188,7 +185,6 @@ class PercussionRim(Percussion):
 class PercussionConga(Percussion):
     """Warm, resonant conga-like rhythmic color."""
 
-    style = "conga"
     pattern: ClassVar[set[int]] = {3, 6, 9, 11, 14}
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         notes.A3,

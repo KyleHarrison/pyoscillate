@@ -7,6 +7,7 @@ whole envelope shapes white noise band-passed into the papery clap region.
 """
 
 import math
+from typing import Any
 
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise
@@ -14,7 +15,7 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
@@ -119,27 +120,26 @@ class Clap(DrumVoice):
     reshaped live (`.replace(...)`), not a fixed `ExpTable`.
     """
 
+    summary = "Sharp, bright clap accent."
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.18,
-        tone: float = 1100,
-        spread: float = 0.009,
-        decay: float = 0.14,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    level: float
+    tone: float
+    spread: float
+    decay: float
+    rate: float
+
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        self.configure(**values)
         self._reset()
-        shape = {"spread": spread, "decay": decay}
-        points, duration = _envelope(spread, decay)
+        shape = {"spread": self.spread, "decay": self.decay}
+        points, duration = _envelope(self.spread, self.decay)
         envelope_table = LinTable(points, size=TABLE_SIZE)
-        envelope = TrigEnv(self.trigger, envelope_table, dur=duration, mul=level)
+        envelope = TrigEnv(self.trigger, envelope_table, dur=duration, mul=self.level)
         noise = Noise()
         source = noise * envelope
-        voice = Biquad(source, freq=tone, q=RESONANCE, type=2, mul=_makeup(tone))
+        voice = Biquad(source, freq=self.tone, q=RESONANCE, type=2, mul=_makeup(self.tone))
         self.retain(envelope_table, envelope, noise, source)
 
         step = self.step_pattern(16, PATTERN)
@@ -160,7 +160,7 @@ class Clap(DrumVoice):
             envelope_table.replace(new_points)
             envelope.dur = new_duration
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {

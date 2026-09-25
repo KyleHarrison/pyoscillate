@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from pyoscillate.patches.base import FunctionVoice
+from pyoscillate.patches.base import BuiltPatch, FunctionVoice
 from pyoscillate.projects.deep_house.rack import PATCH_GROUPS as DEEP_HOUSE_GROUPS
 from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
 from src.flet.base import PatchDef, PatchGroup, PatchGroupDef, PatchPanel
@@ -10,12 +10,12 @@ from src.flet.base import PatchDef, PatchGroup, PatchGroupDef, PatchPanel
 
 class PatchGroupTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.patch = MagicMock()
-        self.build = MagicMock(return_value=self.patch)
+        built = BuiltPatch(sequencer=MagicMock(), voice=MagicMock())
+        self.build = MagicMock(return_value=built)
         self.rack = MagicMock()
         self.rack.get.return_value = None
-        voice = FunctionVoice(self.build, parameters=())
-        patch_def = PatchDef("test_patch", "Test Patch", "Test voice.", voice)
+        self.voice = FunctionVoice(self.build, parameters=())
+        patch_def = PatchDef(self.voice, name="test_patch", title="Test Patch", summary="Test voice.")
         self.panel = PatchPanel(self.rack, patch_def)
         self.group = PatchGroup(
             PatchGroupDef("test", "Test Group", (patch_def,)), [self.panel]
@@ -45,8 +45,8 @@ class PatchGroupTests(unittest.TestCase):
         self.group._handle_enabled(event)
 
         self.build.assert_called_once_with()
-        self.rack.start.assert_called_once_with("test_patch", self.patch)
-        self.patch.set.assert_called_once_with("volume", self.panel.volume)
+        self.rack.start.assert_called_once_with("test_patch", self.voice)
+        self.assertEqual(self.voice.volume, self.panel.volume)
         self.assertFalse(self.panel.switch.disabled)
 
     def test_psyambient_declares_conceptual_groups(self) -> None:

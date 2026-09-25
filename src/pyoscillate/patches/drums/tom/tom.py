@@ -7,7 +7,7 @@ two-bar fill down a minor pentatonic built on the rack's current chord root,
 adding pitched contour to the kit without the weight of the kick.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
@@ -15,7 +15,7 @@ from pyo.lib.generators import Noise, Sine
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -115,48 +115,57 @@ class Tom(DrumVoice):
     on non-chord tones over some of them.
     """
 
+    summary = "Sparse two-bar tom fill on the current chord's minor pentatonic."
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
     needs_harmony: ClassVar[bool] = True
+
+    level: float
+    tune: float
+    sweep: float
+    length: float
+    tone: float
+    rate: float
 
     def build(
         self,
         tempo: Tempo,
         clock: Clock,
-        level: float = 0.2,
-        tune: float = 0,
-        sweep: float = 1.0,
-        length: float = 1.0,
-        tone: float = 0.35,
-        rate: float = 0,
         harmony: Harmony | None = None,
-    ) -> BuiltPatch:
+        **values: Any,
+    ) -> Patch:
+        self.configure(**values)
         self._reset()
         harmony = harmony or FALLBACK_HARMONY
-        tuning = Sig(semitone_ratio(tune))
+        tuning = Sig(semitone_ratio(self.tune))
         body_freq = tuning * BODY_FREQ
 
         bend = self.envelope(
-            [(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH * sweep, add=1, exp=BEND_CURVE
+            [(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH * self.sweep, add=1, exp=BEND_CURVE
         )
         pitch = body_freq * bend
         body = Sine(freq=pitch)
-        body_env = self.envelope([(0, 1), (8191, 0)], dur=DECAY * length, mul=level, exp=DECAY_CURVE)
+        body_env = self.envelope(
+            [(0, 1), (8191, 0)], dur=DECAY * self.length, mul=self.level, exp=DECAY_CURVE
+        )
         body_signal = body * body_env
 
         overtone_pitch = pitch * OVERTONE_RATIO
         overtone = Sine(freq=overtone_pitch)
         overtone_env = self.envelope(
             [(0, 1), (8191, 0)],
-            dur=OVERTONE_DECAY * length,
-            mul=level * tone * OVERTONE_LEVEL,
+            dur=OVERTONE_DECAY * self.length,
+            mul=self.level * self.tone * OVERTONE_LEVEL,
             exp=DECAY_CURVE,
         )
         overtone_signal = overtone * overtone_env
 
         noise = Noise()
         click_env = self.envelope(
-            [(0, 1), (8191, 0)], dur=CLICK_DURATION, mul=level * tone * CLICK_LEVEL, exp=BEND_CURVE
+            [(0, 1), (8191, 0)],
+            dur=CLICK_DURATION,
+            mul=self.level * self.tone * CLICK_LEVEL,
+            exp=BEND_CURVE,
         )
         click_burst = noise * click_env
         click_freq = body_freq * CLICK_RATIO
@@ -179,7 +188,7 @@ class Tom(DrumVoice):
             click_signal,
             partials,
         )
-        state = {"level": level, "tune": tune, "tone": tone}
+        state = {"level": self.level, "tune": self.tune, "tone": self.tone}
 
         def apply_gains() -> None:
             overtone_env.mul = state["level"] * state["tone"] * OVERTONE_LEVEL
@@ -207,7 +216,7 @@ class Tom(DrumVoice):
             body_env.dur = DECAY * value
             overtone_env.dur = OVERTONE_DECAY * value
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {

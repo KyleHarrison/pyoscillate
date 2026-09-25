@@ -3,7 +3,7 @@ brightens the onset, Ring sets how long a note lasts, and the loudest corner
 of the range stays clean.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. The first hit sits under `BuiltPatch.start()`'s fade-in, so tests
+tests/CLAUDE.md. The first hit sits under `Patch.start()`'s fade-in, so tests
 measure later ones.
 """
 

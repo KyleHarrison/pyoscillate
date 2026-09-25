@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import A, Harmony
-from pyoscillate.patches import BuiltPatch, PatchRack, start_server
+from pyoscillate.patches import Patch, PatchRack, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
@@ -150,7 +150,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             build_kwargs["harmony"] = Harmony(progression=(0, 5, 10, 7))
 
         patch = voice.build(**build_kwargs)
-        self.assertIsInstance(patch, BuiltPatch)
+        self.assertIsInstance(patch, Patch)
         rack.start(patch_def.name, patch)
         patch.update(values)
         rate = next(

@@ -17,7 +17,7 @@ from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
-from pyoscillate.patches.base import BuiltPatch, Patch
+from pyoscillate.patches.base import Patch
 
 
 def semitone_ratio(semitones: float) -> float:
@@ -42,14 +42,10 @@ class DrumVoice(Patch):
         """Call at the top of `build()`: fresh Pyo objects and a fresh
         resources/controls list every call, since one voice instance's
         `build()` may run again on a rebuild."""
+        super()._reset()
         self.trigger = Trig()
-        self._resources: list[Any] = [self.trigger]
-        self._controls: dict[str, Callable[[Any], None]] = {}
+        self.retain(self.trigger)
         self._division: Division | None = None
-
-    def retain(self, *objects: Any) -> None:
-        """Keep `objects` alive for the lifetime of the built `BuiltPatch`."""
-        self._resources.extend(objects)
 
     def envelope(
         self,
@@ -77,7 +73,7 @@ class DrumVoice(Patch):
         """Subscribe `callback` on `clock` and pre-register the `rate` live
         control, so `build()` never has to hand-wire it."""
         division = clock.subscribe(clock.ticks_for_rate(base_division, rate), callback)
-        self._controls["rate"] = lambda value: setattr(
+        self.controls["rate"] = lambda value: setattr(
             division, "steps", clock.ticks_for_rate(base_division, value)
         )
         self._division = division
@@ -101,15 +97,13 @@ class DrumVoice(Patch):
 
         return check
 
-    def finish(self, voice: PyoObject, controls: dict[str, Callable[[Any], None]]) -> BuiltPatch:
-        """Assemble the `BuiltPatch` from everything `envelope()`/`schedule()`/
-        `retain()` accumulated plus this voice's own `voice` and
-        `controls`."""
+    def finish(self, voice: PyoObject, controls: dict[str, Callable[[Any], None]]) -> Patch:
+        """Wire this voice's `sequencer`/`voice`/`controls` from everything
+        `envelope()`/`schedule()`/`retain()` accumulated plus this build's
+        own `voice`/`controls`, and return `self` now that it's built."""
         if self._division is None:
             raise RuntimeError(f"{type(self).__name__}.build() never called self.schedule(...)")
-        return BuiltPatch(
-            sequencer=self._division,
-            voice=voice,
-            controls={**self._controls, **controls},
-            resources=tuple(self._resources),
-        )
+        self.sequencer = self._division
+        self.voice = voice
+        self.controls = {**self.controls, **controls}
+        return self

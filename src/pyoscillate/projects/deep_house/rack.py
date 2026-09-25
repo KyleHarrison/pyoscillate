@@ -26,135 +26,70 @@ HARMONY = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 PITCHED_FLAGS = {"needs_tempo": True, "needs_clock": True, "needs_harmony": True}
 
 PATCH_DEFS: list[PatchDef] = [
+    PatchDef(kick.KickRound()),
+    PatchDef(kick.KickPunch()),
+    PatchDef(kick.KickSoft()),
     PatchDef(
-        "kick_round",
-        "Kick - Round",
-        "Deep, rounded low-end thump anchoring the groove.",
-        kick.KickRound(),
-    ),
-    PatchDef(
-        "kick_punch",
-        "Kick - Punch",
-        "Tighter, punchier kick with more transient snap.",
-        kick.KickPunch(),
-    ),
-    PatchDef(
-        "kick_soft",
-        "Kick - Soft",
-        "Soft, cushioned kick that sits back in the mix.",
-        kick.KickSoft(),
-    ),
-    PatchDef(
-        "bass_rolling",
-        "Bass - Rolling",
-        "Constantly moving, rolling low-end groove.",
         FunctionVoice.from_module(
             bass, style="rolling", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="bass_rolling",
+        title="Bass - Rolling",
+        summary="Constantly moving, rolling low-end groove.",
         # a kick ducking the bass on every hit is a standard deep-house
         # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference
         sidechain=SidechainSource("kick_round", depth=0.6, release=0.15),
     ),
     PatchDef(
-        "bass_dub",
-        "Bass - Dub",
-        "Sparser, more resonant dub-style bass hits.",
         FunctionVoice.from_module(
             bass, style="dub", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="bass_dub",
+        title="Bass - Dub",
+        summary="Sparser, more resonant dub-style bass hits.",
     ),
     PatchDef(
-        "bass_muted",
-        "Bass - Muted",
-        "Short, muted bass stabs that stay soft and out of the way.",
         FunctionVoice.from_module(
             bass, style="muted", volume_default=bass.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="bass_muted",
+        title="Bass - Muted",
+        summary="Short, muted bass stabs that stay soft and out of the way.",
     ),
     PatchDef(
-        "chord_velvet",
-        "Chord Stab - Velvet",
-        "Warm, rounded minor-seventh chord stabs.",
         FunctionVoice.from_module(
             chord, style="velvet", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="chord_velvet",
+        title="Chord Stab - Velvet",
+        summary="Warm, rounded minor-seventh chord stabs.",
     ),
     PatchDef(
-        "chord_organ",
-        "Chord Stab - Organ",
-        "Sustained, organ-like harmonic bed.",
         FunctionVoice.from_module(
             chord, style="organ", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="chord_organ",
+        title="Chord Stab - Organ",
+        summary="Sustained, organ-like harmonic bed.",
     ),
     PatchDef(
-        "chord_shimmer",
-        "Chord Stab - Shimmer",
-        "Bright, shimmering chord stabs with more edge.",
         FunctionVoice.from_module(
             chord, style="shimmer", volume_default=chord.VOLUME_DEFAULT, **PITCHED_FLAGS
         ),
+        name="chord_shimmer",
+        title="Chord Stab - Shimmer",
+        summary="Bright, shimmering chord stabs with more edge.",
     ),
-    PatchDef(
-        "hat_crisp",
-        "Hat - Crisp",
-        "Tight, crisp top-end pulse.",
-        hat.GrooveCrisp(),
-    ),
-    PatchDef(
-        "hat_open",
-        "Hat - Open",
-        "Airier, more open top-end texture with longer tails.",
-        hat.GrooveOpen(),
-    ),
-    PatchDef(
-        "hat_shuffle",
-        "Hat - Shuffle",
-        "Loosely shuffled, syncopated top-end groove.",
-        hat.GrooveShuffle(),
-    ),
-    PatchDef(
-        "clap",
-        "Clap",
-        "Sharp, bright clap accent.",
-        clap.Clap(),
-    ),
-    PatchDef(
-        "percussion_rim",
-        "Percussion - Rim",
-        "Tight, woody rim-click accent.",
-        percussion.PercussionRim(),
-    ),
-    PatchDef(
-        "percussion_conga",
-        "Percussion - Conga",
-        "Warm, resonant conga-like rhythmic color.",
-        percussion.PercussionConga(),
-    ),
-    PatchDef(
-        "snare",
-        "Snare",
-        "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap.",
-        snare.Snare(),
-    ),
-    PatchDef(
-        "tom",
-        "Tom",
-        "Sparse two-bar tom fill on the current chord's minor pentatonic.",
-        tom.Tom(),
-    ),
-    PatchDef(
-        "cymbal_ride",
-        "Cymbal - Ride",
-        "Quarter-note ride with slowly drifting metallic colour.",
-        cymbal.CymbalRide(),
-    ),
-    PatchDef(
-        "cymbal_crash",
-        "Cymbal - Crash",
-        "Long crash wash marking the start of every eight-bar phrase.",
-        cymbal.CymbalCrash(),
-    ),
+    PatchDef(hat.GrooveCrisp()),
+    PatchDef(hat.GrooveOpen()),
+    PatchDef(hat.GrooveShuffle()),
+    PatchDef(clap.Clap()),
+    PatchDef(percussion.PercussionRim()),
+    PatchDef(percussion.PercussionConga()),
+    PatchDef(snare.Snare()),
+    PatchDef(tom.Tom()),
+    PatchDef(cymbal.CymbalRide()),
+    PatchDef(cymbal.CymbalCrash()),
 ]
 
 PATCH_GROUPS: list[PatchGroupDef] = [

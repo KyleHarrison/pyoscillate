@@ -13,17 +13,12 @@ BPM = 132
 
 PATCH_DEFS: list[PatchDef] = [
     PatchDef(
-        "bass",
-        "Bass",
-        "Rolling, resonant bassline that sweeps in tone across the groove.",
-        FunctionVoice.from_module(
-            bass, volume_default=1.0, needs_tempo=True, needs_clock=True
-        ),
+        FunctionVoice.from_module(bass, volume_default=1.0, needs_tempo=True, needs_clock=True),
+        name="bass",
+        title="Bass",
+        summary="Rolling, resonant bassline that sweeps in tone across the groove.",
     ),
     PatchDef(
-        "atmosphere",
-        "Atmosphere (FM pad + arpeggiator)",
-        "Breathing melodic pad that arpeggiates and swells overhead.",
         FunctionVoice.from_module(
             atmosphere,
             volume_default=0.6,
@@ -31,32 +26,23 @@ PATCH_DEFS: list[PatchDef] = [
             needs_tempo=True,
             needs_clock=True,
         ),
+        name="atmosphere",
+        title="Atmosphere (FM pad + arpeggiator)",
+        summary="Breathing melodic pad that arpeggiates and swells overhead.",
     ),
+    PatchDef(hat.Tick()),
+    PatchDef(low_hat.LowHat()),
     PatchDef(
-        "hat",
-        "Hi-hat",
-        "Subtle, airy top-end pulse.",
-        hat.Tick(),
-    ),
-    PatchDef(
-        "low_hat",
-        "Low hat",
-        "Darker, rarer accent beneath the main hat.",
-        low_hat.LowHat(),
-    ),
-    PatchDef(
-        "clock_tick",
-        "Clock tick",
-        "Drifting clockwork texture of overlapping ticks.",
         FunctionVoice.from_module(clock_tick, volume_default=1.0, needs_tempo=True),
+        name="clock_tick",
+        title="Clock tick",
+        summary="Drifting clockwork texture of overlapping ticks.",
     ),
     PatchDef(
-        "drone",
-        "Drone",
-        "Slow-winding sustained drone that rarely changes note.",
-        FunctionVoice.from_module(
-            drone, volume_default=1.0, needs_tempo=True, needs_clock=True
-        ),
+        FunctionVoice.from_module(drone, volume_default=1.0, needs_tempo=True, needs_clock=True),
+        name="drone",
+        title="Drone",
+        summary="Slow-winding sustained drone that rarely changes note.",
     ),
 ]
 

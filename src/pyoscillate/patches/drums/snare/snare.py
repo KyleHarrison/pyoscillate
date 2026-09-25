@@ -8,12 +8,14 @@ sits on the backbeat under the clap, with a ghost note that swings into the
 next bar.
 """
 
+from typing import Any
+
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.patches.utility.notes import notes
@@ -92,40 +94,41 @@ VOLUME_DEFAULT = 0.3
 class Snare(DrumVoice):
     """Tone-plus-rattle snare on the backbeat with a ghost note."""
 
+    summary = "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap."
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.2,
-        tune: float = 0,
-        snap: float = 1.0,
-        tone: float = 2000,
-        decay: float = 0.16,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    level: float
+    tune: float
+    snap: float
+    tone: float
+    decay: float
+    rate: float
+
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        self.configure(**values)
         self._reset()
-        tuning = Sig(semitone_ratio(tune))
+        tuning = Sig(semitone_ratio(self.tune))
         body_freq = tuning * BODY_FREQ
 
         bend = self.envelope([(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH, add=1, exp=BEND_CURVE)
         pitch = body_freq * bend
         body = Sine(freq=pitch)
         body_env = self.envelope(
-            [(0, 1), (8191, 0)], dur=BODY_DECAY, mul=level * BODY_LEVEL, exp=DECAY_CURVE
+            [(0, 1), (8191, 0)], dur=BODY_DECAY, mul=self.level * BODY_LEVEL, exp=DECAY_CURVE
         )
         body_signal = body * body_env
 
         noise = Noise()
-        rattle_env = self.envelope([(0, 1), (8191, 0)], dur=decay, mul=level * snap, exp=DECAY_CURVE)
+        rattle_env = self.envelope(
+            [(0, 1), (8191, 0)], dur=self.decay, mul=self.level * self.snap, exp=DECAY_CURVE
+        )
         rattle_burst = noise * rattle_env
-        rattle = Biquad(rattle_burst, freq=tone, q=RATTLE_RESONANCE, type=1)
+        rattle = Biquad(rattle_burst, freq=self.tone, q=RATTLE_RESONANCE, type=1)
 
         voice = body_signal + rattle
         self.retain(tuning, body_freq, pitch, body, body_signal, noise, rattle_burst, rattle)
-        state = {"level": level, "snap": snap, "accent": 1.0}
+        state = {"level": self.level, "snap": self.snap, "accent": 1.0}
 
         def apply_gains() -> None:
             gain = state["level"] * state["accent"]
@@ -148,7 +151,7 @@ class Snare(DrumVoice):
             state[name] = value
             apply_gains()
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {

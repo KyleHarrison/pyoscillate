@@ -9,7 +9,7 @@ hit is either closed or open: both share one exponential envelope, so a closed
 hit retriggers it and chokes any open tail still ringing.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pyo.lib._core import Mix
 from pyo.lib.filters import ButHP
@@ -17,7 +17,7 @@ from pyo.lib.generators import FM, Noise
 from pyo.lib.pan import Selector
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
@@ -93,24 +93,22 @@ class Groove(DrumVoice):
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
+    level: float
+    cutoff: float
+    metal: float
+    length: float
+    rate: float
+
     # step in the 16-step bar -> which articulation plays there - overridden
     # per style
     pattern: ClassVar[dict[int, str]]
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.14,
-        cutoff: float = 9000,
-        metal: float = 0.35,
-        length: float = 1.0,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
         """Build a style-specific, grid-locked hat pattern with closed/open choke."""
+        self.configure(**values)
         self._reset()
         envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=DURATIONS[CLOSED] * length, mul=level, exp=DECAY_CURVE
+            [(0, 1), (8191, 0)], dur=DURATIONS[CLOSED] * self.length, mul=self.level, exp=DECAY_CURVE
         )
         noise = Noise()
         operators = tuple(
@@ -123,11 +121,11 @@ class Groove(DrumVoice):
             for carrier, ratio, index in METAL_OPERATORS
         )
         cluster = Mix(list(operators), voices=1)
-        source = Selector([noise, cluster], voice=metal)
+        source = Selector([noise, cluster], voice=self.metal)
         shaped = source * envelope
-        voice = ButHP(shaped, freq=cutoff)
+        voice = ButHP(shaped, freq=self.cutoff)
         self.retain(noise, *operators, cluster, source, shaped)
-        state = {"level": level, "length": length}
+        state = {"level": self.level, "length": self.length}
 
         step = self.step_pattern(16, self.pattern)
 
@@ -148,7 +146,7 @@ class Groove(DrumVoice):
         def set_length(value: float) -> None:
             state["length"] = value
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {
@@ -163,21 +161,24 @@ class Groove(DrumVoice):
 class GrooveCrisp(Groove):
     """Tight, crisp top-end pulse."""
 
-    style = "crisp"
+    name = "hat_crisp"
+    title = "Hat - Crisp"
     pattern: ClassVar[dict[int, str]] = {2: CLOSED, 6: CLOSED, 10: CLOSED, 14: CLOSED}
 
 
 class GrooveOpen(Groove):
     """Airier, more open top-end texture with longer tails."""
 
-    style = "open"
+    name = "hat_open"
+    title = "Hat - Open"
     pattern: ClassVar[dict[int, str]] = {2: OPEN, 6: OPEN, 10: OPEN, 14: OPEN, 15: CLOSED}
 
 
 class GrooveShuffle(Groove):
     """Loosely shuffled, syncopated top-end groove."""
 
-    style = "shuffle"
+    name = "hat_shuffle"
+    title = "Hat - Shuffle"
     pattern: ClassVar[dict[int, str]] = {
         2: CLOSED,
         5: CLOSED,

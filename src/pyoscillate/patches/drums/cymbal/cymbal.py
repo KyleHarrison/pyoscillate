@@ -10,14 +10,14 @@ marks the start of each eight-bar phrase with a long, broad wash.
 """
 
 import math
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pyo.lib._core import Mix, Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import FM, Noise, Sine
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
@@ -97,6 +97,12 @@ class Cymbal(DrumVoice):
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
+    level: float
+    tone: float
+    length: float
+    movement: float
+    rate: float
+
     # cycle length in 16th steps, step -> accent within that cycle, decay
     # (s), band-pass resonance - overridden per style
     cycle: ClassVar[int]
@@ -104,17 +110,9 @@ class Cymbal(DrumVoice):
     decay: ClassVar[float]
     resonance: ClassVar[float]
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        level: float = 0.1,
-        tone: float = 7000,
-        length: float = 1.0,
-        movement: float = 0.1,
-        rate: float = 0,
-    ) -> BuiltPatch:
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
         """Build a ride or crash cymbal with slow strike-to-strike colour drift."""
+        self.configure(**values)
         self._reset()
         operators = tuple(
             FM(carrier=carrier, ratio=ratio, index=index, mul=1 / len(METAL_OPERATORS))
@@ -123,16 +121,16 @@ class Cymbal(DrumVoice):
         noise = Noise(mul=NOISE_LEVEL)
         source = Mix([*operators, noise], voices=1)
         envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.decay * length, mul=level, exp=DECAY_CURVE
+            [(0, 1), (8191, 0)], dur=self.decay * self.length, mul=self.level, exp=DECAY_CURVE
         )
         shaped = source * envelope
 
-        centre = Sig(tone)
-        drift = Sine(freq=1 / (MOVEMENT_BARS * tempo.bar), mul=movement, add=1)
+        centre = Sig(self.tone)
+        drift = Sine(freq=1 / (MOVEMENT_BARS * tempo.bar), mul=self.movement, add=1)
         band = centre * drift
-        voice = Biquad(shaped, freq=band, q=self.resonance, type=2, mul=_makeup(tone))
+        voice = Biquad(shaped, freq=band, q=self.resonance, type=2, mul=_makeup(self.tone))
         self.retain(*operators, noise, source, shaped, centre, drift, band)
-        state = {"level": level}
+        state = {"level": self.level}
 
         step = self.step_pattern(self.cycle, self.pattern)
 
@@ -150,7 +148,7 @@ class Cymbal(DrumVoice):
             centre.value = value
             voice.mul = _makeup(value)
 
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(
             voice,
             {
@@ -165,12 +163,10 @@ class Cymbal(DrumVoice):
 class CymbalRide(Cymbal):
     """Quarter-note ride with slowly drifting metallic colour."""
 
-    style = "ride"
     cycle, pattern, decay, resonance = 16, {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8}, 1.0, 3.0
 
 
 class CymbalCrash(Cymbal):
     """Long crash wash marking the start of every eight-bar phrase."""
 
-    style = "crash"
     cycle, pattern, decay, resonance = 128, {0: 1.0}, 2.6, 1.2

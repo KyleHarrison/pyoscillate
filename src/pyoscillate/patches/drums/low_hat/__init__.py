@@ -7,7 +7,7 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
@@ -70,6 +70,8 @@ PARAMETERS = (
 class LowHat(DrumVoice):
     """Darker noise tick, once per quarter note, as a rarer, dubbier accent."""
 
+    title = "Low hat"
+    summary = "Darker, rarer accent beneath the main hat."
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
@@ -81,7 +83,7 @@ class LowHat(DrumVoice):
         level: float = 0.55,
         decay: float = DECAY,
         rate: float = 0,
-    ) -> BuiltPatch:
+    ) -> Patch:
         """
         Args:
             tempo: Shared tempo grid; the level swell is derived from

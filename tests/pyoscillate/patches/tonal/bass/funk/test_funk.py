@@ -5,7 +5,7 @@ the sliders sends the ladder filter to NaN.
 
 Assertions are directions and tolerance bands, never golden values - see
 tests/CLAUDE.md. Measurements come from the second bar, clear of
-`BuiltPatch.start()`'s fade-in.
+`Patch.start()`'s fade-in.
 
 Findings
 ========

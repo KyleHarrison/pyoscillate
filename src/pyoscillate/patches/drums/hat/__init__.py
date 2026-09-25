@@ -6,7 +6,7 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
@@ -68,6 +68,9 @@ PARAMETERS = (
 class Tick(DrumVoice):
     """Subtle high-passed noise tick, once per 8th note, for top-end texture."""
 
+    name = "hat"
+    title = "Hi-hat"
+    summary = "Subtle, airy top-end pulse."
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
@@ -79,7 +82,7 @@ class Tick(DrumVoice):
         level: float = 0.2,
         decay: float = DECAY,
         rate: float = 0,
-    ) -> BuiltPatch:
+    ) -> Patch:
         """
         Args:
             tempo: Shared tempo grid; the level swell is derived from
