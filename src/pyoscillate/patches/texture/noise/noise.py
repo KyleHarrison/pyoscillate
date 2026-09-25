@@ -1,35 +1,41 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.texture.noise.noise
 """Filtered-noise bed with a single colour control and three kinds of motion.
 
-One broadband source is shaped three ways, and each profile adds a different
+One broadband source is shaped three ways, and each style adds a different
 kind of slow movement on top. The source is a `Selector` crossfade over white,
 pink and brown noise (pyo example x03/04), so "colour" is one continuous
 control instead of a choice. A low-pass then sets how much hiss survives.
 
-- `air`: the cutoff itself breathes on two slow, unrelated LFOs, one per
-  channel, so the bed opens and closes without ever repeating in step.
-- `surf`: a 20-stage `Phaser` whose notch position, spacing and sharpness
-  each ride their own slow LFO per channel (x06/04), summed with the dry bed
-  so the notches actually form. The notches sweeping through the noise read
-  as surf or wind.
-- `barber`: single-sideband frequency shift of the bed, mixed with the dry
-  sound (x06/07). A few Hz of shift makes a slow, endless phasing swirl
-  against the dry noise; separate shift LFOs per channel make it spin
-  across the stereo field.
+- `air` (`NoiseAir`): the cutoff itself breathes on two slow, unrelated LFOs,
+  one per channel, so the bed opens and closes without ever repeating in step.
+- `surf` (`NoiseSurf`): a 20-stage `Phaser` whose notch position, spacing and
+  sharpness each ride their own slow LFO per channel (x06/04), summed with the
+  dry bed so the notches actually form. The notches sweeping through the
+  noise read as surf or wind.
+- `barber` (`NoiseBarber`): single-sideband frequency shift of the bed, mixed
+  with the dry sound (x06/07). A few Hz of shift makes a slow, endless
+  phasing swirl against the dry noise; separate shift LFOs per channel make
+  it spin across the stereo field.
+
+All three share one colour-crossfaded source (`Noise.build`); only the
+movement stage in `moved_signal()` differs, since that is genuinely
+different behavior, not just different profile data (`patches/CLAUDE.md`'s
+design rule 1).
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Any
 
+from pyo import PyoObject
 from pyo.lib._core import Mix
-from pyo.lib.controls import SigTo
 from pyo.lib.filters import Biquad, Phaser
-from pyo.lib.generators import BrownNoise, Noise, PinkNoise, Sine
+from pyo.lib.generators import BrownNoise, PinkNoise, Sine
+from pyo.lib.generators import Noise as WhiteNoise
 from pyo.lib.pan import Selector
 
-from pyoscillate.patches.base import BuiltPatch
-from pyoscillate.patches.common import ContinuousSequencer, frequency_shift
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import ContinuousVoice, frequency_shift
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
 STYLES = ("air", "surf", "barber")
@@ -99,7 +105,7 @@ SURF_SPREAD = ([0.18, 0.13], 0.4, 1.5)
 SURF_Q = ([0.07, 0.09], 5, 6)
 SURF_NOTCHES = 20
 # dry + allpass doubles the level wherever the two are in phase; halving it
-# keeps `surf` level with the other profiles
+# keeps `surf` level with the other styles
 SURF_GAIN = 0.5
 # `barber`: x06/07's shift LFO rates (Hz) and widest shift (Hz), one per channel
 BARBER_RATES = (0.03, 0.05)
@@ -115,48 +121,70 @@ COLOUR_GAINS = (1.0, 1.0, 0.8)
 VOLUME_DEFAULT = 0.16
 
 
-def build(
-    style: str = "air",
-    colour: float = 1,
-    brightness: float = 5000,
-    motion: float = 1,
-    depth: float = 0.6,
-    level: float = 0.35,
-) -> BuiltPatch:
-    """Build an ungated noise bed; `style` picks the kind of movement."""
-    if style not in STYLES:
-        raise ValueError(f"unknown noise style {style!r}; expected one of {STYLES}")
+class Noise(ContinuousVoice):
+    """Filtered-noise bed with a single colour control; style variants
+    subclass this and override `moved_signal()` for their own kind of
+    movement - cutoff breathing, notch sweep, or frequency shift."""
 
-    live = {
-        name: SigTo(value=value, time=0.15)
-        for name, value in {
-            "colour": colour,
-            "brightness": brightness,
-            "motion": motion,
-            "depth": depth,
-            "level": level,
-        }.items()
-    }
-    white = Noise(mul=COLOUR_GAINS[0])
-    pink = PinkNoise(mul=COLOUR_GAINS[1])
-    brown = BrownNoise(mul=COLOUR_GAINS[2])
-    source = Selector([white, pink, brown], voice=live["colour"])
-    resources: list = [*live.values(), white, pink, brown, source]
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    if style == "air":
+    colour: float
+    brightness: float
+    motion: float
+    depth: float
+    level: float
+
+    def moved_signal(self, live: dict[str, Any], source: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+        """This style's filtered, moving noise bed built from the shared
+        colour-crossfaded `source`, plus any extra Pyo objects it built for
+        `build()` to retain. Overridden per style."""
+        raise NotImplementedError
+
+    def build(self, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        live = self.live_all("colour", "brightness", "motion", "depth", "level")
+
+        white = WhiteNoise(mul=COLOUR_GAINS[0])
+        pink = PinkNoise(mul=COLOUR_GAINS[1])
+        brown = BrownNoise(mul=COLOUR_GAINS[2])
+        source = Selector([white, pink, brown], voice=live["colour"])
+        self.retain(white, pink, brown, source)
+
+        moved, resources = self.moved_signal(live, source)
+        self.retain(*resources)
+
+        voice = moved * live["level"]
+        return self.finish(voice)
+
+
+class NoiseAir(Noise):
+    """Cutoff breathes on two slow, unrelated LFOs, one per channel, so the
+    bed opens and closes without ever repeating in step."""
+
+    title = "Noise - Air"
+
+    def moved_signal(self, live, source):
         rates = live["motion"] * AIR_RATES
         swing = live["depth"] * AIR_SWING
         cutoff_lfo = Sine(freq=rates, mul=swing, add=1)
         cutoff = live["brightness"] * cutoff_lfo
         shaped = Biquad(source, freq=cutoff, q=FILTER_Q, type=0)
-        resources += [rates, swing, cutoff_lfo, cutoff, shaped]
-    else:
-        shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
-        resources.append(shaped)
+        return shaped, (rates, swing, cutoff_lfo, cutoff, shaped)
 
-    if style == "air":
-        moved = shaped
-    elif style == "surf":
+
+class NoiseSurf(Noise):
+    """A 20-stage `Phaser` whose notch position, spacing and sharpness each
+    ride their own slow LFO per channel, summed with the dry bed so the
+    notches actually form."""
+
+    title = "Noise - Surf"
+
+    def moved_signal(self, live, source):
+        shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+        resources: list[Any] = [shaped]
+
         lfos = []
         for rates, swing, centre in (SURF_FREQ, SURF_SPREAD, SURF_Q):
             lfo_rates = live["motion"] * rates
@@ -164,21 +192,28 @@ def build(
             lfo = Sine(freq=lfo_rates, mul=lfo_swing, add=centre)
             lfos.append(lfo)
             resources += [lfo_rates, lfo_swing, lfo]
+
         # pyo's Phaser is a pure allpass cascade: its own output has a flat
         # spectrum, and the notches only appear where it cancels against the
         # dry bed, so the two are summed here
-        phased = Phaser(
-            shaped,
-            freq=lfos[0],
-            spread=lfos[1],
-            q=lfos[2],
-            num=SURF_NOTCHES,
-        )
+        phased = Phaser(shaped, freq=lfos[0], spread=lfos[1], q=lfos[2], num=SURF_NOTCHES)
         dry = shaped.mix(2)
         notched = dry + phased
         moved = notched * SURF_GAIN
         resources += [phased, dry, notched, moved]
-    else:
+        return moved, tuple(resources)
+
+
+class NoiseBarber(Noise):
+    """Single-sideband frequency shift of the bed, mixed with the dry
+    sound. A few Hz of shift makes a slow, endless phasing swirl."""
+
+    title = "Noise - Barber"
+
+    def moved_signal(self, live, source):
+        shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+        resources: list[Any] = [shaped]
+
         wet_channels = []
         for rate in BARBER_RATES:
             shift_rate = live["motion"] * rate
@@ -191,20 +226,4 @@ def build(
         dry = shaped.mix(2)
         moved = dry + wet
         resources += [wet, dry, moved]
-
-    voice = moved * live["level"]
-
-    return BuiltPatch(
-        sequencer=ContinuousSequencer(),
-        voice=voice,
-        controls={
-            name: lambda value, control=control: setattr(control, "value", value)
-            for name, control in live.items()
-        },
-        resources=tuple(resources),
-    )
-
-
-def make_builder(style: str) -> Callable[..., BuiltPatch]:
-    """Return a builder with one noise style fixed for a rack entry."""
-    return lambda **values: build(style, **values)
+        return moved, tuple(resources)

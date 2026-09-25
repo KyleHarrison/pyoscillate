@@ -98,28 +98,13 @@ def _read_wav(path: Path) -> Render:
     )
 
 
-def _resolve_build(
-    module: Any, params: dict[str, Any]
-) -> tuple[Any, Any, float, dict[str, Any]]:
-    """Signature-source callable, invocable build callable, volume default,
-    and remaining params for either patch contract: a free `build()`/
-    `PARAMETERS` module, or one exposing `Patch` subclasses (a single-voice
-    module has one; a multi-variant family like `Kick` has a base plus one
-    leaf subclass per `style`).
-
-    The two callables are the same bound method for a `Patch` subclass, but
-    differ for a free module: `_render_in_process` introspects the
-    *original* `module.build` for its real `tempo`/`clock`/... parameters
-    (a `FunctionVoice`'s own `build` only ever shows `**kwargs`) while
-    actually calling the `FunctionVoice`-adapted one, so what comes back is
-    always a `Patch` it can call `.start()`/`.stop()`/`.volume` on,
-    regardless of which contract the module used.
+def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dict[str, Any]]:
+    """Build callable, volume default, and remaining params for a module
+    exposing `Patch` subclasses: a single-voice module has one, and a
+    multi-variant family like `Kick` has a base plus one leaf subclass per
+    `style`.
     """
-    from pyoscillate.patches.base import FunctionVoice, Patch
-
-    if hasattr(module, "build"):
-        voice = FunctionVoice(module.build, module.PARAMETERS, getattr(module, "VOLUME_DEFAULT", 1.0))
-        return module.build, voice.build, voice.volume_default, params
+    from pyoscillate.patches.base import Patch
 
     remaining = dict(params)
     style = remaining.pop("style", None)
@@ -145,7 +130,7 @@ def _resolve_build(
             f"found {len(leaves)}"
         )
     voice = leaves[0]()
-    return voice.build, voice.build, voice.volume_default, remaining
+    return voice.build, voice.volume_default, remaining
 
 
 def _render_in_process(request: dict[str, Any]) -> None:
@@ -166,13 +151,11 @@ def _render_in_process(request: dict[str, Any]) -> None:
     )
 
     module = importlib.import_module(request["module"])
-    signature_source, build, module_volume_default, params = _resolve_build(
-        module, request["params"]
-    )
+    build, module_volume_default, params = _resolve_build(module, request["params"])
     tempo = Tempo(bpm=request["bpm"])
     clock = Clock(tempo, ticks_per_bar=DEFAULT_TICKS_PER_BAR)
     context = {"tempo": tempo, "clock": clock}
-    accepted = inspect.signature(signature_source).parameters
+    accepted = inspect.signature(build).parameters
     kwargs = {name: value for name, value in context.items() if name in accepted}
 
     # keep the patch and clock referenced for the whole render so their

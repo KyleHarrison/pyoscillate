@@ -3,30 +3,36 @@
 
 Two strategies share one control surface, so a rack can swap them:
 
-- `chime`: modal. Each strike is a single-sample impulse into a bank of
-  `ComplexRes` resonators (pyo example x06/03), one per church-bell partial.
-  Each partial decays at its own rate, higher ones sooner, so the strike
-  sounds metallic and then clears to the low hum. Strike tilts the impulse
-  towards the upper partials, as a harder mallet does.
-- `fm`: Chowning FM (x03/03) at the inharmonic ratio 1.4. Break-point
-  envelopes (x10/01) drop the index faster than the level, so each note
-  goes from a bright clang to a nearly pure ring. Strike sets the peak index.
+- `chime` (`BellChime`): modal. Each strike is a single-sample impulse into a
+  bank of `ComplexRes` resonators (pyo example x06/03), one per church-bell
+  partial. Each partial decays at its own rate, higher ones sooner, so the
+  strike sounds metallic and then clears to the low hum. Strike tilts the
+  impulse towards the upper partials, as a harder mallet does.
+- `fm` (`BellFm`): Chowning FM (x03/03) at the inharmonic ratio 1.4.
+  Break-point envelopes (x10/01) drop the index faster than the level, so
+  each note goes from a bright clang to a nearly pure ring. Strike sets the
+  peak index.
 
 Notes rotate over `VOICES` voices so a long Ring overlaps the next strike
-instead of being cut or retuned mid-ring.
+instead of being cut or retuned mid-ring. Both styles share that rotation
+(`Bell.build`); only the resonance graph in `voice_graph()` differs, since
+that is genuinely different behavior, not just different profile data
+(`patches/CLAUDE.md`'s design rule 1).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any, ClassVar
 
+from pyo import PyoObject
 from pyo.lib.filters import ComplexRes
 from pyo.lib.generators import FM
 from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -104,10 +110,6 @@ FM_GAIN = 0.2
 VOLUME_DEFAULT = 0.35
 
 
-def _steps_for_rate(clock: Clock, rate: float) -> int:
-    return clock.ticks_for_rate(BASE_DIVISION, rate)
-
-
 def _chime_gains(strike: float) -> list[float]:
     """Per-partial strike weights, scaled so their total power is constant."""
     tilt = TILT * (1 - strike)
@@ -126,54 +128,109 @@ def _peak_index(strike: float) -> float:
     return low + (high - low) * strike
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    style: str = "chime",
-    root_freq: float = notes.A4,
-    strike: float = 0.6,
-    ring: float = 2.5,
-    rate: float = 0,
-) -> BuiltPatch:
-    """Build a bell playing `PATTERN`; `style` picks modal or FM partials."""
-    if style not in STYLES:
-        raise ValueError(f"unknown bell style {style!r}; expected one of {STYLES}")
+class Bell(Patch):
+    """Struck bell playing `PATTERN` across `VOICES` rotating voices, so a
+    long ring overlaps the next strike instead of being cut or retuned
+    mid-ring. Style variants subclass this and override `voice_graph()`;
+    the pattern stepping and voice rotation are identical."""
 
-    state = {"step": 0, "voice": 0, "root": root_freq}
-    triggers = [Trig().stop() for _ in range(VOICES)]
-    resources: list = [*triggers]
-    controls: dict[str, Callable[[float], None]] = {}
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_tempo: ClassVar[bool] = True
+    needs_clock: ClassVar[bool] = True
 
-    if style == "chime":
-        # one resonator stream per (voice, partial), each excited by its
-        # voice's impulse
-        excitation = [trigger for trigger in triggers for _ in PARTIALS]
-        freqs = [root_freq * ratio for _ in range(VOICES) for ratio in PARTIALS]
+    root_freq: float
+    strike: float
+    ring: float
+    rate: float
+
+    def _reset(self) -> None:
+        super()._reset()
+        self.triggers = [Trig().stop() for _ in range(VOICES)]
+        self.retain(*self.triggers)
+
+    def voice_graph(
+        self,
+    ) -> tuple[PyoObject, Callable[[int, float], None], dict[str, Callable[[Any], None]], tuple[Any, ...]]:
+        """This style's resonance graph, built from `self.triggers`: the
+        summed voice, a `tune(slot, freq)` callback the shared pattern
+        stepper calls on each hit, this style's Strike/Ring live controls,
+        and any extra Pyo objects to retain. Overridden per style."""
+        raise NotImplementedError
+
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        del tempo  # deliberately free of the tempo grid's own note values; PATTERN still rides the clock
+        self.configure(**values)
+        self._reset()
+
+        voice, tune, controls, resources = self.voice_graph()
+        self.retain(*resources)
+
+        state = {"step": 0, "voice": 0, "root": self.root_freq}
+
+        def next_step() -> None:
+            semitones = PATTERN.get(state["step"] % PATTERN_STEPS)
+            if semitones is not None:
+                slot = state["voice"]
+                tune(slot, state["root"] * 2 ** (semitones / 12))
+                self.triggers[slot].play()
+                state["voice"] = (slot + 1) % VOICES
+            state["step"] += 1
+
+        division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, self.rate), next_step)
+        self.sequencer = division
+        self.voice = voice
+        self.controls = {
+            **controls,
+            "root_freq": lambda value: state.update(root=value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
+        }
+        return self
+
+
+class BellChime(Bell):
+    """Modal bell: an impulse into a `ComplexRes` bank of church-bell partials."""
+
+    title = "Bell - Chime"
+
+    def voice_graph(self):
+        excitation = [trigger for trigger in self.triggers for _ in PARTIALS]
+        freqs = [self.root_freq * ratio for _ in range(VOICES) for ratio in PARTIALS]
         bank = ComplexRes(
             excitation,
             freq=freqs,
-            decay=_chime_decays(ring) * VOICES,
-            mul=_chime_gains(strike) * VOICES,
+            decay=_chime_decays(self.ring) * VOICES,
+            mul=_chime_gains(self.strike) * VOICES,
         )
         voice = bank.mix(1)
-        resources += [bank]
 
         def tune(slot: int, freq: float) -> None:
             start = slot * len(PARTIALS)
             freqs[start : start + len(PARTIALS)] = [freq * ratio for ratio in PARTIALS]
             bank.freq = freqs
 
-        controls["strike"] = lambda value: setattr(bank, "mul", _chime_gains(value) * VOICES)
-        controls["ring"] = lambda value: setattr(bank, "decay", _chime_decays(value) * VOICES)
-    else:
+        controls = {
+            "strike": lambda value: setattr(bank, "mul", _chime_gains(value) * VOICES),
+            "ring": lambda value: setattr(bank, "decay", _chime_decays(value) * VOICES),
+        }
+        return voice, tune, controls, (bank,)
+
+
+class BellFm(Bell):
+    """Chowning FM bell: inharmonic ratio 1.4, index falling faster than the level."""
+
+    title = "Bell - FM"
+
+    def voice_graph(self):
         amp_table = LinTable(decay_points())
         index_table = LinTable(decay_points(RING_CURVE * INDEX_SPEED))
-        amp = TrigEnv(triggers, amp_table, dur=ring, mul=FM_GAIN)
-        index = TrigEnv(triggers, index_table, dur=ring, mul=_peak_index(strike))
-        carriers = [root_freq] * VOICES
+        amp = TrigEnv(self.triggers, amp_table, dur=self.ring, mul=FM_GAIN)
+        index = TrigEnv(self.triggers, index_table, dur=self.ring, mul=_peak_index(self.strike))
+        carriers = [self.root_freq] * VOICES
         bell = FM(carrier=carriers, ratio=FM_RATIO, index=index, mul=amp)
         voice = bell.mix(1)
-        resources += [amp_table, index_table, amp, index, bell]
 
         def tune(slot: int, freq: float) -> None:
             carriers[slot] = freq
@@ -183,29 +240,8 @@ def build(
             amp.dur = value
             index.dur = value
 
-        controls["strike"] = lambda value: setattr(index, "mul", _peak_index(value))
-        controls["ring"] = set_ring
-
-    def next_step() -> None:
-        semitones = PATTERN.get(state["step"] % PATTERN_STEPS)
-        if semitones is not None:
-            slot = state["voice"]
-            tune(slot, state["root"] * 2 ** (semitones / 12))
-            triggers[slot].play()
-            state["voice"] = (slot + 1) % VOICES
-        state["step"] += 1
-
-    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    controls["root_freq"] = lambda value: state.update(root=value)
-    controls["rate"] = lambda value: setattr(division, "steps", _steps_for_rate(clock, value))
-    return BuiltPatch(
-        sequencer=division,
-        voice=voice,
-        controls=controls,
-        resources=tuple(resources),
-    )
-
-
-def make_builder(style: str) -> Callable[..., BuiltPatch]:
-    """Return a builder with one bell style fixed for a rack entry."""
-    return lambda **values: build(style=style, **values)
+        controls = {
+            "strike": lambda value: setattr(index, "mul", _peak_index(value)),
+            "ring": set_ring,
+        }
+        return voice, tune, controls, (amp_table, index_table, amp, index, bell)

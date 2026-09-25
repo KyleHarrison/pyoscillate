@@ -1,9 +1,8 @@
 """Shared Flet <-> Pyo patch plumbing.
 
-This module abstracts the conversion between a `Patch` (as exposed by
-the modules under `pyoscillate.patches`, either as a `Patch` subclass
-directly or, for an unmigrated module, wrapped in `FunctionVoice`) and a
-Flet UI: one `PatchDef` per patch, wrapped in a `PatchPanel` that renders an
+This module abstracts the conversion between a `Patch` subclass (as exposed
+by the modules under `pyoscillate.patches`) and a Flet UI: one `PatchDef`
+per patch, wrapped in a `PatchPanel` that renders an
 enable switch, parameter sliders, and a volume slider, all wired to a shared
 `PatchRack`. `PatchRackApp` composes any number of `PatchPanel`s into a single
 scrollable page with an audio-engine start/stop control and JSON preset
@@ -65,14 +64,11 @@ class SidechainSource:
 
 @dataclass
 class PatchDef:
-    """Static description of one patch: a `Patch` (either a real
-    subclass or a `FunctionVoice`-wrapped legacy module) plus everything the
-    rack needs to place it in the UI. `parameters`, `volume_default`,
-    `rebuild_parameters`, and the `needs_*` flags all come from `voice`
-    itself rather than being restated here - so do `name`/`title`/`summary`,
-    unless a project rack module overrides one (always needed for a
-    `FunctionVoice`, which can't derive UI copy from an arbitrary wrapped
-    module).
+    """Static description of one patch: a `Patch` subclass instance plus
+    everything the rack needs to place it in the UI. `parameters`,
+    `volume_default`, `rebuild_parameters`, and the `needs_*` flags all come
+    from `voice` itself rather than being restated here - so do
+    `name`/`title`/`summary`, unless a project rack module overrides one.
     """
 
     voice: Patch

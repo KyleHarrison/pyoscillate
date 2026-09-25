@@ -51,7 +51,7 @@ PARAMETERS = (
 
 @dataclass
 class _Clocks:
-    """Fans play()/stop() out over several independent Metros, so one BuiltPatch
+    """Fans play()/stop() out over several independent Metros, so one Patch
     can drive multiple free-running clocks that never share a downbeat.
 
     Also holds a strong reference to every intermediate pyo object built

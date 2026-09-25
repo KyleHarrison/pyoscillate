@@ -1,20 +1,33 @@
 import unittest
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
-from pyoscillate.patches.base import BuiltPatch, FunctionVoice
+from pyoscillate.patches.base import Patch
 from pyoscillate.projects.deep_house.rack import PATCH_GROUPS as DEEP_HOUSE_GROUPS
 from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
 from src.flet.base import PatchDef, PatchGroup, PatchGroupDef, PatchPanel
 
 
+class _StubPatch(Patch):
+    """Minimal concrete `Patch` for exercising `PatchPanel`/`PatchGroup`
+    wiring without a real Pyo graph."""
+
+    parameters = ()
+
+    def build(self, **kwargs: Any) -> Patch:
+        self.sequencer = MagicMock()
+        self.voice = MagicMock()
+        return self
+
+
 class PatchGroupTests(unittest.TestCase):
     def setUp(self) -> None:
-        built = BuiltPatch(sequencer=MagicMock(), voice=MagicMock())
-        self.build = MagicMock(return_value=built)
+        self.voice = _StubPatch()
+        self.build = MagicMock(wraps=self.voice.build)
+        self.voice.build = self.build
         self.rack = MagicMock()
         self.rack.get.return_value = None
-        self.voice = FunctionVoice(self.build, parameters=())
         patch_def = PatchDef(self.voice, name="test_patch", title="Test Patch", summary="Test voice.")
         self.panel = PatchPanel(self.rack, patch_def)
         self.group = PatchGroup(

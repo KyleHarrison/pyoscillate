@@ -129,11 +129,7 @@ call site - override one only when the default isn't the right rack key or
 UI copy. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
 `KickSoft`) for the worked example.
 
-A few modules haven't moved to a class yet: a module exposes `PARAMETERS`
-(ordered `SliderSpec` values) and `build(...) -> BuiltPatch`, and a caller
-wraps it directly as `FunctionVoice(module.build, module.PARAMETERS, ...)`
-(`pyoscillate.patches.base`) to get a `Patch`. Migrate one of these the next
-time you touch it instead of adding a new function-based module.
+Every patch module is class-based; there is no function-based fallback contract. When a style's graph genuinely differs from its siblings (not just profile data), factor the shared build steps into the family's base class and give each style its own hook method to override - see `pyoscillate.patches.tonal.bass.fm.fm`'s `FmBass.tone()` for the worked example.
 
 Do not duplicate boilerplate in this file. Copy the structure from the actual modules that already work.
 
@@ -216,9 +212,11 @@ voice and account for each object in exactly one of these places:
 - `Patch.sequencer`
 - `Patch.resources`
 
-Run the graph-ownership test after adding any builder. Passing that structural
-check does not prove the tuple is complete, so review it against the named
-locals in `build()` as well.
+Review this against the named locals in `build()` directly - there is no
+automated structural check for it, since a base class's `retain()`/`envelope()`/
+`schedule()`/`live()` calls and a style's own hook method (`tone()`, `voice_graph()`,
+...) can split resource ownership across files in a way static analysis can't
+reliably follow.
 
 ### 5. Keep timing/state explicit
 

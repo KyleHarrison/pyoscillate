@@ -2,6 +2,7 @@
 
 from typing import Any, ClassVar
 
+from pyo import PyoTableObject
 from pyo.lib.effects import Chorus, Freeverb
 from pyo.lib.filters import Biquad
 from pyo.lib.tableprocess import Osc
@@ -10,7 +11,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import BuiltPatch, Patch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
 
@@ -50,92 +51,11 @@ REGISTER_CENTRE = 146
 VOLUME_DEFAULT = 0.4
 
 
-def _build(
-    tempo: Tempo,
-    clock: Clock,
-    style: str,
-    octave: float = 0,
-    brightness: float = 1500,
-    rate: float = 0,
-    harmony: Harmony | None = None,
-) -> BuiltPatch:
-    """Build an offbeat minor-seventh chord stab from four explicit voices.
-
-    Each stab voices the chord `harmony` says is sounding in the current bar,
-    so the progression stays locked to the bass and tom whatever this
-    patch's rate or start time."""
-    harmony = harmony or FALLBACK_HARMONY
-    profiles = {
-        "velvet": (lambda: HarmTable([1, 0.25, 0.12]), 0.34, 0.42),
-        "organ": (lambda: HarmTable([1, 0.7, 0.4, 0.2]), 0.22, 0.2),
-        "shimmer": (lambda: SawTable(order=12), 0.42, 0.58),
-    }
-    table_factory, duration, wet = profiles[style]
-    table = table_factory()
-    trigger = Trig()
-    envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
-    envelope = TrigEnv(trigger, envelope_table, dur=duration)
-    amplitude = envelope * 0.19
-    voices = [
-        Osc(
-            table,
-            freq=harmony.chord_freq(REGISTER_CENTRE, clock.bar_index)
-            * 2 ** (octave + interval / 12),
-            mul=amplitude,
-        )
-        for interval in INTERVALS
-    ]
-    source = sum(voices)
-    filter_voice = Biquad(source, freq=brightness, q=1.2, type=0)
-    voice = filter_voice
-    chorus = None
-    if style == "shimmer":
-        chorus = Chorus(voice, depth=1.2, feedback=0.15, bal=0.28)
-        voice = chorus
-    voice = Freeverb(voice, size=0.72, damp=0.45, bal=wet)
-    state = {"step": 0, "octave": octave}
-
-    def next_step() -> None:
-        step = state["step"] % 16
-        if step % 4 == 2:
-            chord_root = (
-                harmony.chord_freq(REGISTER_CENTRE, clock.bar_index)
-                * 2 ** state["octave"]
-            )
-            for oscillator, interval in zip(voices, INTERVALS, strict=True):
-                oscillator.freq = chord_root * 2 ** (interval / 12)
-            trigger.play()
-        state["step"] += 1
-
-    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
-    return BuiltPatch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "octave": lambda value: state.update(octave=value),
-            "brightness": lambda value: setattr(filter_voice, "freq", value),
-            "rate": lambda value: setattr(
-                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
-            ),
-        },
-        resources=(
-            table,
-            trigger,
-            envelope_table,
-            envelope,
-            amplitude,
-            *voices,
-            source,
-            filter_voice,
-            chorus,
-        ),
-    )
-
-
 class Chord(Patch):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
-    chord. Style variants subclass this and fix `style`; the graph itself
-    is identical across styles (see `_build`)."""
+    chord. Style variants subclass this and override `table()` for their
+    own oscillator table, plus the profile attributes below; the rest of
+    the graph is identical across styles."""
 
     parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
@@ -143,27 +63,76 @@ class Chord(Patch):
     needs_clock: ClassVar[bool] = True
     needs_harmony: ClassVar[bool] = True
 
-    style: ClassVar[str]
+    # envelope duration (s), reverb wet balance, chorus on/off - overridden
+    # per style
+    duration: ClassVar[float]
+    wet: ClassVar[float]
+    chorus: ClassVar[bool] = False
 
     octave: float
     brightness: float
     rate: float
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any) -> Patch:
+    def table(self) -> PyoTableObject:
+        """This style's oscillator table. Overridden per style."""
+        raise NotImplementedError
+
+    def build(
+        self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any
+    ) -> Patch:
         self.configure(**values)
-        built = _build(
-            tempo,
-            clock,
-            self.style,
-            octave=self.octave,
-            brightness=self.brightness,
-            rate=self.rate,
-            harmony=harmony,
+        self._reset()
+        harmony = harmony or FALLBACK_HARMONY
+
+        table = self.table()
+        trigger = Trig()
+        envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
+        envelope = TrigEnv(trigger, envelope_table, dur=self.duration)
+        amplitude = envelope * 0.19
+        voices = [
+            Osc(
+                table,
+                freq=harmony.chord_freq(REGISTER_CENTRE, clock.bar_index)
+                * 2 ** (self.octave + interval / 12),
+                mul=amplitude,
+            )
+            for interval in INTERVALS
+        ]
+        source = sum(voices)
+        filter_voice = Biquad(source, freq=self.brightness, q=1.2, type=0)
+        voice = filter_voice
+        chorus_voice = None
+        if self.chorus:
+            chorus_voice = Chorus(voice, depth=1.2, feedback=0.15, bal=0.28)
+            voice = chorus_voice
+        voice = Freeverb(voice, size=0.72, damp=0.45, bal=self.wet)
+        self.retain(
+            table, trigger, envelope_table, envelope, amplitude, *voices, source, filter_voice, chorus_voice
         )
-        self.sequencer = built.sequencer
-        self.voice = built.voice
-        self.controls = built.controls
-        self.resources = list(built.resources)
+
+        state = {"step": 0, "octave": self.octave}
+
+        def next_step() -> None:
+            step = state["step"] % 16
+            if step % 4 == 2:
+                chord_root = (
+                    harmony.chord_freq(REGISTER_CENTRE, clock.bar_index) * 2 ** state["octave"]
+                )
+                for oscillator, interval in zip(voices, INTERVALS, strict=True):
+                    oscillator.freq = chord_root * 2 ** (interval / 12)
+                trigger.play()
+            state["step"] += 1
+
+        division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, self.rate), next_step)
+        self.sequencer = division
+        self.voice = voice
+        self.controls = {
+            "octave": lambda value: state.update(octave=value),
+            "brightness": lambda value: setattr(filter_voice, "freq", value),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
+        }
         return self
 
 
@@ -171,18 +140,27 @@ class ChordVelvet(Chord):
     """Warm, rounded minor-seventh chord stabs."""
 
     title = "Chord Stab - Velvet"
-    style = "velvet"
+    duration, wet = 0.34, 0.42
+
+    def table(self) -> PyoTableObject:
+        return HarmTable([1, 0.25, 0.12])
 
 
 class ChordOrgan(Chord):
     """Sustained, organ-like harmonic bed."""
 
     title = "Chord Stab - Organ"
-    style = "organ"
+    duration, wet = 0.22, 0.2
+
+    def table(self) -> PyoTableObject:
+        return HarmTable([1, 0.7, 0.4, 0.2])
 
 
 class ChordShimmer(Chord):
     """Bright, shimmering chord stabs with more edge."""
 
     title = "Chord Stab - Shimmer"
-    style = "shimmer"
+    duration, wet, chorus = 0.42, 0.58, True
+
+    def table(self) -> PyoTableObject:
+        return SawTable(order=12)

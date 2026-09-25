@@ -102,22 +102,6 @@ def _humanize(class_name: str) -> str:
     return " - ".join(words)
 
 
-@dataclass
-class BuiltPatch:
-    """Plain bundle of what a legacy `build()` function produces (the
-    function-based half of the patch contract in `patches/CLAUDE.md`): just
-    the pieces, no lifecycle. `FunctionVoice.build()` copies these onto
-    itself so every `Patch` - migrated to a class or not - ends up with the
-    same lifecycle. A migrated voice builds directly on `self` instead (see
-    `DrumVoice.finish`) and never constructs one of these.
-    """
-
-    sequencer: Sequencer
-    voice: PyoObject
-    controls: dict[str, Callable[[Any], None]] = field(default_factory=dict)
-    resources: tuple[Any, ...] = field(default=(), repr=False)
-
-
 class Patch(ABC):
     """A patch's live definition *and*, once built, the thing actually
     playing: owns `parameters`/`volume_default`/`rebuild_parameters`/
@@ -139,16 +123,10 @@ class Patch(ABC):
         """Seed this instance's current parameter values from `parameters`'
         defaults, overridden by any `values` given - so two instances of the
         same class can hold independent current settings instead of sharing
-        behavior baked into `build()`'s own defaults."""
+        behavior baked into `build()`'s own defaults - then set up fresh
+        build/lifecycle state."""
         for spec in self.parameters:
             setattr(self, spec.name, values.get(spec.name, spec.default))
-        self._init_runtime_state()
-
-    def _init_runtime_state(self) -> None:
-        """Fresh build/lifecycle state for a new instance. Factored out of
-        `__init__` so `FunctionVoice.__post_init__` - whose dataclass-
-        generated `__init__` never runs `Patch.__init__` - can call it too.
-        """
         self.resources: list[Any] = []
         self.controls: dict[str, Callable[[Any], None]] = {}
         self.sequencer: Sequencer | None = None
@@ -264,35 +242,6 @@ class Patch(ABC):
         self.voice.stop(wait=STOP_FADE)
         if self._output is not None:
             self._output.stop(wait=STOP_FADE)
-        return self
-
-
-@dataclass
-class FunctionVoice(Patch):
-    """Adapts an unmigrated `build()`/`PARAMETERS` module to the `Patch`
-    contract, for the modules that haven't moved to a class yet - direct
-    construction only (`FunctionVoice(module.build, module.PARAMETERS)`),
-    since every project rack now instantiates a real `Patch` subclass
-    instead of naming a module and a `style` string.
-    """
-
-    _build: Callable[..., BuiltPatch]
-    parameters: tuple[SliderSpec, ...]
-    volume_default: float = 0.6
-    rebuild_parameters: tuple[str, ...] = ()
-    needs_tempo: bool = False
-    needs_clock: bool = False
-    needs_harmony: bool = False
-
-    def __post_init__(self) -> None:
-        self._init_runtime_state()
-
-    def build(self, **kwargs: Any) -> Patch:
-        built = self._build(**kwargs)
-        self.sequencer = built.sequencer
-        self.voice = built.voice
-        self.controls = built.controls
-        self.resources = list(built.resources)
         return self
 
 

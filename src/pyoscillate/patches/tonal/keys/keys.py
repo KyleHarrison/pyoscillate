@@ -21,6 +21,8 @@ chord instead of being cut.
 
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 from pyo.lib.controls import SigTo
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import FM, Sine
@@ -28,7 +30,7 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -130,108 +132,66 @@ VOLUME_DEFAULT = 0.8
 SUBSONIC = 20
 
 
-def _steps_for_rate(clock: Clock, rate: float) -> int:
-    return clock.ticks_for_rate(BASE_DIVISION, rate)
-
-
 def _per_note(per_slot: list[float]) -> list[float]:
     """Spread one value per chord slot across that slot's note streams."""
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    root_freq: float = notes.A3,
-    bark: float = 2.5,
-    bite: float = 0.8,
-    decay: float = 1.8,
-    tremolo: float = 0.3,
-    rate: float = 0,
-) -> BuiltPatch:
-    """Build an FM electric piano comping `CHORDS` in the Charleston rhythm."""
-    state = {"step": 0, "slot": 0, "root": root_freq, "bark": bark, "bite": bite}
-    velocities = [0.0] * SLOTS
-    freqs = [root_freq] * (SLOTS * NOTES)
-    triggers = [Trig().stop() for _ in range(SLOTS)]
-    # one stream per (slot, note), each struck by its slot's trigger
-    strikes = [trigger for trigger in triggers for _ in range(NOTES)]
+class Keys(Patch):
+    """FM electric piano comping `CHORDS` in the Charleston rhythm. See the
+    module docstring for the sonic detail."""
 
-    amp_table = LinTable(decay_points())
-    body_table = LinTable(decay_points(RING_CURVE * BODY_SPEED))
-    tine_table = LinTable(decay_points())
-    amp = TrigEnv(strikes, amp_table, dur=decay, mul=0)
-    body_index = TrigEnv(strikes, body_table, dur=decay, mul=0)
-    tine_index = TrigEnv(strikes, tine_table, dur=TINE_TIME, mul=0)
-    # the tine pair fades soon after its ping: `FM` integrates frequency, so
-    # the index burst leaves the tine's carrier out of phase with the body's
-    # on the same pitch, and a tine carrier left ringing would cancel part of
-    # the body's fundamental (see test_keys.py)
-    tine_amp = TrigEnv(strikes, amp_table, dur=TINE_RING, mul=0)
-    body = FM(carrier=freqs, ratio=BODY_RATIO, index=body_index, mul=amp)
-    tine = FM(carrier=freqs, ratio=TINE_RATIO, index=tine_index, mul=tine_amp)
-    notes = body + tine
-    mixed = notes.mix(1)
-    # the body's ratio 1 puts its first lower sideband on 0 Hz: a DC offset
-    # that follows the index envelope (see the FM bass). Clear it below the
-    # lowest note.
-    chord = ButHP(mixed, freq=SUBSONIC)
+    title = "Keys (FM electric piano)"
+    summary = "Struck FM electric piano comping a close-voiced progression."
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_tempo: ClassVar[bool] = True
+    needs_clock: ClassVar[bool] = True
 
-    # gain swings between 1 - tremolo and 1
-    depth = SigTo(value=tremolo / 2, time=0.05, init=tremolo / 2)
-    wobble = Sine(freq=1 / tempo.eighth, mul=depth)
-    swing = wobble - depth
-    throb = swing + 1
-    voice = chord * throb
+    root_freq: float
+    bark: float
+    bite: float
+    decay: float
+    tremolo: float
+    rate: float
 
-    def apply_touch() -> None:
-        """Rescale every slot's envelopes from its stored velocity."""
-        amp.mul = _per_note([GAIN * velocity for velocity in velocities])
-        tine_amp.mul = _per_note([GAIN * TINE_LEVEL * velocity for velocity in velocities])
-        body_index.mul = _per_note(
-            [state["bite"] * (BITE_FLOOR + (1 - BITE_FLOOR) * velocity) for velocity in velocities]
-        )
-        tine_index.mul = _per_note([state["bark"] * velocity**2 for velocity in velocities])
+    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+        self.configure(**values)
+        self._reset()
+        state = {"step": 0, "slot": 0, "root": self.root_freq, "bark": self.bark, "bite": self.bite}
+        velocities = [0.0] * SLOTS
+        freqs = [self.root_freq] * (SLOTS * NOTES)
+        triggers = [Trig().stop() for _ in range(SLOTS)]
+        # one stream per (slot, note), each struck by its slot's trigger
+        strikes = [trigger for trigger in triggers for _ in range(NOTES)]
 
-    def next_step() -> None:
-        step = state["step"] % BAR_STEPS
-        velocity = HITS.get(step)
-        if velocity is not None:
-            slot = state["slot"]
-            chord_notes = CHORDS[(state["step"] // BAR_STEPS) % len(CHORDS)]
-            start = slot * NOTES
-            freqs[start : start + NOTES] = [
-                state["root"] * 2 ** (semitones / 12) for semitones in chord_notes
-            ]
-            body.carrier = freqs
-            tine.carrier = freqs
-            velocities[slot] = velocity
-            apply_touch()
-            triggers[slot].play()
-            state["slot"] = (slot + 1) % SLOTS
-        state["step"] += 1
+        amp_table = LinTable(decay_points())
+        body_table = LinTable(decay_points(RING_CURVE * BODY_SPEED))
+        tine_table = LinTable(decay_points())
+        amp = TrigEnv(strikes, amp_table, dur=self.decay, mul=0)
+        body_index = TrigEnv(strikes, body_table, dur=self.decay, mul=0)
+        tine_index = TrigEnv(strikes, tine_table, dur=TINE_TIME, mul=0)
+        # the tine pair fades soon after its ping: `FM` integrates frequency, so
+        # the index burst leaves the tine's carrier out of phase with the body's
+        # on the same pitch, and a tine carrier left ringing would cancel part of
+        # the body's fundamental (see test_keys.py)
+        tine_amp = TrigEnv(strikes, amp_table, dur=TINE_RING, mul=0)
+        body = FM(carrier=freqs, ratio=BODY_RATIO, index=body_index, mul=amp)
+        tine = FM(carrier=freqs, ratio=TINE_RATIO, index=tine_index, mul=tine_amp)
+        chord_notes_signal = body + tine
+        mixed = chord_notes_signal.mix(1)
+        # the body's ratio 1 puts its first lower sideband on 0 Hz: a DC offset
+        # that follows the index envelope (see the FM bass). Clear it below the
+        # lowest note.
+        chord = ButHP(mixed, freq=SUBSONIC)
 
-    def set_touch(name: str, value: float) -> None:
-        state[name] = value
-        apply_touch()
-
-    def set_decay(value: float) -> None:
-        amp.dur = value
-        body_index.dur = value
-
-    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return BuiltPatch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "root_freq": lambda value: state.update(root=value),
-            "bark": lambda value: set_touch("bark", value),
-            "bite": lambda value: set_touch("bite", value),
-            "decay": set_decay,
-            "tremolo": lambda value: setattr(depth, "value", value / 2),
-            "rate": lambda value: setattr(division, "steps", _steps_for_rate(clock, value)),
-        },
-        resources=(
+        # gain swings between 1 - tremolo and 1
+        depth = SigTo(value=self.tremolo / 2, time=0.05, init=self.tremolo / 2)
+        wobble = Sine(freq=1 / tempo.eighth, mul=depth)
+        swing = wobble - depth
+        throb = swing + 1
+        voice = chord * throb
+        self.retain(
             *triggers,
             amp_table,
             body_table,
@@ -242,12 +202,61 @@ def build(
             tine_amp,
             body,
             tine,
-            notes,
+            chord_notes_signal,
             mixed,
             chord,
             depth,
             wobble,
             swing,
             throb,
-        ),
-    )
+        )
+
+        def apply_touch() -> None:
+            """Rescale every slot's envelopes from its stored velocity."""
+            amp.mul = _per_note([GAIN * velocity for velocity in velocities])
+            tine_amp.mul = _per_note([GAIN * TINE_LEVEL * velocity for velocity in velocities])
+            body_index.mul = _per_note(
+                [state["bite"] * (BITE_FLOOR + (1 - BITE_FLOOR) * velocity) for velocity in velocities]
+            )
+            tine_index.mul = _per_note([state["bark"] * velocity**2 for velocity in velocities])
+
+        def next_step() -> None:
+            step = state["step"] % BAR_STEPS
+            velocity = HITS.get(step)
+            if velocity is not None:
+                slot = state["slot"]
+                chord_notes = CHORDS[(state["step"] // BAR_STEPS) % len(CHORDS)]
+                start = slot * NOTES
+                freqs[start : start + NOTES] = [
+                    state["root"] * 2 ** (semitones / 12) for semitones in chord_notes
+                ]
+                body.carrier = freqs
+                tine.carrier = freqs
+                velocities[slot] = velocity
+                apply_touch()
+                triggers[slot].play()
+                state["slot"] = (slot + 1) % SLOTS
+            state["step"] += 1
+
+        def set_touch(name: str, value: float) -> None:
+            state[name] = value
+            apply_touch()
+
+        def set_decay(value: float) -> None:
+            amp.dur = value
+            body_index.dur = value
+
+        division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, self.rate), next_step)
+        self.sequencer = division
+        self.voice = voice
+        self.controls = {
+            "root_freq": lambda value: state.update(root=value),
+            "bark": lambda value: set_touch("bark", value),
+            "bite": lambda value: set_touch("bite", value),
+            "decay": set_decay,
+            "tremolo": lambda value: setattr(depth, "value", value / 2),
+            "rate": lambda value: setattr(
+                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
+            ),
+        }
+        return self

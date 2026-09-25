@@ -1,9 +1,7 @@
-import ast
 import math
 import subprocess
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
@@ -51,40 +49,6 @@ class ClockRateTests(unittest.TestCase):
             (rate.minimum, rate.maximum),
             Clock.rate_limits(NoteDivision.SIXTEENTH),
         )
-
-
-class PatchGraphOwnershipTests(unittest.TestCase):
-    def test_every_patch_builder_declares_resources(self) -> None:
-        patch_root = Path(__file__).parents[1] / "src" / "pyoscillate" / "patches"
-        missing_resources = []
-
-        for source_path in patch_root.rglob("*.py"):
-            tree = ast.parse(source_path.read_text(), filename=str(source_path))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Return) or not isinstance(
-                    node.value, ast.Call
-                ):
-                    continue
-                if (
-                    not isinstance(node.value.func, ast.Name)
-                    or node.value.func.id != "BuiltPatch"
-                ):
-                    continue
-                resources = next(
-                    (
-                        keyword.value
-                        for keyword in node.value.keywords
-                        if keyword.arg == "resources"
-                    ),
-                    None,
-                )
-                if resources is None or (
-                    isinstance(resources, (ast.Tuple, ast.List)) and not resources.elts
-                ):
-                    relative_path = source_path.relative_to(patch_root.parents[2])
-                    missing_resources.append(f"{relative_path}:{node.lineno}")
-
-        self.assertEqual(missing_resources, [])
 
 
 class KickNativeCrashTests(unittest.TestCase):

@@ -1,5 +1,4 @@
 from pyoscillate.patches.base import (
-    BuiltPatch,
     Patch,
     PatchRack,
     setup_notebook,
@@ -21,7 +20,6 @@ from pyoscillate.patches.texture import atmosphere, rumble, texture
 from pyoscillate.patches.tonal import bass, drone, lead, pad, pluck
 
 __all__ = [
-    "BuiltPatch",
     "Patch",
     "PatchRack",
     "arp",

@@ -93,20 +93,21 @@ class NoiseHealthTests(unittest.TestCase):
 
 class NoiseControlTests(unittest.TestCase):
     def test_colour_darkens_the_bed(self) -> None:
-        white = _centroid(colour=0, brightness=SLIDERS["brightness"].maximum)
-        brown = _centroid(colour=2, brightness=SLIDERS["brightness"].maximum)
+        # colour/brightness are shared across styles; any one style exercises them
+        white = _centroid(style="air", colour=0, brightness=SLIDERS["brightness"].maximum)
+        brown = _centroid(style="air", colour=2, brightness=SLIDERS["brightness"].maximum)
 
         self.assertGreater(white, brown * 4)
 
     def test_brightness_raises_the_spectral_centroid(self) -> None:
-        dull = _centroid(colour=0, brightness=1000)
-        bright = _centroid(colour=0, brightness=8000)
+        dull = _centroid(style="air", colour=0, brightness=1000)
+        bright = _centroid(style="air", colour=0, brightness=8000)
 
         self.assertGreater(bright, dull * 1.5)
 
     def test_level_raises_the_loudness(self) -> None:
-        quiet = _measure(level=0.1)
-        loud = _measure(level=0.2)
+        quiet = _measure(style="air", level=0.1)
+        loud = _measure(style="air", level=0.2)
 
         self.assertGreater(loud.rms_db - quiet.rms_db, 4.0)
         self.assertLess(loud.rms_db - quiet.rms_db, 8.0)
