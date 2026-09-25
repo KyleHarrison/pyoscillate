@@ -11,11 +11,12 @@ import math
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise
 from pyo.lib.tables import LinTable
-from pyo.lib.triggers import Trig, TrigEnv
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -59,13 +60,8 @@ PARAMETERS = (
         "Length of the noisy tail after the burst; short is dry and crisp, long reads like a small room "
         "around the clap.",
     ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    rate_slider(
+        BASE_DIVISION,
         "Steps the clap pattern to a slower or faster bar division - -1 "
         "drops to an 8th note (half speed), 0 is the default 16th note, "
         "+1 rises to a 32nd note (double speed).",
@@ -86,11 +82,6 @@ RESONANCE = 1.4
 MAKEUP_GAIN = 5.0
 REFERENCE_TONE = 1100
 VOLUME_DEFAULT = 0.28
-
-
-def _steps_for_rate(clock: Clock, rate: float) -> int:
-    """Raw ticks for a `rate` slider step on a real note division."""
-    return clock.ticks_for_rate(BASE_DIVISION, rate)
 
 
 def _envelope(spread: float, decay: float) -> tuple[list[tuple[int, float]], float]:
@@ -121,57 +112,61 @@ def _makeup(tone: float) -> float:
     return MAKEUP_GAIN * math.sqrt(REFERENCE_TONE / tone)
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    level: float = 0.18,
-    tone: float = 1100,
-    spread: float = 0.009,
-    decay: float = 0.14,
-    rate: float = 0,
-) -> Patch:
-    """Build a multi-burst, band-passed noise clap on beats two and four."""
-    shape = {"spread": spread, "decay": decay}
-    points, duration = _envelope(spread, decay)
-    trigger = Trig()
-    envelope_table = LinTable(points, size=TABLE_SIZE)
-    envelope = TrigEnv(trigger, envelope_table, dur=duration, mul=level)
-    noise = Noise()
-    source = noise * envelope
-    voice = Biquad(source, freq=tone, q=RESONANCE, type=2, mul=_makeup(tone))
-    state = {"step": 0}
+class Clap(DrumVoice):
+    """Multi-burst, band-passed noise clap on beats two and four.
 
-    def next_step() -> None:
-        if state["step"] % 16 in PATTERN:
-            trigger.play()
-        state["step"] += 1
+    Doesn't use `self.envelope()`: the burst/tail shape needs a `LinTable`
+    reshaped live (`.replace(...)`), not a fixed `ExpTable`.
+    """
 
-    division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    def set_rate(value: float) -> None:
-        division.steps = _steps_for_rate(clock, value)
+    def build(
+        self,
+        tempo: Tempo,
+        clock: Clock,
+        level: float = 0.18,
+        tone: float = 1100,
+        spread: float = 0.009,
+        decay: float = 0.14,
+        rate: float = 0,
+    ) -> BuiltPatch:
+        self._reset()
+        shape = {"spread": spread, "decay": decay}
+        points, duration = _envelope(spread, decay)
+        envelope_table = LinTable(points, size=TABLE_SIZE)
+        envelope = TrigEnv(self.trigger, envelope_table, dur=duration, mul=level)
+        noise = Noise()
+        source = noise * envelope
+        voice = Biquad(source, freq=tone, q=RESONANCE, type=2, mul=_makeup(tone))
+        self.retain(envelope_table, envelope, noise, source)
 
-    def set_tone(value: float) -> None:
-        voice.freq = value
-        voice.mul = _makeup(value)
+        step = self.step_pattern(16, PATTERN)
 
-    def set_shape(name: str, value: float) -> None:
-        # the burst structure lives in the table, so reshape it in place
-        # rather than rebuilding the graph
-        shape[name] = value
-        new_points, new_duration = _envelope(shape["spread"], shape["decay"])
-        envelope_table.replace(new_points)
-        envelope.dur = new_duration
+        def next_step() -> None:
+            if step()[1] is not None:
+                self.trigger.play()
 
-    return Patch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "level": lambda value: setattr(envelope, "mul", value),
-            "tone": set_tone,
-            "spread": lambda value: set_shape("spread", value),
-            "decay": lambda value: set_shape("decay", value),
-            "rate": set_rate,
-        },
-        resources=(trigger, envelope_table, envelope, noise, source),
-    )
+        def set_tone(value: float) -> None:
+            voice.freq = value
+            voice.mul = _makeup(value)
+
+        def set_shape(name: str, value: float) -> None:
+            # the burst structure lives in the table, so reshape it in place
+            # rather than rebuilding the graph
+            shape[name] = value
+            new_points, new_duration = _envelope(shape["spread"], shape["decay"])
+            envelope_table.replace(new_points)
+            envelope.dur = new_duration
+
+        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "level": lambda value: setattr(envelope, "mul", value),
+                "tone": set_tone,
+                "spread": lambda value: set_shape("spread", value),
+                "decay": lambda value: set_shape("decay", value),
+            },
+        )

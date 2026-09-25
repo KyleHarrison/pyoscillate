@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.utility.notes.notes import (
     freq_to_midi,
     midi_to_freq,
@@ -71,3 +72,14 @@ class SliderSpec:
         if self.scale == "note":
             return note_name(value)
         return f"{value:.{decimal_places(self.step)}f}"
+
+
+def rate_slider(base_division: NoteDivision, help_text: str) -> SliderSpec:
+    """The standard "rate" `SliderSpec` shared by every clocked patch: an
+    integer number of `NoteDivision` steps away from `base_division`, valid
+    across `Clock.rate_limits(base_division)`. Each patch still supplies its
+    own `help_text`, since the perceptual description of what the rate does
+    is family-specific.
+    """
+    minimum, maximum = Clock.rate_limits(base_division)
+    return SliderSpec("rate", minimum, maximum, 1, 0, "Rate", help_text)

@@ -59,7 +59,7 @@ def _measure(**params: float | str) -> Features:
 
 
 def _windows(**params: float | str) -> tuple[Window, ...]:
-    # skip the first window: it holds the Patch.start() fade-in
+    # skip the first window: it holds the BuiltPatch.start() fade-in
     return windows(_render(**params))[1:]
 
 

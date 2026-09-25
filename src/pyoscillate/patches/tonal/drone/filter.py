@@ -8,7 +8,7 @@ from pyo.lib.generators import Lorenz
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -146,7 +146,7 @@ def build(
     reverb_bal: float = 0.75,
     delay_time: float = 0.45,
     delay_feedback: float = 0.3,
-) -> Patch:
+) -> BuiltPatch:
     """Static harmonic-rich drone carved by a chaotically-swept resonant lowpass filter.
 
     Unlike `soundscape_fm`'s smooth FM timbre drift, all the movement here
@@ -227,7 +227,7 @@ def build(
         maxdelay=2,
     )
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={

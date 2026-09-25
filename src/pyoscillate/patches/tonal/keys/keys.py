@@ -28,7 +28,7 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -148,7 +148,7 @@ def build(
     decay: float = 1.8,
     tremolo: float = 0.3,
     rate: float = 0,
-) -> Patch:
+) -> BuiltPatch:
     """Build an FM electric piano comping `CHORDS` in the Charleston rhythm."""
     state = {"step": 0, "slot": 0, "root": root_freq, "bark": bark, "bite": bite}
     velocities = [0.0] * SLOTS
@@ -220,7 +220,7 @@ def build(
         body_index.dur = value
 
     division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls={

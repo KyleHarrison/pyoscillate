@@ -98,6 +98,40 @@ def _read_wav(path: Path) -> Render:
     )
 
 
+def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dict[str, Any]]:
+    """Bound build callable, volume default, and remaining params for either
+    patch contract: a free `build()`/`PARAMETERS` module, or one exposing
+    `Patch` subclasses (a single-voice module has one; a multi-variant
+    family like `Kick` has a base plus one leaf subclass per `style`)."""
+    from pyoscillate.patches.base import Patch
+
+    if hasattr(module, "build"):
+        return module.build, getattr(module, "VOLUME_DEFAULT", 1.0), params
+
+    remaining = dict(params)
+    style = remaining.pop("style", None)
+    candidates = [
+        obj
+        for obj in vars(module).values()
+        if isinstance(obj, type) and issubclass(obj, Patch) and obj is not Patch
+    ]
+    # a family's base class (Kick, Cymbal, ...) is a valid, non-abstract
+    # Patch subclass but never the thing to instantiate - excluding whatever
+    # appears as another candidate's base works whether or not the family
+    # varies by style, without relying on a `style` attribute convention
+    bases = {base for cls in candidates for base in cls.__bases__}
+    leaves = [cls for cls in candidates if cls not in bases]
+    if style is not None:
+        leaves = [cls for cls in leaves if getattr(cls, "style", None) == style]
+    if len(leaves) != 1:
+        raise ValueError(
+            f"{module.__name__}: expected exactly one Patch for style={style!r}, "
+            f"found {len(leaves)}"
+        )
+    voice = leaves[0]()
+    return voice.build, voice.volume_default, remaining
+
+
 def _render_in_process(request: dict[str, Any]) -> None:
     """Subprocess body: boot an offline server, run the patch, write a wav."""
     from pyo.lib.server import Server
@@ -116,7 +150,7 @@ def _render_in_process(request: dict[str, Any]) -> None:
     )
 
     module = importlib.import_module(request["module"])
-    build = module.build
+    build, module_volume_default, params = _resolve_build(module, request["params"])
     tempo = Tempo(bpm=request["bpm"])
     clock = Clock(tempo, ticks_per_bar=DEFAULT_TICKS_PER_BAR)
     context = {"tempo": tempo, "clock": clock}
@@ -125,11 +159,9 @@ def _render_in_process(request: dict[str, Any]) -> None:
 
     # keep the patch and clock referenced for the whole render so their
     # pyo graph (including `resources`) cannot be collected mid-render
-    patch = build(**kwargs, **request["params"])
+    patch = build(**kwargs, **params)
     volume = request["volume"]
-    patch.volume = (
-        volume if volume is not None else getattr(module, "VOLUME_DEFAULT", 1.0)
-    )
+    patch.volume = volume if volume is not None else module_volume_default
     patch.start()
     if request["clock_running"]:
         clock.start()

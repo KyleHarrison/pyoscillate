@@ -1,5 +1,6 @@
 """Patch definitions for the clock-locked groove demo."""
 
+from pyoscillate.patches.base import FunctionVoice
 from pyoscillate.patches.drums import hat, low_hat
 from pyoscillate.patches.musical import clock_tick
 from pyoscillate.patches.texture import atmosphere
@@ -15,61 +16,47 @@ PATCH_DEFS: list[PatchDef] = [
         "bass",
         "Bass",
         "Rolling, resonant bassline that sweeps in tone across the groove.",
-        bass.build,
-        bass.PARAMETERS,
-        1.0,
-        needs_tempo=True,
-        needs_clock=True,
+        FunctionVoice.from_module(
+            bass, volume_default=1.0, needs_tempo=True, needs_clock=True
+        ),
     ),
     PatchDef(
         "atmosphere",
         "Atmosphere (FM pad + arpeggiator)",
         "Breathing melodic pad that arpeggiates and swells overhead.",
-        atmosphere.build,
-        atmosphere.PARAMETERS,
-        0.6,
-        rebuild_parameters=("step_division",),
-        needs_tempo=True,
-        needs_clock=True,
+        FunctionVoice.from_module(
+            atmosphere,
+            volume_default=0.6,
+            rebuild_parameters=("step_division",),
+            needs_tempo=True,
+            needs_clock=True,
+        ),
     ),
     PatchDef(
         "hat",
         "Hi-hat",
         "Subtle, airy top-end pulse.",
-        hat.build,
-        hat.PARAMETERS,
-        0.2,
-        needs_tempo=True,
-        needs_clock=True,
+        hat.Tick(),
     ),
     PatchDef(
         "low_hat",
         "Low hat",
         "Darker, rarer accent beneath the main hat.",
-        low_hat.build,
-        low_hat.PARAMETERS,
-        0.2,
-        needs_tempo=True,
-        needs_clock=True,
+        low_hat.LowHat(),
     ),
     PatchDef(
         "clock_tick",
         "Clock tick",
         "Drifting clockwork texture of overlapping ticks.",
-        clock_tick.build,
-        clock_tick.PARAMETERS,
-        1.0,
-        needs_tempo=True,
+        FunctionVoice.from_module(clock_tick, volume_default=1.0, needs_tempo=True),
     ),
     PatchDef(
         "drone",
         "Drone",
         "Slow-winding sustained drone that rarely changes note.",
-        drone.build,
-        drone.PARAMETERS,
-        1.0,
-        needs_tempo=True,
-        needs_clock=True,
+        FunctionVoice.from_module(
+            drone, volume_default=1.0, needs_tempo=True, needs_clock=True
+        ),
     ),
 ]
 

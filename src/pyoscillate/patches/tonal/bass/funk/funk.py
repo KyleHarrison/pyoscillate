@@ -42,7 +42,7 @@ from pyo.lib.triggers import Trig, TrigEnv, TrigFunc
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -203,7 +203,7 @@ def build(
     length: float = 1.0,
     rate: float = 0,
     harmony: Harmony | None = None,
-) -> Patch:
+) -> BuiltPatch:
     """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
     harmony = harmony or FALLBACK_HARMONY
     state = {"step": 0, "octave": octave, "quack": quack, "length": length}
@@ -262,7 +262,7 @@ def build(
         note_on.play()
 
     division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls={

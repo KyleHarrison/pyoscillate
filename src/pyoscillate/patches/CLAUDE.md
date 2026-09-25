@@ -116,10 +116,22 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 ## Patch contract
 
-Every patch module should expose the same public interface:
+The project is migrating between two forms of the same contract; both are
+legitimate today, and either satisfies `PatchDef` (`src/flet/base.py`),
+which only ever needs a `PatchVoice` instance:
 
-- `PARAMETERS`: ordered `SliderSpec` values that the Flet rack renders as sliders
-- `build(...) -> Patch`: creates the DSP graph and returns the live patch
+- **Function-based (most patches today)**: a module exposes `PARAMETERS`
+  (ordered `SliderSpec` values) and `build(...) -> Patch`. A project rack
+  wraps it with `FunctionVoice.from_module(module, ...)`
+  (`pyoscillate.patches.base`) to get a `PatchVoice`.
+- **Class-based (the direction for migrated/new patches)**: a module
+  defines one or more `PatchVoice` subclasses - optionally under a
+  directory-level base that factors out real shared behavior for that
+  archetype (e.g. `pyoscillate.patches.drums.base.DrumVoice` for the
+  trigger/envelope/scheduling shape every gated drum voice shares). A
+  project rack instantiates the class directly as a `PatchDef`'s `voice`.
+  See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` / `KickSoft`)
+  for the worked example.
 
 Do not duplicate boilerplate in this file. Copy the structure from the actual modules that already work.
 
@@ -133,7 +145,11 @@ Prefer:
 
 - extending an existing patch family
 - adding optional parameters to an existing builder
-- using `make_builder(profile)` when the signal graph and control intent are the same but fixed profile data differs
+- using `make_builder(profile)` (function-based) or a subclass per style
+  variant (class-based) when the signal graph and control intent are the
+  same but fixed profile data differs - a subclass is also the right call
+  when a variant needs genuinely different behavior, not just different
+  profile data, since class attributes alone can't express that
 
 Create a new patch module only when the patch genuinely needs a new control surface, topology, or lifecycle.
 

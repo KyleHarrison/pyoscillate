@@ -9,7 +9,7 @@ from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
@@ -51,7 +51,7 @@ PARAMETERS = (
 
 @dataclass
 class _Clocks:
-    """Fans play()/stop() out over several independent Metros, so one Patch
+    """Fans play()/stop() out over several independent Metros, so one BuiltPatch
     can drive multiple free-running clocks that never share a downbeat.
 
     Also holds a strong reference to every intermediate pyo object built
@@ -82,7 +82,7 @@ def build(
     level: float = OVERALL_LEVEL,
     wood_q: float = 3,
     glass_q: float = 6,
-) -> Patch:
+) -> BuiltPatch:
     """Pink Floyd "Time"-style clock shop: four noise ticks, each on its own
     free-running period measured in real seconds rather than the tempo grid.
     Like a room of clocks that were never wound together, they drift past
@@ -150,7 +150,7 @@ def build(
     keepalive.append(source)
     voice = source * level
     sequencer = _Clocks(metros=metros, keepalive=keepalive)
-    return Patch(
+    return BuiltPatch(
         sequencer=sequencer,
         voice=voice,
         controls={

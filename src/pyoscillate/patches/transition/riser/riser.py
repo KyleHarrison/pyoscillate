@@ -30,7 +30,7 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, SuperSaw
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import frequency_shift
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -128,7 +128,7 @@ def build(
     surge: float = 2,
     brightness: float = 8000,
     level: float = 0.3,
-) -> Patch:
+) -> BuiltPatch:
     """Build a riser that lands on every `PHRASE_BARS` downbeat; `style` picks the source."""
     if style not in STYLES:
         raise ValueError(f"unknown riser style {style!r}; expected one of {STYLES}")
@@ -195,7 +195,7 @@ def build(
     def set_length(value: float) -> None:
         state["length"] = round(value)
 
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls={
@@ -209,6 +209,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one riser style fixed for a rack entry."""
     return lambda **values: build(style=style, **values)

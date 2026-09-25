@@ -7,15 +7,16 @@ two-bar fill down a minor pentatonic built on the rack's current chord root,
 adding pitched contour to the kit without the weight of the kick.
 """
 
+from typing import ClassVar
+
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.tables import ExpTable
-from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -106,123 +107,115 @@ VOLUME_DEFAULT = 0.3
 FALLBACK_HARMONY = Harmony()
 
 
-def _ratio(semitones: float) -> float:
-    return 2 ** (semitones / 12)
-
-
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    level: float = 0.2,
-    tune: float = 0,
-    sweep: float = 1.0,
-    length: float = 1.0,
-    tone: float = 0.35,
-    rate: float = 0,
-    harmony: Harmony | None = None,
-) -> Patch:
-    """Build a pitched tom playing a sparse two-bar fill on the current chord.
+class Tom(DrumVoice):
+    """Pitched tom playing a sparse two-bar fill on the current chord.
 
     The fill follows the chord rather than only the key: the rack's chords
     are parallel minor sevenths, so a pentatonic fixed to the key would land
-    on non-chord tones over some of them."""
-    harmony = harmony or FALLBACK_HARMONY
-    trigger = Trig()
-    tuning = Sig(_ratio(tune))
-    body_freq = tuning * BODY_FREQ
+    on non-chord tones over some of them.
+    """
 
-    bend_table = ExpTable([(0, 1), (8191, 0)], exp=BEND_CURVE)
-    bend = TrigEnv(trigger, bend_table, dur=BEND_TIME, mul=BEND_DEPTH * sweep, add=1)
-    pitch = body_freq * bend
-    body = Sine(freq=pitch)
-    body_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    body_env = TrigEnv(trigger, body_table, dur=DECAY * length, mul=level)
-    body_signal = body * body_env
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
+    needs_harmony: ClassVar[bool] = True
 
-    overtone_pitch = pitch * OVERTONE_RATIO
-    overtone = Sine(freq=overtone_pitch)
-    overtone_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    overtone_env = TrigEnv(
-        trigger,
-        overtone_table,
-        dur=OVERTONE_DECAY * length,
-        mul=level * tone * OVERTONE_LEVEL,
-    )
-    overtone_signal = overtone * overtone_env
+    def build(
+        self,
+        tempo: Tempo,
+        clock: Clock,
+        level: float = 0.2,
+        tune: float = 0,
+        sweep: float = 1.0,
+        length: float = 1.0,
+        tone: float = 0.35,
+        rate: float = 0,
+        harmony: Harmony | None = None,
+    ) -> BuiltPatch:
+        self._reset()
+        harmony = harmony or FALLBACK_HARMONY
+        tuning = Sig(semitone_ratio(tune))
+        body_freq = tuning * BODY_FREQ
 
-    noise = Noise()
-    click_table = ExpTable([(0, 1), (8191, 0)], exp=BEND_CURVE)
-    click_env = TrigEnv(trigger, click_table, dur=CLICK_DURATION, mul=level * tone * CLICK_LEVEL)
-    click_burst = noise * click_env
-    click_freq = body_freq * CLICK_RATIO
-    click_signal = Biquad(click_burst, freq=click_freq, q=CLICK_RESONANCE, type=2)
+        bend = self.envelope(
+            [(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH * sweep, add=1, exp=BEND_CURVE
+        )
+        pitch = body_freq * bend
+        body = Sine(freq=pitch)
+        body_env = self.envelope([(0, 1), (8191, 0)], dur=DECAY * length, mul=level, exp=DECAY_CURVE)
+        body_signal = body * body_env
 
-    partials = body_signal + overtone_signal
-    voice = partials + click_signal
-    state = {"step": 0, "level": level, "tune": tune, "tone": tone}
+        overtone_pitch = pitch * OVERTONE_RATIO
+        overtone = Sine(freq=overtone_pitch)
+        overtone_env = self.envelope(
+            [(0, 1), (8191, 0)],
+            dur=OVERTONE_DECAY * length,
+            mul=level * tone * OVERTONE_LEVEL,
+            exp=DECAY_CURVE,
+        )
+        overtone_signal = overtone * overtone_env
 
-    def apply_gains() -> None:
-        overtone_env.mul = state["level"] * state["tone"] * OVERTONE_LEVEL
-        click_env.mul = state["level"] * state["tone"] * CLICK_LEVEL
-        body_env.mul = state["level"]
+        noise = Noise()
+        click_env = self.envelope(
+            [(0, 1), (8191, 0)], dur=CLICK_DURATION, mul=level * tone * CLICK_LEVEL, exp=BEND_CURVE
+        )
+        click_burst = noise * click_env
+        click_freq = body_freq * CLICK_RATIO
+        click_signal = Biquad(click_burst, freq=click_freq, q=CLICK_RESONANCE, type=2)
 
-    def next_step() -> None:
-        offset = PATTERN.get(state["step"] % CYCLE)
-        if offset is not None:
-            chord_ratio = harmony.chord_freq(BODY_FREQ, clock.bar_index) / BODY_FREQ
-            tuning.value = chord_ratio * _ratio(state["tune"] + offset)
-            # restart both partials on a zero crossing so the immediate
-            # attack doesn't click wherever the oscillators last stopped
-            body.reset()
-            overtone.reset()
-            trigger.play()
-        state["step"] += 1
-
-    def set_state(name: str, value: float) -> None:
-        state[name] = value
-        apply_gains()
-
-    def set_length(value: float) -> None:
-        body_env.dur = DECAY * value
-        overtone_env.dur = OVERTONE_DECAY * value
-
-    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
-    return Patch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "level": lambda value: set_state("level", value),
-            # takes effect from the next hit, which sets the fill note too
-            "tune": lambda value: state.__setitem__("tune", value),
-            "sweep": lambda value: setattr(bend, "mul", BEND_DEPTH * value),
-            "length": set_length,
-            "tone": lambda value: set_state("tone", value),
-            "rate": lambda value: setattr(
-                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
-            ),
-        },
-        resources=(
-            trigger,
+        partials = body_signal + overtone_signal
+        voice = partials + click_signal
+        self.retain(
             tuning,
             body_freq,
-            bend_table,
-            bend,
             pitch,
             body,
-            body_table,
-            body_env,
             body_signal,
             overtone_pitch,
             overtone,
-            overtone_table,
-            overtone_env,
             overtone_signal,
             noise,
-            click_table,
-            click_env,
             click_burst,
             click_freq,
             click_signal,
             partials,
-        ),
-    )
+        )
+        state = {"level": level, "tune": tune, "tone": tone}
+
+        def apply_gains() -> None:
+            overtone_env.mul = state["level"] * state["tone"] * OVERTONE_LEVEL
+            click_env.mul = state["level"] * state["tone"] * CLICK_LEVEL
+            body_env.mul = state["level"]
+
+        step = self.step_pattern(CYCLE, PATTERN)
+
+        def next_step() -> None:
+            _, offset = step()
+            if offset is not None:
+                chord_ratio = harmony.chord_freq(BODY_FREQ, clock.bar_index) / BODY_FREQ
+                tuning.value = chord_ratio * semitone_ratio(state["tune"] + offset)
+                # restart both partials on a zero crossing so the immediate
+                # attack doesn't click wherever the oscillators last stopped
+                body.reset()
+                overtone.reset()
+                self.trigger.play()
+
+        def set_state(name: str, value: float) -> None:
+            state[name] = value
+            apply_gains()
+
+        def set_length(value: float) -> None:
+            body_env.dur = DECAY * value
+            overtone_env.dur = OVERTONE_DECAY * value
+
+        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "level": lambda value: set_state("level", value),
+                # takes effect from the next hit, which sets the fill note too
+                "tune": lambda value: state.__setitem__("tune", value),
+                "sweep": lambda value: setattr(bend, "mul", BEND_DEPTH * value),
+                "length": set_length,
+                "tone": lambda value: set_state("tone", value),
+            },
+        )

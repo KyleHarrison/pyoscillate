@@ -5,7 +5,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -150,7 +150,7 @@ def build(
     reverb_bal: float = 0.9,
     delay_time: float = 0.8,
     delay_feedback: float = 0.25,
-) -> Patch:
+) -> BuiltPatch:
     """Washy detuned pad: a SuperSaw voice smeared with chorus, reverb, and delay for a shoegaze-style dream-pop ambience.
 
     Unlike `soundscape_fm`/`soundscape_filter`, the "evolving" quality here
@@ -234,7 +234,7 @@ def build(
         maxdelay=2,
     )
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={

@@ -26,7 +26,7 @@ from pyo.lib.tables import CosTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
@@ -130,7 +130,7 @@ def build(
     edge: float = 0.5,
     length: float = 0.9,
     rate: float = 0,
-) -> Patch:
+) -> BuiltPatch:
     """Build an FM bassline whose index barks on each note; `style` picks FM or CrossFM."""
     if style not in STYLES:
         raise ValueError(f"unknown FM bass style {style!r}; expected one of {STYLES}")
@@ -176,7 +176,7 @@ def build(
         bark.mul = value * state["accent"]
 
     division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls={
@@ -191,6 +191,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one FM bass style fixed for a rack entry."""
     return lambda **values: build(style=style, **values)

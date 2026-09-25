@@ -1,9 +1,9 @@
 """Shared Flet <-> Pyo patch plumbing.
 
-This module abstracts the conversion between a `Patch` definition (a
-`build()` function plus a tuple of `SliderSpec` parameters, as exposed by
-the modules under `pyoscillate.patches`) and a Flet UI: one
-`PatchDef` per patch, wrapped in a `PatchPanel` that renders an
+This module abstracts the conversion between a `Patch` (as exposed by
+the modules under `pyoscillate.patches`, either as a `Patch` subclass
+directly or, for an unmigrated module, wrapped in `FunctionVoice`) and a
+Flet UI: one `PatchDef` per patch, wrapped in a `PatchPanel` that renders an
 enable switch, parameter sliders, and a volume slider, all wired to a shared
 `PatchRack`. `PatchRackApp` composes any number of `PatchPanel`s into a single
 scrollable page with an audio-engine start/stop control and JSON preset
@@ -14,18 +14,19 @@ whole rack of patches (`deep_house`, `psyambient`, `rack_demo`).
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pyo.lib._core import PyoError
+from pyo.lib.analysis import Follower2
+from pyo.lib.dynamics import Clip
 from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
 from pyoscillate.harmony import NOTE_NAMES, Harmony
-from pyoscillate.patches.base import Patch, PatchRack, start_server
+from pyoscillate.patches.base import BuiltPatch, Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
@@ -45,28 +46,37 @@ RACK_PRESET_KEY = "_rack"
 Preset = dict[str, dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class SidechainSource:
+    """Ducks this patch's output off another rack patch's live voice signal
+    - e.g. a kick ducking the bass on every hit.
+
+    The connection is resolved at this patch's own build time: if
+    `patch_name` isn't already built (its switch was never turned on) when
+    this patch is (re)built, it plays unducked. Turning the source on
+    afterward doesn't retroactively rewire an already-built target; toggle
+    this patch again to pick it up. Making that reactive is future work.
+    """
+
+    patch_name: str
+    depth: float = 0.6
+    release: float = 0.15
+
+
 @dataclass
 class PatchDef:
-    """Static description of one patch.
-
-    `needs_tempo`/`needs_clock` tell `PatchRackApp` which shared objects to
-    inject into `build_kwargs` once the audio engine is running, mirroring
-    the `build(tempo, clock, ...)` / `build(tempo, ...)` / `build(...)`
-    shapes used across `pyoscillate.patches`. `needs_harmony` injects the
-    rack's shared `Harmony` as a `harmony=` keyword, for pitched patches
-    that should follow the rack's key and chord changes.
+    """Static description of one patch: a `Patch` (either a real
+    subclass or a `FunctionVoice`-wrapped legacy module) plus everything the
+    rack needs to place it in the UI. `parameters`, `volume_default`,
+    `rebuild_parameters`, and the `needs_*` flags all come from `voice`
+    itself rather than being restated here.
     """
 
     name: str
     title: str
     summary: str
-    build: Callable[..., Patch]
-    parameters: tuple[SliderSpec, ...]
-    volume_default: float = 0.6
-    rebuild_parameters: tuple[str, ...] = ()
-    needs_tempo: bool = False
-    needs_clock: bool = False
-    needs_harmony: bool = False
+    voice: Patch
+    sidechain: SidechainSource | None = None
 
 
 @dataclass
@@ -102,8 +112,8 @@ class PresetStore:
 class PatchPanel:
     """One patch's live controls, wired to a shared `PatchRack`.
 
-    Rebuilds the underlying `Patch` only when one of `rebuild_parameters`
-    changes value; every other slider move just calls `Patch.update()` in
+    Rebuilds the underlying `BuiltPatch` only when one of `rebuild_parameters`
+    changes value; every other slider move just calls `BuiltPatch.update()` in
     place.
     """
 
@@ -111,8 +121,10 @@ class PatchPanel:
         self.rack = rack
         self.patch_def = patch_def
         self.enabled = False
-        self.volume = patch_def.volume_default
-        self.values: dict[str, float] = {spec.name: spec.default for spec in patch_def.parameters}
+        self.volume = patch_def.voice.volume_default
+        self.values: dict[str, float] = {
+            spec.name: spec.default for spec in patch_def.voice.parameters
+        }
         self.build_kwargs: dict[str, Any] = {}
         self._engine_ready = False
         self._group_enabled = True
@@ -171,7 +183,7 @@ class PatchPanel:
         )
 
     def _build_control(self) -> ft.Control:
-        rows = [self._slider_row(spec) for spec in self.patch_def.parameters]
+        rows = [self._slider_row(spec) for spec in self.patch_def.voice.parameters]
         rows.append(
             ft.Container(
                 content=ft.Column(
@@ -253,22 +265,38 @@ class PatchPanel:
             self._built_values is not None
             and any(
                 self.values[key] != self._built_values[key]
-                for key in self.patch_def.rebuild_parameters
+                for key in self.patch_def.voice.rebuild_parameters
             )
         )
         if rebuild:
-            patch = self.patch_def.build(**self.build_kwargs, **self.values)
+            patch = self.patch_def.voice.build(**self.build_kwargs, **self.values)
+            self._wire_sidechain(patch)
             self.rack.start(name, patch)
         else:
             patch.update(
                 {
                     key: value
                     for key, value in self.values.items()
-                    if key not in self.patch_def.rebuild_parameters
+                    if key not in self.patch_def.voice.rebuild_parameters
                 }
             )
         patch.set("volume", self.volume)
         self._built_values = dict(self.values)
+
+    def _wire_sidechain(self, patch: BuiltPatch) -> None:
+        """If this patch declares a `SidechainSource` and that source is
+        already built, duck this patch's voice off the source's live
+        signal. See `SidechainSource` for the resolution-order limitation."""
+        sidechain = self.patch_def.sidechain
+        if sidechain is None:
+            return
+        source = self.rack.get(sidechain.patch_name)
+        if source is None:
+            return
+        follower = Follower2(source.voice, falltime=sidechain.release)
+        duck = 1 - Clip(follower, min=0, max=1) * sidechain.depth
+        patch.voice = patch.voice * duck
+        patch.resources = patch.resources + (follower, duck)
 
     # -- presets -------------------------------------------------------------
 
@@ -278,13 +306,13 @@ class PatchPanel:
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
         self.switch.value = self.enabled
-        for spec in self.patch_def.parameters:
+        for spec in self.patch_def.voice.parameters:
             if spec.name in data:
                 value = spec.snap(float(data[spec.name]))
                 self.values[spec.name] = value
                 self._sliders[spec.name].value = spec.to_position(value)
                 self._value_texts[spec.name].value = spec.format(value)
-        self.volume = float(data.get("volume", self.patch_def.volume_default))
+        self.volume = float(data.get("volume", self.patch_def.voice.volume_default))
         self.volume_slider.value = self.volume
         self.volume_text.value = f"{self.volume:.1f}"
         self._apply()
@@ -603,11 +631,11 @@ class PatchRackApp:
 
             for panel in self.panels.values():
                 kwargs: dict[str, Any] = {}
-                if panel.patch_def.needs_tempo and self.tempo is not None:
+                if panel.patch_def.voice.needs_tempo and self.tempo is not None:
                     kwargs["tempo"] = self.tempo
-                if panel.patch_def.needs_clock and self.clock is not None:
+                if panel.patch_def.voice.needs_clock and self.clock is not None:
                     kwargs["clock"] = self.clock
-                if panel.patch_def.needs_harmony and self.harmony is not None:
+                if panel.patch_def.voice.needs_harmony and self.harmony is not None:
                     kwargs["harmony"] = self.harmony
                 panel.set_engine_ready(True, kwargs)
             for group in self.groups:

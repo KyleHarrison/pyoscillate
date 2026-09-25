@@ -12,8 +12,8 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -38,13 +38,8 @@ PARAMETERS = (
         "Brightness",
         "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting one.",
     ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    rate_slider(
+        BASE_DIVISION,
         "Halves or doubles the chord-stab pattern speed for each step away from its 16th-note grid.",
     ),
 )
@@ -65,7 +60,7 @@ def build(
     brightness: float = 1500,
     rate: float = 0,
     harmony: Harmony | None = None,
-) -> Patch:
+) -> BuiltPatch:
     """Build an offbeat minor-seventh chord stab from four explicit voices.
 
     Each stab voices the chord `harmony` says is sounding in the current bar,
@@ -115,7 +110,7 @@ def build(
         state["step"] += 1
 
     division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls={
@@ -139,6 +134,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one chord style fixed for a rack entry."""
     return lambda tempo, clock, **values: build(tempo, clock, style, **values)

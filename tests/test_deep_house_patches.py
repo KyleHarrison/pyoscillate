@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import A, Harmony
-from pyoscillate.patches import Patch, PatchRack, start_server
+from pyoscillate.patches import BuiltPatch, PatchRack, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
@@ -67,7 +67,7 @@ class PatchGraphOwnershipTests(unittest.TestCase):
                     continue
                 if (
                     not isinstance(node.value.func, ast.Name)
-                    or node.value.func.id != "Patch"
+                    or node.value.func.id != "BuiltPatch"
                 ):
                     continue
                 resources = next(
@@ -100,8 +100,8 @@ tempo = Tempo(bpm=122)
 clock = Clock(tempo)
 clock.start()
 rack = PatchRack()
-rack.start("kick_round", kick.build(tempo, clock, "round"))
-punch = rack.start("kick_punch", kick.build(tempo, clock, "punch"))
+rack.start("kick_round", kick.KickRound().build(tempo, clock))
+punch = rack.start("kick_punch", kick.KickPunch().build(tempo, clock))
 for index in range(500):
     punch.update({
         "level": 0.1 + (index % 19) * 0.05,
@@ -139,21 +139,22 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
 
     def assert_patch_lifecycle(self, patch_def) -> None:
         rack = PatchRack()
-        values = {spec.name: spec.default for spec in patch_def.parameters}
+        voice = patch_def.voice
+        values = {spec.name: spec.default for spec in voice.parameters}
         build_kwargs = dict(values)
-        if patch_def.needs_tempo:
+        if voice.needs_tempo:
             build_kwargs["tempo"] = self.tempo
-        if patch_def.needs_clock:
+        if voice.needs_clock:
             build_kwargs["clock"] = self.clock
-        if patch_def.needs_harmony:
+        if voice.needs_harmony:
             build_kwargs["harmony"] = Harmony(progression=(0, 5, 10, 7))
 
-        patch = patch_def.build(**build_kwargs)
-        self.assertIsInstance(patch, Patch)
+        patch = voice.build(**build_kwargs)
+        self.assertIsInstance(patch, BuiltPatch)
         rack.start(patch_def.name, patch)
         patch.update(values)
         rate = next(
-            (spec for spec in patch_def.parameters if spec.name == "rate"), None
+            (spec for spec in voice.parameters if spec.name == "rate"), None
         )
         if rate is not None:
             patch.set("rate", rate.maximum)
@@ -173,7 +174,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         interval its pattern puts on that note - i.e. the chord root it used."""
         chord_patch = chord.build(self.tempo, self.clock, "velvet", harmony=harmony)
         bass_patch = bass.build(self.tempo, self.clock, "rolling", harmony=harmony)
-        tom_patch = tom.build(self.tempo, self.clock, harmony=harmony)
+        tom_patch = tom.Tom().build(self.tempo, self.clock, harmony=harmony)
         # the chord stabs on the third 16th, the bass on the first, the tom's
         # first fill note (a fifth up) on the eleventh
         for _ in range(3):

@@ -10,17 +10,16 @@ marks the start of each eight-bar phrase with a long, broad wash.
 """
 
 import math
-from collections.abc import Callable
+from typing import ClassVar
 
 from pyo.lib._core import Mix, Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import FM, Noise, Sine
-from pyo.lib.tables import ExpTable
-from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -63,27 +62,11 @@ PARAMETERS = (
         "How much the cymbal's colour drifts from strike to strike; none is static and repetitive, more "
         "keeps a repeated pattern alive.",
     ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    rate_slider(
+        BASE_DIVISION,
         "Halves or doubles the cymbal pattern speed for each step away from its 16th-note grid.",
     ),
 )
-# cycle length in 16th steps, and step -> accent within that cycle
-PATTERNS = {
-    "ride": (16, {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8}),
-    "crash": (128, {0: 1.0}),
-}
-# decay (s), band-pass resonance - the ride rings in a focused band, the
-# crash spreads broadly and hangs much longer
-PROFILES = {
-    "ride": (1.0, 3.0),
-    "crash": (2.6, 1.2),
-}
 # carrier (Hz), modulator ratio, index
 METAL_OPERATORS = (
     (3100.0, 1.41, 5.0),
@@ -106,80 +89,88 @@ def _makeup(tone: float) -> float:
     return MAKEUP_GAIN * math.sqrt(REFERENCE_TONE / tone)
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    style: str,
-    level: float = 0.1,
-    tone: float = 7000,
-    length: float = 1.0,
-    movement: float = 0.1,
-    rate: float = 0,
-) -> Patch:
-    """Build a ride or crash cymbal with slow strike-to-strike colour drift."""
-    cycle, pattern = PATTERNS[style]
-    decay, resonance = PROFILES[style]
-    trigger = Trig()
+class Cymbal(DrumVoice):
+    """Ride/crash cymbal: dense metallic source through a resonant
+    band-pass with a slow, tempo-locked drift of the band's centre. Style
+    variants share this graph and override the profile attributes below."""
 
-    operators = tuple(
-        FM(carrier=carrier, ratio=ratio, index=index, mul=1 / len(METAL_OPERATORS))
-        for carrier, ratio, index in METAL_OPERATORS
-    )
-    noise = Noise(mul=NOISE_LEVEL)
-    source = Mix([*operators, noise], voices=1)
-    envelope_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    envelope = TrigEnv(trigger, envelope_table, dur=decay * length, mul=level)
-    shaped = source * envelope
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    centre = Sig(tone)
-    drift = Sine(freq=1 / (MOVEMENT_BARS * tempo.bar), mul=movement, add=1)
-    band = centre * drift
-    voice = Biquad(shaped, freq=band, q=resonance, type=2, mul=_makeup(tone))
-    state = {"step": 0, "level": level}
+    # cycle length in 16th steps, step -> accent within that cycle, decay
+    # (s), band-pass resonance - overridden per style
+    cycle: ClassVar[int]
+    pattern: ClassVar[dict[int, float]]
+    decay: ClassVar[float]
+    resonance: ClassVar[float]
 
-    def next_step() -> None:
-        accent = pattern.get(state["step"] % cycle)
-        if accent is not None:
-            envelope.mul = state["level"] * accent
-            trigger.play()
-        state["step"] += 1
+    def build(
+        self,
+        tempo: Tempo,
+        clock: Clock,
+        level: float = 0.1,
+        tone: float = 7000,
+        length: float = 1.0,
+        movement: float = 0.1,
+        rate: float = 0,
+    ) -> BuiltPatch:
+        """Build a ride or crash cymbal with slow strike-to-strike colour drift."""
+        self._reset()
+        operators = tuple(
+            FM(carrier=carrier, ratio=ratio, index=index, mul=1 / len(METAL_OPERATORS))
+            for carrier, ratio, index in METAL_OPERATORS
+        )
+        noise = Noise(mul=NOISE_LEVEL)
+        source = Mix([*operators, noise], voices=1)
+        envelope = self.envelope(
+            [(0, 1), (8191, 0)], dur=self.decay * length, mul=level, exp=DECAY_CURVE
+        )
+        shaped = source * envelope
 
-    def set_level(value: float) -> None:
-        state["level"] = value
-        envelope.mul = value
+        centre = Sig(tone)
+        drift = Sine(freq=1 / (MOVEMENT_BARS * tempo.bar), mul=movement, add=1)
+        band = centre * drift
+        voice = Biquad(shaped, freq=band, q=self.resonance, type=2, mul=_makeup(tone))
+        self.retain(*operators, noise, source, shaped, centre, drift, band)
+        state = {"level": level}
 
-    def set_tone(value: float) -> None:
-        centre.value = value
-        voice.mul = _makeup(value)
+        step = self.step_pattern(self.cycle, self.pattern)
 
-    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
-    return Patch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "level": set_level,
-            "tone": set_tone,
-            "length": lambda value: setattr(envelope, "dur", decay * value),
-            "movement": lambda value: setattr(drift, "mul", value),
-            "rate": lambda value: setattr(
-                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
-            ),
-        },
-        resources=(
-            trigger,
-            *operators,
-            noise,
-            source,
-            envelope_table,
-            envelope,
-            shaped,
-            centre,
-            drift,
-            band,
-        ),
-    )
+        def next_step() -> None:
+            _, accent = step()
+            if accent is not None:
+                envelope.mul = state["level"] * accent
+                self.trigger.play()
+
+        def set_level(value: float) -> None:
+            state["level"] = value
+            envelope.mul = value
+
+        def set_tone(value: float) -> None:
+            centre.value = value
+            voice.mul = _makeup(value)
+
+        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "level": set_level,
+                "tone": set_tone,
+                "length": lambda value: setattr(envelope, "dur", self.decay * value),
+                "movement": lambda value: setattr(drift, "mul", value),
+            },
+        )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
-    """Return a builder with one cymbal style fixed for a rack entry."""
-    return lambda tempo, clock, **values: build(tempo, clock, style, **values)
+class CymbalRide(Cymbal):
+    """Quarter-note ride with slowly drifting metallic colour."""
+
+    style = "ride"
+    cycle, pattern, decay, resonance = 16, {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8}, 1.0, 3.0
+
+
+class CymbalCrash(Cymbal):
+    """Long crash wash marking the start of every eight-bar phrase."""
+
+    style = "crash"
+    cycle, pattern, decay, resonance = 128, {0: 1.0}, 2.6, 1.2

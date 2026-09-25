@@ -28,7 +28,7 @@ from pyo.lib.filters import Biquad, Phaser
 from pyo.lib.generators import BrownNoise, Noise, PinkNoise, Sine
 from pyo.lib.pan import Selector
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer, frequency_shift
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 
@@ -122,7 +122,7 @@ def build(
     motion: float = 1,
     depth: float = 0.6,
     level: float = 0.35,
-) -> Patch:
+) -> BuiltPatch:
     """Build an ungated noise bed; `style` picks the kind of movement."""
     if style not in STYLES:
         raise ValueError(f"unknown noise style {style!r}; expected one of {STYLES}")
@@ -194,7 +194,7 @@ def build(
 
     voice = moved * live["level"]
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={
@@ -205,6 +205,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one noise style fixed for a rack entry."""
     return lambda **values: build(style, **values)

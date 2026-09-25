@@ -5,7 +5,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.filters import MoogLP, Tone
 from pyo.lib.generators import BrownNoise, Sine
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -72,7 +72,7 @@ def build(
     noise_level: float = 0.5,
     noise_cutoff: float = 90,
     tone_cutoff: float = 300,
-) -> Patch:
+) -> BuiltPatch:
     """Textural noise rumble: `BrownNoise` through a very low lowpass, blended with a sub sine, for an unpitched "earthquake" low end rather than a tonal bass.
 
     Args:
@@ -109,7 +109,7 @@ def build(
     sub_voice = Tone(sub, freq=live["tone_cutoff"])
     voice = noise_voice + sub_voice
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={

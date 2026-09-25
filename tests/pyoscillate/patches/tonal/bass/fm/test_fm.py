@@ -4,7 +4,7 @@ the settled tone, accents bark harder, Length sets how long notes last, and
 the loudest corner stays clean.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. The first note sits under `Patch.start()`'s fade-in, so
+tests/CLAUDE.md. The first note sits under `BuiltPatch.start()`'s fade-in, so
 tests measure later ones.
 
 Findings

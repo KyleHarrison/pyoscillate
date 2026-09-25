@@ -26,7 +26,7 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -134,7 +134,7 @@ def build(
     strike: float = 0.6,
     ring: float = 2.5,
     rate: float = 0,
-) -> Patch:
+) -> BuiltPatch:
     """Build a bell playing `PATTERN`; `style` picks modal or FM partials."""
     if style not in STYLES:
         raise ValueError(f"unknown bell style {style!r}; expected one of {STYLES}")
@@ -198,7 +198,7 @@ def build(
     division = clock.subscribe(_steps_for_rate(clock, rate), next_step)
     controls["root_freq"] = lambda value: state.update(root=value)
     controls["rate"] = lambda value: setattr(division, "steps", _steps_for_rate(clock, value))
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls=controls,
@@ -206,6 +206,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one bell style fixed for a rack entry."""
     return lambda **values: build(style=style, **values)

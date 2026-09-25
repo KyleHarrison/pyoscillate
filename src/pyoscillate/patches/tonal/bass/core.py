@@ -13,7 +13,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.tempo import Tempo
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -43,7 +43,7 @@ def build_bass(
     filter_res: float | None = None,
     harmony: Harmony | None = None,
     octave: float = 0,
-) -> Patch:
+) -> BuiltPatch:
     """Build a triggered pitch voice from a musical profile.
 
     A fixed ``cutoff`` gives a compact, controlled bass. Supplying
@@ -123,7 +123,7 @@ def build_bass(
     controls["rate"] = lambda value: setattr(
         division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
     )
-    return Patch(
+    return BuiltPatch(
         sequencer=division,
         voice=voice,
         controls=controls,

@@ -5,7 +5,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -106,7 +106,7 @@ def build(
     reverb_bal: float = 0.85,
     delay_time: float = 0.6,
     delay_feedback: float = 0.35,
-) -> Patch:
+) -> BuiltPatch:
     """Free-running FM pad whose timbre is driven entirely by chaotic attractors, with no clocked note pattern at all.
 
     Args:
@@ -174,7 +174,7 @@ def build(
         maxdelay=2,
     )
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={

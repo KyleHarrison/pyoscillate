@@ -11,12 +11,11 @@ next bar.
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.tables import ExpTable
-from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
+from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -69,13 +68,8 @@ PARAMETERS = (
         "Tail",
         "Length of the rattle after the hit; short is a dry crack, long reads like a small room around the snare.",
     ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    rate_slider(
+        BASE_DIVISION,
         "Halves or doubles the snare pattern speed for each step away from its 16th-note grid.",
     ),
 )
@@ -95,91 +89,73 @@ BEND_CURVE = 6
 VOLUME_DEFAULT = 0.3
 
 
-def _ratio(semitones: float) -> float:
-    return 2 ** (semitones / 12)
+class Snare(DrumVoice):
+    """Tone-plus-rattle snare on the backbeat with a ghost note."""
 
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    level: float = 0.2,
-    tune: float = 0,
-    snap: float = 1.0,
-    tone: float = 2000,
-    decay: float = 0.16,
-    rate: float = 0,
-) -> Patch:
-    """Build a tone-plus-rattle snare on the backbeat with a ghost note."""
-    trigger = Trig()
-    tuning = Sig(_ratio(tune))
-    body_freq = tuning * BODY_FREQ
+    def build(
+        self,
+        tempo: Tempo,
+        clock: Clock,
+        level: float = 0.2,
+        tune: float = 0,
+        snap: float = 1.0,
+        tone: float = 2000,
+        decay: float = 0.16,
+        rate: float = 0,
+    ) -> BuiltPatch:
+        self._reset()
+        tuning = Sig(semitone_ratio(tune))
+        body_freq = tuning * BODY_FREQ
 
-    bend_table = ExpTable([(0, 1), (8191, 0)], exp=BEND_CURVE)
-    bend = TrigEnv(trigger, bend_table, dur=BEND_TIME, mul=BEND_DEPTH, add=1)
-    pitch = body_freq * bend
-    body = Sine(freq=pitch)
-    body_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    body_env = TrigEnv(trigger, body_table, dur=BODY_DECAY, mul=level * BODY_LEVEL)
-    body_signal = body * body_env
+        bend = self.envelope([(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH, add=1, exp=BEND_CURVE)
+        pitch = body_freq * bend
+        body = Sine(freq=pitch)
+        body_env = self.envelope(
+            [(0, 1), (8191, 0)], dur=BODY_DECAY, mul=level * BODY_LEVEL, exp=DECAY_CURVE
+        )
+        body_signal = body * body_env
 
-    noise = Noise()
-    rattle_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    rattle_env = TrigEnv(trigger, rattle_table, dur=decay, mul=level * snap)
-    rattle_burst = noise * rattle_env
-    rattle = Biquad(rattle_burst, freq=tone, q=RATTLE_RESONANCE, type=1)
+        noise = Noise()
+        rattle_env = self.envelope([(0, 1), (8191, 0)], dur=decay, mul=level * snap, exp=DECAY_CURVE)
+        rattle_burst = noise * rattle_env
+        rattle = Biquad(rattle_burst, freq=tone, q=RATTLE_RESONANCE, type=1)
 
-    voice = body_signal + rattle
-    state = {"step": 0, "level": level, "snap": snap, "accent": 1.0}
+        voice = body_signal + rattle
+        self.retain(tuning, body_freq, pitch, body, body_signal, noise, rattle_burst, rattle)
+        state = {"level": level, "snap": snap, "accent": 1.0}
 
-    def apply_gains() -> None:
-        gain = state["level"] * state["accent"]
-        body_env.mul = gain * BODY_LEVEL
-        rattle_env.mul = gain * state["snap"]
+        def apply_gains() -> None:
+            gain = state["level"] * state["accent"]
+            body_env.mul = gain * BODY_LEVEL
+            rattle_env.mul = gain * state["snap"]
 
-    def next_step() -> None:
-        accent = PATTERN.get(state["step"] % 16)
-        if accent is not None:
-            state["accent"] = accent
+        step = self.step_pattern(16, PATTERN)
+
+        def next_step() -> None:
+            _, accent = step()
+            if accent is not None:
+                state["accent"] = accent
+                apply_gains()
+                # restart the body on a zero crossing so the immediate
+                # attack doesn't click wherever the oscillator last stopped
+                body.reset()
+                self.trigger.play()
+
+        def set_gain(name: str, value: float) -> None:
+            state[name] = value
             apply_gains()
-            # restart the body on a zero crossing so the immediate attack
-            # doesn't click wherever the oscillator last stopped
-            body.reset()
-            trigger.play()
-        state["step"] += 1
 
-    def set_gain(name: str, value: float) -> None:
-        state[name] = value
-        apply_gains()
-
-    division = clock.subscribe(clock.ticks_for_rate(BASE_DIVISION, rate), next_step)
-    return Patch(
-        sequencer=division,
-        voice=voice,
-        controls={
-            "level": lambda value: set_gain("level", value),
-            "tune": lambda value: setattr(tuning, "value", _ratio(value)),
-            "snap": lambda value: set_gain("snap", value),
-            "tone": lambda value: setattr(rattle, "freq", value),
-            "decay": lambda value: setattr(rattle_env, "dur", value),
-            "rate": lambda value: setattr(
-                division, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
-            ),
-        },
-        resources=(
-            trigger,
-            tuning,
-            body_freq,
-            bend_table,
-            bend,
-            pitch,
-            body,
-            body_table,
-            body_env,
-            body_signal,
-            noise,
-            rattle_table,
-            rattle_env,
-            rattle_burst,
-            rattle,
-        ),
-    )
+        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        return self.finish(
+            voice,
+            {
+                "level": lambda value: set_gain("level", value),
+                "tune": lambda value: setattr(tuning, "value", semitone_ratio(value)),
+                "snap": lambda value: set_gain("snap", value),
+                "tone": lambda value: setattr(rattle, "freq", value),
+                "decay": lambda value: setattr(rattle_env, "dur", value),
+            },
+        )

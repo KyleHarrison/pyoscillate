@@ -120,7 +120,7 @@ These notes are about [src/pyoscillate/projects/deep_house/rack.py](../../src/py
 
 **Done when:** one route (for example, a 16-bar LFO on chord `brightness`) moves the parameter audibly, survives a patch rebuild, and stops cleanly when the engine stops.
 
-### 3. Shared harmony (key/root source) — [x] done 2026-09-25 (turned out not to need 2)
+### 3. Shared harmony (key/root source) — []
 
 **Why:** this is the biggest musical gain. The bass, chords and tom should move together through the progression.
 

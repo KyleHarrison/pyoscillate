@@ -10,7 +10,7 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -155,7 +155,7 @@ def build(
     reverb_size: float = 0.7,
     reverb_damp: float = 0.5,
     reverb_bal: float = 0.5,
-) -> Patch:
+) -> BuiltPatch:
     """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on
     its own free-running period, so they drift in and out of alignment like an ever-shifting call and
     response.
@@ -226,7 +226,7 @@ def build(
             voice_b_func,
         ],
     )
-    return Patch(
+    return BuiltPatch(
         sequencer=sequencer,
         voice=voice,
         controls={

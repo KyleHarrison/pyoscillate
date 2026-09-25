@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server, pa_list_devices
+
+from pyoscillate.patches.params import SliderSpec
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
@@ -62,15 +65,15 @@ def setup_notebook(
 
 
 class Sequencer(Protocol):
-    """Anything a `Patch` can start/stop ticking - a `Clock` `Division`, a
-    raw pyo `Pattern`, or clock_tick's multi-`Pattern` fan-out."""
+    """Anything a `BuiltPatch` can start/stop ticking - a `Clock` `Division`,
+    a raw pyo `Pattern`, or clock_tick's multi-`Pattern` fan-out."""
 
     def play(self) -> None: ...
     def stop(self) -> None: ...
 
 
 @dataclass
-class Patch:
+class BuiltPatch:
     """A step sequencer paired with the audio chain it drives.
 
     Building a patch only wires up the pyo object graph - nothing is audible
@@ -99,16 +102,16 @@ class Patch:
         try:
             setter = self.controls[name]
         except KeyError as error:
-            raise KeyError(f"Patch has no live parameter named {name!r}") from error
+            raise KeyError(f"BuiltPatch has no live parameter named {name!r}") from error
         setter(value)
 
-    def update(self, values: dict[str, Any]) -> Patch:
+    def update(self, values: dict[str, Any]) -> BuiltPatch:
         """Update several live parameters and preserve runtime state."""
         for name, value in values.items():
             self.set(name, value)
         return self
 
-    def start(self) -> Patch:
+    def start(self) -> BuiltPatch:
         # `volume` boosts *before* Compress, not after: Compress's own mul
         # multiplies its already-compressed output, so gain reduction would
         # never see (and never catch) whatever volume pushed past the
@@ -138,7 +141,7 @@ class Patch:
         self.sequencer.play()
         return self
 
-    def stop(self) -> Patch:
+    def stop(self) -> BuiltPatch:
         self.sequencer.stop()
         if self._fade is not None:
             self._fade.value = 0.0
@@ -151,13 +154,68 @@ class Patch:
         return self
 
 
+class Patch(ABC):
+    """Base for a patch's live definition: owns `parameters`/`volume_default`/
+    `rebuild_parameters`/`needs_*` as class attributes and builds the DSP
+    graph in `build()`. A `PatchDef` reads everything it needs directly off
+    an instance instead of having it restated at the call site.
+    """
+
+    parameters: ClassVar[tuple[SliderSpec, ...]]
+    volume_default: ClassVar[float] = 0.6
+    rebuild_parameters: ClassVar[tuple[str, ...]] = ()
+    needs_tempo: ClassVar[bool] = False
+    needs_clock: ClassVar[bool] = False
+    needs_harmony: ClassVar[bool] = False
+
+    @abstractmethod
+    def build(self, **kwargs: Any) -> BuiltPatch: ...
+
+
+@dataclass
+class FunctionVoice(Patch):
+    """Adapts an unmigrated `build()`/`PARAMETERS` module to the `Patch`
+    contract, so a `PatchDef` only ever needs a `Patch` instance regardless
+    of whether a given patch has moved to a class yet.
+    """
+
+    _build: Callable[..., BuiltPatch]
+    parameters: tuple[SliderSpec, ...]
+    volume_default: float = 0.6
+    rebuild_parameters: tuple[str, ...] = ()
+    needs_tempo: bool = False
+    needs_clock: bool = False
+    needs_harmony: bool = False
+
+    def build(self, **kwargs: Any) -> BuiltPatch:
+        return self._build(**kwargs)
+
+    @classmethod
+    def from_module(
+        cls,
+        module: Any,
+        *,
+        volume_default: float,
+        style: str | None = None,
+        **flags: Any,
+    ) -> FunctionVoice:
+        """`style` selects a `make_builder(style)` variant; omit it for a
+        module with a single `build`. `volume_default` is always required
+        explicitly, since not every module defines its own `VOLUME_DEFAULT`
+        constant and callers already choose a rack-specific value today.
+        `flags` are the remaining `Patch` fields (`needs_tempo=True`, and so
+        on)."""
+        build = module.make_builder(style) if style is not None else module.build
+        return cls(build, module.PARAMETERS, volume_default, **flags)
+
+
 @dataclass
 class PatchRack:
-    """Keeps the one currently-playing Patch per named voice.
+    """Keeps the one currently-playing BuiltPatch per named voice.
 
     Rerunning `hat.build(...)` after editing hat.py and reassigning
-    `hat_patch` doesn't stop the previous Patch - pyo's audio graph keeps
-    running until `.stop()` is called explicitly, and once the Python
+    `hat_patch` doesn't stop the previous BuiltPatch - pyo's audio graph
+    keeps running until `.stop()` is called explicitly, and once the Python
     variable is overwritten there's no longer any reference to call it on,
     so the old voice plays on forever, unkillable.
 
@@ -167,17 +225,17 @@ class PatchRack:
     first, so a rerun can never leave an orphaned voice behind.
     """
 
-    _patches: dict[str, Patch] = field(default_factory=dict)
+    _patches: dict[str, BuiltPatch] = field(default_factory=dict)
     _signatures: dict[str, tuple[tuple[Any, ...], dict[str, Any], float]] = field(
         default_factory=dict, repr=False
     )
 
-    def start(self, name: str, patch: Patch) -> Patch:
+    def start(self, name: str, patch: BuiltPatch) -> BuiltPatch:
         self.stop(name)
         self._patches[name] = patch
         return patch.start()
 
-    def get(self, name: str) -> Patch | None:
+    def get(self, name: str) -> BuiltPatch | None:
         """Return the active patch, if any, without changing its state."""
         return self._patches.get(name)
 
@@ -194,11 +252,11 @@ class PatchRack:
     def toggle(
         self,
         name: str,
-        build: Callable[..., Patch],
+        build: Callable[..., BuiltPatch],
         *args: Any,
         volume: float = 1.0,
         **kwargs: Any,
-    ) -> Patch | None:
+    ) -> BuiltPatch | None:
         """Rerun a patch cell to switch it on and off in place.
 
         Calls `build(*args, **kwargs)` and starts it under `name` - unless a
@@ -211,8 +269,8 @@ class PatchRack:
         `start()`.
 
         `volume` isn't passed to `build` - it's applied to the returned
-        `Patch` (see `Patch.volume`) and included in the toggle signature
-        like any other argument.
+        `BuiltPatch` (see `BuiltPatch.volume`) and included in the toggle
+        signature like any other argument.
         """
         signature = (args, kwargs, volume)
         if name in self._signatures and self._signatures[name] == signature:

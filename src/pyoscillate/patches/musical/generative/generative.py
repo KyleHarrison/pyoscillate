@@ -10,7 +10,7 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
@@ -132,7 +132,7 @@ def build(
     reverb_size: float = 0.6,
     reverb_damp: float = 0.5,
     reverb_bal: float = 0.45,
-) -> Patch:
+) -> BuiltPatch:
     """Free-running generative melody: a new pentatonic note is drawn at random every `note_period` seconds, in real time rather than locked to the shared clock.
 
     Closer to Eno's tape-loop style generative ambient than a fixed
@@ -176,7 +176,7 @@ def build(
 
     note_func = TrigFunc(note_metro, next_note)
     sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
-    return Patch(
+    return BuiltPatch(
         sequencer=sequencer,
         voice=voice,
         controls={

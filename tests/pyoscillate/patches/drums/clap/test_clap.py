@@ -12,7 +12,7 @@ Findings
 Error:
     A started clap made a clap-shaped hit at ~0.025 s. Nothing had been
     scheduled yet: its first backbeat is at 0.5 s. The hit was ~15 dB under
-    a real one, softened only by the `Patch.start()` fade-in. With the clock
+    a real one, softened only by the `BuiltPatch.start()` fade-in. With the clock
     never started, every other gated patch did the same. The loudest were
     chord (peak 0.178, almost at the output ceiling), kick (0.108) and bass (0.067).
 Cause:
@@ -52,7 +52,7 @@ Status:
 Corrected along the way
 -----------------------
 An early render reported the *default* clap as clipped. That was an
-artefact of rendering at `Patch.volume` 1.0 instead of the default
+artefact of rendering at `BuiltPatch.volume` 1.0 instead of the default
 VOLUME_DEFAULT. `render()` now defaults to the module's VOLUME_DEFAULT, so
 tests hear what the listener hears.
 

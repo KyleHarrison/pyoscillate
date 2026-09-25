@@ -7,7 +7,7 @@ from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -101,7 +101,7 @@ def build(
     reverb_size: float = 0.25,
     reverb_damp: float = 0.15,
     reverb_bal: float = 0.1,
-) -> Patch:
+) -> BuiltPatch:
     """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
     Args:
@@ -169,7 +169,7 @@ def build(
         step["i"] += 1
 
     sequencer = clock.subscribe(step_division, next_step)
-    return Patch(
+    return BuiltPatch(
         sequencer=sequencer,
         voice=voice,
         controls={

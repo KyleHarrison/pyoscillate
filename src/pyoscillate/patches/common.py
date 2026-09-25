@@ -18,7 +18,7 @@ class ContinuousSequencer:
     These pads are wired entirely from free-running modulators (chaotic
     attractors, LFOs) feeding a generator's parameters directly - once the
     pyo objects exist they process every buffer on their own, with nothing
-    that needs a `Pattern`/`Metro` to start or stop ticking. `Patch` still
+    that needs a `Pattern`/`Metro` to start or stop ticking. `BuiltPatch` still
     requires a `Sequencer` to call `play()`/`stop()` on, so this just
     satisfies that protocol with nothing to actually do.
     """

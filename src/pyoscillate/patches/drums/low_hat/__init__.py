@@ -4,11 +4,11 @@ from __future__ import annotations
 from pyo.lib._core import Sig
 from pyo.lib.filters import ButHP, ButLP
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.tables import ExpTable
-from pyo.lib.triggers import Trig, TrigEnv
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.tempo import Tempo
 
@@ -21,6 +21,8 @@ BASE_DIVISION = NoteDivision.QUARTER
 # a darker band of noise rather than a full-range hiss with the lows removed
 TOP_RATIO = 3.0
 DECAY_CURVE = 5
+# not defined by this module before conversion to a class - see hat/__init__.py
+VOLUME_DEFAULT = 0.2
 
 PARAMETERS = (
     SliderSpec(
@@ -65,75 +67,65 @@ PARAMETERS = (
 )
 
 
-def build(
-    tempo: Tempo,
-    clock: Clock,
-    cutoff_freq: float = CUTOFF_FREQ,
-    level: float = 0.55,
-    decay: float = DECAY,
-    rate: float = 0,
-) -> Patch:
-    """Darker noise tick, once per quarter note, as a rarer, dubbier accent.
+class LowHat(DrumVoice):
+    """Darker noise tick, once per quarter note, as a rarer, dubbier accent."""
 
-    Args:
-        tempo: Shared tempo grid; the level swell is derived from
-            `tempo.eighth`.
-        clock: Shared master pulse; the tick fires every quarter note
-            (`clock.fourth`), phase-locked to every other patch on the clock.
-        cutoff_freq: Lower edge (Hz) of the noise band; the upper edge
-            follows at `TOP_RATIO` times this. The default (3000) is much
-            lower than the main hat's (10300), which keeps more lower-mid
-            body and less air, so this voice reads as darker and closer.
-            Raising it brings it toward the main hat in character; lowering
-            it further makes it darker and closer to a low thud than a hiss.
-        level: Peak amplitude of each noise burst, before the swell and
-            filters are applied. Raising it makes this accent louder and
-            more prominent against the main hat; lowering it keeps it as a
-            subtler undercurrent.
-        decay: Length (seconds) of the tick's exponential amplitude decay.
-            Keep it short for a tight, clipped accent, or lengthen it for a
-            longer decaying tock.
-    """
-    hat_trig = Trig()
-    hat_noise = Noise()
+    parameters = PARAMETERS
+    volume_default = VOLUME_DEFAULT
 
-    # same immediate, strongly exponential envelope shape as the main hat
-    envelope_table = ExpTable([(0, 1), (8191, 0)], exp=DECAY_CURVE)
-    hat_env = TrigEnv(hat_trig, table=envelope_table, dur=decay, mul=level)
-    hat_burst = hat_noise * hat_env
+    def build(
+        self,
+        tempo: Tempo,
+        clock: Clock,
+        cutoff_freq: float = CUTOFF_FREQ,
+        level: float = 0.55,
+        decay: float = DECAY,
+        rate: float = 0,
+    ) -> BuiltPatch:
+        """
+        Args:
+            tempo: Shared tempo grid; the level swell is derived from
+                `tempo.eighth`.
+            clock: Shared master pulse; the tick fires every quarter note
+                (`clock.fourth`), phase-locked to every other patch on the clock.
+            cutoff_freq: Lower edge (Hz) of the noise band; the upper edge
+                follows at `TOP_RATIO` times this. The default (3000) is much
+                lower than the main hat's (10300), which keeps more lower-mid
+                body and less air, so this voice reads as darker and closer.
+                Raising it brings it toward the main hat in character; lowering
+                it further makes it darker and closer to a low thud than a hiss.
+            level: Peak amplitude of each noise burst, before the swell and
+                filters are applied. Raising it makes this accent louder and
+                more prominent against the main hat; lowering it keeps it as a
+                subtler undercurrent.
+            decay: Length (seconds) of the tick's exponential amplitude decay.
+                Keep it short for a tight, clipped accent, or lengthen it for a
+                longer decaying tock.
+        """
+        self._reset()
+        hat_noise = Noise()
 
-    hat_swell = Sine(freq=1 / (32 * tempo.eighth), mul=0.3, add=0.8)
+        # same immediate, strongly exponential envelope shape as the main hat
+        hat_env = self.envelope([(0, 1), (8191, 0)], dur=decay, mul=level, exp=DECAY_CURVE)
+        hat_burst = hat_noise * hat_env
 
-    # a gentler high-pass than the main hat keeps lower-mid body while still
-    # clearing the kick and bass; the linked low-pass removes the airy top
-    low_edge = Sig(cutoff_freq)
-    high_edge = low_edge * TOP_RATIO
-    body = ButHP(hat_burst, freq=low_edge)
-    voice = ButLP(body, freq=high_edge, mul=hat_swell)
+        hat_swell = Sine(freq=1 / (32 * tempo.eighth), mul=0.3, add=0.8)
 
-    sequencer = clock.subscribe(
-        clock.ticks_for_rate(BASE_DIVISION, rate), hat_trig.play
-    )
-    return Patch(
-        sequencer=sequencer,
-        voice=voice,
-        controls={
-            "cutoff_freq": lambda value: setattr(low_edge, "value", value),
-            "level": lambda value: setattr(hat_env, "mul", value),
-            "decay": lambda value: setattr(hat_env, "dur", value),
-            "rate": lambda value: setattr(
-                sequencer, "steps", clock.ticks_for_rate(BASE_DIVISION, value)
-            ),
-        },
-        resources=(
-            hat_trig,
-            hat_noise,
-            envelope_table,
-            hat_env,
-            hat_burst,
-            hat_swell,
-            low_edge,
-            high_edge,
-            body,
-        ),
-    )
+        # a gentler high-pass than the main hat keeps lower-mid body while
+        # still clearing the kick and bass; the linked low-pass removes the
+        # airy top
+        low_edge = Sig(cutoff_freq)
+        high_edge = low_edge * TOP_RATIO
+        body = ButHP(hat_burst, freq=low_edge)
+        voice = ButLP(body, freq=high_edge, mul=hat_swell)
+        self.retain(hat_noise, hat_burst, hat_swell, low_edge, high_edge, body)
+
+        self.schedule(BASE_DIVISION, rate, clock, self.trigger.play)
+        return self.finish(
+            voice,
+            {
+                "cutoff_freq": lambda value: setattr(low_edge, "value", value),
+                "level": lambda value: setattr(hat_env, "mul", value),
+                "decay": lambda value: setattr(hat_env, "dur", value),
+            },
+        )

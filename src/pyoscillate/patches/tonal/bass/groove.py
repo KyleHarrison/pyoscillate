@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.base import BuiltPatch
+from pyoscillate.patches.params import SliderSpec, rate_slider
 from pyoscillate.patches.tonal.bass import build_bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
@@ -35,13 +35,8 @@ PARAMETERS = (
         "Brightness",
         "Opens or closes the bass's low-pass filter; higher lets more upper harmonics through for a brighter tone, lower keeps it rounder and darker.",
     ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    rate_slider(
+        BASE_DIVISION,
         "Halves or doubles the bass pattern speed for each step away from its 16th-note grid.",
     ),
 )
@@ -65,7 +60,7 @@ def build(
     cutoff: float = 720,
     rate: float = 0,
     harmony: Harmony | None = None,
-) -> Patch:
+) -> BuiltPatch:
     """Build a 16th-note bassline with a style-specific motion pattern.
 
     The pattern is written as root, fifth, octave, minor third and minor
@@ -83,6 +78,6 @@ def build(
     )
 
 
-def make_builder(style: str) -> Callable[..., Patch]:
+def make_builder(style: str) -> Callable[..., BuiltPatch]:
     """Return a builder with one bass style fixed for a rack entry."""
     return lambda tempo, clock, **values: build(tempo, clock, style, **values)

@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from pyoscillate.patches.base import FunctionVoice
 from pyoscillate.projects.deep_house.rack import PATCH_GROUPS as DEEP_HOUSE_GROUPS
 from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
 from src.flet.base import PatchDef, PatchGroup, PatchGroupDef, PatchPanel
@@ -13,7 +14,8 @@ class PatchGroupTests(unittest.TestCase):
         self.build = MagicMock(return_value=self.patch)
         self.rack = MagicMock()
         self.rack.get.return_value = None
-        patch_def = PatchDef("test_patch", "Test Patch", "Test voice.", self.build, ())
+        voice = FunctionVoice(self.build, parameters=())
+        patch_def = PatchDef("test_patch", "Test Patch", "Test voice.", voice)
         self.panel = PatchPanel(self.rack, patch_def)
         self.group = PatchGroup(
             PatchGroupDef("test", "Test Group", (patch_def,)), [self.panel]

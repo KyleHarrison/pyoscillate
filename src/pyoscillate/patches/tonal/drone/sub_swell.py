@@ -7,7 +7,7 @@ from pyo.lib.generators import Sine
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuiltPatch
 from pyoscillate.patches.common import ContinuousSequencer
 from pyoscillate.patches.params import PyoParamRef, SliderSpec
 from pyoscillate.patches.utility.notes import notes
@@ -78,7 +78,7 @@ def build(
     swell_depth: float = 0.4,
     filter_base: float = 180,
     filter_res: float = 0.2,
-) -> Patch:
+) -> BuiltPatch:
     """Slow-swelling sub drone: a near-static low fundamental that breathes in and out in level rather than changing pitch or timbre.
 
     Args:
@@ -121,7 +121,7 @@ def build(
     sub_osc = Osc(table=sub_table, freq=live["root_freq"], mul=swell)
     voice = MoogLP(sub_osc, freq=live["filter_base"], res=live["filter_res"])
 
-    return Patch(
+    return BuiltPatch(
         sequencer=ContinuousSequencer(),
         voice=voice,
         controls={
