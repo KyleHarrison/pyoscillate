@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Protocol
 
 from pyo import PyoObject
+from pyo.lib._core import PyoObjectBase
 from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server, pa_list_devices
@@ -139,22 +140,20 @@ class Patch(ABC):
     needs_harmony: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-derive `parameters` from any `SliderSpec`s a subclass
-        declares as its own class attributes (`level = SliderSpec(...)`), in
-        class-body declaration order, so a patch class doesn't need a
-        separate module-level `PARAMETERS` tuple to assign to `parameters`.
-        A class with no `SliderSpec` attributes of its own (e.g. a style
-        subclass that only overrides profile data) is left alone and keeps
-        inheriting `parameters` up the MRO."""
+        """Auto-derive `parameters` from the `Param`s (or legacy
+        `SliderSpec`s) a subclass declares as class attributes, merged onto
+        the inherited ones: a redeclared name (`punch =
+        Kick.punch.replace(default=1.4)`) replaces its spec in place, a new
+        name is appended. A class with none of its own keeps its parent's."""
         super().__init_subclass__(**kwargs)
-        declared = tuple(
-            value.spec if isinstance(value, Param) else value
-            for value in vars(cls).values()
-            if isinstance(value, (Param, SliderSpec))
-        )
-        if declared:
-            cls.parameters = declared
-        cls._parameter_names = frozenset(spec.name for spec in cls.parameters)
+        merged = {spec.name: spec for spec in cls.parameters}
+        for value in vars(cls).values():
+            if isinstance(value, Param):
+                merged[value.name] = value.spec
+            elif isinstance(value, SliderSpec):
+                merged[value.name] = value
+        cls.parameters = tuple(merged.values())
+        cls._parameter_names = frozenset(merged)
 
     def __init__(
         self,
@@ -182,6 +181,8 @@ class Patch(ABC):
         self._volume_control: SigTo | None = None
         self._output_resources: tuple[PyoObject, ...] = ()
         self._built = False
+        self._playing = False
+        self._retired: tuple[Any, ...] = ()
         self.sidechain = sidechain
         for spec in self.parameters:
             setattr(self, spec.name, spec.default)
@@ -261,14 +262,37 @@ class Patch(ABC):
 
     def _reset(self) -> None:
         """Call at the top of `build()`: fresh bookkeeping for a build that
-        may run again on the same instance (a rebuild)."""
+        may run again on the same instance (a rebuild). A graph still
+        playing is stopped here, since the caller can no longer reach it
+        once `build()` replaces it, and is kept alive (until the next
+        rebuild) so its fade-out never runs on collected objects."""
+        if self._playing:
+            self.stop()
+        self._retired = (
+            self.resources,
+            self.voice,
+            self.sequencer,
+            self._output,
+            self._output_resources,
+            self._fade,
+            self._volume_control,
+        )
         self.resources = []
         self.controls = {}
         self._built = False
 
     def _bind(self) -> None:
-        """Call from `finish()`: mark the graph built and run every `Param`
+        """Call from `finish()`: retain every public Pyo object `build()`
+        stored on `self`, mark the graph built, and run every `Param`
         control once with its current value."""
+        retained = {id(obj) for obj in self.resources} | {id(self.voice)}
+        for key, value in vars(self).items():
+            if (
+                not key.startswith("_")
+                and isinstance(value, PyoObjectBase)
+                and id(value) not in retained
+            ):
+                self.resources.append(value)
         self._built = True
         for spec in self.parameters:
             param = getattr(type(self), spec.name, None)
@@ -331,9 +355,13 @@ class Patch(ABC):
         self._output = mixed.out()
         self._output_resources = (boosted, compressed, limited, faded, mixed)
         self.sequencer.play()
+        self._playing = True
         return self
 
     def stop(self) -> Patch:
+        if not self._playing:
+            return self
+        self._playing = False
         self.sequencer.stop()
         if self._fade is not None:
             self._fade.value = 0.0

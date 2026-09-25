@@ -9,7 +9,7 @@ from pyo.lib.generators import FM
 
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -27,7 +27,6 @@ PARAMETERS = (
         MID_ROOT,
         "Register",
         "Shifts the melody up or down in pitch relative to the pads and bass beneath it.",
-        (PyoParamRef(FM, "carrier"),),
         scale="note",
     ),
     SliderSpec(
@@ -38,7 +37,6 @@ PARAMETERS = (
         2,
         "Pace",
         "Sets how often the melody moves; fewer bars feels more active, more bars stretches it into a slower, more spacious unfolding.",
-        (),
     ),
     SliderSpec(
         "fm_ratio",
@@ -48,7 +46,6 @@ PARAMETERS = (
         1.5,
         "Tone character",
         "Detunes the melody's overtones; near a simple ratio sounds clean and bell-like, drifting away adds a warmer, more unstable shimmer.",
-        (PyoParamRef(FM, "ratio"),),
     ),
     SliderSpec(
         "fm_index",
@@ -58,7 +55,6 @@ PARAMETERS = (
         1.5,
         "Brightness",
         "Moves the melody from a plain, mellow tone to a brighter, buzzier, more harmonically complex one.",
-        (PyoParamRef(FM, "index"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -68,7 +64,6 @@ PARAMETERS = (
         0.6,
         "Space",
         "Sets how large and distant the melody's room feels, from a tight presence to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -78,7 +73,6 @@ PARAMETERS = (
         0.5,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -88,7 +82,6 @@ PARAMETERS = (
         0.4,
         "Distance",
         "Blends how much of the melody is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present and up front.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
 )
 
@@ -131,7 +124,9 @@ class Arp(Patch):
         mid_freq = SigTo(value=self.root_freq, time=step_time * 0.85)
 
         fm_voice = FM(carrier=mid_freq, ratio=self.fm_ratio, index=self.fm_index, mul=0.18)
-        voice = Freeverb(fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+        voice = Freeverb(
+            fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal
+        )
 
         root_freq = self.root_freq
         step = {"i": 0}

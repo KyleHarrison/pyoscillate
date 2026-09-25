@@ -10,6 +10,7 @@ noise burst clarifies the transient, and gentle saturation adds density.
 
 from typing import ClassVar
 
+from pyo import PyoObject
 from pyo.lib.effects import Disto
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
@@ -47,10 +48,15 @@ class Kick(DrumVoice):
     decay: ClassVar[float]
     click_level: ClassVar[float]
 
-    # graph nodes the controls below drive; assigned by build()
+    # the graph, assigned by build(); finish() retains every one of them
     pitch_env: TrigEnv
+    body: Sine
     body_env: TrigEnv
+    body_signal: PyoObject
+    noise: Noise
     click_env: TrigEnv
+    click_signal: PyoObject
+    source: PyoObject
     shaper: Disto
 
     @Param(0.1, 1.0, 0.05, 0.62, "Body", "Controls the fullness and weight of the kick's low end.")
@@ -116,26 +122,26 @@ class Kick(DrumVoice):
         self.pitch_env = self.envelope(
             DROP, dur=self.sweep_time, add=self.body_freq, exp=self.pitch_curve
         )
-        body = Sine(freq=self.pitch_env)
+        self.body = Sine(freq=self.pitch_env)
         self.body_env = self.envelope(DROP, dur=self.decay, exp=self.body_curve)
-        body_signal = body * self.body_env
+        self.body_signal = self.body * self.body_env
 
-        noise = Noise()
+        self.noise = Noise()
         self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.pitch_curve)
-        click_signal = noise * self.click_env
+        self.click_signal = self.noise * self.click_env
 
-        source = body_signal + click_signal
-        self.shaper = Disto(source, slope=0.85)
+        self.source = self.body_signal + self.click_signal
+        self.shaper = Disto(self.source, slope=0.85)
 
         def strike() -> None:
             # restart the sine at phase zero so the full-level attack starts
             # on a zero crossing instead of wherever the oscillator last
             # stopped
-            body.reset()
+            self.body.reset()
             self.trigger.play()
 
         self.schedule(self.base_division, self.rate, clock, strike)
-        return self.finish(self.shaper, resources=(body, body_signal, noise, click_signal, source))
+        return self.finish(self.shaper)
 
 
 class KickRound(Kick):

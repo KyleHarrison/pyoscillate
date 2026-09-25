@@ -44,7 +44,7 @@ from pyo.lib.triggers import TrigEnv, TrigFunc
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -132,7 +132,6 @@ PARAMETERS = (
         "Brightness",
         "How open the filter sits between notes and where every sweep starts from; low is a dark "
         "thud that only the quack brightens, high keeps a buzzy edge on the whole line.",
-        (PyoParamRef(Pow, "mul"),),
     ),
     SliderSpec(
         "quack",
@@ -143,7 +142,6 @@ PARAMETERS = (
         "Quack",
         "How far the filter sweeps open on each note; low is a quiet, muted thump, high a wide, "
         "vocal 'wow' on every accented note. Ghost notes always stay darker.",
-        (PyoParamRef(Adsr, "mul"),),
     ),
     SliderSpec(
         "swell",
@@ -154,7 +152,6 @@ PARAMETERS = (
         "Swell",
         "How slowly the filter opens, in seconds; short is a snappy pluck on the front of each "
         "note, long a lazy auto-wah that only the held notes reach the top of.",
-        (PyoParamRef(Adsr, "attack"),),
     ),
     SliderSpec(
         "resonance",
@@ -165,7 +162,6 @@ PARAMETERS = (
         "Growl",
         "Adds a resonant peak that rides the sweep; higher makes the quack more nasal and "
         "rubbery, lower keeps it smooth.",
-        (PyoParamRef(MoogLP, "res"),),
     ),
     SliderSpec(
         "length",
@@ -176,7 +172,6 @@ PARAMETERS = (
         "Length",
         "Scales how long every note is held; short is tight and staccato with more space in the "
         "groove, long lets notes run into each other.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "rate",
@@ -206,7 +201,9 @@ class FunkBass(Bass):
     length: float
     rate: float
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any) -> Patch:
+    def build(
+        self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any
+    ) -> Patch:
         """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
         self.configure(**values)
         self._reset()

@@ -129,7 +129,21 @@ class directly (grouped by `PatchGroupDef`, no separate wrapper);
 restated at the call site - pass `name=`/`title=`/`summary=`/`sidechain=` to
 the constructor only when the default isn't the right rack key, UI copy, or
 duck target. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
-`KickSoft`) for the worked example.
+`KickSoft`) for the worked example, and
+[docs/concepts/patch-lifecycle.md](../../../docs/concepts/patch-lifecycle.md)
+for why it's shaped this way.
+
+Each parameter is one `@Param(min, max, step, default, label, help)`
+decorating a method named after it; the method body is the live control
+(`self.node.attr = f(value)`). `self.<name>` is the current value, and
+assigning it runs the control once the patch is built. `build()` takes no
+per-parameter kwargs, constructs nodes with neutral values, and ends with
+`return self.finish(voice)`, which runs every control once - so never repeat
+a parameter's mapping inside `build()`. A style that needs a different
+default or range redeclares only that parameter:
+`punch = Kick.punch.replace(default=1.4)`. Unmigrated modules still use a
+`PARAMETERS` tuple and a `controls` dict; migrate them to this shape when
+you touch them.
 
 Every patch module is class-based; there is no function-based fallback contract. When a style's graph genuinely differs from its siblings (not just profile data), factor the shared build steps into the family's base class and give each style its own hook method to override - see `pyoscillate.patches.tonal.bass.fm.fm`'s `FmBass.tone()` for the worked example.
 
@@ -172,7 +186,7 @@ control, not in a Register slider with Hz steps.
 
 ### 3. Parameter changes should usually be live
 
-If a parameter can change without changing the graph topology, it should be exposed as a live Pyo control and updated through `Patch.controls`.
+If a parameter can change without changing the graph topology, give its `@Param` a control method that updates the running graph.
 
 - `Patch.update(...)` is the standard runtime update path.
 - Rebuilds are for structural choices only: new voice count, new routing, different tables, changed buffer limits, or a genuine sequencing rewrite.
@@ -180,27 +194,27 @@ If a parameter can change without changing the graph topology, it should be expo
 
 ### 4. Retain the full DSP graph
 
-`build()` must return a patch that strongly owns the Python objects needed by the running DSP chain.
+`build()` must leave the patch strongly owning every Python object the running
+DSP chain needs.
 
-- Every `Patch(...)` returned by a builder must provide a non-empty
-	`resources=(...)` tuple. This is mandatory even when callbacks, controls,
-	downstream Pyo objects, or a sequencer's `keepalive` currently appear to
-	retain the same objects.
-- Assign every table, trigger, envelope, generator, modulation source, effect
-	input, and Pyo arithmetic result to a named local. Put every graph-critical
-	local in `resources`; the final `voice` and `sequencer` are already retained
-	by their dedicated `Patch` fields.
+- Store every table, trigger, envelope, generator, modulation source, effect
+	input, and Pyo arithmetic result as a `self.<name>` attribute, declared as
+	an annotation on the class. `finish()` retains every public Pyo object on
+	the instance automatically; use `self.retain(...)` only for objects that
+	never become attributes (e.g. a list of triggers). Unmigrated modules that
+	still use named locals must pass them all in `finish(..., resources=(...))`.
 - Never embed a Pyo constructor or arithmetic expression anonymously inside
 	another Pyo constructor. For example, replace `TrigEnv(trigger,
 	CosTable(...))`, `Biquad(Noise() * envelope, ...)`, and
 	`Lorenz(pitch=speed * 1.3, ...)` with named table, source, product, and
-	modulation variables, then retain those variables.
+	modulation attributes.
 - Profile/configuration dictionaries must store plain data or factories, not
 	already-instantiated Pyo objects. Construct only the selected profile's
 	native objects; creating all variants and discarding the unused ones while
 	audio is running can race the audio callback.
 - Treat closure capture and transitive ownership by a downstream Pyo object as
-	implementation details, not lifetime guarantees.
+	implementation details, not lifetime guarantees. Pyo arithmetic results do
+	not hold their operands: `a * b` alone won't keep `a` or `b` alive.
 
 Pyo native nodes can outlive their Python wrappers. If a wrapper is collected
 while PortAudio/CoreAudio is processing its node, the process can fail with an
@@ -214,11 +228,15 @@ voice and account for each object in exactly one of these places:
 - `Patch.sequencer`
 - `Patch.resources`
 
-Review this against the named locals in `build()` directly - there is no
+Review this against the graph attributes `build()` assigns - there is no
 automated structural check for it, since a base class's `retain()`/`envelope()`/
 `schedule()`/`live()` calls and a style's own hook method (`tone()`, `voice_graph()`,
 ...) can split resource ownership across files in a way static analysis can't
 reliably follow.
+
+A rebuild runs `build()` again on the same instance; `Patch._reset()` stops
+the previous graph if it is still playing and keeps it alive through its
+fade. Always call `self._reset()` first in `build()`.
 
 ### 5. Keep timing/state explicit
 
@@ -232,7 +250,7 @@ Clocked and generative patches must preserve their sequence index, callback stat
 
 Patch modules describe sound and controls; the Flet layer owns the UI.
 
-- keep patch-specific ranges, labels, and descriptions in `PARAMETERS`
+- keep patch-specific ranges, labels, and descriptions in each `@Param` declaration
 - expose the patch to a GUI by listing an instance in the project rack's `PatchGroupDef`s, not UI code in the patch module
 - do not import Flet or build controls, preset handling, or slider wiring inside a patch module
 
@@ -245,6 +263,6 @@ A patch is ready when it does all of the following:
 - updates live when the underlying topology is unchanged
 - preserves the full graph lifetime with explicit ownership
 - keeps timing behavior and state transitions deliberate
-- follows the standard `PARAMETERS` / `build()` contract and plugs directly into a project rack's `PatchGroupDef`
+- follows the `@Param` / `build()` / `finish()` contract and plugs directly into a project rack's `PatchGroupDef`
 
 If a concept belongs to the music skill rather than patch runtime discipline, move it there and keep this file focused on architecture and implementation rules.

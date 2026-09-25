@@ -8,7 +8,7 @@ from pyo.lib.generators import BrownNoise, Sine
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 SUB_FREQ = notes.E1  # current default
@@ -22,7 +22,6 @@ PARAMETERS = (
         SUB_FREQ,
         "Register",
         "Sets the pitch of the faint sine layer under the rumble.",
-        (PyoParamRef(Sine, "freq"),),
     ),
     SliderSpec(
         "sub_level",
@@ -32,7 +31,6 @@ PARAMETERS = (
         0.5,
         "Pitched weight",
         "Blends in a sense of pitch and grounding; higher makes the rumble feel more tonal, lower (or off) keeps it as pure unpitched texture.",
-        (PyoParamRef(Sine, "mul"),),
     ),
     SliderSpec(
         "noise_level",
@@ -42,7 +40,6 @@ PARAMETERS = (
         0.5,
         "Rumble amount",
         "Sets how much of the filtered noise texture comes through - the main earthquake-like content of this patch.",
-        (PyoParamRef(BrownNoise, "mul"),),
     ),
     SliderSpec(
         "noise_cutoff",
@@ -52,7 +49,6 @@ PARAMETERS = (
         90,
         "Rumble depth",
         "Sets how deep and dark the noise rumble sits; lower keeps only the deepest content, higher lets more mid-low texture through.",
-        (PyoParamRef(MoogLP, "freq"),),
     ),
     SliderSpec(
         "tone_cutoff",
@@ -62,7 +58,6 @@ PARAMETERS = (
         300,
         "Sine warmth",
         "Darkens or brightens the faint sine layer sitting under the noise.",
-        (PyoParamRef(Tone, "freq"),),
     ),
 )
 VOLUME_DEFAULT = 0.8

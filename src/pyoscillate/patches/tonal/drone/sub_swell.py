@@ -10,7 +10,7 @@ from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 ROOT_FREQ = notes.E1  # current default
@@ -24,7 +24,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Sets the fixed pitch of the sub drone.",
-        (PyoParamRef(Osc, "freq"),),
         scale="note",
     ),
     SliderSpec(
@@ -35,7 +34,6 @@ PARAMETERS = (
         9.0,
         "Breathing rate",
         "How long one swell cycle takes; longer feels like a slow tide, shorter reads as a more rhythmic pulse.",
-        (PyoParamRef(Sine, "freq"),),
     ),
     SliderSpec(
         "swell_depth",
@@ -45,7 +43,6 @@ PARAMETERS = (
         0.4,
         "Swell depth",
         "How dramatic the level swell is; higher makes the breathing more audible, lower keeps the drone closer to constant.",
-        (PyoParamRef(Sine, "mul"),),
     ),
     SliderSpec(
         "filter_base",
@@ -55,7 +52,6 @@ PARAMETERS = (
         180,
         "Brightness",
         "Darkens or brightens the low end; lower keeps it duller and softer, higher lets more harmonic content through.",
-        (PyoParamRef(MoogLP, "freq"),),
     ),
     SliderSpec(
         "filter_res",
@@ -65,7 +61,6 @@ PARAMETERS = (
         0.2,
         "Resonance",
         "Adds emphasis around the cutoff; kept low here so the drone stays smooth rather than whistly.",
-        (PyoParamRef(MoogLP, "res"),),
     ),
 )
 
@@ -91,7 +86,9 @@ class BassDrone(ContinuousVoice):
     def build(self, **values: Any) -> Patch:
         self.configure(**values)
         self._reset()
-        live = self.live_all("root_freq", "swell_period", "swell_depth", "filter_base", "filter_res")
+        live = self.live_all(
+            "root_freq", "swell_period", "swell_depth", "filter_base", "filter_res"
+        )
 
         swell_frequency = 1 / live["swell_period"]
         swell_amplitude = live["swell_depth"] / 2

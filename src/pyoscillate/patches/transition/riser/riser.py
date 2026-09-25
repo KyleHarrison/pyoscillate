@@ -39,7 +39,7 @@ from pyo.lib.generators import Noise, SuperSaw
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import frequency_shift
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -63,7 +63,6 @@ PARAMETERS = (
         2,
         "Climb",
         "How far the riser travels, in octaves: low is a short lift, high is a full sweep from the floor to the top.",
-        (PyoParamRef(Pow, "exponent"),),
     ),
     SliderSpec(
         "surge",
@@ -73,7 +72,6 @@ PARAMETERS = (
         2,
         "Surge",
         "Where the build puts its energy: low swells early and levels off, high holds back and surges in the last beats.",
-        (PyoParamRef(Pow, "exponent"),),
     ),
     SliderSpec(
         "brightness",
@@ -83,7 +81,6 @@ PARAMETERS = (
         8000,
         "Brightness",
         "How open the riser is at its peak; low keeps it behind the mix, high makes it the brightest thing before the drop.",
-        (PyoParamRef(Biquad, "freq"),),
     ),
     SliderSpec(
         "level",
@@ -243,7 +240,15 @@ class RiserShift(Riser):
         shift_hz = shift_ratio * ROOT
         shifted = frequency_shift(prefiltered, shift_hz)
         risen = shifted.output
-        return risen, (chord, chord_mono, prefiltered, shift_ratio, shift_hz, *shifted.resources, risen)
+        return risen, (
+            chord,
+            chord_mono,
+            prefiltered,
+            shift_ratio,
+            shift_hz,
+            *shifted.resources,
+            risen,
+        )
 
 
 class RiserPitch(Riser):

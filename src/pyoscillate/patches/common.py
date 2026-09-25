@@ -166,12 +166,9 @@ class GatedVoice(Patch):
         resources: tuple[Any, ...] = (),
     ) -> Patch:
         """Terminal step of `build()`: retain any further `resources` build()
-        constructed itself (on top of what `envelope()`/`schedule()` already
-        retained as they were called), then wire `sequencer`/`voice`/
-        `controls` and return `self` now that it's built. Folding the last
-        `retain(...)` call into this one keeps a build() with no genuine
-        per-style variation (see `patches/CLAUDE.md`'s "graph identical
-        across styles" case) ending in one flat statement instead of two."""
+        kept only as locals (graph nodes stored on `self` are retained
+        automatically), then wire `sequencer`/`voice`/`controls`, run every
+        `Param` control, and return `self` now that it's built."""
         if self._division is None:
             raise RuntimeError(f"{type(self).__name__}.build() never called self.schedule(...)")
         self.retain(*resources)

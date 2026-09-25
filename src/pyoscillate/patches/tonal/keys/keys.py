@@ -32,7 +32,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -47,7 +47,6 @@ PARAMETERS = (
         notes.A3,
         "Register",
         "Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
-        (PyoParamRef(FM, "carrier"),),
         scale="note",
     ),
     SliderSpec(
@@ -58,7 +57,6 @@ PARAMETERS = (
         2.5,
         "Bark",
         "How much each strike pings: low is a soft, round touch, high a bright, glassy bark on hard notes that fades as the chord rings.",
-        (PyoParamRef(TrigEnv, "mul"),),
     ),
     SliderSpec(
         "bite",
@@ -68,7 +66,6 @@ PARAMETERS = (
         0.8,
         "Bite",
         "The edge on the sustained tone: low is a pure, mellow Rhodes-like body, high a reedy, nasal Wurlitzer-like growl.",
-        (PyoParamRef(TrigEnv, "mul"),),
     ),
     SliderSpec(
         "decay",
@@ -78,7 +75,6 @@ PARAMETERS = (
         1.8,
         "Decay",
         "How long each chord rings, in seconds, before it dies away; short is a tight stab, long lets the chords overlap.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "tremolo",
@@ -88,7 +84,6 @@ PARAMETERS = (
         0.3,
         "Tremolo",
         "How strongly the level throbs in 8th notes, like an electric piano through a tremolo amp; 0 holds it steady.",
-        (PyoParamRef(SigTo, "value"),),
     ),
     SliderSpec(
         "rate",
@@ -216,7 +211,10 @@ class Keys(Patch):
             amp.mul = _per_note([GAIN * velocity for velocity in velocities])
             tine_amp.mul = _per_note([GAIN * TINE_LEVEL * velocity for velocity in velocities])
             body_index.mul = _per_note(
-                [state["bite"] * (BITE_FLOOR + (1 - BITE_FLOOR) * velocity) for velocity in velocities]
+                [
+                    state["bite"] * (BITE_FLOOR + (1 - BITE_FLOOR) * velocity)
+                    for velocity in velocities
+                ]
             )
             tine_index.mul = _per_note([state["bark"] * velocity**2 for velocity in velocities])
 

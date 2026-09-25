@@ -36,7 +36,7 @@ from pyo.lib.pan import Selector
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice, frequency_shift
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 
 STYLES = ("air", "surf", "barber")
 
@@ -49,7 +49,6 @@ PARAMETERS = (
         1,
         "Colour",
         "Moves the noise from bright white hiss (0) through softer pink (1) to dark, rumbling brown (2).",
-        (PyoParamRef(Selector, "voice"),),
     ),
     SliderSpec(
         "brightness",
@@ -59,7 +58,6 @@ PARAMETERS = (
         5000,
         "Brightness",
         "How much high-end hiss is let through; lower is muffled and distant, higher is airy and close.",
-        (PyoParamRef(Biquad, "freq"),),
     ),
     SliderSpec(
         "motion",
@@ -69,7 +67,6 @@ PARAMETERS = (
         1,
         "Motion",
         "How fast the bed moves; low is a slow tide, high is a restless flutter.",
-        (PyoParamRef(Sine, "freq"),),
     ),
     SliderSpec(
         "depth",
@@ -79,7 +76,6 @@ PARAMETERS = (
         0.6,
         "Depth",
         "How far the movement swings; zero is a still, steady bed, full is a wide swell or swirl.",
-        (PyoParamRef(Sine, "mul"),),
     ),
     SliderSpec(
         "level",
@@ -135,7 +131,9 @@ class Noise(ContinuousVoice):
     depth: float
     level: float
 
-    def moved_signal(self, live: dict[str, Any], source: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+    def moved_signal(
+        self, live: dict[str, Any], source: PyoObject
+    ) -> tuple[PyoObject, tuple[Any, ...]]:
         """This style's filtered, moving noise bed built from the shared
         colour-crossfaded `source`, plus any extra Pyo objects it built for
         `build()` to retain. Overridden per style."""

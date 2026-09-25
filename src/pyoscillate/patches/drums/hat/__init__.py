@@ -3,12 +3,11 @@ from __future__ import annotations
 
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
 CUTOFF_FREQ = 10300
@@ -28,7 +27,6 @@ PARAMETERS = (
         CUTOFF_FREQ,
         "Brightness",
         "Moves the tick from fuller and more present (lower) to thinner, airier, and more distant-sounding (higher).",
-        (PyoParamRef(ButHP, "freq"),),
     ),
     SliderSpec(
         "level",
@@ -38,7 +36,6 @@ PARAMETERS = (
         0.2,
         "Presence",
         "Sets how upfront the tick sits in the mix, from a subtle texture to a louder, more foregrounded pulse.",
-        (PyoParamRef(TrigEnv, "mul"),),
     ),
     SliderSpec(
         "decay",
@@ -48,7 +45,6 @@ PARAMETERS = (
         DECAY,
         "Tightness",
         "Shapes the tick's tail; shorter feels tight and click-like, longer blurs into more of a hiss.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "rate",

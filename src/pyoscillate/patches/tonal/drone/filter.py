@@ -11,7 +11,7 @@ from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 ROOT_FREQ = notes.A3  # current default
@@ -25,7 +25,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Sets the drone's fundamental pitch.",
-        (PyoParamRef(Osc, "freq"),),
         scale="note",
     ),
     SliderSpec(
@@ -36,7 +35,6 @@ PARAMETERS = (
         0.05,
         "Sweep speed",
         "How quickly the filter's cutoff wanders; slower feels like a slow-breathing wah, faster feels more agitated.",
-        (PyoParamRef(Lorenz, "pitch"),),
     ),
     SliderSpec(
         "cutoff_chaos",
@@ -46,7 +44,6 @@ PARAMETERS = (
         0.6,
         "Sweep instability",
         "How unpredictable the cutoff sweep is; higher feels more restless and alive, lower stays closer to a steady, cyclical wah.",
-        (PyoParamRef(Lorenz, "chaos"),),
     ),
     SliderSpec(
         "filter_res",
@@ -56,7 +53,6 @@ PARAMETERS = (
         0.6,
         "Resonance",
         "Adds emphasis around the cutoff as it sweeps; higher makes the motion more vocal and whistling, lower keeps it smoother.",
-        (PyoParamRef(MoogLP, "res"),),
     ),
     SliderSpec(
         "filter_base",
@@ -66,7 +62,6 @@ PARAMETERS = (
         700,
         "Brightness",
         "Sets the average brightness the filter sweeps around; higher opens the drone up, lower keeps it duller and more closed.",
-        (PyoParamRef(Lorenz, "add"),),
     ),
     SliderSpec(
         "filter_range",
@@ -76,7 +71,6 @@ PARAMETERS = (
         600,
         "Sweep depth",
         "Controls how far the filter sweeps each cycle; wider ranges create more dramatic movement, narrower keeps the tone closer to static.",
-        (PyoParamRef(Lorenz, "mul"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -86,7 +80,6 @@ PARAMETERS = (
         0.8,
         "Space",
         "Sets how large and distant the drone's room feels, from a tight presence to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -96,7 +89,6 @@ PARAMETERS = (
         0.5,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -106,7 +98,6 @@ PARAMETERS = (
         0.75,
         "Distance",
         "Blends how much of the drone is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
     SliderSpec(
         "delay_time",
@@ -116,7 +107,6 @@ PARAMETERS = (
         0.45,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the timbral drift across time.",
-        (PyoParamRef(Delay, "delay"),),
     ),
     SliderSpec(
         "delay_feedback",
@@ -126,7 +116,6 @@ PARAMETERS = (
         0.3,
         "Echo density",
         "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
-        (PyoParamRef(Delay, "feedback"),),
     ),
 )
 

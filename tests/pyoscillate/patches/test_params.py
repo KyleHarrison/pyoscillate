@@ -2,13 +2,12 @@
 frequencies, and every patch's Register (`root_freq`) slider is one."""
 
 import importlib
-import inspect
 import pkgutil
 import unittest
 
 import pyoscillate.patches
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.patches.utility.notes.notes import freq_to_midi, midi_to_freq
 
@@ -74,6 +73,48 @@ class NoteSliderTests(unittest.TestCase):
         self.assertEqual(spec.from_position(0.3), 0.3)
         self.assertEqual(spec.snap(5), 5)
         self.assertEqual(spec.format(0.3), "0.30")
+
+
+class _Voice(Patch):
+    @Param(0, 1, 0.1, 0.5, "Tone", "")
+    def tone(self, value: float) -> None:
+        self.applied.append(value)
+
+    depth = Param(0, 2, 0.1, 1.0, "Depth", "")
+
+    def build(self, **kwargs: object) -> Patch:
+        self._reset()
+        self.applied: list[float] = []
+        self.voice = None
+        self._bind()
+        return self
+
+
+class _Bright(_Voice):
+    tone = _Voice.tone.replace(default=0.9)
+    extra = Param(0, 1, 0.1, 0.0, "Extra", "")
+
+
+class ParamTests(unittest.TestCase):
+    def test_value_is_per_instance_and_control_waits_for_build(self):
+        voice = _Voice(tone=0.2)
+        other = _Voice()
+        self.assertEqual((voice.tone, other.tone), (0.2, 0.5))
+        self.assertIsInstance(_Voice.tone, Param)
+        self.assertFalse(hasattr(voice, "applied"))
+
+    def test_build_applies_every_control_once_then_assignment_is_live(self):
+        voice = _Voice(tone=0.2).build()
+        self.assertEqual(voice.applied, [0.2])
+        voice.tone = 0.7
+        voice.set("tone", 0.3)
+        self.assertEqual(voice.applied, [0.2, 0.7, 0.3])
+
+    def test_subclass_override_keeps_order_and_control(self):
+        self.assertEqual([spec.name for spec in _Bright.parameters], ["tone", "depth", "extra"])
+        self.assertEqual(_Bright.parameters[0].default, 0.9)
+        self.assertEqual(_Voice.parameters[0].default, 0.5)
+        self.assertEqual(_Bright().build().applied, [0.9])
 
 
 class PatchRegisterTests(unittest.TestCase):

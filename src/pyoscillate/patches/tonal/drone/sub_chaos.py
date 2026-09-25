@@ -10,7 +10,7 @@ from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 ROOT_FREQ = notes.E1  # current default
@@ -24,7 +24,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Sets the center pitch the sub wanders around.",
-        (PyoParamRef(Rossler, "add"),),
         scale="note",
     ),
     SliderSpec(
@@ -35,7 +34,6 @@ PARAMETERS = (
         0.03,
         "Drift speed",
         "How quickly the pitch wanders; slower feels like a slow-breathing organism, faster feels more agitated and unstable.",
-        (PyoParamRef(Rossler, "pitch"),),
     ),
     SliderSpec(
         "chaos_amount",
@@ -45,7 +43,6 @@ PARAMETERS = (
         0.5,
         "Instability",
         "How unpredictable the pitch wander is; higher feels more restless and alive, lower stays closer to a steady drone.",
-        (PyoParamRef(Rossler, "chaos"),),
     ),
     SliderSpec(
         "drift_range",
@@ -55,7 +52,6 @@ PARAMETERS = (
         3.0,
         "Wander range",
         "How far the pitch strays from center; wider feels more organic and unsettled, narrower keeps it closer to a fixed note.",
-        (PyoParamRef(Rossler, "mul"),),
     ),
     SliderSpec(
         "filter_base",
@@ -65,7 +61,6 @@ PARAMETERS = (
         180,
         "Brightness",
         "Darkens or brightens the low end; lower keeps it duller and rounder, higher lets a bit more presence through.",
-        (PyoParamRef(MoogLP, "freq"),),
     ),
     SliderSpec(
         "filter_res",
@@ -75,7 +70,6 @@ PARAMETERS = (
         0.2,
         "Resonance",
         "Adds emphasis around the cutoff for a more colored, slightly whistling low end; kept low here for a smooth, uncolored rumble.",
-        (PyoParamRef(MoogLP, "res"),),
     ),
 )
 

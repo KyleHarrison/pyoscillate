@@ -8,7 +8,7 @@ from pyo.lib.generators import FM, Lorenz, Rossler
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 ROOT_FREQ = notes.A2  # current default
@@ -22,7 +22,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Sets the pad's held pitch, the carrier tone everything else is built on.",
-        (PyoParamRef(FM, "carrier"),),
         scale="note",
     ),
     SliderSpec(
@@ -33,7 +32,6 @@ PARAMETERS = (
         0.04,
         "Drift speed",
         "How fast the pad's timbre wanders; lower is slower and more hypnotic, higher feels more restless.",
-        (PyoParamRef(Rossler, "pitch"), PyoParamRef(Lorenz, "pitch")),
     ),
     SliderSpec(
         "chaos_amount",
@@ -43,7 +41,6 @@ PARAMETERS = (
         0.6,
         "Instability",
         "How unpredictable the wander is; higher feels more psychedelic and alive, lower stays closer to a steady tone.",
-        (PyoParamRef(Rossler, "chaos"), PyoParamRef(Lorenz, "chaos")),
     ),
     SliderSpec(
         "reverb_size",
@@ -53,7 +50,6 @@ PARAMETERS = (
         0.85,
         "Space",
         "Sets how enveloping the pad's room feels; larger is more immersive and distant.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -63,7 +59,6 @@ PARAMETERS = (
         0.4,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher is warmer and more muffled, lower stays brighter and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -73,7 +68,6 @@ PARAMETERS = (
         0.85,
         "Distance",
         "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into the space, lower keeps it present.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
     SliderSpec(
         "delay_time",
@@ -83,7 +77,6 @@ PARAMETERS = (
         0.6,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the timbral drift across time.",
-        (PyoParamRef(Delay, "delay"),),
     ),
     SliderSpec(
         "delay_feedback",
@@ -93,7 +86,6 @@ PARAMETERS = (
         0.35,
         "Echo density",
         "Sets how many times each echo repeats before decaying; higher creates a denser, more layered wash.",
-        (PyoParamRef(Delay, "feedback"),),
     ),
 )
 VOLUME_DEFAULT = 0.6
@@ -135,7 +127,9 @@ class SoundscapeFm(ContinuousVoice):
             "delay_feedback",
         )
 
-        ratio_chaos = Rossler(pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5)
+        ratio_chaos = Rossler(
+            pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5
+        )
         index_speed = live["chaos_speed"] * 1.3
         index_chaos = Lorenz(pitch=index_speed, chaos=live["chaos_amount"], mul=3, add=4)
 

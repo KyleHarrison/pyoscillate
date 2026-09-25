@@ -4,17 +4,14 @@ from __future__ import annotations
 from pyo.lib._core import Sig
 from pyo.lib.filters import ButHP, ButLP
 from pyo.lib.generators import Noise, Sine
-from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
-CUTOFF_FREQ = (
-    3000  # lower than the main hat (10300) so this reads as a darker, lower accent
-)
+CUTOFF_FREQ = 3000  # lower than the main hat (10300) so this reads as a darker, lower accent
 DECAY = 0.12
 BASE_DIVISION = NoteDivision.QUARTER
 # the top-end roll-off tracks the high-pass at this ratio, keeping the voice
@@ -32,7 +29,6 @@ PARAMETERS = (
         CUTOFF_FREQ,
         "Darkness",
         "Sets how dark and low this accent sits against the main hat; lower is closer to a thud, higher brightens it toward the main hat's character.",
-        (PyoParamRef(ButHP, "freq"), PyoParamRef(ButLP, "freq")),
     ),
     SliderSpec(
         "level",
@@ -42,7 +38,6 @@ PARAMETERS = (
         0.55,
         "Presence",
         "Controls how prominent this accent is against the main hat.",
-        (PyoParamRef(TrigEnv, "mul"),),
     ),
     SliderSpec(
         "decay",
@@ -52,7 +47,6 @@ PARAMETERS = (
         DECAY,
         "Tail length",
         "Shapes the accent's decay; shorter feels tight and clipped, longer trails into a dubbier tock.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "rate",

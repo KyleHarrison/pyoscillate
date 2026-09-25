@@ -5,13 +5,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyo.lib.filters import MoogLP
-from pyo.lib.generators import LFO
-from pyo.lib.tableprocess import Osc
-
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass.base import Bass, BassProfile
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -30,7 +26,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings it closer to the mid range and easier to pick out melodically.",
-        (PyoParamRef(Osc, "freq"),),
         scale="note",
     ),
     SliderSpec(
@@ -41,7 +36,6 @@ PARAMETERS = (
         0.75,
         "Growl",
         "Adds resonant emphasis around the filter cutoff; higher makes the bass squelchier and more vocal, lower keeps it smoother and rounder.",
-        (PyoParamRef(MoogLP, "res"),),
     ),
     SliderSpec(
         "filter_base",
@@ -51,7 +45,6 @@ PARAMETERS = (
         1380,
         "Brightness",
         "Sets the average tone of the bass filter sweep; higher opens it up and brightens it, lower keeps it duller and more closed.",
-        (PyoParamRef(LFO, "add"),),
     ),
     SliderSpec(
         "filter_range",
@@ -61,7 +54,6 @@ PARAMETERS = (
         400,
         "Sweep depth",
         "Controls how far the filter sweeps each cycle; wider ranges create a more dramatic wah-like motion, narrower keeps the tone more static.",
-        (PyoParamRef(LFO, "mul"),),
     ),
 )
 

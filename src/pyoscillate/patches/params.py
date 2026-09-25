@@ -17,12 +17,6 @@ def decimal_places(step: float) -> int:
 
 
 @dataclass(frozen=True)
-class PyoParamRef:
-    owner: type[Any]
-    name: str
-
-
-@dataclass(frozen=True)
 class SliderSpec:
     """One slider: `minimum`, `maximum` and `default` are always in the
     parameter's own unit, the value the patch's `build()` and controls see.
@@ -41,7 +35,6 @@ class SliderSpec:
     default: float
     description: str
     help_text: str
-    pyo_refs: tuple[PyoParamRef, ...] = ()
     scale: Literal["linear", "note"] = "linear"
 
     def to_position(self, value: float) -> float:
@@ -94,7 +87,8 @@ class Param:
     runs every control once with the current value, so a mapping like
     `sweep_depth * value` is written only here, never again in `build()`.
     A `Param` with no control is a plain value `build()` reads (a
-    `rebuild_parameters` name).
+    `rebuild_parameters` name). A style subclass changes a field while
+    keeping the control with `punch = Kick.punch.replace(default=1.4)`.
     """
 
     def __init__(
@@ -109,8 +103,15 @@ class Param:
         scale: Literal["linear", "note"] = "linear",
         control: Control | None = None,
     ) -> None:
-        self._fields = (minimum, maximum, step, default, label, help_text)
-        self._scale: Literal["linear", "note"] = scale
+        self._fields: dict[str, Any] = {
+            "minimum": minimum,
+            "maximum": maximum,
+            "step": step,
+            "default": default,
+            "label": label,
+            "help_text": help_text,
+            "scale": scale,
+        }
         self.control = control
         self.name = ""
         self.spec: SliderSpec
@@ -119,9 +120,14 @@ class Param:
         self.control = control
         return self
 
+    def replace(self, **changes: Any) -> Param:
+        """A copy with some slider fields changed and the same control."""
+        return Param(**{**self._fields, **changes}, control=self.control)
+
     def __set_name__(self, owner: type[Any], name: str) -> None:
         self.name = name
-        self.spec = SliderSpec(name, *self._fields, scale=self._scale)
+        fields = dict(self._fields)
+        self.spec = SliderSpec(name, description=fields.pop("label"), **fields)
 
     @overload
     def __get__(self, obj: None, owner: type[Any] | None = None) -> Param: ...

@@ -33,7 +33,7 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
@@ -52,7 +52,6 @@ PARAMETERS = (
         notes.A1,
         "Register",
         "Moves the bassline up or down; low sits under the kick as weight, high brings the bark forward as a melodic line.",
-        (PyoParamRef(FM, "carrier"), PyoParamRef(CrossFM, "carrier")),
         scale="note",
     ),
     SliderSpec(
@@ -63,7 +62,6 @@ PARAMETERS = (
         6,
         "Growl",
         "How hard each note barks: low is a soft, round thump, high a bright, buzzing snarl at the start of every note.",
-        (PyoParamRef(TrigEnv, "mul"),),
     ),
     SliderSpec(
         "settle",
@@ -73,7 +71,6 @@ PARAMETERS = (
         0.12,
         "Settle",
         "How long the bark takes to die down, in seconds: short is a quick pluck on the front of the note, long a slow, wah-like close.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "edge",
@@ -83,7 +80,6 @@ PARAMETERS = (
         0.5,
         "Edge",
         "The brightness left once the bark has settled: at 0 the note settles to a pure sub, higher keeps a buzzing edge under the whole note.",
-        (PyoParamRef(SigTo, "value"),),
     ),
     SliderSpec(
         "length",
@@ -93,7 +89,6 @@ PARAMETERS = (
         0.9,
         "Length",
         "How long each note lasts, in 16ths: short is tight and staccato, long runs one note into the next.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "rate",

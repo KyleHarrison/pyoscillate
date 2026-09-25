@@ -8,7 +8,7 @@ from pyo.lib.generators import Rossler, SuperSaw
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 ROOT_FREQ = notes.E3  # current default
@@ -22,7 +22,6 @@ PARAMETERS = (
         ROOT_FREQ,
         "Register",
         "Sets the wash's base pitch.",
-        (PyoParamRef(SuperSaw, "freq"),),
         scale="note",
     ),
     SliderSpec(
@@ -33,7 +32,6 @@ PARAMETERS = (
         0.6,
         "Thickness",
         "Spreads the oscillators apart in pitch; higher makes the wash thicker and hazier, lower keeps it cleaner and more focused.",
-        (PyoParamRef(SuperSaw, "detune"),),
     ),
     SliderSpec(
         "detune_bal",
@@ -43,7 +41,6 @@ PARAMETERS = (
         0.7,
         "Detune blend",
         "Balances how much of the detuned layers come through versus the centered tone; higher leans further into the thick, chorused character.",
-        (PyoParamRef(SuperSaw, "bal"),),
     ),
     SliderSpec(
         "pitch_drift",
@@ -53,7 +50,6 @@ PARAMETERS = (
         0.03,
         "Instability",
         "Adds slow pitch wobble; higher makes the wash feel more alive and unstable, lower keeps it steadier.",
-        (),
     ),
     SliderSpec(
         "chorus_depth",
@@ -63,7 +59,6 @@ PARAMETERS = (
         2.5,
         "Shimmer",
         "Deepens the chorus modulation for a wider, more shimmering movement; lower keeps it subtler and more static.",
-        (PyoParamRef(Chorus, "depth"),),
     ),
     SliderSpec(
         "chorus_feedback",
@@ -73,7 +68,6 @@ PARAMETERS = (
         0.35,
         "Chorus density",
         "Adds more layered repeats to the chorus effect for a denser, more swirling texture.",
-        (PyoParamRef(Chorus, "feedback"),),
     ),
     SliderSpec(
         "chorus_bal",
@@ -83,7 +77,6 @@ PARAMETERS = (
         0.6,
         "Chorus blend",
         "Blends how much of the chorused signal is heard versus the dry tone; higher leans further into the wide, shimmering effect.",
-        (PyoParamRef(Chorus, "bal"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -93,7 +86,6 @@ PARAMETERS = (
         0.9,
         "Space",
         "Sets how large and distant the wash's room feels, from a tight presence to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -103,7 +95,6 @@ PARAMETERS = (
         0.35,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -113,7 +104,6 @@ PARAMETERS = (
         0.9,
         "Distance",
         "Blends how much of the wash is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
     SliderSpec(
         "delay_time",
@@ -123,7 +113,6 @@ PARAMETERS = (
         0.8,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the wash across time.",
-        (PyoParamRef(Delay, "delay"),),
     ),
     SliderSpec(
         "delay_feedback",
@@ -133,7 +122,6 @@ PARAMETERS = (
         0.25,
         "Echo density",
         "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
-        (PyoParamRef(Delay, "feedback"),),
     ),
 )
 VOLUME_DEFAULT = 0.6
@@ -186,9 +174,13 @@ class SoundscapeWash(ContinuousVoice):
 
         # subtle, slow pitch instability rather than a discrete note pattern -
         # keeps the pad "dreamy" without ever resolving to a new pitch
-        pitch_wander = Rossler(pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"])
+        pitch_wander = Rossler(
+            pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"]
+        )
 
-        saw_voice = SuperSaw(freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2)
+        saw_voice = SuperSaw(
+            freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2
+        )
         chorused = Chorus(
             saw_voice,
             depth=live["chorus_depth"],

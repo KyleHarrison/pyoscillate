@@ -11,7 +11,7 @@ from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 # major pentatonic across one octave - consonant, calm, no leading tones
@@ -28,7 +28,6 @@ PARAMETERS = (
         CANON_ROOT,
         "Register",
         "Shifts voice A's melody up or down in pitch; voice B follows at its own interval offset.",
-        (PyoParamRef(FM, "carrier"),),
         scale="note",
     ),
     SliderSpec(
@@ -39,7 +38,6 @@ PARAMETERS = (
         5.0,
         "Voice A pace",
         "How often voice A draws a new note; shorter feels more active, longer spaces it out.",
-        (),
     ),
     SliderSpec(
         "voice_b_period",
@@ -49,7 +47,6 @@ PARAMETERS = (
         7.5,
         "Voice B pace",
         "How often voice B draws a new note; set apart from voice A's pace so the two drift in and out of alignment.",
-        (),
     ),
     SliderSpec(
         "voice_b_interval",
@@ -59,7 +56,6 @@ PARAMETERS = (
         7,
         "Voice separation",
         "Sets voice B's pitch offset from voice A; wider intervals separate the two voices more clearly, narrower blends them together.",
-        (),
     ),
     SliderSpec(
         "note_duration",
@@ -69,7 +65,6 @@ PARAMETERS = (
         4.0,
         "Note length",
         "Shapes how long each note rings out; shorter feels more plucked and articulate, longer lets notes overlap into a smoother, sustained texture.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "fm_ratio",
@@ -79,7 +74,6 @@ PARAMETERS = (
         1.5,
         "Tone character",
         "Detunes the melodic overtones; near a simple ratio sounds clean and bell-like, drifting away adds a warmer, more unstable shimmer.",
-        (PyoParamRef(FM, "ratio"),),
     ),
     SliderSpec(
         "fm_index",
@@ -89,7 +83,6 @@ PARAMETERS = (
         1.5,
         "Brightness",
         "Moves the melody from a plain, mellow tone to a brighter, buzzier, more harmonically complex one.",
-        (PyoParamRef(FM, "index"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -99,7 +92,6 @@ PARAMETERS = (
         0.7,
         "Space",
         "Sets how large and distant the canon's room feels, from a tight presence to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -109,7 +101,6 @@ PARAMETERS = (
         0.5,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -119,7 +110,6 @@ PARAMETERS = (
         0.5,
         "Distance",
         "Blends how much of the canon is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
 )
 
@@ -192,12 +182,16 @@ class Canon(Patch):
 
         voice_a_metro = Metro(time=self.voice_a_period)
         voice_a_env = TrigEnv(voice_a_metro, table=envelope_table, dur=self.note_duration, mul=0.18)
-        voice_a_fm = FM(carrier=root_freq, ratio=self.fm_ratio, index=self.fm_index, mul=voice_a_env)
+        voice_a_fm = FM(
+            carrier=root_freq, ratio=self.fm_ratio, index=self.fm_index, mul=voice_a_env
+        )
 
         voice_b_root = root_freq * pow(2, self.voice_b_interval / 12)
         voice_b_metro = Metro(time=self.voice_b_period)
         voice_b_env = TrigEnv(voice_b_metro, table=envelope_table, dur=self.note_duration, mul=0.14)
-        voice_b_fm = FM(carrier=voice_b_root, ratio=self.fm_ratio, index=self.fm_index, mul=voice_b_env)
+        voice_b_fm = FM(
+            carrier=voice_b_root, ratio=self.fm_ratio, index=self.fm_index, mul=voice_b_env
+        )
 
         source = voice_a_fm + voice_b_fm
         voice = Freeverb(source, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)

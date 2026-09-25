@@ -11,7 +11,7 @@ from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 
 # major pentatonic across one octave - consonant, calm, no leading tones
@@ -28,7 +28,6 @@ PARAMETERS = (
         MID_ROOT,
         "Register",
         "Shifts the generated melody up or down in pitch.",
-        (PyoParamRef(FM, "carrier"),),
         scale="note",
     ),
     SliderSpec(
@@ -39,7 +38,6 @@ PARAMETERS = (
         4.5,
         "Pace",
         "How often a new note is drawn; shorter feels more active, longer spaces the melody out.",
-        (),
     ),
     SliderSpec(
         "note_duration",
@@ -49,7 +47,6 @@ PARAMETERS = (
         3.5,
         "Note length",
         "Shapes how long each note rings out; shorter feels more plucked and articulate, longer lets notes overlap into a smoother, sustained texture.",
-        (PyoParamRef(TrigEnv, "dur"),),
     ),
     SliderSpec(
         "fm_ratio",
@@ -59,7 +56,6 @@ PARAMETERS = (
         1.5,
         "Tone character",
         "Detunes the melodic overtones; near a simple ratio sounds clean and bell-like, drifting away adds a warmer, more unstable shimmer.",
-        (PyoParamRef(FM, "ratio"),),
     ),
     SliderSpec(
         "fm_index",
@@ -69,7 +65,6 @@ PARAMETERS = (
         1.5,
         "Brightness",
         "Moves the melody from a plain, mellow tone to a brighter, buzzier, more harmonically complex one.",
-        (PyoParamRef(FM, "index"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -79,7 +74,6 @@ PARAMETERS = (
         0.6,
         "Space",
         "Sets how large and distant the melody's room feels, from a tight presence to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -89,7 +83,6 @@ PARAMETERS = (
         0.5,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -99,7 +92,6 @@ PARAMETERS = (
         0.45,
         "Distance",
         "Blends how much of the melody is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
 )
 
@@ -164,14 +156,18 @@ class Generative(Patch):
         note_env = TrigEnv(note_metro, table=envelope_table, dur=self.note_duration, mul=0.18)
 
         fm_voice = FM(carrier=root_freq, ratio=self.fm_ratio, index=self.fm_index, mul=note_env)
-        voice = Freeverb(fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+        voice = Freeverb(
+            fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal
+        )
 
         def next_note() -> None:
             interval = random.choice(GENERATIVE_SCALE)
             fm_voice.carrier = root_freq * pow(2, interval / 12)
 
         note_func = TrigFunc(note_metro, next_note)
-        self.sequencer = _Generative(metro=note_metro, keepalive=[envelope_table, note_env, note_func])
+        self.sequencer = _Generative(
+            metro=note_metro, keepalive=[envelope_table, note_env, note_func]
+        )
         self.voice = voice
         self.controls = {
             "root_freq": lambda value: setattr(fm_voice, "carrier", value),

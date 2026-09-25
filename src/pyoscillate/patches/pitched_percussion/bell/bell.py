@@ -34,7 +34,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -50,7 +50,6 @@ PARAMETERS = (
         notes.A4,
         "Register",
         "Moves the bell figure up or down; low reads as a church bell or gong, high as a glockenspiel or chime.",
-        (PyoParamRef(ComplexRes, "freq"), PyoParamRef(FM, "carrier")),
         scale="note",
     ),
     SliderSpec(
@@ -61,7 +60,6 @@ PARAMETERS = (
         0.6,
         "Strike",
         "How hard the bell is hit: soft is a round, mellow tone, hard adds a bright, clanging edge to the start of each note.",
-        (PyoParamRef(ComplexRes, "mul"), PyoParamRef(TrigEnv, "mul")),
     ),
     SliderSpec(
         "ring",
@@ -71,7 +69,6 @@ PARAMETERS = (
         2.5,
         "Ring",
         "How long each note rings, in seconds, before it fades out; long rings overlap into a shimmering wash.",
-        (PyoParamRef(ComplexRes, "decay"), PyoParamRef(TrigEnv, "dur")),
     ),
     SliderSpec(
         "rate",
@@ -151,7 +148,9 @@ class Bell(Patch):
 
     def voice_graph(
         self,
-    ) -> tuple[PyoObject, Callable[[int, float], None], dict[str, Callable[[Any], None]], tuple[Any, ...]]:
+    ) -> tuple[
+        PyoObject, Callable[[int, float], None], dict[str, Callable[[Any], None]], tuple[Any, ...]
+    ]:
         """This style's resonance graph, built from `self.triggers`: the
         summed voice, a `tune(slot, freq)` callback the shared pattern
         stepper calls on each hit, this style's Strike/Ring live controls,
@@ -159,7 +158,9 @@ class Bell(Patch):
         raise NotImplementedError
 
     def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
-        del tempo  # deliberately free of the tempo grid's own note values; PATTERN still rides the clock
+        del (
+            tempo
+        )  # deliberately free of the tempo grid's own note values; PATTERN still rides the clock
         self.configure(**values)
         self._reset()
 

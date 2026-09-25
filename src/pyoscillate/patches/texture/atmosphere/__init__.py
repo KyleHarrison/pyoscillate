@@ -10,7 +10,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -28,7 +28,6 @@ PARAMETERS = (
         ARP_ROOT,
         "Register",
         "Shifts the arpeggio up or down in pitch; higher settles brighter and clear of the bass, lower pulls it toward a darker, more muddied register.",
-        (PyoParamRef(FM, "carrier"),),
     ),
     SliderSpec(
         "step_division",
@@ -38,7 +37,6 @@ PARAMETERS = (
         8,
         "Speed",
         "Sets how quickly the arpeggio steps; lower values race by breathlessly, higher values stretch it into a slower, more spacious pattern.",
-        (),
     ),
     SliderSpec(
         "fm_ratio",
@@ -48,7 +46,6 @@ PARAMETERS = (
         0.4,
         "Tone character",
         "Detunes the pad's overtones; near a simple ratio sounds clean and bell-like, drifting away adds a warm, unstable, slightly dissonant shimmer.",
-        (PyoParamRef(FM, "ratio"),),
     ),
     SliderSpec(
         "fm_index",
@@ -58,7 +55,6 @@ PARAMETERS = (
         3,
         "Brightness",
         "Moves the pad from a plain, mellow tone to a brighter, buzzier, more harmonically complex one.",
-        (PyoParamRef(FM, "index"),),
     ),
     SliderSpec(
         "reverb_size",
@@ -68,7 +64,6 @@ PARAMETERS = (
         0.25,
         "Space",
         "Sets how large and distant the pad's room feels, from a tight close ambience to a huge, cavernous decay.",
-        (PyoParamRef(Freeverb, "size"),),
     ),
     SliderSpec(
         "reverb_damp",
@@ -78,7 +73,6 @@ PARAMETERS = (
         0.15,
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-        (PyoParamRef(Freeverb, "damp"),),
     ),
     SliderSpec(
         "reverb_bal",
@@ -88,7 +82,6 @@ PARAMETERS = (
         0.1,
         "Distance",
         "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into an atmospheric wash, lower keeps it present and up front.",
-        (PyoParamRef(Freeverb, "bal"),),
     ),
 )
 
@@ -133,11 +126,17 @@ class Atmosphere(Patch):
 
         # dur is longer than the step time so envelopes overlap into a sustained pad
         envelope_table = CosTable([(0, 0), (2000, 1), (5000, 0.4), (8191, 0)])
-        arp_env = TrigEnv(arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3)
+        arp_env = TrigEnv(
+            arp_trig, table=envelope_table, dur=step_time * 1.2, mul=arp_swell, add=-0.3
+        )
 
         # slow, detuned ratio for a warm, slightly unstable atmospheric tone
-        fm_voice = FM(carrier=self.arp_root, ratio=self.fm_ratio, index=self.fm_index, mul=arp_env, add=-0.3)
-        voice = Freeverb(fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal)
+        fm_voice = FM(
+            carrier=self.arp_root, ratio=self.fm_ratio, index=self.fm_index, mul=arp_env, add=-0.3
+        )
+        voice = Freeverb(
+            fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal
+        )
 
         arp_root = self.arp_root
         step = {"i": 0}

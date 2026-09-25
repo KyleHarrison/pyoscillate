@@ -3,10 +3,11 @@
 Source: a design conversation on 2026-09-26 while migrating
 [drums/kick/kick.py](../../src/pyoscillate/patches/drums/kick/kick.py) from the
 old module-level `PARAMETERS` + function-`build` shape to the class-based
-`Patch` shape. `Kick` is the first (and, as of this writing, only) patch
-migrated to what follows — it's meant to be the reference every other patch
-family converges on. Line numbers below are from 2026-09-26; re-read the
-files before relying on them.
+`Patch` shape, followed the same day by an audit that replaced the first
+attempt (class-body `SliderSpec`s + a `controls` dict of lambdas in `finish()`)
+with the `Param` design below. `Kick` is the first (and, as of this writing,
+only) patch migrated — it's the reference every other patch family converges
+on. Re-read the files before relying on any detail here.
 
 This file records the **why**. The terse, authoritative rule set stays in
 [patches/CLAUDE.md](../../src/pyoscillate/patches/CLAUDE.md) — don't restate
@@ -14,21 +15,22 @@ its rules here, and don't let this file drift into a second contract. Read
 this when the reasoning behind a rule there isn't obvious, or when migrating
 the next patch and you want the worked example.
 
-## 1. Three kinds of data, three lifetimes
+## 1. What lives where
 
-A `Patch` subclass mixes three categories of state that look similar (they're
-all "attributes on the class or instance") but must never be merged, because
-each has a different lifetime:
+| Category | Example | Lives on | Set when |
+|---|---|---|---|
+| Parameter (range, label, default *and* control) | `@Param(...) def punch(self, value)` | the class body | import time |
+| Current parameter value | `self.punch` | the instance (stored by the `Param` descriptor) | `__init__`/`configure()`/`set()`/plain assignment |
+| Style constant | `sweep_depth = 80.0` | the leaf class body | import time |
+| Live DSP graph | `self.pitch_env`, `self.body`, ..., `self.voice`, `self.sequencer` | the instance | `build()`, recreated every rebuild |
 
-| Category | Example | Lives on | Set when | Shared across |
-|---|---|---|---|---|
-| Control contract | `punch = SliderSpec(...)` | the class body | import time | every style subclass |
-| Style constant | `sweep_depth = 80.0` | the leaf class body | import time | one style only |
-| Current parameter value | `self.punch` | the instance | `__init__`/`configure()`/`set()` | nothing — one instance's own state |
-| Live DSP graph | `self.voice`, `self.sequencer`, `self.resources` | the instance | `build()` | nothing — recreated every rebuild |
-
-The rest of this doc is mostly about why those rows can't collapse into
-each other.
+The first two rows *are* merged, deliberately: a `Param` is a data
+descriptor, the same mechanism as `@property`. `Kick.punch` is the `Param`
+(slider contract + control); `kick.punch` is that instance's float. The
+first attempt merged them by accident instead — a class-body `SliderSpec`
+shadowed by a same-named instance float — which left a type checker seeing
+`self.punch` as a `SliderSpec` and let a plain `self.punch = x` skip the
+live control entirely.
 
 ## 2. Construction vs. `build()`: different lifecycle stages, not redundant steps
 
@@ -43,9 +45,14 @@ each other.
   audio already running.
 - `build()` is **repeatable on the same instance** — `PatchPanel._apply()`
   calls it again whenever a `rebuild_parameters` value changes
-  (`patches/CLAUDE.md` design rule 3). `GatedVoice._reset()` exists precisely
-  because one instance's graph gets thrown away and remade. `__init__` can't
-  play that role; it runs exactly once.
+  (`patches/CLAUDE.md` design rule 3), and again every time the patch is
+  switched back on. `__init__` can't play that role; it runs exactly once.
+  Because the rebuild happens on the *same* instance, `Patch._reset()`
+  stops a graph that's still playing (the caller can't reach it once
+  `build()` replaces `self.voice`) and parks it in `self._retired` until
+  the next rebuild, so its `STOP_FADE` ramp never runs on collected
+  objects. Before this, `PatchRack.start()` stopped the *new* graph and
+  the old output chain was never explicitly stopped.
 - An unbuilt `Patch` must stay cheap and inert: a whole rack's worth of
   patches (most of which the user never switches on) get constructed as
   plain Python objects. None of them should allocate real pyo native objects
@@ -58,27 +65,25 @@ build's current parameter values both exist.
 
 ## 3. Instance attributes are the only source of truth for parameter state
 
-`Patch.__init__` ([base.py:155](../../src/pyoscillate/patches/base.py))
-seeds `self.<name>` for every `SliderSpec` in `parameters` from its default,
-then applies any constructor overrides through `configure()`. From then on,
-**nothing else holds a second copy of a parameter's current value** — not a
-shadow dict in the Flet layer, not a "pending values" argument to `build()`.
+`Patch.__init__` seeds `self.<name>` for every entry in `parameters` from
+its default (with `_built` false, so no control runs), then applies any
+constructor overrides through `configure()`. From then on, **nothing else
+holds a second copy of a parameter's current value** — not a shadow dict in
+the Flet layer, not a "pending values" argument to `build()`.
 
-- `Patch.set(name, value)` ([base.py:262](../../src/pyoscillate/patches/base.py))
-  always does `setattr(self, name, value)` first, then calls
-  `self.controls.get(name)` if `finish()` registered a live setter for it.
-  Setting a `rebuild_parameters` name (which has no live setter) just stages
-  the new value on the attribute — the caller decides separately whether
-  that means a rebuild.
-- `Patch.configure(**values)` ([base.py:243](../../src/pyoscillate/patches/base.py))
-  is `set()` looped over a dict, silently skipping any name that isn't one
-  of this instance's parameters. Used by `__init__` and by preset loading,
-  where the caller is handing over a superset of names.
+- Assigning a `Param` (`self.punch = 1.2`, or `Patch.set("punch", 1.2)`,
+  which does the same after validating the name) stores the value and, once
+  the patch is built, calls the control. A `Param` with no control (a
+  `rebuild_parameters` name) just stages the value — the caller decides
+  separately whether that means a rebuild. `Patch.set` also still consults
+  `self.controls` for unmigrated patches.
+- `Patch.configure(**values)` is `set()` looped over a dict, silently
+  skipping any name that isn't one of this instance's parameters. Used by
+  `__init__` and by preset loading, where the caller is handing over a
+  superset of names.
 - `build()` **takes no per-parameter kwargs**. `Kick.build(self, tempo,
-  clock)` ([kick.py:99](../../src/pyoscillate/patches/drums/kick/kick.py))
-  reads `self.level`, `self.punch`, etc. directly — there is nothing left to
-  apply, because whatever called `build()` already applied every override
-  via `configure()`/`set()` beforehand.
+  clock)` reads `self.sweep_time` etc. directly, and never applies a
+  parameter at all — `finish()` does that (§4).
 
 This is what let `PatchPanel` in [flet/base.py](../../src/flet/base.py) drop
 its old `self.values: dict[str, float]` shadow of the sliders: a slider move
@@ -92,112 +97,104 @@ The same pattern applies in
 `voice.configure(**remaining)` before `build` is handed back, not passed
 into `build` itself.
 
-## 4. Why a `SliderSpec`'s range/default can't reference a per-style class attribute
+## 4. Range is static; the control mapping is a method
 
-`punch = SliderSpec(0.0, 2.0, ..., 1.0, ...)` on `Kick` and
-`sweep_depth = 80.0` on `KickRound` look like they should be able to talk to
-each other (`punch`'s effect is literally `self.sweep_depth * value`), but
-they can't be defined in terms of one another, for a plain ordering reason:
-`Kick`'s class body runs and finishes — including the `punch = SliderSpec(...)`
-assignment — before `KickRound`'s class body ever runs. There is no `self`
-during class-body execution, and `sweep_depth` isn't assigned a value on
-`Kick` at all (it's a bare `ClassVar[float]` annotation); it only becomes
-real data on the leaf subclasses, which don't exist yet.
+`punch`'s effect is literally `self.sweep_depth * value`, and `sweep_depth`
+only exists on the leaf style classes. Two different things are tangled in
+that sentence, and they get opposite answers:
 
-This isn't a limitation to work around — it reflects a real, correct
-separation:
+- The **range/default/label** can't reference `sweep_depth`, and shouldn't.
+  `Kick`'s class body finishes before any style's body runs, and "Punch"
+  means the same thing — 0..2× this style's own sweep depth — for every
+  style. It's a style-invariant UI contract.
+- The **control mapping** *can* live in the class body, because a method
+  gets `self` when it's called, not when it's defined. That's the whole
+  trick behind `@Param(...) def punch(self, value)`: the class body
+  declares range and mapping together, and the mapping reads
+  `self.sweep_depth` and `self.pitch_env` at call time, when both exist.
+  No placeholders are needed for graph nodes — class-level annotations
+  (`pitch_env: TrigEnv`) document them, and the descriptor only runs a
+  control once `_built` is true.
 
-- `punch`'s `SliderSpec` (range, step, default, label, help text) is the
-  **style-invariant control contract**. "Punch" means the same thing —
-  0..2× this style's own natural sweep depth — for `KickRound`,
-  `KickPunch`, and `KickSoft` alike, per `patches/CLAUDE.md`'s "the graph
-  itself is identical across styles."
-- `sweep_depth` is a **per-style DSP scaling constant**, only meaningful
-  combined with a live instance's `self.punch` inside `build()`'s closure —
-  `lambda value: setattr(pitch, "mul", self.sweep_depth * value)`. It's read
-  dynamically off `type(self)` at call time, which is exactly how a
-  Template Method pattern is supposed to work: `Kick.build()` is the shared
-  template, and each leaf's class attributes are the varying hook data it
-  reads via `self`.
+The first attempt missed the second point and kept the mapping in `build()`,
+which meant writing four of the five mappings twice: once as the
+constructor's initial value (`mul=self.sweep_depth * self.punch`) and again
+in the `controls` lambda. Now `build()` constructs nodes with neutral values
+and `finish()` → `_bind()` runs every control once with the current value,
+so each mapping is written exactly once.
 
-Baking `sweep_depth` into the `SliderSpec` itself would mean three separate
-`SliderSpec` objects (one per style) just to vary one internal coefficient —
-duplicating a genuinely shared UI contract to avoid a lookup that's supposed
-to happen later anyway.
+When one style genuinely needs a different default or range, it redeclares
+just that parameter — `punch = Kick.punch.replace(default=1.4)` — keeping
+the control. `__init_subclass__` merges it into the inherited `parameters`
+in place, preserving slider order.
 
-## 5. `retain()` vs. `finish()`
+**Considered and not chosen:** backing every parameter with a live `SigTo`
+and writing the graph in signal arithmetic (what `ContinuousVoice.live()`
+does). It needs no control methods at all and smooths zipper noise, but
+some targets can't take a signal (a clock division's steps, `Adsr` attack,
+funk bass's per-note state dict), so it still needs a fallback. A control
+method covers both — it can set `self.some_sig.value` where smoothing
+matters.
 
-Both exist because they answer different questions about a different set of
-objects, per `patches/CLAUDE.md` rule 4's "every object lands in exactly one
-of `Patch.voice` / `Patch.sequencer` / `Patch.resources`":
+## 5. Retention: graph nodes on `self`
 
-- **`retain(*objects)`** is generic, incremental keep-alive bookkeeping —
-  "don't let the GC collect this." It's called as objects are made, not
-  saved up for the end: `GatedVoice.envelope()`
-  ([common.py:99](../../src/pyoscillate/patches/common.py)) already retains
-  its own table/`TrigEnv` pair the moment it builds one, before the rest of
-  `build()` has even run.
-- **`finish(voice, controls, resources=())`**
-  ([common.py:149](../../src/pyoscillate/patches/common.py)) is the
-  one-time terminal step: it designates the two structurally special
-  objects (`self.voice`, driven by `start()`/`stop()`; `self.sequencer`,
-  driven by `PatchRack`), merges in whatever `controls` `schedule()` already
-  registered (the `rate` setter), and raises if `build()` never called
-  `schedule()`. The optional `resources=` kwarg folds in a `retain()` call
-  for whatever else `build()` constructed itself, so a build with no
-  genuine per-style variation ends in one flat statement —
-  `return self.finish(voice, {...}, resources=(body, body_signal, noise, click_signal, source))`
-  — instead of a separate `self.retain(...)` line before it.
+The resource-ownership rule exists because pyo's arithmetic results don't
+hold their operands. Checked 2026-09-26: after `prod = a * n; mix = prod +
+a; d = Disto(mix)` and dropping the names, `a`, `n`, and `prod` were
+collected; only `mix` (held by `Disto` as its input) survived. A collected
+node the audio thread still reads can segfault the process in a way Python
+can't catch.
 
-This was weighed against making retention fully automatic (hooking every
-pyo object constructor during `build()`), which was rejected: it would
-require monkeypatching pyo's constructors, would retain throwaway objects
-nobody intended as graph state, and directly contradicts
-`patches/CLAUDE.md`'s stance that "closure capture and transitive ownership
-... are implementation details, not lifetime guarantees" — the explicit,
-named-local style exists *because* relying on implicit lifetime behaviour is
-the actual crash risk (a collected pyo node mid-callback can segfault the
-process in a way Python can't catch).
+So retention is still mandatory; what changed is how it's expressed.
+`build()` stores every node as a `self.` attribute (declared on the class),
+and `_bind()` appends every public pyo object on the instance to
+`self.resources`, skipping `self.voice` and anything already retained. That
+retains every named node without a hand-maintained `resources=(...)` tuple
+and without monkeypatching pyo constructors (the rejected alternative).
+`retain()` stays for objects that never become attributes — the table
+inside `envelope()`, lists like bell's `self.triggers` — and `finish()`'s
+`resources=` kwarg stays for unmigrated patches that still use locals.
 
-It was also weighed against splitting `build()` into several helper
-methods (one per subgraph). That's the right call when styles need
-genuinely different *behaviour* — see `FmBass.tone()` in
-[tonal/bass/fm/fm.py](../../src/pyoscillate/patches/tonal/bass/fm/fm.py) — but
-`Kick`'s styles only vary by constants, so there's no natural seam to split
-on, and threading `pitch`/`body`/`click_env` across method boundaries would
-cost more than it saves for a graph this small.
+Splitting `build()` into several helper methods is still the right call
+when styles need genuinely different *behaviour* — see `FmBass.tone()` in
+[tonal/bass/fm/fm.py](../../src/pyoscillate/patches/tonal/bass/fm/fm.py) —
+and storing nodes on `self` makes that easier, since there's nothing to
+thread across method boundaries.
 
 ## 6. Migration checklist for the next patch
 
 To bring another module (e.g. `drums/clap/clap.py`) up to this shape:
 
-1. Turn each `PARAMETERS` tuple entry into a class-body `name = SliderSpec(...)`
-   attribute on the `Patch` subclass. `__init_subclass__`
-   ([base.py:140](../../src/pyoscillate/patches/base.py)) auto-derives
-   `parameters` (and `_parameter_names`) from these — no separate
-   module-level `PARAMETERS` tuple needed.
-2. Drop `**values: Any` from `build()`'s signature and delete the
-   `self.configure(**values)` call at its top. Read `self.<name>` directly
-   everywhere the old code read a `values[...]`/local-from-kwarg.
-3. Replace a trailing `self.retain(...)` + `return self.finish(voice, controls)`
-   with one `return self.finish(voice, controls, resources=(...))`.
-4. No caller needs to change per patch: `PatchPanel`, `analysis.render`, and
-   the shared test helper `assert_patch_lifecycle` in
+1. Turn each `PARAMETERS` entry into a `@Param(min, max, step, default,
+   label, help)` decorating a method named after the parameter, whose body
+   is the old `controls` lambda (`self.node.attr = f(value)`). A parameter
+   with no live control becomes a bare `name = Param(...)`. Use
+   `rate_param(base_division, help)` for the clocked rate.
+2. Declare the graph nodes as class annotations, and in `build()` assign
+   every node to `self.<name>` instead of a local. Construct them with
+   neutral values; don't repeat a parameter's mapping in the constructor.
+3. Drop `**values: Any` from `build()` and its `self.configure(**values)`.
+4. End with `return self.finish(self.voice_node)` — no `controls` dict, no
+   `resources=` tuple.
+5. No caller changes: `PatchPanel`, `analysis.render`, and
+   `assert_patch_lifecycle` in
    [tests/test_deep_house_patches.py](../../tests/test_deep_house_patches.py)
-   already apply overrides via `configure()`/`set()` before calling `build`,
-   which works whether or not that particular `build()` still accepts
-   `**values` — so migrated and unmigrated patches can coexist mid-migration.
+   apply overrides via `configure()`/`set()` before calling `build`, so
+   migrated and unmigrated patches coexist.
 
 ## Open follow-up
 
-- `patches/CLAUDE.md` should get a short pointer to this doc (and the
-  `**values`-free `build()` shape made the documented contract, not just
-  `Kick`'s) once more than one family has migrated.
 - Every other family — snare, hat, tom, cymbal, percussion, low_hat, bell,
   bass, keys, drone, texture, arp/canon/generative/chord — is still on the
-  pre-migration shape (`PARAMETERS` tuple + `**values` in `build()`). Migrate
-  them incrementally, extending existing families rather than rewriting them
-  wholesale in one pass.
+  pre-migration shape (`PARAMETERS` tuple + `controls` dict + `**values` in
+  `build()`). Migrate them incrementally, extending existing families
+  rather than rewriting them wholesale.
+- `ContinuousVoice.live()` registers into `self.controls`; once a
+  continuous patch migrates, its `@Param` controls can set a `SigTo`'s
+  `value` directly and `live()` can go.
+- `_retired` keeps only one previous graph. Two rebuilds inside
+  `STOP_FADE` (0.2 s) would drop the first one mid-fade; no caller does
+  that today.
 
 ## Log
 
@@ -205,3 +202,10 @@ To bring another module (e.g. `drums/clap/clap.py`) up to this shape:
   migrated as the reference implementation (`Patch.set`/`configure` write-through,
   `build()` with no per-parameter kwargs, `GatedVoice.finish(resources=...)`);
   this doc written.
+- 2026-09-26: audit. Replaced class-body `SliderSpec` + `controls` lambdas
+  with the `Param` descriptor (range, value, and control in one
+  declaration, each mapping applied once by `_bind()`); graph nodes moved
+  onto `self` with automatic retention; `Param.replace` + merged
+  `parameters` for per-style overrides; `SliderSpec.pyo_refs` /
+  `PyoParamRef` removed (unused at runtime); `_reset()` now stops and
+  parks a still-playing graph on rebuild.

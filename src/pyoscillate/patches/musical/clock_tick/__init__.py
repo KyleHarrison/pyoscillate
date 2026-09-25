@@ -10,7 +10,7 @@ from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv
 
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import PyoParamRef, SliderSpec
+from pyoscillate.patches.params import SliderSpec
 from pyoscillate.tempo import Tempo
 
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
@@ -24,7 +24,6 @@ PARAMETERS = (
         OVERALL_LEVEL,
         "Presence",
         "Sets how far forward the clock-shop texture sits in the mix, from a background murmur to a foreground element.",
-        (),
     ),
     SliderSpec(
         "wood_q",
@@ -34,7 +33,6 @@ PARAMETERS = (
         3,
         "Wood tone",
         "Focuses the woodblock tock around a single pitch for a more tonal, ringing sound, or widens it into a duller, more percussive thud.",
-        (PyoParamRef(ButBP, "q"),),
     ),
     SliderSpec(
         "glass_q",
@@ -44,7 +42,6 @@ PARAMETERS = (
         6,
         "Glass tone",
         "Focuses the metallic tick around a single ringing pitch, or widens it into a softer, less metallic click.",
-        (PyoParamRef(ButBP, "q"),),
     ),
 )
 
