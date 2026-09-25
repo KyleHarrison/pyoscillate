@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.percussion.percussion style=rim
+#   style: rim | conga
 """Rim and conga-like accent percussion voices.
 
 Both styles share one construction: a sine body that bends slightly down in

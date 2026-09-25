@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.canon.canon
 from __future__ import annotations
 
 import random

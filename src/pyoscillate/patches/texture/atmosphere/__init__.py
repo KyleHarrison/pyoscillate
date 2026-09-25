@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.texture.atmosphere
 from __future__ import annotations
 
 from pyo.lib.effects import Freeverb

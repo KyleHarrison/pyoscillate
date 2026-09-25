@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.kick.kick style=round
+#   style: round | punch | soft
 """Four-on-the-floor kick voices.
 
 Each hit restarts a sine body at a zero crossing, so the impact starts at full

@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare
 """Tone-and-rattle snare voice.
 
 Two layers share one trigger: a short sine body a little above the kick's

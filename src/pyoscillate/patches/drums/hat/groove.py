@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove style=crisp
+#   style: crisp | open | shuffle
 """Groove hi-hat voices with closed and open articulations.
 
 The source blends white noise with a cluster of high FM operators at

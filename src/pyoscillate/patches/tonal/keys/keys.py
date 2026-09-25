@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.keys.keys
 """FM electric piano: a struck tine over a round body, comping a progression.
 
 Each note is two FM pairs on the same carrier, both read from break-point

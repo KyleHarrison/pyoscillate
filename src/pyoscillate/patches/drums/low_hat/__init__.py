@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.low_hat
 from __future__ import annotations
 
 from pyo.lib._core import Sig

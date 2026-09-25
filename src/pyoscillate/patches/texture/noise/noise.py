@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.texture.noise.noise
 """Filtered-noise bed with a single colour control and three kinds of motion.
 
 One broadband source is shaped three ways, and each profile adds a different

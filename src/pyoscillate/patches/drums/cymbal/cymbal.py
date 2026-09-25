@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.cymbal.cymbal style=ride
+#   style: ride | crash
 """Ride and crash cymbal voices.
 
 A dense metallic source - high FM operators at inharmonic ratios with a little

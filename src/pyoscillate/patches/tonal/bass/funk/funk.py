@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.funk.funk
 """Funk bass: a syncopated line whose filter opens slowly on every note, a quack.
 
 The voice is the "Funk Bass" recipe from Welsh's Synthesizer Cookbook:

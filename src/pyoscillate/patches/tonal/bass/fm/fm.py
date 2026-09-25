@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.fm.fm
 """FM bass: every note barks bright, then settles to a rounder tone.
 
 The index follows a break-point table (pyo example x10/01's index

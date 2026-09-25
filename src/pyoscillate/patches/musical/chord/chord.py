@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.chord.chord style=velvet
+#   style: velvet | organ | shimmer
 """Offbeat chord-stab voices."""
 
 from collections.abc import Callable

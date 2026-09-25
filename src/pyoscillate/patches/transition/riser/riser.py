@@ -1,3 +1,5 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.transition.riser.riser style=noise
+#   style: noise | shift | pitch
 """Tempo-locked riser: one ramp lifts pitch, brightness and level into a downbeat.
 
 A single `Linseg` ramp (pyo example x05/05) runs from 0 to 1 over the riser's

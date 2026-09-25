@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.tom.tom
 """Pitched tom voice.
 
 A pitched drum hit: a sine body with a quick but audible downward sweep, a

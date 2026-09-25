@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass
 """Reusable bass voice family and the legacy techno bass entry point."""
 
 from __future__ import annotations

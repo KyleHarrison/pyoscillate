@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.arp.arp
 from __future__ import annotations
 
 from pyo.lib.controls import SigTo

@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.pitched_percussion.bell.bell
 """Struck bell: a two-bar pentatonic figure rung on inharmonic partials.
 
 Two strategies share one control surface, so a rack can swap them:

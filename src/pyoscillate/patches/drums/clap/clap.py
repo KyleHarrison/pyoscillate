@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.clap.clap
 """Multi-burst noise clap voice.
 
 A clap is several nearly simultaneous noise bursts rather than one hit: a few

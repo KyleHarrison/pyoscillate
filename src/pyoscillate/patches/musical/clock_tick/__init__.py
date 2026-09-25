@@ -1,3 +1,4 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.clock_tick
 from __future__ import annotations
 
 from dataclasses import dataclass, field
