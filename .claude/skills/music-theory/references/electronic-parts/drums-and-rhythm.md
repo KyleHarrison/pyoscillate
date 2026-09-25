@@ -90,6 +90,3 @@ Vary decay per hit: `.02 .02 .08 .02` s (short–short–open–short).
 A classic tension builder at the end of a 2-bar phrase: keep closed decays
 (0.02 s) everywhere, and on the 15th 16th of bar 2 raise amp to .4 and decay
 to 0.1 s.
-
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

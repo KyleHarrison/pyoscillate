@@ -66,8 +66,3 @@ rotation of it (vi–IV–I–V, etc.). Prefer modal interchange, chromatic
 mediants, suspended chords, or minor progressions with colour. See
 `../harmony/modal-harmony.md` and `../harmony/chromatic-harmony.md`.
 
-## Attribution
-
-Adapted from the `songwriting` skill in
-[claude-collider](https://github.com/jeremyruppel/claude-collider) by Jeremy
-Ruppel, MIT License. Rewritten here without SuperCollider-specific code.

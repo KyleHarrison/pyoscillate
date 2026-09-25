@@ -1,6 +1,10 @@
 ---
 name: music-theory
-description: Use for music theory, composition, orchestration, genre, arrangement, production-aware musical decisions, and sonic ideation independent of a specific synthesis library.
+description: >
+  Use when making musical decisions about harmony, melody, rhythm, form,
+  orchestration, arrangement, genre conventions, production-aware musical
+  choices, or sonic ideas. Use for composition and musical structure,
+  not Pyo-specific DSP implementation.
 ---
 
 # Music Theory
@@ -52,16 +56,3 @@ which routes a request to the smallest relevant set of files.
 - [`references/research/`](./references/research/) for reference-track and style analysis
 - [`references/creative-workflows/`](./references/creative-workflows/) for brainstorming and iterative collaboration
 - [Asset lookup table](./references/00-navigation.md#cheatsheets--when-to-use-assets) for compact lookup tables and reusable templates in `assets/`
-
-## Attribution and license
-
-Adapted from [Music Composition Agent Skill](https://github.com/SJY051/music-composition)
-by SJY051 and contributors, licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
-This version has been reorganized and adapted for the pyoscillate project.
-
-The `references/electronic-parts/` folder is adapted from the `songwriting`
-skill in [claude-collider](https://github.com/jeremyruppel/claude-collider) by
-Jeremy Ruppel, licensed under the MIT License, and rewritten without
-SuperCollider-specific code.

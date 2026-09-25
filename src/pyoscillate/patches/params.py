@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.utility.notes.notes import (
@@ -72,6 +73,83 @@ class SliderSpec:
         if self.scale == "note":
             return note_name(value)
         return f"{value:.{decimal_places(self.step)}f}"
+
+
+Control = Callable[[Any, float], None]
+
+
+class Param:
+    """One patch parameter declared once: its slider contract, its current
+    per-instance value, and how that value drives the live graph.
+
+    Used like `@property`, decorating the control itself - the method name
+    becomes the parameter name:
+
+        @Param(0.0, 2.0, 0.05, 1.0, "Punch", "...")
+        def punch(self, value: float) -> None:
+            self.pitch.mul = self.sweep_depth * value
+
+    `self.punch` reads the current value; assigning it (or `Patch.set`)
+    stores it and, once the patch is built, runs the control. `finish()`
+    runs every control once with the current value, so a mapping like
+    `sweep_depth * value` is written only here, never again in `build()`.
+    A `Param` with no control is a plain value `build()` reads (a
+    `rebuild_parameters` name).
+    """
+
+    def __init__(
+        self,
+        minimum: float,
+        maximum: float,
+        step: float,
+        default: float,
+        label: str,
+        help_text: str,
+        *,
+        scale: Literal["linear", "note"] = "linear",
+        control: Control | None = None,
+    ) -> None:
+        self._fields = (minimum, maximum, step, default, label, help_text)
+        self._scale: Literal["linear", "note"] = scale
+        self.control = control
+        self.name = ""
+        self.spec: SliderSpec
+
+    def __call__(self, control: Control) -> Param:
+        self.control = control
+        return self
+
+    def __set_name__(self, owner: type[Any], name: str) -> None:
+        self.name = name
+        self.spec = SliderSpec(name, *self._fields, scale=self._scale)
+
+    @overload
+    def __get__(self, obj: None, owner: type[Any] | None = None) -> Param: ...
+    @overload
+    def __get__(self, obj: object, owner: type[Any] | None = None) -> float: ...
+    def __get__(self, obj: object | None, owner: type[Any] | None = None) -> Param | float:
+        if obj is None:
+            return self
+        return obj.__dict__[self.name]
+
+    def __set__(self, obj: Any, value: float) -> None:
+        obj.__dict__[self.name] = value
+        if self.control is not None and obj._built:
+            self.control(obj, value)
+
+
+def rate_param(base_division: NoteDivision, help_text: str) -> Param:
+    """`Param` form of `rate_slider`, bound to `GatedVoice.reschedule`."""
+    minimum, maximum = Clock.rate_limits(base_division)
+    return Param(
+        minimum,
+        maximum,
+        1,
+        0,
+        "Rate",
+        help_text,
+        control=lambda patch, value: patch.reschedule(value),
+    )
 
 
 def rate_slider(base_division: NoteDivision, help_text: str) -> SliderSpec:

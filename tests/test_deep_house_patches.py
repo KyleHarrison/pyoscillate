@@ -3,6 +3,7 @@ import math
 import subprocess
 import sys
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
@@ -105,7 +106,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
     def assert_patch_lifecycle(self, voice) -> None:
         rack = PatchRack()
         values = {spec.name: spec.default for spec in voice.parameters}
-        build_kwargs = dict(values)
+        voice.configure(**values)
+        build_kwargs: dict[str, Any] = {}
         if voice.needs_tempo:
             build_kwargs["tempo"] = self.tempo
         if voice.needs_clock:

@@ -107,6 +107,3 @@ Fsus2 spread: midi 53 58 65 72
 Dsus2 spread: midi 50 57 62 69
 8 beats each
 ```
-
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

@@ -98,11 +98,13 @@ def _read_wav(path: Path) -> Render:
     )
 
 
-def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dict[str, Any]]:
-    """Build callable, volume default, and remaining params for a module
-    exposing `Patch` subclasses: a single-voice module has one, and a
-    multi-variant family like `Kick` has a base plus one leaf subclass per
-    `style`.
+def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float]:
+    """Build callable and volume default for a module exposing `Patch`
+    subclasses: a single-voice module has one, and a multi-variant family
+    like `Kick` has a base plus one leaf subclass per `style`. Any `--set`
+    overrides in `params` (besides `style`) are applied to the resolved
+    instance via `configure()` before `build` is handed back, since `build`
+    itself no longer takes per-parameter kwargs.
     """
     from pyoscillate.patches.base import Patch
 
@@ -130,7 +132,8 @@ def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float, dic
             f"found {len(leaves)}"
         )
     voice = leaves[0]()
-    return voice.build, voice.volume_default, remaining
+    voice.configure(**remaining)
+    return voice.build, voice.volume_default
 
 
 def _render_in_process(request: dict[str, Any]) -> None:
@@ -151,7 +154,7 @@ def _render_in_process(request: dict[str, Any]) -> None:
     )
 
     module = importlib.import_module(request["module"])
-    build, module_volume_default, params = _resolve_build(module, request["params"])
+    build, module_volume_default = _resolve_build(module, request["params"])
     tempo = Tempo(bpm=request["bpm"])
     clock = Clock(tempo, ticks_per_bar=DEFAULT_TICKS_PER_BAR)
     context = {"tempo": tempo, "clock": clock}
@@ -160,7 +163,7 @@ def _render_in_process(request: dict[str, Any]) -> None:
 
     # keep the patch and clock referenced for the whole render so their
     # pyo graph (including `resources`) cannot be collected mid-render
-    patch = build(**kwargs, **params)
+    patch = build(**kwargs)
     volume = request["volume"]
     patch.volume = volume if volume is not None else module_volume_default
     patch.start()

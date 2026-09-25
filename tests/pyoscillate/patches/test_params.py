@@ -2,10 +2,12 @@
 frequencies, and every patch's Register (`root_freq`) slider is one."""
 
 import importlib
+import inspect
 import pkgutil
 import unittest
 
 import pyoscillate.patches
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.patches.utility.notes.notes import freq_to_midi, midi_to_freq

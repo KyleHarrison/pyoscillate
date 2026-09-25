@@ -111,5 +111,3 @@ step:  0.25    note length: 0.15 beats    amp: 0.4
 Same motif shifted by a 16th — instant variation: prepend a single rest step
 (`[- 0 2 4 -]`). See `../rhythm-groove/rhythmic-devices.md` ("Displacement").
 
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

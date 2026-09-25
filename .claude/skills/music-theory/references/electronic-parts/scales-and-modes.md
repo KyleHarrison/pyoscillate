@@ -57,5 +57,3 @@ notes: 5 6 7    chromatic walk up to the 5th (7 semitones above the root)
 4. **Brighter?** Mixolydian
 5. **No wrong notes?** Pentatonic minor — 5 notes, all consonant
 
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

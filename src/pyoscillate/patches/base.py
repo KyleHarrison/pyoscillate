@@ -10,7 +10,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server, pa_list_devices
 
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param, SliderSpec
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
@@ -130,12 +130,31 @@ class Patch(ABC):
     in a separate wrapper.
     """
 
-    parameters: ClassVar[tuple[SliderSpec, ...]]
+    parameters: ClassVar[tuple[SliderSpec, ...]] = ()
+    _parameter_names: ClassVar[frozenset[str]] = frozenset()
     volume_default: ClassVar[float] = 0.6
     rebuild_parameters: ClassVar[tuple[str, ...]] = ()
     needs_tempo: ClassVar[bool] = False
     needs_clock: ClassVar[bool] = False
     needs_harmony: ClassVar[bool] = False
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Auto-derive `parameters` from any `SliderSpec`s a subclass
+        declares as its own class attributes (`level = SliderSpec(...)`), in
+        class-body declaration order, so a patch class doesn't need a
+        separate module-level `PARAMETERS` tuple to assign to `parameters`.
+        A class with no `SliderSpec` attributes of its own (e.g. a style
+        subclass that only overrides profile data) is left alone and keeps
+        inheriting `parameters` up the MRO."""
+        super().__init_subclass__(**kwargs)
+        declared = tuple(
+            value.spec if isinstance(value, Param) else value
+            for value in vars(cls).values()
+            if isinstance(value, (Param, SliderSpec))
+        )
+        if declared:
+            cls.parameters = declared
+        cls._parameter_names = frozenset(spec.name for spec in cls.parameters)
 
     def __init__(
         self,
@@ -153,8 +172,6 @@ class Patch(ABC):
         build/lifecycle state. `sidechain`/`name`/`title`/`summary` are only
         ever restated at the rack call site when a project needs one to
         differ from this instance's own default."""
-        for spec in self.parameters:
-            setattr(self, spec.name, values.get(spec.name, spec.default))
         self.resources: list[Any] = []
         self.controls: dict[str, Callable[[Any], None]] = {}
         self.sequencer: Sequencer | None = None
@@ -164,7 +181,11 @@ class Patch(ABC):
         self._fade: SigTo | None = None
         self._volume_control: SigTo | None = None
         self._output_resources: tuple[PyoObject, ...] = ()
+        self._built = False
         self.sidechain = sidechain
+        for spec in self.parameters:
+            setattr(self, spec.name, spec.default)
+        self.configure(**values)
         # plain instance attributes, distinct from the `name`/`title`/
         # `summary` properties below - a style subclass that shadows one of
         # those properties with its own plain `title = "..."` class
@@ -214,7 +235,11 @@ class Patch(ABC):
         thing twice. Override with a plain `summary = "..."` class
         attribute when the docstring is written for developers, not the UI.
         """
-        return self._summary if self._summary is not None else " ".join((type(self).__doc__ or "").split())
+        return (
+            self._summary
+            if self._summary is not None
+            else " ".join((type(self).__doc__ or "").split())
+        )
 
     @summary.setter
     def summary(self, value: str) -> None:
@@ -225,36 +250,52 @@ class Patch(ABC):
         self.resources.extend(objects)
 
     def configure(self, **values: Any) -> None:
-        """Update this instance's current parameter values ahead of a
-        `build()` call - e.g. a rack UI passing its sliders' live state in
-        before a (re)build. Only names that are actually one of this
-        instance's `parameters` are applied."""
-        names = {spec.name for spec in self.parameters}
+        """Update several of this instance's current parameter values via
+        `set()` - e.g. loading a preset. Unlike `set()`, an unknown name is
+        silently skipped rather than raising, since a caller here is often
+        handing over a superset of names (a full preset, `__init__`'s
+        constructor kwargs) that only partly applies to this instance."""
         for name, value in values.items():
-            if name in names:
-                setattr(self, name, value)
+            if name in self._parameter_names:
+                self.set(name, value)
 
     def _reset(self) -> None:
         """Call at the top of `build()`: fresh bookkeeping for a build that
         may run again on the same instance (a rebuild)."""
         self.resources = []
         self.controls = {}
+        self._built = False
+
+    def _bind(self) -> None:
+        """Call from `finish()`: mark the graph built and run every `Param`
+        control once with its current value."""
+        self._built = True
+        for spec in self.parameters:
+            param = getattr(type(self), spec.name, None)
+            if isinstance(param, Param) and param.control is not None:
+                param.control(self, getattr(self, spec.name))
 
     @abstractmethod
     def build(self, **kwargs: Any) -> Patch: ...
 
     def set(self, name: str, value: Any) -> None:
-        """Update one live parameter without rebuilding the Pyo graph."""
+        """Update one parameter: always keeps `self.<name>` current (so a
+        later `build()` sees it without needing the value restated), and
+        additionally pushes it into the running Pyo graph when `finish()`
+        registered a live control under `name`. Setting a `rebuild_parameters`
+        name (no live control) just stages the new value for the next
+        `build()` - the caller decides whether that rebuild happens."""
         if name == "volume":
             self.volume = value
             if self._volume_control is not None:
                 self._volume_control.value = value
             return
-        try:
-            setter = self.controls[name]
-        except KeyError as error:
-            raise KeyError(f"{type(self).__name__} has no live parameter named {name!r}") from error
-        setter(value)
+        if name not in self._parameter_names:
+            raise KeyError(f"{type(self).__name__} has no parameter named {name!r}")
+        setattr(self, name, value)
+        setter = self.controls.get(name)
+        if setter is not None:
+            setter(value)
 
     def update(self, values: dict[str, Any]) -> Patch:
         """Update several live parameters and preserve runtime state."""

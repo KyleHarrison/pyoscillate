@@ -95,6 +95,3 @@ resonance: .3   .3   .2   .1    .2   .3   .3   .4
 
 This keeps the line rooted but gives it timbral motion — darker on weak
 beats, brighter on accents.
-
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

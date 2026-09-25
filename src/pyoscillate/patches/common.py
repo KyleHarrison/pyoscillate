@@ -14,6 +14,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.patches.base import Patch, Sequencer
+from pyoscillate.patches.params import Param
 
 
 @dataclass(eq=False)
@@ -64,6 +65,7 @@ class ContinuousVoice(Patch):
 
     def finish(self, voice: PyoObject) -> Patch:
         self.voice = voice
+        self._bind()
         return self
 
 
@@ -122,11 +124,17 @@ class GatedVoice(Patch):
         """Subscribe `callback` on `clock` and pre-register the `rate` live
         control, so `build()` never has to hand-wire it."""
         division = clock.subscribe(clock.ticks_for_rate(base_division, rate), callback)
-        self.controls["rate"] = lambda value: setattr(
-            division, "steps", clock.ticks_for_rate(base_division, value)
-        )
         self._division = division
+        self._clock = clock
+        self._base_division = base_division
+        # a `rate_param` already carries this control
+        if not isinstance(getattr(type(self), "rate", None), Param):
+            self.controls["rate"] = self.reschedule
         return division
+
+    def reschedule(self, rate: float) -> None:
+        """Live `rate` control: re-space the scheduled division."""
+        self._division.steps = self._clock.ticks_for_rate(self._base_division, rate)
 
     def step_pattern(
         self, cycle: int, pattern: dict[int, Any] | set[int]
@@ -140,21 +148,37 @@ class GatedVoice(Patch):
 
         def check() -> tuple[int, Any | None]:
             step = counter["step"] % cycle
-            value = pattern.get(step) if isinstance(pattern, dict) else (True if step in pattern else None)
+            value = (
+                pattern.get(step)
+                if isinstance(pattern, dict)
+                else (True if step in pattern else None)
+            )
             counter["step"] += 1
             return step, value
 
         return check
 
-    def finish(self, voice: PyoObject, controls: dict[str, Callable[[Any], None]]) -> Patch:
-        """Wire this voice's `sequencer`/`voice`/`controls` from everything
-        `envelope()`/`schedule()`/`retain()` accumulated plus this build's
-        own `voice`/`controls`, and return `self` now that it's built."""
+    def finish(
+        self,
+        voice: PyoObject,
+        controls: dict[str, Callable[[Any], None]] | None = None,
+        *,
+        resources: tuple[Any, ...] = (),
+    ) -> Patch:
+        """Terminal step of `build()`: retain any further `resources` build()
+        constructed itself (on top of what `envelope()`/`schedule()` already
+        retained as they were called), then wire `sequencer`/`voice`/
+        `controls` and return `self` now that it's built. Folding the last
+        `retain(...)` call into this one keeps a build() with no genuine
+        per-style variation (see `patches/CLAUDE.md`'s "graph identical
+        across styles" case) ending in one flat statement instead of two."""
         if self._division is None:
             raise RuntimeError(f"{type(self).__name__}.build() never called self.schedule(...)")
+        self.retain(*resources)
         self.sequencer = self._division
         self.voice = voice
-        self.controls = {**self.controls, **controls}
+        self.controls = {**self.controls, **(controls or {})}
+        self._bind()
         return self
 
 

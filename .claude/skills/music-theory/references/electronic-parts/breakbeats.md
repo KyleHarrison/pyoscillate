@@ -74,5 +74,3 @@ resonant low-pass (≈ 2 kHz, high resonance) for filtered builds, distortion
 for weight. These are choices about character; the pyo-music skill decides
 the implementation.
 
----
-Adapted from claude-collider (Jeremy Ruppel, MIT). See [`overview.md`](overview.md#attribution).

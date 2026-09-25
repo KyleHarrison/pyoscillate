@@ -78,9 +78,13 @@ class PresetStore:
 class PatchPanel:
     """One patch's live controls, wired to a shared `PatchRack`.
 
-    Rebuilds the underlying `Patch` only when one of `rebuild_parameters`
-    changes value; every other slider move just calls `Patch.update()` in
-    place.
+    `self.patch`'s own attributes (one per `SliderSpec`, seeded at
+    construction and kept current by `Patch.set()`) are the only copy of a
+    slider's current value - this panel never shadows them in a separate
+    dict. A slider move calls `patch.set(...)` immediately, which live-updates
+    the running Pyo graph when one exists; `_apply()` only decides whether
+    that move also requires a full rebuild (one of `rebuild_parameters`
+    changed since the last build).
     """
 
     def __init__(self, rack: PatchRack, patch: Patch) -> None:
@@ -88,7 +92,6 @@ class PatchPanel:
         self.patch = patch
         self.enabled = False
         self.volume = patch.volume_default
-        self.values: dict[str, float] = {spec.name: spec.default for spec in patch.parameters}
         self.build_kwargs: dict[str, Any] = {}
         self._engine_ready = False
         self._group_enabled = True
@@ -115,9 +118,8 @@ class PatchPanel:
     # -- UI construction -------------------------------------------------
 
     def _slider_row(self, spec: SliderSpec) -> ft.Container:
-        value_text = ft.Text(
-            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
+        value = getattr(self.patch, spec.name)
+        value_text = ft.Text(spec.format(value), color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
         self._value_texts[spec.name] = value_text
         # the track runs in the spec's position space (semitones for a note
         # slider), so its ticks are what the slider can actually produce
@@ -125,7 +127,7 @@ class PatchPanel:
             min=spec.to_position(spec.minimum),
             max=spec.to_position(spec.maximum),
             divisions=spec.divisions,
-            value=spec.to_position(spec.default),
+            value=spec.to_position(value),
             active_color=ACCENT,
             inactive_color="#31403D",
             on_change=lambda e, spec=spec: self._handle_slider(spec, e),
@@ -213,7 +215,7 @@ class PatchPanel:
 
     def _handle_slider(self, spec: SliderSpec, e: ft.ControlEvent) -> None:
         value = spec.from_position(float(e.control.value))
-        self.values[spec.name] = value
+        self.patch.set(spec.name, value)
         self._value_texts[spec.name].value = spec.format(value)
         self._apply()
         e.page.update()
@@ -228,24 +230,18 @@ class PatchPanel:
         rebuild = running is None or (
             self._built_values is not None
             and any(
-                self.values[key] != self._built_values[key]
+                getattr(self.patch, key) != self._built_values[key]
                 for key in self.patch.rebuild_parameters
             )
         )
         if rebuild:
-            running = self.patch.build(**self.build_kwargs, **self.values)
+            running = self.patch.build(**self.build_kwargs)
             self._wire_sidechain(running)
             self.rack.start(name, running)
-        else:
-            running.update(
-                {
-                    key: value
-                    for key, value in self.values.items()
-                    if key not in self.patch.rebuild_parameters
-                }
-            )
         running.set("volume", self.volume)
-        self._built_values = dict(self.values)
+        self._built_values = {
+            key: getattr(self.patch, key) for key in self.patch.rebuild_parameters
+        }
 
     def _wire_sidechain(self, patch: Patch) -> None:
         """If this patch declares a `SidechainSource` and that source is
@@ -265,7 +261,8 @@ class PatchPanel:
     # -- presets -------------------------------------------------------------
 
     def to_preset(self) -> dict[str, Any]:
-        return {"enabled": self.enabled, **self.values, "volume": self.volume}
+        values = {spec.name: getattr(self.patch, spec.name) for spec in self.patch.parameters}
+        return {"enabled": self.enabled, **values, "volume": self.volume}
 
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
@@ -273,7 +270,7 @@ class PatchPanel:
         for spec in self.patch.parameters:
             if spec.name in data:
                 value = spec.snap(float(data[spec.name]))
-                self.values[spec.name] = value
+                self.patch.set(spec.name, value)
                 self._sliders[spec.name].value = spec.to_position(value)
                 self._value_texts[spec.name].value = spec.format(value)
         self.volume = float(data.get("volume", self.patch.volume_default))
