@@ -10,9 +10,10 @@ implementation bridge, and owns the full reasoning chain from here forward.
 ## How to use this map
 
 1. Find the section matching the user's request (quick-lookup table, vague-problem table, or genre table).
-2. Load the listed file(s).
-3. If the request crosses domains, load primary files for each — but resist loading more than 3.
-4. If you would need to load 5+ files, the question is too broad. Pick the dominant aspect and answer that first; offer to dig into adjacent topics afterward.
+2. If a genre or style is named or implied but no row is a clean match, stop and ask the user which genre/style they mean — don't default silently to the nearest-sounding row.
+3. Load the listed file(s).
+4. If the request crosses domains, load primary files for each — but resist loading more than 3.
+5. If you would need to load 5+ files, the question is too broad. Pick the dominant aspect and answer that first; offer to dig into adjacent topics afterward.
 
 ## Quick lookup — by topic
 

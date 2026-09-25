@@ -2,17 +2,18 @@
 
 This directory is organized by patch type — one subdirectory per sonic/musical
 role (a bass family, a kick family, a drone family, and so on), never per
-project. This file stays deliberately free of hard references to specific
-modules: implementations move, get renamed, and get replaced as the patch set
-grows, so citing one file as "the" canonical example just goes stale. Treat
-this file as the operating guide for the contract every patch must satisfy,
-not as an index of example code.
+project. This file is the contract every patch must satisfy. It cites one
+module on purpose: `drums/kick/kick.py` is the reference implementation of
+the architecture below, and every other module is being migrated to match
+it. Beyond that, it avoids citing specific modules, which move and get
+renamed. The reasoning behind the architecture lives in
+[docs/concepts/patch-lifecycle.md](../../../docs/concepts/patch-lifecycle.md).
 
 ## Read these first
 
 - `.claude/skills/pyo-music/SKILL.md` — musical intent, synthesis strategy, and choice of Pyo objects
 - The nested `CLAUDE.md` inside the patch-type directory you're working in — the concrete, concept-level authority for that sonic role (its sonic function, minimal architecture, and design alternatives)
-- The other modules already living in that same directory — read them as working examples of the contract below, not this file
+- The other modules already living in that same directory — for their sound and signal graph. For code structure, follow `drums/kick/kick.py` and the contract below; most modules are still on the legacy shape (see "Migrating a legacy module")
 
 The goal is simple: musical reasoning is handled by the skill, the sonic concept for a given patch type is handled by that directory's own instruction file, and this file only covers the shared implementation/runtime contract every patch must follow.
 
@@ -116,38 +117,153 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 ## Patch contract
 
-**Class-based is the contract**: a module defines one or more `Patch`
-subclasses - optionally under a directory-level base that factors out real
-shared behavior for that archetype (e.g. `pyoscillate.patches.common.GatedVoice`
-for the trigger/envelope/scheduling shape every gated voice shares -
-`drums.base.DrumVoice` is just that base's name within the drums family - or
-`pyoscillate.patches.common.ContinuousVoice` for an ungated, free-running
-voice's `live()` control shape). A project rack lists an instance of the
-class directly (grouped by `PatchGroupDef`, no separate wrapper);
-`name`/`title`/`summary`/`sidechain` all default from the instance itself
-(its class name, docstring, and `Patch.__init__` args) rather than being
-restated at the call site - pass `name=`/`title=`/`summary=`/`sidechain=` to
-the constructor only when the default isn't the right rack key, UI copy, or
-duck target. See `drums/kick/kick.py` (`Kick` / `KickRound` / `KickPunch` /
-`KickSoft`) for the worked example, and
-[docs/concepts/patch-lifecycle.md](../../../docs/concepts/patch-lifecycle.md)
-for why it's shaped this way.
+A module defines one family class (a `Patch` subclass, usually via a
+directory-level base) plus one small subclass per style. A project rack lists
+instances directly in its `PatchGroupDef`s. `name`/`title`/`summary` default
+from the class name and docstring; pass `name=`/`title=`/`summary=`/
+`sidechain=` to the constructor only when the default is wrong.
 
-Each parameter is one `@Param(min, max, step, default, label, help)`
-decorating a method named after it; the method body is the live control
-(`self.node.attr = f(value)`). `self.<name>` is the current value, and
-assigning it runs the control once the patch is built. `build()` takes no
-per-parameter kwargs, constructs nodes with neutral values, and ends with
-`return self.finish(voice)`, which runs every control once - so never repeat
-a parameter's mapping inside `build()`. A style that needs a different
-default or range redeclares only that parameter:
-`punch = Kick.punch.replace(default=1.4)`. Unmigrated modules still use a
-`PARAMETERS` tuple and a `controls` dict; migrate them to this shape when
-you touch them.
+### Bases
 
-Every patch module is class-based; there is no function-based fallback contract. When a style's graph genuinely differs from its siblings (not just profile data), factor the shared build steps into the family's base class and give each style its own hook method to override - see `pyoscillate.patches.tonal.bass.fm.fm`'s `FmBass.tone()` for the worked example.
+- `common.GatedVoice` (named `drums.base.DrumVoice` in the drums family) —
+  event-articulated voices. Provides `self.trigger`, `self.envelope(...)`
+  (an `ExpTable` + `TrigEnv` off the trigger, auto-retained),
+  `self.schedule(base_division, rate, clock, callback)`, `self.reschedule()`,
+  and `self.step_pattern(...)`.
+- `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
+  a no-op `ContinuousSequencer`.
 
-Do not duplicate boilerplate in this file. Copy the structure from the actual modules that already work.
+Both provide `finish(voice)`. `GatedVoice.finish` raises if `build()` never
+called `schedule()`.
+
+### Module anatomy (follow `Kick`'s order)
+
+1. A run comment (`# uv run flet run src/flet/patch/app.py -- <module> style=<x>`),
+   then a module docstring describing the sound and its mechanism.
+2. Module constants for plain shared data (break-point lists, curve shapes).
+3. The family class body, in this order:
+   - `volume_default`, `base_division`, and any `needs_*` flags.
+   - Style-invariant DSP constants as `ClassVar`s with values.
+   - Per-style profile data as bare `ClassVar` annotations (no value) — each
+     style subclass supplies them.
+   - Graph node annotations (`body: Sine`, `body_signal: PyoObject`, ...) —
+     one per node `build()` assigns. These declare the graph; don't give
+     them placeholder values.
+   - One `@Param` per parameter (see below), then `rate = rate_param(...)`
+     for clocked patches.
+   - `build()`.
+4. Style subclasses: a docstring, optionally `summary`, and the profile
+   data — nothing else unless the style's behaviour genuinely differs.
+
+### Parameters: `@Param`
+
+Each parameter is declared once, as a decorated method named after it:
+
+```python
+@Param(minimum, maximum, step, default, "Label", "What you hear when you move it.")
+def punch(self, value: float) -> None:
+    self.pitch_env.mul = self.sweep_depth * value
+```
+
+- The method body is the **live control**: it maps the value onto the
+  running graph. It may read style constants and other nodes off `self`.
+- `self.punch` is the instance's current value. Assigning it — directly,
+  via `Patch.set()`, or `configure()` — stores it and, once built, runs the
+  control. Nothing else may hold a copy of a parameter's value.
+- Controls run once at the end of every build and again on every change, so
+  they must be cheap, idempotent attribute writes. Never construct a Pyo
+  object inside a control.
+- A parameter only read by a sequencer callback (e.g. a note length or
+  accent depth applied per step) needs no control: declare it as
+  `name = Param(...)` and read `self.name` in the callback. Don't mirror it
+  into a state dict.
+- A parameter that changes topology is a bare `Param` listed in
+  `rebuild_parameters`.
+- Pitch parameters in Hz take `scale="note"` (design rule 2).
+- `rate_param(base_division, help)` is the clocked rate; its control calls
+  `reschedule()`, so don't register a rate control by hand.
+
+### `build()`
+
+```text
+self._reset()                            # always first
+self.<node> = ...                        # every node, neutral values
+self.schedule(...)                       # gated voices
+return self.finish(self.<output node>)
+```
+
+- The signature is `build(self, tempo, clock)` for gated voices, adding
+  `harmony: Harmony | None = None` when `needs_harmony`. It takes no
+  per-parameter kwargs and never calls `configure()`.
+- Assign every node to `self.<name>`, never a local (design rule 4).
+- Construct nodes with neutral or style-constant values only. Never repeat
+  a parameter's mapping (`mul=self.sweep_depth * self.punch`) in `build()`;
+  `finish()` applies every control, so each mapping is written only in its
+  `@Param` method.
+- A sequencer callback defined inside `build()` reads nodes and parameter
+  values off `self` at call time.
+- `finish(voice)` sets `self.voice` and `self.sequencer`, retains every
+  public Pyo object on `self`, marks the patch built, and runs every
+  control with its current value. No `controls` dict, no `resources=` tuple.
+
+### Style variation
+
+- **Different profile data** (frequencies, decay times, levels): `ClassVar`
+  values on the style subclass. The family's `build()` and controls read
+  them via `self`.
+- **Different slider default or range**: redeclare only that parameter on
+  the style, keeping its control — `punch = Kick.punch.replace(default=1.4)`.
+  It stays in its original slider position.
+- **Different behaviour**: factor the shared steps into the family class and
+  give each style a hook method to override (e.g. `FmBass.tone()`). Hook
+  methods assign their nodes to `self` too.
+
+### Lifecycle
+
+1. **Construct** (rack import time, before any audio server exists): seeds
+   each parameter from its default, then applies constructor overrides. No
+   control runs and no Pyo object is created.
+2. **Configure**: presets and sliders call `configure()`/`set()`; values are
+   staged on `self`.
+3. **Build**: `_reset()` → graph on `self` → `finish()`. From here,
+   assignment is live.
+4. **Start/stop**: `start()` adds the volume/limiter/fade output chain and
+   plays the sequencer; `stop()` fades out and does nothing if the patch
+   isn't playing.
+5. **Rebuild**: `build()` again on the same instance — when the patch is
+   switched back on, or a `rebuild_parameters` value changes. `_reset()`
+   stops a graph that is still playing and keeps it alive through its fade.
+
+### Migrating a legacy module
+
+Legacy modules have a `PARAMETERS` tuple of `SliderSpec`s,
+`build(..., **values)` starting with `self.configure(**values)`, named
+locals, and a `controls` dict (or `self.controls[...] = ...`). To migrate:
+
+1. Turn each `SliderSpec` into a `@Param` whose method body is the old
+   control lambda. A value that was mirrored into a state dict becomes a
+   bare `Param` read via `self`. Delete `PARAMETERS` and any
+   `parameters = PARAMETERS`.
+2. Replace the hand-written rate `SliderSpec` or `rate_slider(...)` with
+   `rate_param(...)`.
+3. Add class annotations for every node; turn every local into a `self.`
+   assignment. Remove the parameter mappings from constructor calls.
+4. Drop `**values` and `self.configure(**values)` from `build()`.
+5. End with `return self.finish(voice)`; delete the `controls` dict, the
+   `resources=` tuple, and any `self.retain(...)` of objects now on `self`.
+6. Move module-level `VOLUME_DEFAULT`/profile constants onto the class when
+   only that class uses them.
+7. Base-class helpers that register into `self.controls` (e.g. a shared
+   register/octave control) become `@Param`s on that base class. Migrate
+   the base with its first subclass.
+8. Update tests that read `module.PARAMETERS` to read
+   `SomeClass.parameters` instead. `tests/pyoscillate/patches/test_params.py`
+   finds Register sliders through `module.PARAMETERS`, so a migrated module
+   with a `root_freq` drops out of that check until the helper also scans
+   `Patch` subclasses.
+
+`Patch.set()` still honours `self.controls`, so migrated and unmigrated
+modules coexist; don't mix both styles inside one class.
 
 ## Design rules
 
@@ -158,12 +274,10 @@ Before adding a new module, look for a neighboring patch with the same musical r
 Prefer:
 
 - extending an existing patch family
-- adding optional parameters to an existing builder
-- using `make_builder(profile)` (function-based) or a subclass per style
-  variant (class-based) when the signal graph and control intent are the
-  same but fixed profile data differs - a subclass is also the right call
-  when a variant needs genuinely different behavior, not just different
-  profile data, since class attributes alone can't express that
+- adding a parameter to an existing family class
+- adding a style subclass when the signal graph and control intent are the
+  same but profile data differs, or a hook-method override when a style's
+  behaviour genuinely differs
 
 Create a new patch module only when the patch genuinely needs a new control surface, topology, or lifecycle.
 
@@ -243,7 +357,8 @@ fade. Always call `self._reset()` first in `build()`.
 Clocked and generative patches must preserve their sequence index, callback state, and random state when the same patch is updated.
 
 - synthesis parameters usually remain live
-- timing parameters often require custom setters or resubscription logic
+- timing parameters often require custom setters or resubscription logic (`rate_param` already handles the clocked rate)
+- keep sequence state (step counters, random state) on `self`, not reset by a parameter change
 - do not treat timing as a normal live parameter unless the runtime is genuinely equivalent
 
 ### 6. Keep the patch module UI-free
