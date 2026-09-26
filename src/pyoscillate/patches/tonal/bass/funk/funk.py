@@ -1,7 +1,7 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.funk.funk
 """Funk bass: a syncopated line whose filter opens slowly on every note, a quack.
 
-The voice is the "Funk Bass" recipe from Welsh's Synthesizer Cookbook:
+The voice is the "Funk Bass" recipe:
 
 - a saw and a 30% pulse, one octave apart, at equal level. The pulse is two
   copies of the same saw with their phases 0.3 of a cycle apart, subtracted.
@@ -31,8 +31,9 @@ ghost notes stay dark.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, NamedTuple
+from typing import ClassVar, NamedTuple
 
+from pyo import PyoObject
 from pyo.lib.arithmetic import Pow
 from pyo.lib.controls import Adsr, SigTo
 from pyo.lib.dynamics import Clip
@@ -44,7 +45,7 @@ from pyo.lib.triggers import TrigEnv, TrigFunc
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -112,19 +113,41 @@ REGISTER_CENTRE = notes.A1
 # a static key of A - used only outside a rack that shares its own `Harmony`
 FALLBACK_HARMONY = Harmony()
 
-PARAMETERS = (
-    SliderSpec(
-        "octave",
-        0,
-        1,
-        1,
-        0,
-        "Register",
-        "Lifts the bassline up an octave; low sits deep under the kick, high brings the quack "
-        "forward like a slap line. The notes always follow the rack's key and chord changes.",
-    ),
-    SliderSpec(
-        "cutoff",
+
+class FunkBass(Bass):
+    """Funk bass: a syncopated line whose filter quacks open on every note.
+    See the module docstring for the sonic detail."""
+
+    volume_default = VOLUME_DEFAULT
+    needs_harmony: ClassVar[bool] = True
+
+    # the graph, assigned by build(); finish() retains every one of them
+    pitch: SigTo
+    upper_pitch: PyoObject
+    saw_table: SawTable
+    saw: Osc
+    pulse_lead: Osc
+    pulse_lag: Osc
+    pulse: PyoObject
+    mix: PyoObject
+    trimmed: PyoObject
+    gate_table: LinTable
+    gate: TrigEnv
+    amp: Adsr
+    level: PyoObject
+    sweep: Adsr
+    cutoff_freq: Pow
+    safe_cutoff: Clip
+    filtered: MoogLP
+    gate_end: TrigFunc
+    body: PyoObject
+
+    octave = Bass.octave.replace(
+        help_text="Lifts the bassline up an octave; low sits deep under the kick, high brings the "
+        "quack forward like a slap line. The notes always follow the rack's key and chord changes.",
+    )
+
+    @Param(
         20,
         400,
         5,
@@ -132,9 +155,14 @@ PARAMETERS = (
         "Brightness",
         "How open the filter sits between notes and where every sweep starts from; low is a dark "
         "thud that only the quack brightens, high keeps a buzzy edge on the whole line.",
-    ),
-    SliderSpec(
-        "quack",
+    )
+    def cutoff(self, value: float) -> None:
+        self.cutoff_freq.mul = value
+
+    # read live off `self.quack` by build()'s trigger-time callback - no
+    # control body needed, see `patches/CLAUDE.md`'s note on a parameter
+    # only read by a sequencer callback
+    quack = Param(
         0,
         8,
         0.1,
@@ -142,9 +170,9 @@ PARAMETERS = (
         "Quack",
         "How far the filter sweeps open on each note; low is a quiet, muted thump, high a wide, "
         "vocal 'wow' on every accented note. Ghost notes always stay darker.",
-    ),
-    SliderSpec(
-        "swell",
+    )
+
+    @Param(
         0.005,
         0.4,
         0.005,
@@ -152,9 +180,11 @@ PARAMETERS = (
         "Swell",
         "How slowly the filter opens, in seconds; short is a snappy pluck on the front of each "
         "note, long a lazy auto-wah that only the held notes reach the top of.",
-    ),
-    SliderSpec(
-        "resonance",
+    )
+    def swell(self, value: float) -> None:
+        self.sweep.attack = value
+
+    @Param(
         0,
         0.95,
         0.05,
@@ -162,9 +192,13 @@ PARAMETERS = (
         "Growl",
         "Adds a resonant peak that rides the sweep; higher makes the quack more nasal and "
         "rubbery, lower keeps it smooth.",
-    ),
-    SliderSpec(
-        "length",
+    )
+    def resonance(self, value: float) -> None:
+        self.filtered.res = value
+
+    # read live off `self.length` by build()'s trigger-time callback - see
+    # the note on `quack` above
+    length = Param(
         0.3,
         1.5,
         0.05,
@@ -172,70 +206,43 @@ PARAMETERS = (
         "Length",
         "Scales how long every note is held; short is tight and staccato with more space in the "
         "groove, long lets notes run into each other.",
-    ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
+    )
+
+    rate = rate_param(
+        BASE_DIVISION,
         "Halves or doubles the bassline speed for each step away from its 16th-note grid.",
-    ),
-)
+    )
 
-
-class FunkBass(Bass):
-    """Funk bass: a syncopated line whose filter quacks open on every note.
-    See the module docstring for the sonic detail."""
-
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-    needs_harmony: ClassVar[bool] = True
-
-    octave: float
-    cutoff: float
-    quack: float
-    swell: float
-    resonance: float
-    length: float
-    rate: float
-
-    def build(
-        self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None, **values: Any
-    ) -> Patch:
+    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
-        self.configure(**values)
         self._reset()
         # matches the free `Trig()` this voice used before it was migrated
         # onto `Bass`'s trigger: silent until the clock ticks (see
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
-        current_root = self.note_root(
-            REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY, octave=self.octave
-        )
-        state = {"step": 0, "quack": self.quack, "length": self.length}
+        current_root = self.note_root(REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY)
+        self._step = 0
 
-        pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
-        upper_pitch = pitch * 2
-        saw_table = SawTable(order=SAW_ORDER)
-        saw = Osc(saw_table, freq=pitch)
+        self.pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
+        self.upper_pitch = self.pitch * 2
+        self.saw_table = SawTable(order=SAW_ORDER)
+        self.saw = Osc(self.saw_table, freq=self.pitch)
         # a saw minus the same saw a fraction of a cycle later is a pulse of that
         # width; both saws are zero-mean, so the pulse is too
-        pulse_lead = Osc(saw_table, freq=upper_pitch)
-        pulse_lag = Osc(saw_table, freq=upper_pitch, phase=PULSE_WIDTH)
-        pulse = pulse_lead - pulse_lag
-        mix = saw + pulse
-        trimmed = mix * FILTER_TRIM
+        self.pulse_lead = Osc(self.saw_table, freq=self.upper_pitch)
+        self.pulse_lag = Osc(self.saw_table, freq=self.upper_pitch, phase=PULSE_WIDTH)
+        self.pulse = self.pulse_lead - self.pulse_lag
+        self.mix = self.saw + self.pulse
+        self.trimmed = self.mix * FILTER_TRIM
 
         # the gate: held open for the note's length, then its end trigger
         # releases both envelopes. A new note restarts it, so a long note's
         # release never lands on the note after it.
-        gate_table = LinTable([(0, 1), (8191, 1)])
-        gate = TrigEnv(self.trigger, gate_table, dur=tempo.sixteenth)
-        amp = Adsr(**AMP_ENVELOPE)
-        level = amp * GAIN
-        sweep = Adsr(
+        self.gate_table = LinTable([(0, 1), (8191, 1)])
+        self.gate = TrigEnv(self.trigger, self.gate_table, dur=tempo.sixteenth)
+        self.amp = Adsr(**AMP_ENVELOPE)
+        self.level = self.amp * GAIN
+        self.sweep = Adsr(
             attack=self.swell,
             decay=FILTER_ENVELOPE["decay"],
             sustain=FILTER_ENVELOPE["sustain"],
@@ -243,59 +250,30 @@ class FunkBass(Bass):
             mul=self.quack,
         )
         # the envelope counts octaves above `cutoff`
-        cutoff_freq = Pow(base=2, exponent=sweep, mul=self.cutoff)
-        safe_cutoff = Clip(cutoff_freq, min=0, max=CUTOFF_CEILING)
-        filtered = MoogLP(trimmed, freq=safe_cutoff, res=self.resonance)
-        voice = filtered * level
-        self.retain(
-            pitch,
-            upper_pitch,
-            saw_table,
-            saw,
-            pulse_lead,
-            pulse_lag,
-            pulse,
-            mix,
-            trimmed,
-            gate_table,
-            gate,
-            amp,
-            level,
-            sweep,
-            cutoff_freq,
-            safe_cutoff,
-            filtered,
-        )
+        self.cutoff_freq = Pow(base=2, exponent=self.sweep, mul=self.cutoff)
+        self.safe_cutoff = Clip(self.cutoff_freq, min=0, max=CUTOFF_CEILING)
+        self.filtered = MoogLP(self.trimmed, freq=self.safe_cutoff, res=self.resonance)
+        self.body = self.filtered * self.level
 
         def note_off() -> None:
-            amp.stop()
-            sweep.stop()
+            self.amp.stop()
+            self.sweep.stop()
 
-        gate_end = TrigFunc(gate["trig"], note_off)
-        self.retain(gate_end)
+        self.gate_end = TrigFunc(self.gate["trig"], note_off)
 
         def next_step() -> None:
-            step = LINE[state["step"] % len(LINE)]
-            state["step"] += 1
+            step = LINE[self._step % len(LINE)]
+            self._step += 1
             if step.semitones is None:
                 return
             root = current_root()
-            pitch.value = root * 2 ** (step.semitones / 12)
-            gate.dur = tempo.sixteenth * step.length * state["length"]
-            amp.mul = step.accent
-            sweep.mul = state["quack"] * step.accent
-            amp.play()
-            sweep.play()
+            self.pitch.value = root * 2 ** (step.semitones / 12)
+            self.gate.dur = tempo.sixteenth * step.length * self.length
+            self.amp.mul = step.accent
+            self.sweep.mul = self.quack * step.accent
+            self.amp.play()
+            self.sweep.play()
             self.trigger.play()
 
         self.schedule(BASE_DIVISION, self.rate, clock, next_step)
-        return self.finish(
-            voice,
-            {
-                "cutoff": lambda value: setattr(cutoff_freq, "mul", value),
-                "quack": lambda value: state.update(quack=value),
-                "swell": lambda value: setattr(sweep, "attack", value),
-                "resonance": lambda value: setattr(filtered, "res", value),
-                "length": lambda value: state.update(length=value),
-            },
-        )
+        return self.finish(self.body)

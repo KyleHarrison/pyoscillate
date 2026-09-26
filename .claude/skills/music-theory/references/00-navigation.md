@@ -129,6 +129,7 @@ When the user describes a feeling, problem, or fuzzy goal, translate it into a t
 
 | User says | Likely diagnostic | Files to consult |
 |-----------|-------------------|------------------|
+| "Make me a [genre] track/rack/project" with no other detail | Under-specified genre/style request — no row in the genre or quick-lookup tables can be matched yet | None yet. Ask broad narrowing questions first (sub-style/era, mood, tempo, reference artists, instrumentation) aimed at identifying which table row(s) apply, then load those files |
 | "It feels boring" | Predictable harmony / rhythm / dynamics | `harmony/chromatic-harmony.md`, `rhythm-groove/rhythmic-devices.md`, `production-aware/energy-and-dynamics.md` |
 | "The chorus doesn't hit" | Insufficient lift from verse — register, density, harmony, rhythm | `form/narrative-and-transitions.md`, `orchestration/arrangement-density.md`, `songwriting/hooks-and-memorability.md` |
 | "It feels generic / too 'pop'" | Default progressions, predictable form, overused voicings | `harmony/reharmonization.md` + relevant genre file |

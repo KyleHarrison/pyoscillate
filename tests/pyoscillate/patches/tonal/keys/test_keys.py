@@ -80,7 +80,7 @@ BAR = SIXTEENTH * keys.BAR_STEPS
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
 ONSET_TOLERANCE = 0.02
-SLIDERS = {spec.name: spec for spec in keys.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in keys.Keys.parameters}
 # bar two: the hard chord on beat one, the soft push on the "and" of two
 HARD = BAR
 SOFT = BAR + 6 * SIXTEENTH

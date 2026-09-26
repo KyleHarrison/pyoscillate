@@ -3,62 +3,14 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param
 from pyoscillate.patches.tonal.bass.base import Bass, BassProfile
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 from .profiles import TECHNO
-
-NOTE_PATTERN = list(TECHNO.pattern)
-ACCENT_PATTERN = list(TECHNO.accents)
-ROOT_FREQ = notes.Fs2
-PARAMETERS = (
-    SliderSpec(
-        "root_freq",
-        notes.B0,
-        notes.A2,
-        1,
-        ROOT_FREQ,
-        "Register",
-        "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings it closer to the mid range and easier to pick out melodically.",
-        scale="note",
-    ),
-    SliderSpec(
-        "filter_res",
-        0,
-        1,
-        0.05,
-        0.75,
-        "Growl",
-        "Adds resonant emphasis around the filter cutoff; higher makes the bass squelchier and more vocal, lower keeps it smoother and rounder.",
-    ),
-    SliderSpec(
-        "filter_base",
-        200,
-        2000,
-        10,
-        1380,
-        "Brightness",
-        "Sets the average tone of the bass filter sweep; higher opens it up and brightens it, lower keeps it duller and more closed.",
-    ),
-    SliderSpec(
-        "filter_range",
-        0,
-        1000,
-        10,
-        400,
-        "Sweep depth",
-        "Controls how far the filter sweeps each cycle; wider ranges create a more dramatic wah-like motion, narrower keeps the tone more static.",
-    ),
-)
-
-
-VOLUME_DEFAULT = 1.0
 
 
 class TechnoBass(Bass):
@@ -69,16 +21,59 @@ class TechnoBass(Bass):
     name = "bass"
     title = "Bass"
     summary = "Rolling, resonant bassline that sweeps in tone across the groove."
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
+    volume_default = 1.0
 
-    root_freq: float
-    filter_res: float
-    filter_base: float
-    filter_range: float
+    # read live off `self.root_freq` by `Bass.note_root`'s trigger-time
+    # callback - no control body needed, see `patches/CLAUDE.md`'s note on a
+    # parameter only read by a sequencer callback
+    root_freq = Param(
+        notes.B0,
+        notes.A2,
+        1,
+        notes.Fs2,
+        "Register",
+        "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings "
+        "it closer to the mid range and easier to pick out melodically.",
+        scale="note",
+    )
 
-    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
-        self.configure(**values)
+    @Param(
+        0,
+        1,
+        0.05,
+        0.75,
+        "Growl",
+        "Adds resonant emphasis around the filter cutoff; higher makes the bass squelchier and "
+        "more vocal, lower keeps it smoother and rounder.",
+    )
+    def filter_res(self, value: float) -> None:
+        self.filtered.res = value
+
+    @Param(
+        200,
+        2000,
+        10,
+        1380,
+        "Brightness",
+        "Sets the average tone of the bass filter sweep; higher opens it up and brightens it, "
+        "lower keeps it duller and more closed.",
+    )
+    def filter_base(self, value: float) -> None:
+        self.cutoff_lfo.add = value
+
+    @Param(
+        0,
+        1000,
+        10,
+        400,
+        "Sweep depth",
+        "Controls how far the filter sweeps each cycle; wider ranges create a more dramatic "
+        "wah-like motion, narrower keeps the tone more static.",
+    )
+    def filter_range(self, value: float) -> None:
+        self.cutoff_lfo.mul = value
+
+    def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
         return self.build_voice(
             tempo,
@@ -92,11 +87,4 @@ class TechnoBass(Bass):
         )
 
 
-__all__ = [
-    "ACCENT_PATTERN",
-    "NOTE_PATTERN",
-    "PARAMETERS",
-    "Bass",
-    "BassProfile",
-    "TechnoBass",
-]
+__all__ = ["Bass", "BassProfile", "TechnoBass"]

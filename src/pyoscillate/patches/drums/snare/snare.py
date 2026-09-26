@@ -8,42 +8,80 @@ sits on the backbeat under the clap, with a ghost note that swings into the
 next bar.
 """
 
-from typing import Any
+from typing import ClassVar
 
+from pyo import PyoObject
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
-from pyoscillate.patches.params import SliderSpec, rate_slider
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
-BASE_DIVISION = NoteDivision.SIXTEENTH
+# full-to-zero break-points shared by every envelope; `exp` sets the curve
+DROP = [(0, 1), (8191, 0)]
 
-PARAMETERS = (
-    SliderSpec(
-        "level",
-        0.02,
-        0.6,
-        0.01,
-        0.2,
-        "Presence",
-        "Sets how loud and upfront the snare sits in the mix.",
-    ),
-    SliderSpec(
-        "tune",
+
+class Snare(DrumVoice):
+    """Tone-plus-rattle snare on the backbeat with a ghost note."""
+
+    summary = "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap."
+    volume_default = 0.3
+    base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    decay_curve: ClassVar[float] = 3
+    bend_curve: ClassVar[float] = 6
+
+    # step in the 16-step bar -> accent; the quiet final hit is a ghost note
+    pattern: ClassVar[dict[int, float]] = {4: 1.0, 12: 1.0, 15: 0.3}
+    base_freq: ClassVar[float] = notes.Fs3
+    # pitch bend at the strike, as a fraction above the body - kept well
+    # below a kick's so the snare never turns into a zap or tom
+    bend_depth: ClassVar[float] = 0.35
+    bend_time: ClassVar[float] = 0.02
+    body_decay: ClassVar[float] = 0.09
+    # the rattle is the louder layer; the body gives it a centre
+    body_level: ClassVar[float] = 0.6
+    rattle_resonance: ClassVar[float] = 1.2
+
+    # the graph, assigned by build(); finish() retains every one of them
+    tuning: Sig
+    body_freq: PyoObject
+    bend: TrigEnv
+    pitch: PyoObject
+    body: Sine
+    body_env: TrigEnv
+    body_signal: PyoObject
+    noise: Noise
+    rattle_env: TrigEnv
+    rattle_burst: PyoObject
+    rattle: Biquad
+    source: PyoObject
+
+    # per-hit accent from the step pattern, not a parameter: kept on self so
+    # a live level/snap change doesn't lose the current step's accent
+    accent: float
+
+    @Param(0.02, 0.6, 0.01, 0.2, "Presence", "Sets how loud and upfront the snare sits in the mix.")
+    def level(self, value: float) -> None:
+        self.apply_gains()
+
+    @Param(
         -12,
         12,
         1,
         0,
         "Pitch",
         "Retunes the drum body in semitones; lower is fatter and heavier, higher is tighter and more ringing.",
-    ),
-    SliderSpec(
-        "snap",
+    )
+    def tune(self, value: float) -> None:
+        self.tuning.value = semitone_ratio(value)
+
+    @Param(
         0.0,
         2.0,
         0.05,
@@ -51,114 +89,76 @@ PARAMETERS = (
         "Snap",
         "Amount of noisy wire rattle against the drum body; more is wider and crisper, less leaves a "
         "rounder, more tonal hit.",
-    ),
-    SliderSpec(
-        "tone",
+    )
+    def snap(self, value: float) -> None:
+        self.apply_gains()
+
+    @Param(
         800,
         6000,
         50,
         2000,
         "Brightness",
         "Moves the rattle from fuller and thicker (lower) to thinner and more sizzling (higher).",
-    ),
-    SliderSpec(
-        "decay",
+    )
+    def tone(self, value: float) -> None:
+        self.rattle.freq = value
+
+    @Param(
         0.05,
         0.5,
         0.01,
         0.16,
         "Tail",
         "Length of the rattle after the hit; short is a dry crack, long reads like a small room around the snare.",
-    ),
-    rate_slider(
-        BASE_DIVISION,
+    )
+    def decay(self, value: float) -> None:
+        self.rattle_env.dur = value
+
+    rate = rate_param(
+        base_division,
         "Halves or doubles the snare pattern speed for each step away from its 16th-note grid.",
-    ),
-)
-# step in the 16-step bar -> accent; the quiet final hit is a ghost note
-PATTERN = {4: 1.0, 12: 1.0, 15: 0.3}
-BODY_FREQ = notes.Fs3
-# pitch bend at the strike, as a fraction above the body - kept well below a
-# kick's so the snare never turns into a zap or tom
-BEND_DEPTH = 0.35
-BEND_TIME = 0.02
-BODY_DECAY = 0.09
-# the rattle is the louder layer; the body gives it a centre
-BODY_LEVEL = 0.6
-RATTLE_RESONANCE = 1.2
-DECAY_CURVE = 3
-BEND_CURVE = 6
-VOLUME_DEFAULT = 0.3
+    )
 
+    def apply_gains(self) -> None:
+        """Recombine the current level, snap, and this step's accent into
+        the body/rattle envelope levels."""
+        gain = self.level * self.accent
+        self.body_env.mul = gain * self.body_level
+        self.rattle_env.mul = gain * self.snap
 
-class Snare(DrumVoice):
-    """Tone-plus-rattle snare on the backbeat with a ghost note."""
-
-    summary = "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap."
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-
-    level: float
-    tune: float
-    snap: float
-    tone: float
-    decay: float
-    rate: float
-
-    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
-        self.configure(**values)
+    def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
-        tuning = Sig(semitone_ratio(self.tune))
-        body_freq = tuning * BODY_FREQ
+        self.accent = 1.0
+        self.tuning = Sig(semitone_ratio(self.tune))
+        self.body_freq = self.tuning * self.base_freq
 
-        bend = self.envelope([(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH, add=1, exp=BEND_CURVE)
-        pitch = body_freq * bend
-        body = Sine(freq=pitch)
-        body_env = self.envelope(
-            [(0, 1), (8191, 0)], dur=BODY_DECAY, mul=self.level * BODY_LEVEL, exp=DECAY_CURVE
+        self.bend = self.envelope(
+            DROP, dur=self.bend_time, mul=self.bend_depth, add=1, exp=self.bend_curve
         )
-        body_signal = body * body_env
+        self.pitch = self.body_freq * self.bend
+        self.body = Sine(freq=self.pitch)
+        self.body_env = self.envelope(DROP, dur=self.body_decay, exp=self.decay_curve)
+        self.body_signal = self.body * self.body_env
 
-        noise = Noise()
-        rattle_env = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.decay, mul=self.level * self.snap, exp=DECAY_CURVE
-        )
-        rattle_burst = noise * rattle_env
-        rattle = Biquad(rattle_burst, freq=self.tone, q=RATTLE_RESONANCE, type=1)
+        self.noise = Noise()
+        self.rattle_env = self.envelope(DROP, dur=1.0, exp=self.decay_curve)
+        self.rattle_burst = self.noise * self.rattle_env
+        self.rattle = Biquad(self.rattle_burst, q=self.rattle_resonance, type=1)
 
-        voice = body_signal + rattle
-        self.retain(tuning, body_freq, pitch, body, body_signal, noise, rattle_burst, rattle)
-        state = {"level": self.level, "snap": self.snap, "accent": 1.0}
+        self.source = self.body_signal + self.rattle
 
-        def apply_gains() -> None:
-            gain = state["level"] * state["accent"]
-            body_env.mul = gain * BODY_LEVEL
-            rattle_env.mul = gain * state["snap"]
-
-        step = self.step_pattern(16, PATTERN)
+        step = self.step_pattern(16, self.pattern)
 
         def next_step() -> None:
             _, accent = step()
             if accent is not None:
-                state["accent"] = accent
-                apply_gains()
+                self.accent = accent
+                self.apply_gains()
                 # restart the body on a zero crossing so the immediate
                 # attack doesn't click wherever the oscillator last stopped
-                body.reset()
+                self.body.reset()
                 self.trigger.play()
 
-        def set_gain(name: str, value: float) -> None:
-            state[name] = value
-            apply_gains()
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
-        return self.finish(
-            voice,
-            {
-                "level": lambda value: set_gain("level", value),
-                "tune": lambda value: setattr(tuning, "value", semitone_ratio(value)),
-                "snap": lambda value: set_gain("snap", value),
-                "tone": lambda value: setattr(rattle, "freq", value),
-                "decay": lambda value: setattr(rattle_env, "dur", value),
-            },
-        )
+        self.schedule(self.base_division, self.rate, clock, next_step)
+        return self.finish(self.source)

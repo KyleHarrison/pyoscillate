@@ -46,7 +46,7 @@ from pyoscillate.patches.texture.noise import noise
 
 MODULE = "pyoscillate.patches.texture.noise.noise"
 SECONDS = 4.0
-SLIDERS = {spec.name: spec for spec in noise.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in noise.Noise.parameters}
 
 
 @cache

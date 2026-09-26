@@ -33,6 +33,7 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
 
 __all__ = ["Bass", "BassProfile"]
@@ -58,29 +59,47 @@ class Bass(GatedVoice):
     shared graph the groove and techno voices are built from.
     """
 
+    # shared "Register" control for the harmony-following voices (`note_root`
+    # re-roots on the current chord in the octave nearest its anchor); a
+    # style that also wants it inherits this unmodified, one whose wording
+    # should differ only redeclares `help_text`, e.g.
+    # `octave = Bass.octave.replace(help_text="...")`
+    octave = Param(
+        0,
+        1,
+        1,
+        0,
+        "Register",
+        "Lifts the bassline up an octave; low sits deep and heavy under the kick, high brings it "
+        "closer to the chords. The notes always follow the rack's key and chord changes.",
+    )
+
+    # the graph `build_voice` assigns; finish() retains every one of them.
+    # `cutoff_lfo` is only built when `build_voice` is given a `filter_base`.
+    envelope_table: CosTable
+    envelope: TrigEnv
+    oscillator_table: HarmTable
+    oscillator: Osc
+    cutoff_lfo: LFO | None
+    filtered: MoogLP
+
     def note_root(
-        self,
-        root_freq: float,
-        clock: Clock,
-        *,
-        harmony: Harmony | None = None,
-        octave: float = 0,
+        self, root_freq: float, clock: Clock, *, harmony: Harmony | None = None
     ) -> Callable[[], float]:
         """Zero-arg callable giving this voice's current root pitch (Hz) at
-        trigger time, and registers the matching live control.
+        trigger time.
 
-        Without `harmony` the line sits on a fixed `root_freq`, exposed as a
-        live `root_freq` control. With it, every note is re-rooted on the
-        current bar's chord in the octave nearest `root_freq`, and the live
-        control is `octave` instead - re-rooting on a live `root_freq`
-        control could drag a chord-following line out of key.
+        Without `harmony` the line sits on a fixed `root_freq`, read live off
+        `self.root_freq` - a concrete voice using this branch declares that
+        `Param` itself (only it needs a Register-in-Hz control). With
+        `harmony`, every note is re-rooted on the current bar's chord in the
+        octave nearest `root_freq`, tracked live off `self.octave` above -
+        re-rooting on a live `root_freq` control could drag a chord-following
+        line out of key.
         """
-        state = {"root": root_freq, "octave": octave}
         if harmony is None:
-            self.controls["root_freq"] = lambda value: state.update(root=value)
-            return lambda: state["root"]
-        self.controls["octave"] = lambda value: state.update(octave=value)
-        return lambda: harmony.chord_freq(root_freq, clock.bar_index) * 2 ** state["octave"]
+            return lambda: self.root_freq
+        return lambda: harmony.chord_freq(root_freq, clock.bar_index) * 2 ** self.octave
 
     def build_voice(
         self,
@@ -95,63 +114,50 @@ class Bass(GatedVoice):
         filter_range: float = 0,
         filter_res: float | None = None,
         harmony: Harmony | None = None,
-        octave: float = 0,
     ) -> Patch:
         """Build a triggered pitch voice from a musical `profile`, wire its
-        scheduling and live controls, and return `self`, finished.
+        scheduling, and return `self`, finished. Every parameter this graph
+        exposes (`cutoff`, `filter_base`, `filter_range`, `filter_res`,
+        `root_freq`/`octave`) is a `@Param` on the calling concrete class,
+        whose control writes straight onto the nodes assigned here.
 
         A fixed `cutoff` gives a compact, controlled bass. Supplying
         `filter_base` and `filter_range` adds a bar-long continuous sweep,
         which is useful for a more animated techno voice. See `note_root`
-        for the `harmony`/`octave` vs. fixed `root_freq` choice.
+        for the `harmony` vs. fixed `root_freq` choice.
         """
         if len(profile.pattern) != len(profile.accents):
             raise ValueError("Bass pattern and accent pattern must have equal lengths")
 
-        envelope_table = CosTable([(0, 0), (80, 1), (2100, 0.5), (8191, 0)])
-        envelope = TrigEnv(
-            self.trigger, table=envelope_table, dur=tempo.sixteenth * profile.envelope_decay
+        self.envelope_table = CosTable([(0, 0), (80, 1), (2100, 0.5), (8191, 0)])
+        self.envelope = TrigEnv(
+            self.trigger, table=self.envelope_table, dur=tempo.sixteenth * profile.envelope_decay
         )
-        oscillator_table = HarmTable(list(profile.harmonics))
-        oscillator = Osc(oscillator_table, freq=root_freq, mul=envelope)
-        self.retain(envelope_table, envelope, oscillator_table, oscillator)
+        self.oscillator_table = HarmTable(list(profile.harmonics))
+        self.oscillator = Osc(self.oscillator_table, freq=root_freq, mul=self.envelope)
 
-        cutoff_lfo: Any | None = None
+        self.cutoff_lfo = None
         if filter_base is None:
             cutoff_source: Any = cutoff
         else:
-            cutoff_lfo = LFO(freq=1 / tempo.bar, type=0, mul=filter_range, add=filter_base)
-            cutoff_source = cutoff_lfo
-            self.retain(cutoff_lfo)
+            self.cutoff_lfo = LFO(freq=1 / tempo.bar, type=0, mul=filter_range, add=filter_base)
+            cutoff_source = self.cutoff_lfo
 
-        voice = MoogLP(
-            oscillator,
+        self.filtered = MoogLP(
+            self.oscillator,
             freq=cutoff_source,
             res=profile.resonance if filter_res is None else filter_res,
         )
 
-        current_root = self.note_root(root_freq, clock, harmony=harmony, octave=octave)
-        state = {"step": 0}
+        current_root = self.note_root(root_freq, clock, harmony=harmony)
+        self._step = 0
 
         def next_step() -> None:
-            step = state["step"] % len(profile.pattern)
-            oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
-            envelope.mul = profile.accents[step]
+            step = self._step % len(profile.pattern)
+            self.oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
+            self.envelope.mul = profile.accents[step]
             self.trigger.play()
-            state["step"] += 1
-
-        controls: dict[str, Callable[[Any], None]] = {
-            "cutoff": lambda value: setattr(voice, "freq", value)
-        }
-        if filter_base is not None and cutoff_lfo is not None:
-            controls.update(
-                {
-                    "filter_base": lambda value: setattr(cutoff_lfo, "add", value),
-                    "filter_range": lambda value: setattr(cutoff_lfo, "mul", value),
-                }
-            )
-        if filter_res is not None:
-            controls["filter_res"] = lambda value: setattr(voice, "res", value)
+            self._step += 1
 
         self.schedule(BASE_DIVISION, rate, clock, next_step)
-        return self.finish(voice, controls)
+        return self.finish(self.filtered)

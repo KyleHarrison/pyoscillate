@@ -17,8 +17,6 @@ gate (accent, length) + pitch with a short glide
 
 ## The recipe
 
-From Welsh's Synthesizer Cookbook, "Funk Bass":
-
 | Section | Setting |
 | --- | --- |
 | Osc 1 | saw, −2 oct, 0 dB |
@@ -79,6 +77,3 @@ cover synthesis; the sections above stay authoritative for the DSP.
 - `.claude/skills/music-theory/references/instrument-idiom/bass.md` — "Funk/R&B": syncopated riff, ghost-note feel, space as groove; "Bass fills kick gaps"
 - `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md` — syncopation and ghost notes
 
-## Sources
-
-Welsh's Synthesizer Cookbook, "Funk Bass" patch sheet; pyo 1.0.6 documentation for `MoogLP`, `Adsr` and `TrigEnv` (its end-of-envelope `trig` stream).

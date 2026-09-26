@@ -20,11 +20,17 @@ def _is_note(freq: float) -> bool:
 
 
 def _patch_parameters() -> dict[str, tuple[SliderSpec, ...]]:
+    """Every module's parameter specs, from a legacy module-level
+    `PARAMETERS` tuple and/or (post-migration) each `Patch` subclass's own
+    `parameters`, auto-derived from its `@Param`s."""
     found = {}
     for info in pkgutil.walk_packages(pyoscillate.patches.__path__, "pyoscillate.patches."):
         module = importlib.import_module(info.name)
         if isinstance(getattr(module, "PARAMETERS", None), tuple):
             found[info.name] = module.PARAMETERS
+        for name, value in vars(module).items():
+            if isinstance(value, type) and issubclass(value, Patch) and value is not Patch:
+                found[f"{info.name}.{name}"] = value.parameters
     return found
 
 

@@ -45,7 +45,7 @@ class ClockRateTests(unittest.TestCase):
         self.assertEqual(clock.ticks_for_rate(NoteDivision.SIXTEENTH, maximum), 2)
 
     def test_clap_rate_slider_uses_clock_limits(self) -> None:
-        rate = next(spec for spec in clap.PARAMETERS if spec.name == "rate")
+        rate = next(spec for spec in clap.Clap.parameters if spec.name == "rate")
 
         self.assertEqual(
             (rate.minimum, rate.maximum),
@@ -155,7 +155,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         return {
             "chord": chord_osc.freq,
             "bass": bass_osc.freq,
-            "tom": tom_tuning.value * tom.BODY_FREQ / fifth,
+            "tom": tom_tuning.value * tom.Tom.body_freq / fifth,
         }
 
     def assert_same_pitch_class(self, roots: dict[str, float], expected: int) -> None:

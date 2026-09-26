@@ -1,150 +1,175 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.drone.fm
+"""Chaotic FM drone: a free-running FM voice whose timbre is driven entirely
+by chaotic attractors, with no clocked note pattern at all.
+
+This is the drone family's "timbre" style - the held pitch itself never
+moves; movement instead comes from ratio and index each riding their own
+chaotic attractor. Rossler wanders smoothly, Lorenz more angularly - pairing
+them on ratio and index gives the timbre two independently-textured axes of
+drift instead of both parameters moving in the same "shape" of way.
+"""
+
 from __future__ import annotations
 
-from typing import Any
-
+from pyo import PyoObject
+from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
-ROOT_FREQ = notes.A2  # current default
 
-PARAMETERS = (
-    SliderSpec(
-        "root_freq",
+class SoundscapeFm(ContinuousVoice):
+    """Free-running FM pad whose timbre is driven entirely by chaotic attractors, with no clocked note pattern at all."""
+
+    title = "Soundscape - chaotic FM pad"
+    summary = "Slow-morphing, unpredictable pad that never quite repeats itself."
+    volume_default = 0.6
+
+    # the graph, assigned by build(); finish() retains every one of them
+    root_freq_sig: SigTo
+    chaos_speed_sig: SigTo
+    chaos_amount_sig: SigTo
+    reverb_size_sig: SigTo
+    reverb_damp_sig: SigTo
+    reverb_bal_sig: SigTo
+    delay_time_sig: SigTo
+    delay_feedback_sig: SigTo
+    ratio_chaos: Rossler
+    index_speed: PyoObject
+    index_chaos: Lorenz
+    fm_voice: FM
+    reverb_voice: Freeverb
+    output: Delay
+
+    @Param(
         notes.A1,
         notes.A3,
         1,
-        ROOT_FREQ,
+        notes.A2,
         "Register",
         "Sets the pad's held pitch, the carrier tone everything else is built on.",
         scale="note",
-    ),
-    SliderSpec(
-        "chaos_speed",
+    )
+    def root_freq(self, value: float) -> None:
+        self.root_freq_sig.value = value
+
+    @Param(
         0.01,
         0.5,
         0.01,
         0.04,
         "Drift speed",
         "How fast the pad's timbre wanders; lower is slower and more hypnotic, higher feels more restless.",
-    ),
-    SliderSpec(
-        "chaos_amount",
+    )
+    def chaos_speed(self, value: float) -> None:
+        self.chaos_speed_sig.value = value
+
+    @Param(
         0,
         1,
         0.05,
         0.6,
         "Instability",
-        "How unpredictable the wander is; higher feels more psychedelic and alive, lower stays closer to a steady tone.",
-    ),
-    SliderSpec(
-        "reverb_size",
+        "How unpredictable the wander is; higher feels more psychedelic and alive, lower stays closer to "
+        "a steady tone.",
+    )
+    def chaos_amount(self, value: float) -> None:
+        self.chaos_amount_sig.value = value
+
+    @Param(
         0,
         1,
         0.05,
         0.85,
         "Space",
         "Sets how enveloping the pad's room feels; larger is more immersive and distant.",
-    ),
-    SliderSpec(
-        "reverb_damp",
+    )
+    def reverb_size(self, value: float) -> None:
+        self.reverb_size_sig.value = value
+
+    @Param(
         0,
         1,
         0.05,
         0.4,
         "Tail darkness",
-        "Darkens the reverb tail as it decays; higher is warmer and more muffled, lower stays brighter and shimmering.",
-    ),
-    SliderSpec(
-        "reverb_bal",
+        "Darkens the reverb tail as it decays; higher is warmer and more muffled, lower stays brighter and "
+        "shimmering.",
+    )
+    def reverb_damp(self, value: float) -> None:
+        self.reverb_damp_sig.value = value
+
+    @Param(
         0,
         1,
         0.05,
         0.85,
         "Distance",
-        "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into the space, lower keeps it present.",
-    ),
-    SliderSpec(
-        "delay_time",
+        "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into the "
+        "space, lower keeps it present.",
+    )
+    def reverb_bal(self, value: float) -> None:
+        self.reverb_bal_sig.value = value
+
+    @Param(
         0.05,
         2,
         0.05,
         0.6,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the timbral drift across time.",
-    ),
-    SliderSpec(
-        "delay_feedback",
+    )
+    def delay_time(self, value: float) -> None:
+        self.delay_time_sig.value = value
+
+    @Param(
         0,
         0.9,
         0.05,
         0.35,
         "Echo density",
         "Sets how many times each echo repeats before decaying; higher creates a denser, more layered wash.",
-    ),
-)
-VOLUME_DEFAULT = 0.6
+    )
+    def delay_feedback(self, value: float) -> None:
+        self.delay_feedback_sig.value = value
 
-
-class SoundscapeFm(ContinuousVoice):
-    """Free-running FM pad whose timbre is driven entirely by chaotic attractors, with no clocked note pattern at all.
-
-    Rossler wanders smoothly, Lorenz more angularly - pairing them on ratio
-    and index gives the timbre two independently-textured axes of drift
-    instead of both parameters moving in the same "shape" of way.
-    """
-
-    title = "Soundscape - chaotic FM pad"
-    summary = "Slow-morphing, unpredictable pad that never quite repeats itself."
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-
-    root_freq: float
-    chaos_speed: float
-    chaos_amount: float
-    reverb_size: float
-    reverb_damp: float
-    reverb_bal: float
-    delay_time: float
-    delay_feedback: float
-
-    def build(self, **values: Any) -> Patch:
-        self.configure(**values)
+    def build(self) -> Patch:
+        """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        live = self.live_all(
-            "root_freq",
-            "chaos_speed",
-            "chaos_amount",
-            "reverb_size",
-            "reverb_damp",
-            "reverb_bal",
-            "delay_time",
-            "delay_feedback",
+        self.root_freq_sig = self.live("root_freq", self.root_freq)
+        self.chaos_speed_sig = self.live("chaos_speed", self.chaos_speed)
+        self.chaos_amount_sig = self.live("chaos_amount", self.chaos_amount)
+        self.reverb_size_sig = self.live("reverb_size", self.reverb_size)
+        self.reverb_damp_sig = self.live("reverb_damp", self.reverb_damp)
+        self.reverb_bal_sig = self.live("reverb_bal", self.reverb_bal)
+        self.delay_time_sig = self.live("delay_time", self.delay_time)
+        self.delay_feedback_sig = self.live("delay_feedback", self.delay_feedback)
+
+        self.ratio_chaos = Rossler(
+            pitch=self.chaos_speed_sig, chaos=self.chaos_amount_sig, mul=0.4, add=1.5
+        )
+        self.index_speed = self.chaos_speed_sig * 1.3
+        self.index_chaos = Lorenz(
+            pitch=self.index_speed, chaos=self.chaos_amount_sig, mul=3, add=4
         )
 
-        ratio_chaos = Rossler(
-            pitch=live["chaos_speed"], chaos=live["chaos_amount"], mul=0.4, add=1.5
+        self.fm_voice = FM(
+            carrier=self.root_freq_sig, ratio=self.ratio_chaos, index=self.index_chaos, mul=0.2
         )
-        index_speed = live["chaos_speed"] * 1.3
-        index_chaos = Lorenz(pitch=index_speed, chaos=live["chaos_amount"], mul=3, add=4)
-
-        fm_voice = FM(carrier=live["root_freq"], ratio=ratio_chaos, index=index_chaos, mul=0.2)
-        reverb_voice = Freeverb(
-            fm_voice,
-            size=live["reverb_size"],
-            damp=live["reverb_damp"],
-            bal=live["reverb_bal"],
+        self.reverb_voice = Freeverb(
+            self.fm_voice,
+            size=self.reverb_size_sig,
+            damp=self.reverb_damp_sig,
+            bal=self.reverb_bal_sig,
         )
-        voice = Delay(
-            reverb_voice,
-            delay=live["delay_time"],
-            feedback=live["delay_feedback"],
+        self.output = Delay(
+            self.reverb_voice,
+            delay=self.delay_time_sig,
+            feedback=self.delay_feedback_sig,
             maxdelay=2,
         )
-        self.retain(ratio_chaos, index_speed, index_chaos, fm_voice, reverb_voice)
-        return self.finish(voice)
+        return self.finish(self.output)

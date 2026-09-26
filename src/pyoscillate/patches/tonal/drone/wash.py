@@ -1,130 +1,23 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.drone.wash
+"""Washy detuned pad: a SuperSaw voice smeared with chorus, reverb, and delay
+for a shoegaze-style dream-pop ambience.
+
+This is the drone family's "space" style - unlike `fm`/`filter`, the
+"evolving" quality here comes mostly from spatial smear (chorus/reverb/delay)
+rather than timbral or filter movement, so the character is width and haze
+rather than wander.
+"""
+
 from __future__ import annotations
 
-from typing import Any
-
+from pyo.lib.controls import SigTo
 from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.generators import Rossler, SuperSaw
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
-
-ROOT_FREQ = notes.E3  # current default
-
-PARAMETERS = (
-    SliderSpec(
-        "root_freq",
-        notes.A1,
-        notes.A4,
-        1,
-        ROOT_FREQ,
-        "Register",
-        "Sets the wash's base pitch.",
-        scale="note",
-    ),
-    SliderSpec(
-        "detune",
-        0,
-        1,
-        0.05,
-        0.6,
-        "Thickness",
-        "Spreads the oscillators apart in pitch; higher makes the wash thicker and hazier, lower keeps it cleaner and more focused.",
-    ),
-    SliderSpec(
-        "detune_bal",
-        0,
-        1,
-        0.05,
-        0.7,
-        "Detune blend",
-        "Balances how much of the detuned layers come through versus the centered tone; higher leans further into the thick, chorused character.",
-    ),
-    SliderSpec(
-        "pitch_drift",
-        0,
-        1,
-        0.01,
-        0.03,
-        "Instability",
-        "Adds slow pitch wobble; higher makes the wash feel more alive and unstable, lower keeps it steadier.",
-    ),
-    SliderSpec(
-        "chorus_depth",
-        0,
-        5,
-        0.1,
-        2.5,
-        "Shimmer",
-        "Deepens the chorus modulation for a wider, more shimmering movement; lower keeps it subtler and more static.",
-    ),
-    SliderSpec(
-        "chorus_feedback",
-        0,
-        1,
-        0.05,
-        0.35,
-        "Chorus density",
-        "Adds more layered repeats to the chorus effect for a denser, more swirling texture.",
-    ),
-    SliderSpec(
-        "chorus_bal",
-        0,
-        1,
-        0.05,
-        0.6,
-        "Chorus blend",
-        "Blends how much of the chorused signal is heard versus the dry tone; higher leans further into the wide, shimmering effect.",
-    ),
-    SliderSpec(
-        "reverb_size",
-        0,
-        1,
-        0.05,
-        0.9,
-        "Space",
-        "Sets how large and distant the wash's room feels, from a tight presence to a huge, cavernous decay.",
-    ),
-    SliderSpec(
-        "reverb_damp",
-        0,
-        1,
-        0.05,
-        0.35,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower settings stay bright and shimmering.",
-    ),
-    SliderSpec(
-        "reverb_bal",
-        0,
-        1,
-        0.05,
-        0.9,
-        "Distance",
-        "Blends how much of the wash is heard through the reverb versus dry; higher dissolves it into the atmosphere, lower keeps it present.",
-    ),
-    SliderSpec(
-        "delay_time",
-        0.05,
-        2,
-        0.05,
-        0.8,
-        "Echo spacing",
-        "Sets the time between echo repeats, smearing the wash across time.",
-    ),
-    SliderSpec(
-        "delay_feedback",
-        0,
-        0.9,
-        0.05,
-        0.25,
-        "Echo density",
-        "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
-    ),
-)
-VOLUME_DEFAULT = 0.6
 
 
 class SoundscapeWash(ContinuousVoice):
@@ -138,66 +31,207 @@ class SoundscapeWash(ContinuousVoice):
 
     title = "Soundscape - washy detuned pad"
     summary = "Wide, hazy detuned wash that dissolves into echoing space."
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
+    volume_default = 0.6
 
-    root_freq: float
-    detune: float
-    detune_bal: float
-    pitch_drift: float
-    chorus_depth: float
-    chorus_feedback: float
-    chorus_bal: float
-    reverb_size: float
-    reverb_damp: float
-    reverb_bal: float
-    delay_time: float
-    delay_feedback: float
+    # the graph, assigned by build(); finish() retains every one of them
+    root_freq_sig: SigTo
+    detune_sig: SigTo
+    detune_bal_sig: SigTo
+    pitch_drift_sig: SigTo
+    chorus_depth_sig: SigTo
+    chorus_feedback_sig: SigTo
+    chorus_bal_sig: SigTo
+    reverb_size_sig: SigTo
+    reverb_damp_sig: SigTo
+    reverb_bal_sig: SigTo
+    delay_time_sig: SigTo
+    delay_feedback_sig: SigTo
+    pitch_wander: Rossler
+    saw_voice: SuperSaw
+    chorused: Chorus
+    reverb_voice: Freeverb
+    output: Delay
 
-    def build(self, **values: Any) -> Patch:
-        self.configure(**values)
+    @Param(
+        notes.A1,
+        notes.A4,
+        1,
+        notes.E3,
+        "Register",
+        "Sets the wash's base pitch.",
+        scale="note",
+    )
+    def root_freq(self, value: float) -> None:
+        self.root_freq_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.6,
+        "Thickness",
+        "Spreads the oscillators apart in pitch; higher makes the wash thicker and hazier, lower keeps it "
+        "cleaner and more focused.",
+    )
+    def detune(self, value: float) -> None:
+        self.detune_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.7,
+        "Detune blend",
+        "Balances how much of the detuned layers come through versus the centered tone; higher leans "
+        "further into the thick, chorused character.",
+    )
+    def detune_bal(self, value: float) -> None:
+        self.detune_bal_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.01,
+        0.03,
+        "Instability",
+        "Adds slow pitch wobble; higher makes the wash feel more alive and unstable, lower keeps it steadier.",
+    )
+    def pitch_drift(self, value: float) -> None:
+        self.pitch_drift_sig.value = value
+
+    @Param(
+        0,
+        5,
+        0.1,
+        2.5,
+        "Shimmer",
+        "Deepens the chorus modulation for a wider, more shimmering movement; lower keeps it subtler and "
+        "more static.",
+    )
+    def chorus_depth(self, value: float) -> None:
+        self.chorus_depth_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.35,
+        "Chorus density",
+        "Adds more layered repeats to the chorus effect for a denser, more swirling texture.",
+    )
+    def chorus_feedback(self, value: float) -> None:
+        self.chorus_feedback_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.6,
+        "Chorus blend",
+        "Blends how much of the chorused signal is heard versus the dry tone; higher leans further into "
+        "the wide, shimmering effect.",
+    )
+    def chorus_bal(self, value: float) -> None:
+        self.chorus_bal_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.9,
+        "Space",
+        "Sets how large and distant the wash's room feels, from a tight presence to a huge, cavernous decay.",
+    )
+    def reverb_size(self, value: float) -> None:
+        self.reverb_size_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.35,
+        "Tail darkness",
+        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
+        "settings stay bright and shimmering.",
+    )
+    def reverb_damp(self, value: float) -> None:
+        self.reverb_damp_sig.value = value
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.9,
+        "Distance",
+        "Blends how much of the wash is heard through the reverb versus dry; higher dissolves it into the "
+        "atmosphere, lower keeps it present.",
+    )
+    def reverb_bal(self, value: float) -> None:
+        self.reverb_bal_sig.value = value
+
+    @Param(
+        0.05,
+        2,
+        0.05,
+        0.8,
+        "Echo spacing",
+        "Sets the time between echo repeats, smearing the wash across time.",
+    )
+    def delay_time(self, value: float) -> None:
+        self.delay_time_sig.value = value
+
+    @Param(
+        0,
+        0.9,
+        0.05,
+        0.25,
+        "Echo density",
+        "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
+    )
+    def delay_feedback(self, value: float) -> None:
+        self.delay_feedback_sig.value = value
+
+    def build(self) -> Patch:
+        """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        live = self.live_all(
-            "root_freq",
-            "detune",
-            "detune_bal",
-            "pitch_drift",
-            "chorus_depth",
-            "chorus_feedback",
-            "chorus_bal",
-            "reverb_size",
-            "reverb_damp",
-            "reverb_bal",
-            "delay_time",
-            "delay_feedback",
-        )
+        self.root_freq_sig = self.live("root_freq", self.root_freq)
+        self.detune_sig = self.live("detune", self.detune)
+        self.detune_bal_sig = self.live("detune_bal", self.detune_bal)
+        self.pitch_drift_sig = self.live("pitch_drift", self.pitch_drift)
+        self.chorus_depth_sig = self.live("chorus_depth", self.chorus_depth)
+        self.chorus_feedback_sig = self.live("chorus_feedback", self.chorus_feedback)
+        self.chorus_bal_sig = self.live("chorus_bal", self.chorus_bal)
+        self.reverb_size_sig = self.live("reverb_size", self.reverb_size)
+        self.reverb_damp_sig = self.live("reverb_damp", self.reverb_damp)
+        self.reverb_bal_sig = self.live("reverb_bal", self.reverb_bal)
+        self.delay_time_sig = self.live("delay_time", self.delay_time)
+        self.delay_feedback_sig = self.live("delay_feedback", self.delay_feedback)
 
         # subtle, slow pitch instability rather than a discrete note pattern -
-        # keeps the pad "dreamy" without ever resolving to a new pitch
-        pitch_wander = Rossler(
-            pitch=0.02, chaos=0.4, mul=live["pitch_drift"], add=live["root_freq"]
+        # keeps the drone "dreamy" without ever resolving to a new pitch
+        self.pitch_wander = Rossler(
+            pitch=0.02, chaos=0.4, mul=self.pitch_drift_sig, add=self.root_freq_sig
         )
 
-        saw_voice = SuperSaw(
-            freq=pitch_wander, detune=live["detune"], bal=live["detune_bal"], mul=0.2
+        self.saw_voice = SuperSaw(
+            freq=self.pitch_wander, detune=self.detune_sig, bal=self.detune_bal_sig, mul=0.2
         )
-        chorused = Chorus(
-            saw_voice,
-            depth=live["chorus_depth"],
-            feedback=live["chorus_feedback"],
-            bal=live["chorus_bal"],
+        self.chorused = Chorus(
+            self.saw_voice,
+            depth=self.chorus_depth_sig,
+            feedback=self.chorus_feedback_sig,
+            bal=self.chorus_bal_sig,
         )
-        reverb_voice = Freeverb(
-            chorused,
-            size=live["reverb_size"],
-            damp=live["reverb_damp"],
-            bal=live["reverb_bal"],
+        self.reverb_voice = Freeverb(
+            self.chorused,
+            size=self.reverb_size_sig,
+            damp=self.reverb_damp_sig,
+            bal=self.reverb_bal_sig,
         )
-        voice = Delay(
-            reverb_voice,
-            delay=live["delay_time"],
-            feedback=live["delay_feedback"],
+        self.output = Delay(
+            self.reverb_voice,
+            delay=self.delay_time_sig,
+            feedback=self.delay_feedback_sig,
             maxdelay=2,
         )
-        self.retain(pitch_wander, saw_voice, chorused, reverb_voice)
-        return self.finish(voice)
+        return self.finish(self.output)

@@ -19,7 +19,7 @@ MODULE = "pyoscillate.patches.pitched_percussion.bell.bell"
 BPM = 120
 SIXTEENTH = 60 / BPM / 4
 ONSET_TOLERANCE = 0.02
-SLIDERS = {spec.name: spec for spec in bell.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in bell.Bell.parameters}
 
 
 @cache

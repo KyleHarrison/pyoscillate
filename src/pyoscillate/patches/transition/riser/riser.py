@@ -24,11 +24,17 @@ All three styles share the ramp, curve, filter opening and level stage
 (`Riser.build`); only the climbing source in `rising_source()` differs, since
 that is genuinely different behavior, not just different profile data
 (`patches/CLAUDE.md`'s design rule 1).
+
+This is a one-shot gesture rather than a repeating clocked hit, so there is
+no Rate slider: `build()` subscribes `next_bar()` directly to `clock.bar`
+(one tick per bar) instead of going through `GatedVoice.schedule()`'s
+rate-slider machinery, and `Length` only ever changes when the next riser
+starts, read straight off `self.length` with no mirrored state.
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib.arithmetic import Pow
@@ -38,173 +44,157 @@ from pyo.lib.generators import Noise, SuperSaw
 
 from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import frequency_shift
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.common import GatedVoice, frequency_shift
+from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 STYLES = ("noise", "shift", "pitch")
+PHRASE_BARS = 8
+# `shift` / `pitch`: a root and fifth, as a detuned saw pair
+ROOT = notes.A2
+CHORD = [ROOT, ROOT * 1.5]
+DETUNE = 0.5
+BALANCE = 0.7
 
-PARAMETERS = (
-    SliderSpec(
-        "length",
+
+def _ramp_points(tempo: Tempo, bars: int, cut_seconds: float) -> list[tuple[float, float]]:
+    """Break-points for one riser: 0 → 1 across `bars`, cut to 0 on the downbeat."""
+    duration = tempo.bar * bars
+    return [(0, 0), (duration - cut_seconds, 1), (duration, 0)]
+
+
+class Riser(GatedVoice):
+    """Tempo-locked riser: one ramp lifts pitch, brightness and level into a
+    downbeat. Style variants subclass this and override `rising_source()`;
+    the ramp, curve, filter opening and level stage are identical. See the
+    module docstring for the sonic detail."""
+
+    volume_default = 0.3
+
+    # the ramp's fall to zero on the downbeat: short enough to read as a cut,
+    # long enough not to click
+    cut_seconds: ClassVar[float] = 0.005
+    # the low-pass opens across this many octaves, ending at Brightness
+    octave_span: ClassVar[float] = 4
+    filter_q: ClassVar[float] = 0.7
+
+    # the graph, assigned by build(); finish() retains every one of them
+    climb_control: SigTo
+    surge_control: SigTo
+    brightness_control: SigTo
+    level_control: SigTo
+    ramp: Linseg
+    tension: Pow
+    climb_octaves: PyoObject
+    climb_ratio: Pow
+    risen: PyoObject
+    open_octaves: PyoObject
+    opening: Pow
+    cutoff_floor: PyoObject
+    cutoff: PyoObject
+    filtered: Biquad
+    gain: PyoObject
+    voice_signal: PyoObject
+
+    # only read at the top of each bar (next_bar()), so it needs no live
+    # control - Patch.set() already keeps self.length current on its own
+    length = Param(
         1,
         8,
         1,
         4,
         "Length",
         "How many bars the build lasts before it lands on the next phrase downbeat; 8 fills the whole phrase.",
-    ),
-    SliderSpec(
-        "climb",
+    )
+
+    @Param(
         0.5,
         4,
         0.25,
         2,
         "Climb",
         "How far the riser travels, in octaves: low is a short lift, high is a full sweep from the floor to the top.",
-    ),
-    SliderSpec(
-        "surge",
+    )
+    def climb(self, value: float) -> None:
+        self.climb_control.value = value
+
+    @Param(
         0.5,
         4,
         0.1,
         2,
         "Surge",
         "Where the build puts its energy: low swells early and levels off, high holds back and surges in the last beats.",
-    ),
-    SliderSpec(
-        "brightness",
+    )
+    def surge(self, value: float) -> None:
+        self.surge_control.value = value
+
+    @Param(
         1000,
         16000,
         100,
         8000,
         "Brightness",
         "How open the riser is at its peak; low keeps it behind the mix, high makes it the brightest thing before the drop.",
-    ),
-    SliderSpec(
-        "level",
+    )
+    def brightness(self, value: float) -> None:
+        self.brightness_control.value = value
+
+    @Param(
         0,
         0.5,
         0.01,
         0.3,
         "Level",
         "How loud the riser is at its peak, just before the downbeat.",
-    ),
-)
-PHRASE_BARS = 8
-# the ramp's fall to zero on the downbeat: short enough to read as a cut,
-# long enough not to click
-CUT_SECONDS = 0.005
-# the low-pass opens across this many octaves, ending at Brightness
-OPEN_OCTAVES = 4
-FILTER_Q = 0.7
-# `noise`: where the band centre starts before it climbs, and its width
-NOISE_START = 250
-NOISE_Q = 1.2
-# band-passing leaves much less energy than the saw sources; brings the noise
-# wash up to their loudness at the default settings
-NOISE_GAIN = 4.4
-# `shift` / `pitch`: a root and fifth, as a detuned saw pair
-ROOT = notes.A2
-CHORD = [ROOT, ROOT * 1.5]
-DETUNE = 0.5
-BALANCE = 0.7
-# `shift`: low-pass the saws before shifting, so partials pushed past Nyquist
-# don't fold back as aliasing
-PRE_SHIFT_CUTOFF = 4000
-# keeps the loudest corner of the range under the output ceiling
-VOLUME_DEFAULT = 0.3
+    )
+    def level(self, value: float) -> None:
+        self.level_control.value = value
 
-
-def _ramp_points(tempo: Tempo, bars: int) -> list[tuple[float, float]]:
-    """Break-points for one riser: 0 → 1 across `bars`, cut to 0 on the downbeat."""
-    duration = tempo.bar * bars
-    return [(0, 0), (duration - CUT_SECONDS, 1), (duration, 0)]
-
-
-class Riser(Patch):
-    """Tempo-locked riser: one ramp lifts pitch, brightness and level into a
-    downbeat. Style variants subclass this and override `rising_source()`;
-    the ramp, curve, filter opening and level stage are identical. See the
-    module docstring for the sonic detail."""
-
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-    needs_tempo: ClassVar[bool] = True
-    needs_clock: ClassVar[bool] = True
-
-    length: float
-    climb: float
-    surge: float
-    brightness: float
-    level: float
-
-    def rising_source(self, climb_ratio: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+    def rising_source(self, climb_ratio: PyoObject) -> None:
         """This style's climbing source, built from `climb_ratio` (2 **
-        octaves the ramp has travelled so far), plus any extra Pyo objects
-        it built for `build()` to retain. Overridden per style."""
+        octaves the ramp has travelled so far) and assigned to `self.risen`
+        (plus any other nodes it needs, also assigned to `self`). Overridden
+        per style."""
         raise NotImplementedError
 
-    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
-        self.configure(**values)
+    def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
+        self._bar = 0
 
-        climb_control = SigTo(value=self.climb, time=0.15, init=self.climb)
-        surge_control = SigTo(value=self.surge, time=0.15, init=self.surge)
-        brightness_control = SigTo(value=self.brightness, time=0.15, init=self.brightness)
-        level_control = SigTo(value=self.level, time=0.15, init=self.level)
-        state = {"bar": 0, "length": round(self.length)}
+        self.climb_control = SigTo(value=self.climb, time=0.15, init=self.climb)
+        self.surge_control = SigTo(value=self.surge, time=0.15, init=self.surge)
+        self.brightness_control = SigTo(value=self.brightness, time=0.15, init=self.brightness)
+        self.level_control = SigTo(value=self.level, time=0.15, init=self.level)
 
-        ramp = Linseg(_ramp_points(tempo, state["length"]), initToFirstVal=True)
-        tension = Pow(ramp, surge_control)
-        climb_octaves = tension * climb_control
-        climb_ratio = Pow(2, climb_octaves)
-        self.retain(
-            climb_control,
-            surge_control,
-            brightness_control,
-            level_control,
-            ramp,
-            tension,
-            climb_octaves,
-            climb_ratio,
+        self.ramp = Linseg(
+            _ramp_points(tempo, round(self.length), self.cut_seconds), initToFirstVal=True
         )
+        self.tension = Pow(self.ramp, self.surge_control)
+        self.climb_octaves = self.tension * self.climb_control
+        self.climb_ratio = Pow(2, self.climb_octaves)
 
-        risen, resources = self.rising_source(climb_ratio)
-        self.retain(*resources)
+        self.rising_source(self.climb_ratio)
 
-        # cutoff = Brightness × 2^(OPEN_OCTAVES × (tension − 1))
-        open_octaves = tension * OPEN_OCTAVES
-        opening = Pow(2, open_octaves)
-        cutoff_floor = brightness_control * 2**-OPEN_OCTAVES
-        cutoff = cutoff_floor * opening
-        filtered = Biquad(risen, freq=cutoff, q=FILTER_Q, type=0)
-        gain = tension * level_control
-        voice = filtered * gain
-        self.retain(open_octaves, opening, cutoff_floor, cutoff, filtered, gain)
+        # cutoff = Brightness × 2^(octave_span × (tension − 1))
+        self.open_octaves = self.tension * self.octave_span
+        self.opening = Pow(2, self.open_octaves)
+        self.cutoff_floor = self.brightness_control * 2**-self.octave_span
+        self.cutoff = self.cutoff_floor * self.opening
+        self.filtered = Biquad(self.risen, freq=self.cutoff, q=self.filter_q, type=0)
+        self.gain = self.tension * self.level_control
+        self.voice_signal = self.filtered * self.gain
 
         def next_bar() -> None:
-            if state["bar"] % PHRASE_BARS == PHRASE_BARS - state["length"]:
-                ramp.setList(_ramp_points(tempo, state["length"]))
-                ramp.play()
-            state["bar"] += 1
+            length = round(self.length)
+            if self._bar % PHRASE_BARS == PHRASE_BARS - length:
+                self.ramp.setList(_ramp_points(tempo, length, self.cut_seconds))
+                self.ramp.play()
+            self._bar += 1
 
-        division = clock.subscribe(clock.bar, next_bar)
-
-        def set_length(value: float) -> None:
-            state["length"] = round(value)
-
-        self.sequencer = division
-        self.voice = voice
-        self.controls = {
-            "length": set_length,
-            "climb": lambda value: setattr(climb_control, "value", value),
-            "surge": lambda value: setattr(surge_control, "value", value),
-            "brightness": lambda value: setattr(brightness_control, "value", value),
-            "level": lambda value: setattr(level_control, "value", value),
-        }
-        return self
+        self._division = clock.subscribe(clock.bar, next_bar)
+        return self.finish(self.voice_signal)
 
 
 class RiserNoise(Riser):
@@ -213,15 +203,27 @@ class RiserNoise(Riser):
 
     title = "Riser - Noise"
 
-    def rising_source(self, climb_ratio):
-        noise = Noise()
-        centre = climb_ratio * NOISE_START
+    # `noise`: where the band centre starts before it climbs, and its width
+    noise_start: ClassVar[float] = 250
+    noise_q: ClassVar[float] = 1.2
+    # band-passing leaves much less energy than the saw sources; brings the
+    # noise wash up to their loudness at the default settings
+    noise_gain: ClassVar[float] = 4.4
+
+    noise: Noise
+    noise_centre: PyoObject
+    noise_makeup: Pow
+
+    def rising_source(self, climb_ratio: PyoObject) -> None:
+        self.noise = Noise()
+        self.noise_centre = climb_ratio * self.noise_start
         # a constant-Q band passes bandwidth, and so noise power, in
         # proportion to its centre; 1/sqrt of the climb keeps the level on the
         # curve rather than on the climb, as the clap's makeup does
-        makeup = Pow(climb_ratio, -0.5, mul=NOISE_GAIN)
-        risen = Biquad(noise, freq=centre, q=NOISE_Q, type=2, mul=makeup)
-        return risen, (noise, centre, makeup, risen)
+        self.noise_makeup = Pow(climb_ratio, -0.5, mul=self.noise_gain)
+        self.risen = Biquad(
+            self.noise, freq=self.noise_centre, q=self.noise_q, type=2, mul=self.noise_makeup
+        )
 
 
 class RiserShift(Riser):
@@ -231,24 +233,28 @@ class RiserShift(Riser):
 
     title = "Riser - Shift"
 
-    def rising_source(self, climb_ratio):
-        chord = SuperSaw(freq=CHORD, detune=DETUNE, bal=BALANCE)
-        chord_mono = chord.mix(1)
-        prefiltered = Biquad(chord_mono, freq=PRE_SHIFT_CUTOFF, q=FILTER_Q, type=0)
-        # the root climbs `climb` octaves; every other partial moves by the same Hz
-        shift_ratio = climb_ratio - 1
-        shift_hz = shift_ratio * ROOT
-        shifted = frequency_shift(prefiltered, shift_hz)
-        risen = shifted.output
-        return risen, (
-            chord,
-            chord_mono,
-            prefiltered,
-            shift_ratio,
-            shift_hz,
-            *shifted.resources,
-            risen,
+    # low-pass the saws before shifting, so partials pushed past Nyquist
+    # don't fold back as aliasing
+    pre_shift_cutoff: ClassVar[float] = 4000
+
+    chord_source: SuperSaw
+    chord_mono: PyoObject
+    prefiltered: Biquad
+    shift_ratio: PyoObject
+    shift_hz: PyoObject
+
+    def rising_source(self, climb_ratio: PyoObject) -> None:
+        self.chord_source = SuperSaw(freq=CHORD, detune=DETUNE, bal=BALANCE)
+        self.chord_mono = self.chord_source.mix(1)
+        self.prefiltered = Biquad(
+            self.chord_mono, freq=self.pre_shift_cutoff, q=self.filter_q, type=0
         )
+        # the root climbs `climb` octaves; every other partial moves by the same Hz
+        self.shift_ratio = climb_ratio - 1
+        self.shift_hz = self.shift_ratio * ROOT
+        shifted = frequency_shift(self.prefiltered, self.shift_hz)
+        self.risen = shifted.output
+        self.retain(*shifted.resources)
 
 
 class RiserPitch(Riser):
@@ -256,8 +262,10 @@ class RiserPitch(Riser):
 
     title = "Riser - Pitch"
 
-    def rising_source(self, climb_ratio):
-        chord_freqs = climb_ratio * CHORD
-        chord = SuperSaw(freq=chord_freqs, detune=DETUNE, bal=BALANCE)
-        risen = chord.mix(1)
-        return risen, (chord_freqs, chord, risen)
+    chord_freqs: PyoObject
+    chord_source: SuperSaw
+
+    def rising_source(self, climb_ratio: PyoObject) -> None:
+        self.chord_freqs = climb_ratio * CHORD
+        self.chord_source = SuperSaw(freq=self.chord_freqs, detune=DETUNE, bal=BALANCE)
+        self.risen = self.chord_source.mix(1)

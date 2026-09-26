@@ -73,7 +73,7 @@ BPM = 120
 SIXTEENTH = 60 / BPM / 4
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
-SLIDERS = {spec.name: spec for spec in funk.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in funk.FunkBass.parameters}
 # the held root on the One and a ghost note, both in the second bar
 ONE, GHOST = 16, 19
 

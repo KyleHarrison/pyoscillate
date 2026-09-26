@@ -29,7 +29,7 @@ SECONDS = DOWNBEAT + 0.3
 ONSET_TOLERANCE = 0.02
 # -80 dBFS: comfortably above numerical noise, far below anything audible
 SILENT_PEAK = 1e-4
-SLIDERS = {spec.name: spec for spec in riser.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in riser.Riser.parameters}
 
 
 @cache

@@ -9,77 +9,29 @@ hit is either closed or open: both share one exponential envelope, so a closed
 hit retriggers it and chokes any open tail still ringing.
 """
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
+from pyo import PyoObject
 from pyo.lib._core import Mix
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import FM, Noise
 from pyo.lib.pan import Selector
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice
-from pyoscillate.patches.params import SliderSpec, rate_slider
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
 
-BASE_DIVISION = NoteDivision.SIXTEENTH
-
-PARAMETERS = (
-    SliderSpec(
-        "level",
-        0.02,
-        0.5,
-        0.01,
-        0.14,
-        "Presence",
-        "Sets how loud and upfront the hat pattern sits in the mix.",
-    ),
-    SliderSpec(
-        "cutoff",
-        3500,
-        14000,
-        100,
-        9000,
-        "Brightness",
-        "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher).",
-    ),
-    SliderSpec(
-        "metal",
-        0.0,
-        1.0,
-        0.05,
-        0.35,
-        "Metal",
-        "Blends from a soft, breathy noise hat toward a clangy, metallic drum-machine hat.",
-    ),
-    SliderSpec(
-        "length",
-        0.5,
-        2.0,
-        0.05,
-        1.0,
-        "Length",
-        "Stretches or shortens both closed and open tails together; shorter leaves more space between "
-        "subdivisions, longer gives more sustained top-end lift.",
-    ),
-    rate_slider(
-        BASE_DIVISION,
-        "Halves or doubles the hat pattern speed for each step away from its 16th-note grid.",
-    ),
-)
+# full-to-zero break-points shared by the choke envelope
+DROP = [(0, 1), (8191, 0)]
 CLOSED = "closed"
 OPEN = "open"
 DURATIONS = {CLOSED: 0.1, OPEN: 0.4}
 # carrier (Hz), modulator ratio, index - inharmonic ratios keep the sidebands
 # from lining up into a pitch, so the cluster reads as metal, not a tone
 METAL_OPERATORS = ((3400.0, 1.47, 4.0), (5250.0, 1.83, 3.0), (7150.0, 1.21, 3.0))
-# after the high-pass the FM cluster sits a little below noise; this keeps
-# the Metal blend roughly level-neutral
-METAL_GAIN = 1.25
-DECAY_CURVE = 3
-OFFBEAT_ACCENT = 1.0
-GHOST_ACCENT = 0.66
-VOLUME_DEFAULT = 0.25
 
 
 class Groove(DrumVoice):
@@ -90,72 +42,104 @@ class Groove(DrumVoice):
     with which articulation.
     """
 
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-
-    level: float
-    cutoff: float
-    metal: float
-    length: float
-    rate: float
+    volume_default = 0.25
+    base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    decay_curve: ClassVar[float] = 3
+    # after the high-pass the FM cluster sits a little below noise; this
+    # keeps the Metal blend roughly level-neutral
+    metal_gain: ClassVar[float] = 1.25
+    offbeat_accent: ClassVar[float] = 1.0
+    ghost_accent: ClassVar[float] = 0.66
 
     # step in the 16-step bar -> which articulation plays there - overridden
     # per style
     pattern: ClassVar[dict[int, str]]
 
-    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
+    # the graph, assigned by build(); finish() retains every one of them
+    choke_env: TrigEnv
+    noise: Noise
+    operators: tuple[FM, ...]
+    cluster: Mix
+    source: Selector
+    shaped: PyoObject
+    filtered: ButHP
+
+    @Param(0.02, 0.5, 0.01, 0.14, "Presence", "Sets how loud and upfront the hat pattern sits in the mix.")
+    def level(self, value: float) -> None:
+        self.choke_env.mul = value
+
+    @Param(
+        3500,
+        14000,
+        100,
+        9000,
+        "Brightness",
+        "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher).",
+    )
+    def cutoff(self, value: float) -> None:
+        self.filtered.freq = value
+
+    @Param(
+        0.0,
+        1.0,
+        0.05,
+        0.35,
+        "Metal",
+        "Blends from a soft, breathy noise hat toward a clangy, metallic drum-machine hat.",
+    )
+    def metal(self, value: float) -> None:
+        self.source.voice = value
+
+    length = Param(
+        0.5,
+        2.0,
+        0.05,
+        1.0,
+        "Length",
+        "Stretches or shortens both closed and open tails together; shorter leaves more space between "
+        "subdivisions, longer gives more sustained top-end lift.",
+    )
+
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the hat pattern speed for each step away from its 16th-note grid.",
+    )
+
+    def build(self, tempo: Tempo, clock: Clock) -> Patch:
         """Build a style-specific, grid-locked hat pattern with closed/open choke."""
-        self.configure(**values)
         self._reset()
-        envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=DURATIONS[CLOSED] * self.length, mul=self.level, exp=DECAY_CURVE
+        self.choke_env = self.envelope(
+            DROP, dur=DURATIONS[CLOSED] * self.length, exp=self.decay_curve
         )
-        noise = Noise()
-        operators = tuple(
+        self.noise = Noise()
+        self.operators = tuple(
             FM(
                 carrier=carrier,
                 ratio=ratio,
                 index=index,
-                mul=METAL_GAIN / len(METAL_OPERATORS),
+                mul=self.metal_gain / len(METAL_OPERATORS),
             )
             for carrier, ratio, index in METAL_OPERATORS
         )
-        cluster = Mix(list(operators), voices=1)
-        source = Selector([noise, cluster], voice=self.metal)
-        shaped = source * envelope
-        voice = ButHP(shaped, freq=self.cutoff)
-        self.retain(noise, *operators, cluster, source, shaped)
-        state = {"level": self.level, "length": self.length}
+        self.cluster = Mix(list(self.operators), voices=1)
+        self.source = Selector([self.noise, self.cluster])
+        self.shaped = self.source * self.choke_env
+        self.filtered = ButHP(self.shaped)
 
         step = self.step_pattern(16, self.pattern)
 
         def next_step() -> None:
             step_index, articulation = step()
             if articulation is not None:
-                accent = OFFBEAT_ACCENT if step_index % 4 == 2 else GHOST_ACCENT
-                envelope.mul = state["level"] * accent
+                accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
+                self.choke_env.mul = self.level * accent
                 # one envelope for both articulations, so a closed hit
                 # restarting it cuts off an open tail - the hat choke
-                envelope.dur = DURATIONS[articulation] * state["length"]
+                self.choke_env.dur = DURATIONS[articulation] * self.length
                 self.trigger.play()
 
-        def set_level(value: float) -> None:
-            state["level"] = value
-            envelope.mul = value
-
-        def set_length(value: float) -> None:
-            state["length"] = value
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
-        return self.finish(
-            voice,
-            {
-                "level": set_level,
-                "cutoff": lambda value: setattr(voice, "freq", value),
-                "metal": lambda value: setattr(source, "voice", value),
-                "length": set_length,
-            },
-        )
+        self.schedule(self.base_division, self.rate, clock, next_step)
+        return self.finish(self.filtered)
 
 
 class GrooveCrisp(Groove):

@@ -20,12 +20,12 @@ control instead of a choice. A low-pass then sets how much hiss survives.
 All three share one colour-crossfaded source (`Noise.build`); only the
 movement stage in `moved_signal()` differs, since that is genuinely
 different behavior, not just different profile data (`patches/CLAUDE.md`'s
-design rule 1).
+design rule 1). Each style's `moved_signal()` is a hook method: it assigns
+its own graph nodes onto `self` and leaves the final moving bed in
+`self.moved`, for `Noise.build()` to level and finish.
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 from pyo import PyoObject
 from pyo.lib._core import Mix
@@ -36,57 +36,10 @@ from pyo.lib.pan import Selector
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice, frequency_shift
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param
 
 STYLES = ("air", "surf", "barber")
 
-PARAMETERS = (
-    SliderSpec(
-        "colour",
-        0,
-        2,
-        0.05,
-        1,
-        "Colour",
-        "Moves the noise from bright white hiss (0) through softer pink (1) to dark, rumbling brown (2).",
-    ),
-    SliderSpec(
-        "brightness",
-        300,
-        12000,
-        50,
-        5000,
-        "Brightness",
-        "How much high-end hiss is let through; lower is muffled and distant, higher is airy and close.",
-    ),
-    SliderSpec(
-        "motion",
-        0.25,
-        4,
-        0.05,
-        1,
-        "Motion",
-        "How fast the bed moves; low is a slow tide, high is a restless flutter.",
-    ),
-    SliderSpec(
-        "depth",
-        0,
-        1,
-        0.05,
-        0.6,
-        "Depth",
-        "How far the movement swings; zero is a still, steady bed, full is a wide swell or swirl.",
-    ),
-    SliderSpec(
-        "level",
-        0,
-        0.5,
-        0.01,
-        0.35,
-        "Level",
-        "How loud the noise bed sits under everything else.",
-    ),
-)
 # low-pass Q just under Butterworth, so the cutoff never rings or whistles
 FILTER_Q = 0.7
 # `air`: per-channel cutoff LFO rates (Hz) at Motion 1 - unrelated so the
@@ -122,39 +75,75 @@ class Noise(ContinuousVoice):
     subclass this and override `moved_signal()` for their own kind of
     movement - cutoff breathing, notch sweep, or frequency shift."""
 
-    parameters = PARAMETERS
     volume_default = VOLUME_DEFAULT
 
-    colour: float
-    brightness: float
-    motion: float
-    depth: float
-    level: float
+    colour = Param(
+        0,
+        2,
+        0.05,
+        1,
+        "Colour",
+        "Moves the noise from bright white hiss (0) through softer pink (1) to dark, rumbling brown (2).",
+    )
+    brightness = Param(
+        300,
+        12000,
+        50,
+        5000,
+        "Brightness",
+        "How much high-end hiss is let through; lower is muffled and distant, higher is airy and close.",
+    )
+    motion = Param(
+        0.25,
+        4,
+        0.05,
+        1,
+        "Motion",
+        "How fast the bed moves; low is a slow tide, high is a restless flutter.",
+    )
+    depth = Param(
+        0,
+        1,
+        0.05,
+        0.6,
+        "Depth",
+        "How far the movement swings; zero is a still, steady bed, full is a wide swell or swirl.",
+    )
+    level = Param(
+        0,
+        0.5,
+        0.01,
+        0.35,
+        "Level",
+        "How loud the noise bed sits under everything else.",
+    )
 
-    def moved_signal(
-        self, live: dict[str, Any], source: PyoObject
-    ) -> tuple[PyoObject, tuple[Any, ...]]:
+    white: WhiteNoise
+    pink: PinkNoise
+    brown: BrownNoise
+    source: Selector
+    moved: PyoObject
+    leveled: PyoObject
+
+    def moved_signal(self, live: dict[str, PyoObject], source: PyoObject) -> None:
         """This style's filtered, moving noise bed built from the shared
-        colour-crossfaded `source`, plus any extra Pyo objects it built for
-        `build()` to retain. Overridden per style."""
+        colour-crossfaded `source`: assigns every node it builds onto
+        `self`, ending with the final bed in `self.moved`. Overridden per
+        style."""
         raise NotImplementedError
 
-    def build(self, **values: Any) -> Patch:
-        self.configure(**values)
+    def build(self) -> Patch:
         self._reset()
         live = self.live_all("colour", "brightness", "motion", "depth", "level")
 
-        white = WhiteNoise(mul=COLOUR_GAINS[0])
-        pink = PinkNoise(mul=COLOUR_GAINS[1])
-        brown = BrownNoise(mul=COLOUR_GAINS[2])
-        source = Selector([white, pink, brown], voice=live["colour"])
-        self.retain(white, pink, brown, source)
+        self.white = WhiteNoise(mul=COLOUR_GAINS[0])
+        self.pink = PinkNoise(mul=COLOUR_GAINS[1])
+        self.brown = BrownNoise(mul=COLOUR_GAINS[2])
+        self.source = Selector([self.white, self.pink, self.brown], voice=live["colour"])
 
-        moved, resources = self.moved_signal(live, source)
-        self.retain(*resources)
-
-        voice = moved * live["level"]
-        return self.finish(voice)
+        self.moved_signal(live, self.source)
+        self.leveled = self.moved * live["level"]
+        return self.finish(self.leveled)
 
 
 class NoiseAir(Noise):
@@ -163,13 +152,17 @@ class NoiseAir(Noise):
 
     title = "Noise - Air"
 
+    rates: PyoObject
+    swing: PyoObject
+    cutoff_lfo: Sine
+    cutoff: PyoObject
+
     def moved_signal(self, live, source):
-        rates = live["motion"] * AIR_RATES
-        swing = live["depth"] * AIR_SWING
-        cutoff_lfo = Sine(freq=rates, mul=swing, add=1)
-        cutoff = live["brightness"] * cutoff_lfo
-        shaped = Biquad(source, freq=cutoff, q=FILTER_Q, type=0)
-        return shaped, (rates, swing, cutoff_lfo, cutoff, shaped)
+        self.rates = live["motion"] * AIR_RATES
+        self.swing = live["depth"] * AIR_SWING
+        self.cutoff_lfo = Sine(freq=self.rates, mul=self.swing, add=1)
+        self.cutoff = live["brightness"] * self.cutoff_lfo
+        self.moved = Biquad(source, freq=self.cutoff, q=FILTER_Q, type=0)
 
 
 class NoiseSurf(Noise):
@@ -179,27 +172,44 @@ class NoiseSurf(Noise):
 
     title = "Noise - Surf"
 
-    def moved_signal(self, live, source):
-        shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
-        resources: list[Any] = [shaped]
+    shaped: Biquad
+    freq_rates: PyoObject
+    freq_swing: PyoObject
+    freq_lfo: Sine
+    spread_rates: PyoObject
+    spread_swing: PyoObject
+    spread_lfo: Sine
+    q_rates: PyoObject
+    q_swing: PyoObject
+    q_lfo: Sine
+    phased: Phaser
+    dry: PyoObject
+    notched: PyoObject
 
-        lfos = []
-        for rates, swing, centre in (SURF_FREQ, SURF_SPREAD, SURF_Q):
-            lfo_rates = live["motion"] * rates
-            lfo_swing = live["depth"] * swing
-            lfo = Sine(freq=lfo_rates, mul=lfo_swing, add=centre)
-            lfos.append(lfo)
-            resources += [lfo_rates, lfo_swing, lfo]
+    def moved_signal(self, live, source):
+        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+
+        self.freq_rates = live["motion"] * SURF_FREQ[0]
+        self.freq_swing = live["depth"] * SURF_FREQ[1]
+        self.freq_lfo = Sine(freq=self.freq_rates, mul=self.freq_swing, add=SURF_FREQ[2])
+
+        self.spread_rates = live["motion"] * SURF_SPREAD[0]
+        self.spread_swing = live["depth"] * SURF_SPREAD[1]
+        self.spread_lfo = Sine(freq=self.spread_rates, mul=self.spread_swing, add=SURF_SPREAD[2])
+
+        self.q_rates = live["motion"] * SURF_Q[0]
+        self.q_swing = live["depth"] * SURF_Q[1]
+        self.q_lfo = Sine(freq=self.q_rates, mul=self.q_swing, add=SURF_Q[2])
 
         # pyo's Phaser is a pure allpass cascade: its own output has a flat
         # spectrum, and the notches only appear where it cancels against the
         # dry bed, so the two are summed here
-        phased = Phaser(shaped, freq=lfos[0], spread=lfos[1], q=lfos[2], num=SURF_NOTCHES)
-        dry = shaped.mix(2)
-        notched = dry + phased
-        moved = notched * SURF_GAIN
-        resources += [phased, dry, notched, moved]
-        return moved, tuple(resources)
+        self.phased = Phaser(
+            self.shaped, freq=self.freq_lfo, spread=self.spread_lfo, q=self.q_lfo, num=SURF_NOTCHES
+        )
+        self.dry = self.shaped.mix(2)
+        self.notched = self.dry + self.phased
+        self.moved = self.notched * SURF_GAIN
 
 
 class NoiseBarber(Noise):
@@ -208,20 +218,35 @@ class NoiseBarber(Noise):
 
     title = "Noise - Barber"
 
-    def moved_signal(self, live, source):
-        shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
-        resources: list[Any] = [shaped]
+    shaped: Biquad
+    shift_rate_a: PyoObject
+    shift_swing_a: PyoObject
+    shift_a: Sine
+    shifted_a: PyoObject
+    shift_rate_b: PyoObject
+    shift_swing_b: PyoObject
+    shift_b: Sine
+    shifted_b: PyoObject
+    wet: Mix
+    dry: PyoObject
 
-        wet_channels = []
-        for rate in BARBER_RATES:
-            shift_rate = live["motion"] * rate
-            shift_swing = live["depth"] * BARBER_SHIFT
-            shift = Sine(freq=shift_rate, mul=shift_swing)
-            shifted = frequency_shift(shaped, shift)
-            wet_channels.append(shifted.output)
-            resources += [shift_rate, shift_swing, shift, *shifted.resources, shifted.output]
-        wet = Mix(wet_channels, voices=2, mul=BARBER_WET)
-        dry = shaped.mix(2)
-        moved = dry + wet
-        resources += [wet, dry, moved]
-        return moved, tuple(resources)
+    def moved_signal(self, live, source):
+        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+
+        self.shift_rate_a = live["motion"] * BARBER_RATES[0]
+        self.shift_swing_a = live["depth"] * BARBER_SHIFT
+        self.shift_a = Sine(freq=self.shift_rate_a, mul=self.shift_swing_a)
+        stage_a = frequency_shift(self.shaped, self.shift_a)
+        self.shifted_a = stage_a.output
+        self.retain(*stage_a.resources)
+
+        self.shift_rate_b = live["motion"] * BARBER_RATES[1]
+        self.shift_swing_b = live["depth"] * BARBER_SHIFT
+        self.shift_b = Sine(freq=self.shift_rate_b, mul=self.shift_swing_b)
+        stage_b = frequency_shift(self.shaped, self.shift_b)
+        self.shifted_b = stage_b.output
+        self.retain(*stage_b.resources)
+
+        self.wet = Mix([self.shifted_a, self.shifted_b], voices=2, mul=BARBER_WET)
+        self.dry = self.shaped.mix(2)
+        self.moved = self.dry + self.wet

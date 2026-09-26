@@ -15,9 +15,9 @@ For a request involving a real patch, a rack, or a new project, follow this orde
 1. Determine whether the task is purely musical, sonic-to-DSP translation, or implementation/project scaffolding.
 2. If it is musical theory/composition-only, read [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md).
 3. If it is sound design or synthesis translation, read [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md).
-4. If it is project architecture, rack creation, `Patch`/`PatchGroupDef` structure, or new project scaffolding, use this file and its workflow below.
+4. If it is project architecture, rack creation, `Patch`/`PatchGroupDef` structure, or new project scaffolding, read [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md) for the concrete new-project workflow.
 
-This file is the correct place for concrete implementation and project-flow rules. The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
+This file is the correct place for routing and the foundational principle below; the concrete new-project workflow itself lives in [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md). The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
 
 ## Foundational principle
 
@@ -27,21 +27,6 @@ many valid synthesis strategies, and one Pyo object can serve many different
 musical purposes. Move through musical reasoning → sonic reasoning →
 synthesis strategy → Pyo implementation, as the skill chain describes — don't
 collapse that chain early.
-
-## New project workflow
-
-When the user asks for a new project named `{project_name}` (a whole new Flet
-app + patch rack, not a single patch edit), use this workflow in order:
-
-1. **Ground the request.** Start with the musical and sonic brief, then translate it through the music and pyo-music skills before creating files.
-2. **Choose the project layout.** Create the project package under `src/flet/{project_name}/` and the rack under `src/pyoscillate/projects/{project_name}/` when a new app/rack is required.
-3. **Reuse or extend existing patch families first.** Search the nearest patch family before creating a new module. Extend an existing family or builder when possible.
-4. **Implement the patch set.** Use the existing patch-type directories under `src/pyoscillate/patches/` and the runtime conventions described in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md) as the implementation source of truth.
-5. **Wire the rack.** Put the `PATCH_DEFS` list in the project rack module and keep the app layer thin.
-6. **Add README and presets.** Document the musical brief and concept-to-patch mapping; add a `presets/` folder for the Flet app when relevant.
-7. **Validate the runtime contract.** Keep the patch graph and runtime state aligned with the project's patch architecture rules.
-
-This is a project-level workflow, not a music-skill workflow. It lives here so it remains discoverable to agents and to future project creation tasks.
 
 ## Non-agentic project setup
 
@@ -65,6 +50,6 @@ and the real modules under that folder.
 
 ## Implementation authority
 
-Implementation authority is distributed, not centralized in this file: the shared patch lifecycle/runtime contract lives in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md), and the concrete sonic concept for any given patch type lives in that patch-type directory's own instruction file (e.g. `src/pyoscillate/patches/<type>/CLAUDE.md`). Consult the nearest nested instruction set for a patch family rather than a fixed list of files here — specific modules move and get renamed as the patch set grows, so this file intentionally does not cite them.
+Implementation authority is distributed, not centralized in this file: the shared patch lifecycle/runtime contract lives in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md), the concrete sonic concept for any given patch type lives in that patch-type directory's own instruction file (e.g. `src/pyoscillate/patches/<type>/CLAUDE.md`), and the new-project workflow (README ordering, layout, patch reuse, rack wiring) lives in [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md). Consult the nearest nested instruction set for a patch family rather than a fixed list of files here — specific modules move and get renamed as the patch set grows, so this file intentionally does not cite them.
 
 The skill files should route into that implementation layer and explain the musical reasoning, not duplicate its implementation contracts.

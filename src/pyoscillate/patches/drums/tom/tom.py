@@ -7,102 +7,29 @@ two-bar fill down a minor pentatonic built on the rack's current chord root,
 adding pitched contour to the kit without the weight of the kick.
 """
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
+from pyo import PyoObject
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
-BASE_DIVISION = NoteDivision.SIXTEENTH
-
-PARAMETERS = (
-    SliderSpec(
-        "level",
-        0.02,
-        0.6,
-        0.01,
-        0.2,
-        "Presence",
-        "Sets how loud and upfront the tom fill sits in the mix.",
-    ),
-    SliderSpec(
-        "tune",
-        -12,
-        12,
-        1,
-        0,
-        "Pitch",
-        "Retunes the whole fill in semitones; lower is a deeper floor tom, higher a tighter rack tom.",
-    ),
-    SliderSpec(
-        "sweep",
-        0.0,
-        2.0,
-        0.05,
-        1.0,
-        "Sweep",
-        "Depth of the downward pitch bend on each hit; more gives a bigger impact gesture, too much "
-        "starts to sound like a zap, none leaves a static pitched ping.",
-    ),
-    SliderSpec(
-        "length",
-        0.5,
-        2.0,
-        0.05,
-        1.0,
-        "Length",
-        "Shortens the tom toward a dry, damped hit or lets it ring out with a longer resonant tail.",
-    ),
-    SliderSpec(
-        "tone",
-        0.0,
-        1.0,
-        0.05,
-        0.35,
-        "Brightness",
-        "Adds the upper membrane overtone and stick attack; low is a round, deep tom, high a brighter, "
-        "more articulate one.",
-    ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
-        "Halves or doubles the fill speed for each step away from its 16th-note grid.",
-    ),
-)
+# full-to-zero break-points shared by every envelope
+DROP = [(0, 1), (8191, 0)]
 # step in the two-bar (32-step) cycle -> semitones above the chord root;
 # fifth, fifth, minor third, root walks down the minor pentatonic, and all
 # four are tones of the rack's minor-seventh chords (E, E, C, A over Am7)
 PATTERN = {10: 7, 26: 7, 29: 3, 31: 0}
 CYCLE = 32
-# A2 - low-mid register, well above a kick; each chord root snaps to the
-# octave nearest this before Pitch retunes it
-BODY_FREQ = notes.A2
-BEND_DEPTH = 0.4
-BEND_TIME = 0.06
-DECAY = 0.3
-# a circular membrane's first overtone sits at roughly 1.59x the fundamental
-OVERTONE_RATIO = 1.59
-OVERTONE_LEVEL = 0.5
-OVERTONE_DECAY = 0.12
-CLICK_LEVEL = 0.6
-CLICK_RATIO = 6.0
-CLICK_RESONANCE = 2.0
-CLICK_DURATION = 0.01
-DECAY_CURVE = 3
-BEND_CURVE = 4
-VOLUME_DEFAULT = 0.3
 # a static key of A - used only outside a rack that shares its own `Harmony`
 FALLBACK_HARMONY = Harmony()
 
@@ -116,115 +43,153 @@ class Tom(DrumVoice):
     """
 
     summary = "Sparse two-bar tom fill on the current chord's minor pentatonic."
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
+    volume_default = 0.3
+    base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     needs_harmony: ClassVar[bool] = True
 
-    level: float
-    tune: float
-    sweep: float
-    length: float
-    tone: float
-    rate: float
+    # settled body pitch (Hz); pitch-bend depth/time; body decay; membrane
+    # overtone ratio/level/decay; transient level/tuning/resonance/duration;
+    # amplitude and pitch-bend curve exponents
+    body_freq: ClassVar[float] = notes.A2
+    bend_depth: ClassVar[float] = 0.4
+    bend_time: ClassVar[float] = 0.06
+    decay: ClassVar[float] = 0.3
+    # a circular membrane's first overtone sits at roughly 1.59x the fundamental
+    overtone_ratio: ClassVar[float] = 1.59
+    overtone_level: ClassVar[float] = 0.5
+    overtone_decay: ClassVar[float] = 0.12
+    click_level: ClassVar[float] = 0.6
+    click_ratio: ClassVar[float] = 6.0
+    click_resonance: ClassVar[float] = 2.0
+    click_duration: ClassVar[float] = 0.01
+    decay_curve: ClassVar[float] = 3
+    bend_curve: ClassVar[float] = 4
 
-    def build(
-        self,
-        tempo: Tempo,
-        clock: Clock,
-        harmony: Harmony | None = None,
-        **values: Any,
-    ) -> Patch:
-        self.configure(**values)
+    # the graph, assigned by build(); finish() retains every one of them
+    tuning: Sig
+    root_freq: PyoObject
+    bend: TrigEnv
+    pitch: PyoObject
+    body: Sine
+    body_env: TrigEnv
+    body_signal: PyoObject
+    overtone_pitch: PyoObject
+    overtone: Sine
+    overtone_env: TrigEnv
+    overtone_signal: PyoObject
+    noise: Noise
+    click_env: TrigEnv
+    click_burst: PyoObject
+    click_freq: PyoObject
+    click_signal: Biquad
+    partials: PyoObject
+    voice_signal: PyoObject
+
+    @Param(
+        0.02,
+        0.6,
+        0.01,
+        0.2,
+        "Presence",
+        "Sets how loud and upfront the tom fill sits in the mix.",
+    )
+    def level(self, value: float) -> None:
+        self.body_env.mul = value
+        self.overtone_env.mul = value * self.tone * self.overtone_level
+        self.click_env.mul = value * self.tone * self.click_level
+
+    tune = Param(
+        -12,
+        12,
+        1,
+        0,
+        "Pitch",
+        "Retunes the whole fill in semitones; lower is a deeper floor tom, higher a tighter rack tom.",
+    )
+
+    @Param(
+        0.0,
+        2.0,
+        0.05,
+        1.0,
+        "Sweep",
+        "Depth of the downward pitch bend on each hit; more gives a bigger impact gesture, too much "
+        "starts to sound like a zap, none leaves a static pitched ping.",
+    )
+    def sweep(self, value: float) -> None:
+        self.bend.mul = self.bend_depth * value
+
+    @Param(
+        0.5,
+        2.0,
+        0.05,
+        1.0,
+        "Length",
+        "Shortens the tom toward a dry, damped hit or lets it ring out with a longer resonant tail.",
+    )
+    def length(self, value: float) -> None:
+        self.body_env.dur = self.decay * value
+        self.overtone_env.dur = self.overtone_decay * value
+
+    @Param(
+        0.0,
+        1.0,
+        0.05,
+        0.35,
+        "Brightness",
+        "Adds the upper membrane overtone and stick attack; low is a round, deep tom, high a brighter, "
+        "more articulate one.",
+    )
+    def tone(self, value: float) -> None:
+        self.overtone_env.mul = self.level * value * self.overtone_level
+        self.click_env.mul = self.level * value * self.click_level
+
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the fill speed for each step away from its 16th-note grid.",
+    )
+
+    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
         harmony = harmony or FALLBACK_HARMONY
-        tuning = Sig(semitone_ratio(self.tune))
-        body_freq = tuning * BODY_FREQ
 
-        bend = self.envelope(
-            [(0, 1), (8191, 0)], dur=BEND_TIME, mul=BEND_DEPTH * self.sweep, add=1, exp=BEND_CURVE
-        )
-        pitch = body_freq * bend
-        body = Sine(freq=pitch)
-        body_env = self.envelope(
-            [(0, 1), (8191, 0)], dur=DECAY * self.length, mul=self.level, exp=DECAY_CURVE
-        )
-        body_signal = body * body_env
+        self.tuning = Sig(semitone_ratio(self.tune))
+        self.root_freq = self.tuning * self.body_freq
 
-        overtone_pitch = pitch * OVERTONE_RATIO
-        overtone = Sine(freq=overtone_pitch)
-        overtone_env = self.envelope(
-            [(0, 1), (8191, 0)],
-            dur=OVERTONE_DECAY * self.length,
-            mul=self.level * self.tone * OVERTONE_LEVEL,
-            exp=DECAY_CURVE,
-        )
-        overtone_signal = overtone * overtone_env
+        self.bend = self.envelope(DROP, dur=self.bend_time, add=1, exp=self.bend_curve)
+        self.pitch = self.root_freq * self.bend
+        self.body = Sine(freq=self.pitch)
+        self.body_env = self.envelope(DROP, dur=self.decay, exp=self.decay_curve)
+        self.body_signal = self.body * self.body_env
 
-        noise = Noise()
-        click_env = self.envelope(
-            [(0, 1), (8191, 0)],
-            dur=CLICK_DURATION,
-            mul=self.level * self.tone * CLICK_LEVEL,
-            exp=BEND_CURVE,
-        )
-        click_burst = noise * click_env
-        click_freq = body_freq * CLICK_RATIO
-        click_signal = Biquad(click_burst, freq=click_freq, q=CLICK_RESONANCE, type=2)
+        self.overtone_pitch = self.pitch * self.overtone_ratio
+        self.overtone = Sine(freq=self.overtone_pitch)
+        self.overtone_env = self.envelope(DROP, dur=self.overtone_decay, exp=self.decay_curve)
+        self.overtone_signal = self.overtone * self.overtone_env
 
-        partials = body_signal + overtone_signal
-        voice = partials + click_signal
-        self.retain(
-            tuning,
-            body_freq,
-            pitch,
-            body,
-            body_signal,
-            overtone_pitch,
-            overtone,
-            overtone_signal,
-            noise,
-            click_burst,
-            click_freq,
-            click_signal,
-            partials,
+        self.noise = Noise()
+        self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.bend_curve)
+        self.click_burst = self.noise * self.click_env
+        self.click_freq = self.root_freq * self.click_ratio
+        self.click_signal = Biquad(
+            self.click_burst, freq=self.click_freq, q=self.click_resonance, type=2
         )
-        state = {"level": self.level, "tune": self.tune, "tone": self.tone}
 
-        def apply_gains() -> None:
-            overtone_env.mul = state["level"] * state["tone"] * OVERTONE_LEVEL
-            click_env.mul = state["level"] * state["tone"] * CLICK_LEVEL
-            body_env.mul = state["level"]
+        self.partials = self.body_signal + self.overtone_signal
+        self.voice_signal = self.partials + self.click_signal
 
         step = self.step_pattern(CYCLE, PATTERN)
 
         def next_step() -> None:
             _, offset = step()
             if offset is not None:
-                chord_ratio = harmony.chord_freq(BODY_FREQ, clock.bar_index) / BODY_FREQ
-                tuning.value = chord_ratio * semitone_ratio(state["tune"] + offset)
+                chord_ratio = harmony.chord_freq(self.body_freq, clock.bar_index) / self.body_freq
+                self.tuning.value = chord_ratio * semitone_ratio(self.tune + offset)
                 # restart both partials on a zero crossing so the immediate
                 # attack doesn't click wherever the oscillators last stopped
-                body.reset()
-                overtone.reset()
+                self.body.reset()
+                self.overtone.reset()
                 self.trigger.play()
 
-        def set_state(name: str, value: float) -> None:
-            state[name] = value
-            apply_gains()
-
-        def set_length(value: float) -> None:
-            body_env.dur = DECAY * value
-            overtone_env.dur = OVERTONE_DECAY * value
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
-        return self.finish(
-            voice,
-            {
-                "level": lambda value: set_state("level", value),
-                # takes effect from the next hit, which sets the fill note too
-                "tune": lambda value: state.__setitem__("tune", value),
-                "sweep": lambda value: setattr(bend, "mul", BEND_DEPTH * value),
-                "length": set_length,
-                "tone": lambda value: set_state("tone", value),
-            },
-        )
+        self.schedule(self.base_division, self.rate, clock, next_step)
+        return self.finish(self.voice_signal)

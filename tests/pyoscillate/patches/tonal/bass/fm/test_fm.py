@@ -60,7 +60,7 @@ BPM = 120
 SIXTEENTH = 60 / BPM / 4
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
-SLIDERS = {spec.name: spec for spec in fm.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in fm.FmBass.parameters}
 
 
 @cache

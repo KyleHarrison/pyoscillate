@@ -77,7 +77,7 @@ BPM = 120
 BACKBEATS = (0.5, 1.5)
 ONSET_TOLERANCE = 0.02
 SECONDS = 2.0
-SLIDERS = {spec.name: spec for spec in clap.PARAMETERS}
+SLIDERS = {spec.name: spec for spec in clap.Clap.parameters}
 
 
 @cache
@@ -94,7 +94,7 @@ def _backbeat(result: Features) -> Hit:
 
 
 def _envelope_length(spread: float, decay: float) -> float:
-    return clap.BURSTS * spread + decay
+    return clap.Clap.bursts * spread + decay
 
 
 class ClapHealthTests(unittest.TestCase):

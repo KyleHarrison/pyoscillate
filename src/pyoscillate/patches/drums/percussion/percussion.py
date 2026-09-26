@@ -9,73 +9,23 @@ transient bright and woody; the conga uses a lower, longer body with only a
 soft touch of transient, a warmer answer to the kick.
 """
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
+from pyo import PyoObject
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
+from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
-from pyoscillate.patches.params import SliderSpec
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
-BASE_DIVISION = NoteDivision.SIXTEENTH
-
-PARAMETERS = (
-    SliderSpec(
-        "level",
-        0.02,
-        0.6,
-        0.01,
-        0.18,
-        "Presence",
-        "Sets how loud and upfront the percussion accent sits in the mix.",
-    ),
-    SliderSpec(
-        "tune",
-        -12,
-        12,
-        1,
-        0,
-        "Pitch",
-        "Retunes the accent in semitones; lower is deeper and woodier, higher is thinner and sharper.",
-    ),
-    SliderSpec(
-        "length",
-        0.5,
-        2.0,
-        0.05,
-        1.0,
-        "Length",
-        "Shortens the accent toward a dry, clipped tick or lets it ring out into a rounder, more resonant tone.",
-    ),
-    SliderSpec(
-        "click",
-        0.0,
-        2.0,
-        0.05,
-        1.0,
-        "Attack",
-        "Level of the woody transient on each hit; more gives a sharper, clickier strike, less leaves a "
-        "softer, purely tonal hit.",
-    ),
-    SliderSpec(
-        "rate",
-        Clock.rate_limits(BASE_DIVISION)[0],
-        Clock.rate_limits(BASE_DIVISION)[1],
-        1,
-        0,
-        "Rate",
-        "Halves or doubles the accent pattern speed for each step away from its 16th-note grid.",
-    ),
-)
-DECAY_CURVE = 3
-BEND_CURVE = 6
-CLICK_DURATION = 0.008
-VOLUME_DEFAULT = 0.28
+# full-to-zero break-points shared by every envelope; `exp` sets the curve
+DROP = [(0, 1), (8191, 0)]
 
 
 class Percussion(DrumVoice):
@@ -83,14 +33,11 @@ class Percussion(DrumVoice):
     band-passed noise transient. Style variants share this graph and
     override the profile attributes below."""
 
-    parameters = PARAMETERS
-    volume_default = VOLUME_DEFAULT
-
-    level: float
-    tune: float
-    length: float
-    click: float
-    rate: float
+    volume_default = 0.28
+    base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    decay_curve: ClassVar[float] = 3
+    bend_curve: ClassVar[float] = 6
+    click_duration: ClassVar[float] = 0.008
 
     # step-in-16 pattern; body pitch (Hz), pitch bend (fraction above body
     # at the strike), bend time (s), body decay (s), transient level,
@@ -105,36 +52,92 @@ class Percussion(DrumVoice):
     click_ratio: ClassVar[float]
     click_q: ClassVar[float]
 
-    def build(self, tempo: Tempo, clock: Clock, **values: Any) -> Patch:
-        self.configure(**values)
+    # the graph, assigned by build(); finish() retains every one of them
+    tuning: Sig
+    body_freq: PyoObject
+    bend: TrigEnv
+    pitch: PyoObject
+    body: Sine
+    body_env: TrigEnv
+    body_signal: PyoObject
+    noise: Noise
+    click_env: TrigEnv
+    click_burst: PyoObject
+    click_freq: PyoObject
+    click_signal: Biquad
+    source: PyoObject
+
+    @Param(
+        0.02,
+        0.6,
+        0.01,
+        0.18,
+        "Presence",
+        "Sets how loud and upfront the percussion accent sits in the mix.",
+    )
+    def level(self, value: float) -> None:
+        self.body_env.mul = value
+        self.click_env.mul = self.click_level * self.click * value
+
+    @Param(
+        -12,
+        12,
+        1,
+        0,
+        "Pitch",
+        "Retunes the accent in semitones; lower is deeper and woodier, higher is thinner and sharper.",
+    )
+    def tune(self, value: float) -> None:
+        self.tuning.value = semitone_ratio(value)
+
+    @Param(
+        0.5,
+        2.0,
+        0.05,
+        1.0,
+        "Length",
+        "Shortens the accent toward a dry, clipped tick or lets it ring out into a rounder, more resonant tone.",
+    )
+    def length(self, value: float) -> None:
+        self.body_env.dur = self.decay * value
+
+    @Param(
+        0.0,
+        2.0,
+        0.05,
+        1.0,
+        "Attack",
+        "Level of the woody transient on each hit; more gives a sharper, clickier strike, less leaves a "
+        "softer, purely tonal hit.",
+    )
+    def click(self, value: float) -> None:
+        self.click_env.mul = self.click_level * value * self.level
+
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the accent pattern speed for each step away from its 16th-note grid.",
+    )
+
+    def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
-        tuning = Sig(semitone_ratio(self.tune))
-        body_freq = tuning * self.base_freq
+        self.tuning = Sig(semitone_ratio(self.tune))
+        self.body_freq = self.tuning * self.base_freq
 
-        bend = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.bend_time, mul=self.bend_depth, add=1, exp=BEND_CURVE
+        self.bend = self.envelope(
+            DROP, dur=self.bend_time, mul=self.bend_depth, add=1, exp=self.bend_curve
         )
-        pitch = body_freq * bend
-        body = Sine(freq=pitch)
-        envelope = self.envelope(
-            [(0, 1), (8191, 0)], dur=self.decay * self.length, mul=self.level, exp=DECAY_CURVE
-        )
-        body_signal = body * envelope
+        self.pitch = self.body_freq * self.bend
+        self.body = Sine(freq=self.pitch)
+        self.body_env = self.envelope(DROP, dur=self.decay, exp=self.decay_curve)
+        self.body_signal = self.body * self.body_env
 
-        noise = Noise()
-        click_env = self.envelope(
-            [(0, 1), (8191, 0)],
-            dur=CLICK_DURATION,
-            mul=self.click_level * self.click * self.level,
-            exp=BEND_CURVE,
-        )
-        click_burst = noise * click_env
-        click_freq = body_freq * self.click_ratio
-        click_signal = Biquad(click_burst, freq=click_freq, q=self.click_q, type=2)
+        self.noise = Noise()
+        self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.bend_curve)
+        self.click_burst = self.noise * self.click_env
+        self.click_freq = self.body_freq * self.click_ratio
+        self.click_signal = Biquad(self.click_burst, freq=self.click_freq, q=self.click_q, type=2)
 
-        voice = body_signal + click_signal
-        self.retain(tuning, body_freq, pitch, body, body_signal, noise, click_burst, click_freq, click_signal)
-        state = {"level": self.level, "click": self.click}
+        self.source = self.body_signal + self.click_signal
 
         step = self.step_pattern(16, self.pattern)
 
@@ -143,28 +146,11 @@ class Percussion(DrumVoice):
             if hit is not None:
                 # restart the body on a zero crossing so the immediate
                 # attack doesn't click wherever the oscillator last stopped
-                body.reset()
+                self.body.reset()
                 self.trigger.play()
 
-        def set_level(value: float) -> None:
-            state["level"] = value
-            envelope.mul = value
-            click_env.mul = self.click_level * state["click"] * value
-
-        def set_click(value: float) -> None:
-            state["click"] = value
-            click_env.mul = self.click_level * value * state["level"]
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
-        return self.finish(
-            voice,
-            {
-                "level": set_level,
-                "tune": lambda value: setattr(tuning, "value", semitone_ratio(value)),
-                "length": lambda value: setattr(envelope, "dur", self.decay * value),
-                "click": set_click,
-            },
-        )
+        self.schedule(self.base_division, self.rate, clock, next_step)
+        return self.finish(self.source)
 
 
 class PercussionRim(Percussion):
