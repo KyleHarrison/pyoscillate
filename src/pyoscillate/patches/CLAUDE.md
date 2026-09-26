@@ -2,20 +2,46 @@
 
 This directory is organized by patch type — one subdirectory per sonic/musical
 role (a bass family, a kick family, a drone family, and so on), never per
-project. This file is the contract every patch must satisfy. It cites one
-module on purpose: `drums/kick/kick.py` is the reference implementation of
-the architecture below, and every other module is being migrated to match
-it. Beyond that, it avoids citing specific modules, which move and get
-renamed. The reasoning behind the architecture lives in
-[docs/concepts/patch-lifecycle.md](../../../docs/concepts/patch-lifecycle.md).
+project. This file is the contract every patch must satisfy, and how to lay
+out a new patch-type subdirectory within it. It cites one module on purpose:
+`drums/kick/kick.py` is the reference implementation of the architecture
+below. Beyond that, it avoids citing specific modules, which move and get
+renamed. For how the shared framework itself works — the `Patch` lifecycle,
+the Pyo graph, the clock, and parameter updates — see
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Read these first
 
 - `.claude/skills/pyo-music/SKILL.md` — musical intent, synthesis strategy, and choice of Pyo objects
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the shared `Patch`/`Param`/`Clock` framework works
 - The nested `CLAUDE.md` inside the patch-type directory you're working in — the concrete, concept-level authority for that sonic role (its sonic function, minimal architecture, and design alternatives)
-- The other modules already living in that same directory — for their sound and signal graph. For code structure, follow `drums/kick/kick.py` and the contract below; most modules are still on the legacy shape (see "Migrating a legacy module")
+- The other modules already living in that same directory — for their sound and signal graph, and for code structure, following `drums/kick/kick.py` and the contract below
 
 The goal is simple: musical reasoning is handled by the skill, the sonic concept for a given patch type is handled by that directory's own instruction file, and this file only covers the shared implementation/runtime contract every patch must follow.
+
+## Creating a new patch-type subdirectory
+
+Before creating one, check whether an existing directory already covers the
+musical role you need (see "Choosing a family" below) and extend it instead.
+
+When a new role genuinely isn't covered:
+
+1. Create `patches/<family>/` with an `__init__.py` and a `CLAUDE.md`.
+2. Write that `CLAUDE.md` as the sonic concept for the family, described
+   abstractly: its musical role, its minimal signal-chain shape, and the
+   design alternatives worth knowing about. It does not restate this file's
+   implementation contract, and it does not need to cite its own modules by
+   name — module content is the working reference for style and shape.
+3. If the directory holds a genuinely new role with no patches yet, mark the
+   `CLAUDE.md` "Status: placeholder" instead of writing module code. Fill it
+   in from sources and drop the placeholder status when the first patch in
+   it is implemented.
+4. Add one module per implementation, following "Module anatomy" below, with
+   a family base class (subclassing `common.GatedVoice` or
+   `common.ContinuousVoice`, see [ARCHITECTURE.md](ARCHITECTURE.md)) and one
+   small style subclass per variant.
+5. List instances directly in a project rack's `PatchGroupDef` — a patch
+   module never wires its own UI (design rule 6).
 
 ## Directory model
 
@@ -234,37 +260,6 @@ return self.finish(self.<output node>)
    switched back on, or a `rebuild_parameters` value changes. `_reset()`
    stops a graph that is still playing and keeps it alive through its fade.
 
-### Migrating a legacy module
-
-Legacy modules have a `PARAMETERS` tuple of `SliderSpec`s,
-`build(..., **values)` starting with `self.configure(**values)`, named
-locals, and a `controls` dict (or `self.controls[...] = ...`). To migrate:
-
-1. Turn each `SliderSpec` into a `@Param` whose method body is the old
-   control lambda. A value that was mirrored into a state dict becomes a
-   bare `Param` read via `self`. Delete `PARAMETERS` and any
-   `parameters = PARAMETERS`.
-2. Replace the hand-written rate `SliderSpec` or `rate_slider(...)` with
-   `rate_param(...)`.
-3. Add class annotations for every node; turn every local into a `self.`
-   assignment. Remove the parameter mappings from constructor calls.
-4. Drop `**values` and `self.configure(**values)` from `build()`.
-5. End with `return self.finish(voice)`; delete the `controls` dict, the
-   `resources=` tuple, and any `self.retain(...)` of objects now on `self`.
-6. Move module-level `VOLUME_DEFAULT`/profile constants onto the class when
-   only that class uses them.
-7. Base-class helpers that register into `self.controls` (e.g. a shared
-   register/octave control) become `@Param`s on that base class. Migrate
-   the base with its first subclass.
-8. Update tests that read `module.PARAMETERS` to read
-   `SomeClass.parameters` instead. `tests/pyoscillate/patches/test_params.py`
-   finds Register sliders through `module.PARAMETERS`, so a migrated module
-   with a `root_freq` drops out of that check until the helper also scans
-   `Patch` subclasses.
-
-`Patch.set()` still honours `self.controls`, so migrated and unmigrated
-modules coexist; don't mix both styles inside one class.
-
 ## Design rules
 
 ### 1. Extend existing families before creating new files
@@ -314,9 +309,9 @@ DSP chain needs.
 - Store every table, trigger, envelope, generator, modulation source, effect
 	input, and Pyo arithmetic result as a `self.<name>` attribute, declared as
 	an annotation on the class. `finish()` retains every public Pyo object on
-	the instance automatically; use `self.retain(...)` only for objects that
-	never become attributes (e.g. a list of triggers). Unmigrated modules that
-	still use named locals must pass them all in `finish(..., resources=(...))`.
+	the instance automatically; use `self.retain(...)` (or `finish(...,
+	resources=(...))` for a `GatedVoice`) only for objects that never become
+	attributes, e.g. a list of triggers.
 - Never embed a Pyo constructor or arithmetic expression anonymously inside
 	another Pyo constructor. For example, replace `TrigEnv(trigger,
 	CosTable(...))`, `Biquad(Noise() * envelope, ...)`, and
