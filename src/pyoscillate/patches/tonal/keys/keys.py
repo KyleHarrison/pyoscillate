@@ -17,6 +17,14 @@ Both share one exponential amplitude envelope with no sustain. An optional
 voicings, comped in a Charleston rhythm (beat one, then the "and" of two).
 Notes rotate over `SLOTS` chord slots, so a long Decay rings into the next
 chord instead of being cut.
+
+An optional slow, continuous Wobble - a sub-1 Hz sine multiplying every
+voice's pitch by a tiny, ever-drifting ratio - models tape wow-and-flutter:
+distinct from Tremolo, which throbs the *level* in a fixed 8th-note rhythm,
+Wobble drifts the *pitch* at its own slow, unrhythmic rate. Each note's base
+pitch is held in its own `Sig` (`freq_sigs`) instead of being written straight
+onto `FM.carrier`, so the wobble ratio can multiply every currently-sounding
+voice continuously between triggers, not just at the strike.
 """
 
 from __future__ import annotations
@@ -24,6 +32,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from pyo import PyoObject
+from pyo.lib._core import Sig
 from pyo.lib.controls import SigTo
 from pyo.lib.filters import ButHP
 from pyo.lib.generators import FM, Sine
@@ -82,11 +91,17 @@ class Keys(GatedVoice):
     gain: ClassVar[float] = 0.04
     # under the lowest note (Register 110, four semitones down: 87 Hz)
     subsonic: ClassVar[float] = 20
+    # tape wow-and-flutter LFO rate (Hz) - slow and unrhythmic, unlike the
+    # tremolo's fixed 8th-note throb - and its widest fractional pitch swing
+    # at full Wobble
+    wobble_rate: ClassVar[float] = 0.18
+    wobble_depth_max: ClassVar[float] = 0.015
 
     # the graph, assigned by build(); finish() retains every one of them
     triggers: list[Trig]
     strikes: list[Trig]
     freqs: list[float]
+    freq_sigs: list[Sig]
     velocities: list[float]
     amp_table: LinTable
     body_table: LinTable
@@ -95,13 +110,17 @@ class Keys(GatedVoice):
     body_index: TrigEnv
     tine_index: TrigEnv
     tine_amp: TrigEnv
+    wobble_depth: SigTo
+    wobble_lfo: Sine
+    wobble_ratio: PyoObject
+    wobbled_freqs: list[PyoObject]
     body: FM
     tine: FM
     chord_notes_signal: PyoObject
     mixed: PyoObject
     chord: ButHP
     depth: SigTo
-    wobble: Sine
+    tremolo_lfo: Sine
     swing: PyoObject
     throb: PyoObject
     voice_signal: PyoObject
@@ -163,6 +182,18 @@ class Keys(GatedVoice):
     def tremolo(self, value: float) -> None:
         self.depth.value = value / 2
 
+    @Param(
+        0,
+        1,
+        0.05,
+        0.0,
+        "Wobble",
+        "Slow, unsteady pitch drift like tape wow-and-flutter - distinct from Tremolo, which throbs the "
+        "level in a fixed rhythm; 0 keeps the pitch rock steady, higher adds a slow, wavering detune.",
+    )
+    def wobble(self, value: float) -> None:
+        self.wobble_depth.value = value * self.wobble_depth_max
+
     rate = rate_param(
         base_division,
         "Halves or doubles the comping speed for each step away from its 16th-note grid.",
@@ -206,8 +237,22 @@ class Keys(GatedVoice):
         # on the same pitch, and a tine carrier left ringing would cancel part of
         # the body's fundamental (see test_keys.py)
         self.tine_amp = TrigEnv(self.strikes, self.amp_table, dur=self.tine_ring, mul=0)
-        self.body = FM(carrier=self.freqs, ratio=self.body_ratio, index=self.body_index, mul=self.amp)
-        self.tine = FM(carrier=self.freqs, ratio=self.tine_ratio, index=self.tine_index, mul=self.tine_amp)
+
+        # each voice's base pitch lives in its own Sig instead of a plain
+        # float, so a continuous wobble ratio can multiply every currently-
+        # sounding note between triggers, not just restate it at the strike
+        self.freq_sigs = [Sig(freq) for freq in self.freqs]
+        self.wobble_depth = SigTo(value=self.wobble * self.wobble_depth_max, time=0.5)
+        self.wobble_lfo = Sine(freq=self.wobble_rate, mul=self.wobble_depth)
+        self.wobble_ratio = self.wobble_lfo + 1
+        self.wobbled_freqs = [sig * self.wobble_ratio for sig in self.freq_sigs]
+
+        self.body = FM(
+            carrier=self.wobbled_freqs, ratio=self.body_ratio, index=self.body_index, mul=self.amp
+        )
+        self.tine = FM(
+            carrier=self.wobbled_freqs, ratio=self.tine_ratio, index=self.tine_index, mul=self.tine_amp
+        )
         self.chord_notes_signal = self.body + self.tine
         self.mixed = self.chord_notes_signal.mix(1)
         # the body's ratio 1 puts its first lower sideband on 0 Hz: a DC offset
@@ -217,8 +262,8 @@ class Keys(GatedVoice):
 
         # gain swings between 1 - tremolo and 1
         self.depth = SigTo(value=self.tremolo / 2, time=0.05, init=self.tremolo / 2)
-        self.wobble = Sine(freq=1 / tempo.eighth, mul=self.depth)
-        self.swing = self.wobble - self.depth
+        self.tremolo_lfo = Sine(freq=1 / tempo.eighth, mul=self.depth)
+        self.swing = self.tremolo_lfo - self.depth
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb
 
@@ -229,11 +274,10 @@ class Keys(GatedVoice):
                 slot = self._slot
                 chord_notes = CHORDS[(self._step // BAR_STEPS) % len(CHORDS)]
                 start = slot * NOTES
-                self.freqs[start : start + NOTES] = [
-                    self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes
-                ]
-                self.body.carrier = self.freqs
-                self.tine.carrier = self.freqs
+                new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
+                self.freqs[start : start + NOTES] = new_freqs
+                for offset, freq in enumerate(new_freqs):
+                    self.freq_sigs[start + offset].value = freq
                 self.velocities[slot] = velocity
                 self.apply_touch()
                 self.triggers[slot].play()
@@ -241,4 +285,7 @@ class Keys(GatedVoice):
             self._step += 1
 
         self.schedule(self.base_division, self.rate, clock, next_step)
-        return self.finish(self.voice_signal, resources=tuple(self.triggers))
+        return self.finish(
+            self.voice_signal,
+            resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
+        )

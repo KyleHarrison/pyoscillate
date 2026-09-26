@@ -1,5 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove style=crisp
-#   style: crisp | open | shuffle
+#   style: crisp | open | shuffle | lofi
 """Groove hi-hat voices with closed and open articulations.
 
 The source blends white noise with a cluster of high FM operators at
@@ -7,13 +7,21 @@ inharmonic ratios (a dense metallic spectrum), high-passed out of the kick and
 bass range. Each
 hit is either closed or open: both share one exponential envelope, so a closed
 hit retriggers it and chokes any open tail still ringing.
+
+`pattern`'s value is either a bare articulation string (the accent for that
+step falls back to `offbeat_accent`/`ghost_accent` by its position in the bar)
+or an `(articulation, accent)` pair for a style, like `GrooveLofi`, that needs
+an explicit per-step ghost-note level instead of that generic guess.
+`pattern_cycle` sets how many steps the pattern repeats over - 16 for a
+16th-note bar, 32 for `GrooveLofi`'s 32nd-note (swung 16th) bar.
 """
 
 from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib._core import Mix
-from pyo.lib.filters import ButHP
+from pyo.lib.effects import Disto
+from pyo.lib.filters import Biquad, ButHP
 from pyo.lib.generators import FM, Noise
 from pyo.lib.pan import Selector
 from pyo.lib.triggers import TrigEnv
@@ -51,9 +59,10 @@ class Groove(DrumVoice):
     offbeat_accent: ClassVar[float] = 1.0
     ghost_accent: ClassVar[float] = 0.66
 
-    # step in the 16-step bar -> which articulation plays there - overridden
-    # per style
-    pattern: ClassVar[dict[int, str]]
+    # step in a `pattern_cycle`-step bar -> which articulation plays there
+    # (or an explicit `(articulation, accent)` pair) - overridden per style
+    pattern: ClassVar[dict[int, str | tuple[str, float]]]
+    pattern_cycle: ClassVar[int] = 16
 
     # the graph, assigned by build(); finish() retains every one of them
     choke_env: TrigEnv
@@ -105,6 +114,13 @@ class Groove(DrumVoice):
         "Halves or doubles the hat pattern speed for each step away from its 16th-note grid.",
     )
 
+    def voice_output(self) -> PyoObject:
+        """Hook: the final output node after `self.filtered`. The default is
+        a no-op; a style overrides this to add its own post-processing (e.g.
+        a closed low-pass and light saturation for a softer voice), assigning
+        any node it builds onto `self` too."""
+        return self.filtered
+
     def build(self, tempo: Tempo, clock: Clock) -> Patch:
         """Build a style-specific, grid-locked hat pattern with closed/open choke."""
         self._reset()
@@ -126,12 +142,16 @@ class Groove(DrumVoice):
         self.shaped = self.source * self.choke_env
         self.filtered = ButHP(self.shaped)
 
-        step = self.step_pattern(16, self.pattern)
+        step = self.step_pattern(self.pattern_cycle, self.pattern)
 
         def next_step() -> None:
-            step_index, articulation = step()
-            if articulation is not None:
-                accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
+            step_index, entry = step()
+            if entry is not None:
+                if isinstance(entry, tuple):
+                    articulation, accent = entry
+                else:
+                    articulation = entry
+                    accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
                 self.choke_env.mul = self.level * accent
                 # one envelope for both articulations, so a closed hit
                 # restarting it cuts off an open tail - the hat choke
@@ -139,7 +159,7 @@ class Groove(DrumVoice):
                 self.trigger.play()
 
         self.schedule(self.base_division, self.rate, clock, next_step)
-        return self.finish(self.filtered)
+        return self.finish(self.voice_output())
 
 
 class GrooveCrisp(Groove):
@@ -171,3 +191,62 @@ class GrooveShuffle(Groove):
         13: CLOSED,
         14: OPEN,
     }
+
+
+# 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> (articulation, accent).
+# Each beat's straight 16th grid (offsets 0, 2, 4, 6) keeps the downbeat and
+# the "and" on the grid but delays the weak "e"/"a" 16ths by one 32nd (to 3
+# and 7) for an MPC-style swing, each as a quiet ghost hit; the last "a" of
+# the bar opens instead, to breathe before the loop restarts.
+GROOVE_LOFI_PATTERN: dict[int, tuple[str, float]] = {
+    0: (CLOSED, 1.0),
+    3: (CLOSED, 0.4),
+    4: (CLOSED, 0.75),
+    7: (CLOSED, 0.4),
+    8: (CLOSED, 0.85),
+    11: (CLOSED, 0.4),
+    12: (CLOSED, 0.75),
+    15: (CLOSED, 0.4),
+    16: (CLOSED, 1.0),
+    19: (CLOSED, 0.4),
+    20: (CLOSED, 0.75),
+    23: (CLOSED, 0.4),
+    24: (CLOSED, 0.85),
+    27: (CLOSED, 0.4),
+    28: (OPEN, 0.55),
+}
+
+
+class GrooveLofi(Groove):
+    """Soft, closed-low-pass boom-bap hat: a swung 16th pattern with ghost
+    notes, filtered down and lightly saturated for an 80 BPM lofi pocket
+    rather than a crisp, upfront top end."""
+
+    name = "hat_lofi"
+    title = "Hat - Lofi"
+    summary = "Soft, filtered boom-bap hat pattern with MPC swing and ghost notes."
+    pattern: ClassVar[dict[int, tuple[str, float]]] = GROOVE_LOFI_PATTERN
+    pattern_cycle: ClassVar[int] = 32
+    base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
+    # closes the hat's high-passed edge down into a duller, muffled top end
+    lowpass_cutoff: ClassVar[float] = 6000.0
+    # light saturation warms the metal/noise blend without turning it harsh
+    drive: ClassVar[float] = 0.12
+    cutoff = Groove.cutoff.replace(
+        default=5000,
+        help_text="Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher); "
+        "kept low here for a soft, muffled top end.",
+    )
+    metal = Groove.metal.replace(default=0.2)
+    rate = rate_param(
+        NoteDivision.THIRTYSECOND,
+        "Halves or doubles the boom-bap hat pattern speed for each step away from its swung 32nd-note grid.",
+    )
+
+    lowpassed: Biquad
+    shaper: Disto
+
+    def voice_output(self) -> PyoObject:
+        self.lowpassed = Biquad(self.filtered, freq=self.lowpass_cutoff, q=0.7, type=0)
+        self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
+        return self.shaper

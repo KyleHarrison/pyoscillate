@@ -1,17 +1,25 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare
-"""Tone-and-rattle snare voice.
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare style=lofi
+"""Tone-and-rattle snare voice, plus a swung, softened lofi voice.
 
 Two layers share one trigger: a short sine body a little above the kick's
 register, with a modest downward pitch bend, and a louder high-passed noise
 rattle whose exponential tail runs from a dry crack to a small-room wash. It
 sits on the backbeat under the clap, with a ghost note that swings into the
 next bar.
+
+The default voice's `pattern` reads its accents off a 16-step bar
+(`pattern_cycle` = 16); `SnareLofi` instead reads a 32-step bar (32nd-note
+resolution) so its backbeat can swing behind the straight grid and its ghost
+notes can sit at 32nd-note positions a plain 16-step pattern can't express -
+`step_pattern()` already supports any cycle length, so this is the same
+mechanism at a finer grid, not a new one.
 """
 
 from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib._core import Sig
+from pyo.lib.effects import Disto
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
@@ -36,8 +44,10 @@ class Snare(DrumVoice):
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6
 
-    # step in the 16-step bar -> accent; the quiet final hit is a ghost note
+    # step in a `pattern_cycle`-step bar -> accent; the quiet final hit is a
+    # ghost note
     pattern: ClassVar[dict[int, float]] = {4: 1.0, 12: 1.0, 15: 0.3}
+    pattern_cycle: ClassVar[int] = 16
     base_freq: ClassVar[float] = notes.Fs3
     # pitch bend at the strike, as a fraction above the body - kept well
     # below a kick's so the snare never turns into a zap or tom
@@ -127,6 +137,13 @@ class Snare(DrumVoice):
         self.body_env.mul = gain * self.body_level
         self.rattle_env.mul = gain * self.snap
 
+    def voice_output(self) -> PyoObject:
+        """Hook: the final output node after `self.source`. The default is a
+        no-op; a style overrides this to add its own post-processing (e.g. a
+        closed low-pass and light saturation for a softer voice), assigning
+        any node it builds onto `self` too."""
+        return self.source
+
     def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
         self.accent = 1.0
@@ -148,7 +165,7 @@ class Snare(DrumVoice):
 
         self.source = self.body_signal + self.rattle
 
-        step = self.step_pattern(16, self.pattern)
+        step = self.step_pattern(self.pattern_cycle, self.pattern)
 
         def next_step() -> None:
             _, accent = step()
@@ -161,4 +178,40 @@ class Snare(DrumVoice):
                 self.trigger.play()
 
         self.schedule(self.base_division, self.rate, clock, next_step)
-        return self.finish(self.source)
+        return self.finish(self.voice_output())
+
+
+# 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> accent. The backbeat
+# on beats 2 and 4 (straight would be 8 and 24) lands one 32nd late, at 9 and
+# 25, for a laid-back, behind-the-beat pocket; a soft pickup ghost sits
+# before beat 2 (6) and a quieter one swings into the loop before beat 1 (30)
+# - see groove-and-feel.md's "Ghost notes" and "Behind the beat" sections.
+SNARE_LOFI_PATTERN = {9: 1.0, 25: 1.0, 6: 0.25, 30: 0.3}
+
+
+class SnareLofi(Snare):
+    """Soft, closed-low-pass boom-bap snare: the backbeat sits behind the
+    grid with ghost notes either side, filtered down and lightly saturated
+    for an 80 BPM lofi pocket rather than a crisp modern crack."""
+
+    summary = "Soft, filtered boom-bap snare with a behind-the-beat backbeat and ghost notes."
+    base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
+    pattern: ClassVar[dict[int, float]] = SNARE_LOFI_PATTERN
+    pattern_cycle: ClassVar[int] = 32
+    # closes the rattle's high-passed edge down into a duller, muffled crack
+    lowpass_cutoff: ClassVar[float] = 2600.0
+    # light saturation warms the body/rattle mix without turning it harsh
+    drive: ClassVar[float] = 0.15
+    rate = rate_param(
+        NoteDivision.THIRTYSECOND,
+        "Halves or doubles the boom-bap snare pattern speed for each step away from its swung 32nd-note "
+        "grid.",
+    )
+
+    lowpassed: Biquad
+    shaper: Disto
+
+    def voice_output(self) -> PyoObject:
+        self.lowpassed = Biquad(self.source, freq=self.lowpass_cutoff, q=0.7, type=0)
+        self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
+        return self.shaper

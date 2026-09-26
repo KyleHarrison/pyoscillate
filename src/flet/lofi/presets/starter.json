@@ -1,0 +1,61 @@
+{
+    "_rack": {
+        "key": "C"
+    },
+    "keys": {
+        "enabled": true,
+        "root_freq": 220.0,
+        "bark": 2.5,
+        "bite": 0.8,
+        "decay": 1.8,
+        "tremolo": 0.3,
+        "wobble": 0.2,
+        "rate": 0,
+        "volume": 0.8
+    },
+    "bass_muted": {
+        "enabled": true,
+        "octave": 0,
+        "cutoff": 720,
+        "rate": 0,
+        "volume": 0.62
+    },
+    "noise_dust": {
+        "enabled": true,
+        "colour": 1.4,
+        "brightness": 3200,
+        "motion": 1,
+        "depth": 0.6,
+        "level": 0.35,
+        "volume": 0.16
+    },
+    "kick_lofi": {
+        "enabled": true,
+        "level": 0.62,
+        "drive": 0.2,
+        "punch": 1.0,
+        "length": 1.0,
+        "click": 1.0,
+        "rate": 0,
+        "volume": 0.8
+    },
+    "snare_lofi": {
+        "enabled": true,
+        "level": 0.2,
+        "tune": 0,
+        "snap": 1.0,
+        "tone": 2000,
+        "decay": 0.16,
+        "rate": 0,
+        "volume": 0.3
+    },
+    "hat_lofi": {
+        "enabled": true,
+        "level": 0.14,
+        "cutoff": 5000,
+        "metal": 0.2,
+        "length": 1.0,
+        "rate": 0,
+        "volume": 0.25
+    }
+}

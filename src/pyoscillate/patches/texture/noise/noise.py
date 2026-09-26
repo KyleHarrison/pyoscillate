@@ -1,8 +1,8 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.texture.noise.noise
-"""Filtered-noise bed with a single colour control and three kinds of motion.
+"""Filtered-noise bed with a single colour control and four kinds of motion.
 
-One broadband source is shaped three ways, and each style adds a different
-kind of slow movement on top. The source is a `Selector` crossfade over white,
+One broadband source is shaped four ways, and each style adds a different
+kind of movement on top. The source is a `Selector` crossfade over white,
 pink and brown noise (pyo example x03/04), so "colour" is one continuous
 control instead of a choice. A low-pass then sets how much hiss survives.
 
@@ -16,8 +16,12 @@ control instead of a choice. A low-pass then sets how much hiss survives.
   with the dry sound (x06/07). A few Hz of shift makes a slow, endless
   phasing swirl against the dry noise; separate shift LFOs per channel make
   it spin across the stereo field.
+- `dust` (`NoiseDust`): a pink/brown-leaning bed layered with sparse,
+  randomly-timed click/pop transients (`RandDur` + `Change` - pyo's
+  un-clocked randomized-event idiom), so it reads as discrete vinyl dust and
+  stylus crackle rather than continuous, steady movement.
 
-All three share one colour-crossfaded source (`Noise.build`); only the
+All four share one colour-crossfaded source (`Noise.build`); only the
 movement stage in `moved_signal()` differs, since that is genuinely
 different behavior, not just different profile data (`patches/CLAUDE.md`'s
 design rule 1). Each style's `moved_signal()` is a hook method: it assigns
@@ -33,12 +37,15 @@ from pyo.lib.filters import Biquad, Phaser
 from pyo.lib.generators import BrownNoise, PinkNoise, Sine
 from pyo.lib.generators import Noise as WhiteNoise
 from pyo.lib.pan import Selector
+from pyo.lib.randoms import RandDur
+from pyo.lib.tables import ExpTable
+from pyo.lib.triggers import Change, TrigEnv
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice, frequency_shift
 from pyoscillate.patches.params import Param
 
-STYLES = ("air", "surf", "barber")
+STYLES = ("air", "surf", "barber", "dust")
 
 # low-pass Q just under Butterworth, so the cutoff never rings or whistles
 FILTER_Q = 0.7
@@ -62,6 +69,19 @@ BARBER_SHIFT = 6
 # the example's wet level; with the dry bed added, a quieter shifted copy
 # keeps the swirl from doubling the loudness
 BARBER_WET = 0.7
+# `dust`: sharp-attack, quick-decay click table and its read duration (s)
+CLICK_POINTS = [(0, 1.0), (8191, 0.0)]
+CLICK_CURVE = 5.0
+CLICK_DECAY = 0.01
+# per-channel RandDur interval bounds (s) between clicks at Motion 1 -
+# unrelated so left/right pops never line up - scaled by 1/Motion so higher
+# Motion means more frequent crackle. Pyo's arithmetic operators only expand
+# a `list` operand into multiple streams, not a `tuple` (multiplying a
+# PyoObject by a tuple crashes natively - see keys/CLAUDE.md-style caution in
+# patches/CLAUDE.md on graph ownership), so these stay lists.
+DUST_MIN = [0.05, 0.6]
+DUST_MAX = [0.35, 3.0]
+DUST_GAIN = 1.3
 # brown noise is the loudest colour once low-passed; this keeps the three
 # colours in the same loudness range at the default brightness
 COLOUR_GAINS = (1.0, 1.0, 0.8)
@@ -250,3 +270,56 @@ class NoiseBarber(Noise):
         self.wet = Mix([self.shifted_a, self.shifted_b], voices=2, mul=BARBER_WET)
         self.dry = self.shaped.mix(2)
         self.moved = self.dry + self.wet
+
+
+class NoiseDust(Noise):
+    """Pink/brown-leaning noise bed dusted with sparse, randomly-timed
+    click/pop transients (`RandDur` + `Change`, pyo's un-clocked randomized-
+    event idiom), so the texture reads as vinyl dust and stylus crackle -
+    discrete grain - instead of steady hiss or a continuously sweeping bed."""
+
+    title = "Noise - Dust"
+    colour = Noise.colour.replace(default=1.4)
+    brightness = Noise.brightness.replace(default=3200)
+    motion = Noise.motion.replace(
+        help_text="How often the crackle pops; low is occasional, sparse clicks, high is a denser flurry."
+    )
+    depth = Noise.depth.replace(
+        help_text="How loud the crackle sits over the bed; zero is a clean noise bed, full is dense clicks "
+        "and pops."
+    )
+
+    shaped: Biquad
+    dry: PyoObject
+    motion_scale: PyoObject
+    click_min: PyoObject
+    click_max: PyoObject
+    click_interval: RandDur
+    click_trigger: Change
+    click_table: ExpTable
+    click_noise: WhiteNoise
+    click_env: TrigEnv
+    click_burst: PyoObject
+
+    def moved_signal(self, live, source):
+        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+        self.dry = self.shaped.mix(2)
+
+        # RandDur's own `min`/`max` are the crackle's interval bounds in
+        # seconds; dividing by Motion (not multiplying, unlike the other
+        # styles' LFO rates) shortens that interval - and so densifies the
+        # crackle - as Motion rises
+        self.motion_scale = 1 / live["motion"]
+        self.click_min = self.motion_scale * DUST_MIN
+        self.click_max = self.motion_scale * DUST_MAX
+        self.click_interval = RandDur(min=self.click_min, max=self.click_max)
+        # a trigger each time RandDur re-picks a new interval - an
+        # unpredictable, per-channel pop time
+        self.click_trigger = Change(self.click_interval)
+        self.click_table = ExpTable(CLICK_POINTS, exp=CLICK_CURVE)
+        self.click_noise = WhiteNoise()
+        self.click_env = TrigEnv(
+            self.click_trigger, self.click_table, dur=CLICK_DECAY, mul=live["depth"] * DUST_GAIN
+        )
+        self.click_burst = self.click_noise * self.click_env
+        self.moved = self.dry + self.click_burst
