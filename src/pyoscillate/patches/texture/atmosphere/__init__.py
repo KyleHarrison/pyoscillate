@@ -158,13 +158,13 @@ class Atmosphere(GatedVoice):
         self.fm_voice = FM(mul=self.arp_env, add=-0.3)
         self.reverb = Freeverb(self.fm_voice)
 
-        self._step = 0
-
         def next_step() -> None:
-            i = self._step % len(ARP_INTERVALS)
+            # derived from the shared clock's own tick, not a local counter
+            # that starts at 0 whenever this patch is built or restarted -
+            # see `Clock.tick`'s docstring
+            i = (clock.tick // self.step_division) % len(ARP_INTERVALS)
             self.fm_voice.carrier = self.arp_root * pow(2, ARP_INTERVALS[i] / 12)
             self.trigger.play()
-            self._step += 1
 
         # step_division is a rebuild-only raw tick count, not a live rate
         # offset from a base division, so self.schedule()'s rate machinery

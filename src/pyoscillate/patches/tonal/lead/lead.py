@@ -223,7 +223,10 @@ class Lead(GatedVoice):
         self.voice_signal = self.shaped
 
         def next_step() -> None:
-            step = self._step % len(self.pattern)
+            # derived from the shared clock's own tick, not a local counter
+            # that starts at 0 whenever this patch is built or restarted -
+            # see `Clock.tick`'s docstring
+            step = (clock.tick // self._division.steps) % len(self.pattern)
             degree = self.pattern[step]
             if degree < 0:
                 self.amp_env.stop()
@@ -234,9 +237,7 @@ class Lead(GatedVoice):
                 self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
                 self.amp_env.play()
                 self.filter_env.play()
-            self._step += 1
 
-        self._step = 0
         self.schedule(self.base_division, self.rate, clock, next_step)
         return self.finish(self.voice_signal)
 

@@ -115,6 +115,15 @@ class Clock:
         return self.ticks(divisions[division_index])
 
     @property
+    def tick(self) -> int:
+        """Raw ticks elapsed since the clock was created. A patch that needs
+        its own position within a division (e.g. which step of a bar a
+        callback fired on) derives it from this - `clock.tick // steps` -
+        rather than counting its own calls, so the answer is the same
+        whenever the patch was built or restarted, matching `bar_index`."""
+        return self._tick
+
+    @property
     def bar(self) -> int:
         """Raw ticks in one bar - `ticks_per_bar` itself."""
         return self.ticks(NoteDivision.WHOLE)

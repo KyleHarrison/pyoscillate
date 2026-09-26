@@ -162,7 +162,6 @@ class FmBass(Bass):
         self.trigger.stop()
         self._sixteenth = tempo.sixteenth
         self._accent = 1.0
-        self._step = 0
 
         self.index_table = LinTable(INDEX_POINTS)
         self.amp_table = CosTable(AMP_POINTS)
@@ -182,13 +181,14 @@ class FmBass(Bass):
         self.body = ButHP(self.tone_signal, freq=SUBSONIC)
 
         def next_step() -> None:
-            step = self._step % len(PROFILE.pattern)
+            # derived from the shared clock's own tick - see `Clock.tick`'s
+            # docstring
+            step = (clock.tick // self._division.steps) % len(PROFILE.pattern)
             self._accent = PROFILE.accents[step]
             self.tone_signal.carrier = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
             self.bark.mul = self.growl * self._accent
             self.amp.mul = self._accent
             self.trigger.play()
-            self._step += 1
 
         self.schedule(BASE_DIVISION, self.rate, clock, next_step)
         return self.finish(self.body)

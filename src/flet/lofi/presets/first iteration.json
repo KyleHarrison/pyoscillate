@@ -2,13 +2,13 @@
   "lead_muted_keys": {
     "enabled": false,
     "root_freq": 220.0,
-    "brightness": 1500.0,
+    "brightness": 600.0,
     "attack": 0.01,
-    "sustain": 1.0,
+    "sustain": 0.45,
     "vibrato": 0.0,
     "drive": 0.0,
     "rate": 0,
-    "volume": 0.7
+    "volume": 0.6
   },
   "keys": {
     "enabled": true,
@@ -49,9 +49,9 @@
   },
   "bell_fm": {
     "enabled": false,
-    "root_freq": 329.6275569128699,
-    "strike": 0.05,
-    "ring": 0.3,
+    "root_freq": 880.0,
+    "strike": 0.3,
+    "ring": 1.1,
     "rate": -1,
     "volume": 0.35
   },
@@ -66,11 +66,11 @@
   },
   "kick_lofi": {
     "enabled": false,
-    "level": 0.8999999999999999,
-    "drive": 0.55,
-    "punch": 2.0,
-    "length": 2.0,
-    "click": 2.0,
+    "level": 0.65,
+    "drive": 0.2,
+    "punch": 1.0,
+    "length": 1.15,
+    "click": 0.6,
     "rate": 0,
     "volume": 1.4
   },
@@ -86,11 +86,11 @@
   },
   "hat_lofi": {
     "enabled": false,
-    "level": 0.39999999999999997,
-    "cutoff": 12000.0,
+    "level": 0.25,
+    "cutoff": 5000.0,
     "metal": 0.1,
-    "length": 1.5,
-    "rate": -2.0,
+    "length": 1.0,
+    "rate": 0,
     "volume": 1.2
   },
   "_rack": {

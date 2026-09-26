@@ -221,7 +221,6 @@ class FunkBass(Bass):
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
         current_root = self.note_root(REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY)
-        self._step = 0
 
         self.pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
         self.upper_pitch = self.pitch * 2
@@ -262,8 +261,9 @@ class FunkBass(Bass):
         self.gate_end = TrigFunc(self.gate["trig"], note_off)
 
         def next_step() -> None:
-            step = LINE[self._step % len(LINE)]
-            self._step += 1
+            # derived from the shared clock's own tick - see `Clock.tick`'s
+            # docstring
+            step = LINE[(clock.tick // self._division.steps) % len(LINE)]
             if step.semitones is None:
                 return
             root = current_root()

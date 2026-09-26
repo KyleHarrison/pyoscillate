@@ -35,7 +35,7 @@ drums + Rhodes" texture.
 | Concept | Patch | Reuse / extend / new |
 |---|---|---|
 | Lead melody — warm, hummable, rest-heavy pentatonic motif ("muted pluck") | `tonal/lead`, new style `LeadMutedKeys` | **Extend.** `Lead` already plays a monophonic motif that follows the rack's chord and rests between phrases (`tonal/lead/lead.py`'s existing `PATTERN`/`REST`); its motif is now a per-style `ClassVar` (`Lead.pattern`) instead of one shared module constant, so a style can phrase differently, not just sound different. `LeadMutedKeys` is a near-unison, no-PWM, dark-filtered, undriven dual-pulse voice (a soft, covered pluck) playing a sparse, rest-heavy minor-pentatonic phrase — see `MUTED_KEYS_PATTERN`. |
-| Lead melody, alternate voice — dusty electric-piano comping | `tonal/keys` (`Keys`) | **Reuse, unmodified.** Offered as a second voice in the same rack group as an alternative to the strict monophonic line: close-voiced chord comping in a Charleston rhythm still reads as a hummable top line, and the existing FM electric-piano character (see `tonal/keys/CLAUDE.md`) already matches "warm electric piano". |
+| Lead melody, alternate voice — dusty electric-piano comping | `tonal/keys` (`Keys`) | **Reuse, extended.** Offered as a second voice in the same rack group as an alternative to the strict monophonic line: close-voiced chord comping in a Charleston rhythm still reads as a hummable top line, and the existing FM electric-piano character (see `tonal/keys/CLAUDE.md`) already matches "warm electric piano". `Keys`'s hand-written `CHORDS` originally played its own independent vi9-ii9-IVmaj9-iii7 cycle (Am9-Dm9-Fmaj9-Em7), which shares this rack's key but not its actual chord-by-chord identity — every bar it clashed against the bass/strings' `Dm9-G13-Cmaj9-Am9` vamp. `CHORDS` was rewritten to the same rootless-voicing style but matching the rack's progression bar-for-bar. |
 | Strings / harmonic accompaniment — soft, sustained, occasional colour tones | `tonal/strings`, new `Strings` (first patch in this family) | **New.** `tonal/strings` was a placeholder; `strings.py` is a `SuperSaw`-ensemble pad that re-opens once per bar on the rack's chord (root/fifth/octave, always consonant) with a separate, blendable major-9th colour voice, low-pass, and `Chorus` for ensemble shimmer — no struck attack. See `tonal/strings/CLAUDE.md` (now filled in from placeholder). |
 | Bass — sparse, thumpy, occasional offbeat re-entry over a four-bar phrase | `tonal/bass`, new profile/style `BassConversation` | **Extend.** `BassProfile` gained an optional `gates` field (a per-step "rest" mask) so a bass voice can actually leave space instead of retriggering every step — the family's shared `build_voice` previously always retriggered on every clocked step. `profiles._conversation()` is a 64-step (four-bar) phrase of mostly rests, matching the brief's bar-by-bar ascii diagram one-for-one, with a longer envelope decay so held notes actually ring into the gaps. The original `BassMuted` stays available in the same rack group. |
 | High-register call-and-response — a soft "ting" answering the bass | `pitched_percussion/bell` (`BellFm`) | **Reuse, unmodified — approximated.** The rack has no cross-patch event bus (patches only share `Harmony`/`Clock`, never each other's live triggers — see `patches/CLAUDE.md`), so a bell that literally listens for a bass hit and answers it isn't buildable without new rack-level architecture. `BellFm` is tuned instead (`root_freq=A5`, soft `strike`, short `ring`, and one `rate` step slower than its default) to sit high, soft, and sparse on the shared clock, which reads as an intermittent answer without genuinely reacting to the bass. Noted here as a deliberate approximation, not an oversight. |
@@ -45,15 +45,15 @@ drums + Rhodes" texture.
 
 ## Shared harmony and tempo
 
-`HARMONY` in `rack.py` holds one key and vamp — `Dm9–G13–Cmaj7–Am9`, one
+`HARMONY` in `rack.py` holds one key and vamp — `Dm9–G13–Cmaj9–Am9`, one
 chord per bar, four bars per loop. `BassConversation`, `Strings`, and
 `LeadMutedKeys` (via `Lead`'s existing `needs_harmony` support) all re-root
 on `clock.bar_index`'s current chord, so they change together regardless of
 their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
 as fixed voicings relative to its own Register slider (see `keys.py`'s
-module docstring) — it doesn't read `HARMONY` directly, so if the
-progression in `rack.py` ever changes, `Keys`'s `CHORDS` constant needs
-updating by hand to match.
+module docstring) — it doesn't read `HARMONY` directly, so its `CHORDS`
+constant is kept in sync with this progression by hand and needs updating
+again if the progression in `rack.py` ever changes.
 
 ## What this rack does not attempt
 

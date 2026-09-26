@@ -20,7 +20,7 @@ BPM = 80
 # matches deep_house's convention: fine enough for the swung 32nd-note
 # patterns (drums/kick, drums/snare, drums/hat's `lofi` styles) to land exactly
 TICKS_PER_BAR = 512
-# the rack's shared key and vamp: Dm9-G13-Cmaj7-Am9, one chord per bar, four
+# the rack's shared key and vamp: Dm9-G13-Cmaj9-Am9, one chord per bar, four
 # bars per loop - a static, jazz-influenced ii9-V13-Imaj9-vi9 in the key of C
 # major (D=ii, G=V, C=I, A=vi), rather than a developing song form. Every
 # `needs_harmony` patch (bass, strings, lead) re-roots on this on the same

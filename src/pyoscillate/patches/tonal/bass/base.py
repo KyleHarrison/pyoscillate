@@ -161,15 +161,16 @@ class Bass(GatedVoice):
         )
 
         current_root = self.note_root(root_freq, clock, harmony=harmony)
-        self._step = 0
 
         def next_step() -> None:
-            step = self._step % len(profile.pattern)
+            # derived from the shared clock's own tick, not a local counter
+            # that starts at 0 whenever this patch is built or restarted -
+            # see `Clock.tick`'s docstring
+            step = (clock.tick // self._division.steps) % len(profile.pattern)
             if profile.gates is None or profile.gates[step]:
                 self.oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
                 self.envelope.mul = profile.accents[step]
                 self.trigger.play()
-            self._step += 1
 
         self.schedule(BASE_DIVISION, rate, clock, next_step)
         return self.finish(self.filtered)

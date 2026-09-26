@@ -139,21 +139,25 @@ class GatedVoice(Patch):
     def step_pattern(
         self, cycle: int, pattern: dict[int, Any] | set[int]
     ) -> Callable[[], tuple[int, Any | None]]:
-        """Zero-arg callable for a `schedule()` callback: each call advances
-        an internal step counter (mod `cycle`) and returns `(step, value)`,
-        where `value` is `pattern[step]` for a dict, `True`/`None` for a
-        set. The concrete voice's own callback wraps this to decide what a
-        hit does (trigger, reset, accent, recompute pitch, ...)."""
-        counter = {"step": 0}
+        """Zero-arg callable for a `schedule()` callback: derives the current
+        step (mod `cycle`) from the shared clock's own tick, not an internal
+        counter that starts at 0 whenever this patch is (re)built - the same
+        reasoning as `Clock.tick`'s docstring. Returns `(step, value)`, where
+        `value` is `pattern[step]` for a dict, `True`/`None` for a set. The
+        concrete voice's own callback wraps this to decide what a hit does
+        (trigger, reset, accent, recompute pitch, ...).
+
+        Call only after `self.schedule(...)` has run (`self._division` and
+        `self._clock` must exist), which every `build()` already does before
+        its callback can fire."""
 
         def check() -> tuple[int, Any | None]:
-            step = counter["step"] % cycle
+            step = (self._clock.tick // self._division.steps) % cycle
             value = (
                 pattern.get(step)
                 if isinstance(pattern, dict)
                 else (True if step in pattern else None)
             )
-            counter["step"] += 1
             return step, value
 
         return check

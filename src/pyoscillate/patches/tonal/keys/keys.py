@@ -47,11 +47,16 @@ from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # semitones above Register (the key's tonic), one close rootless voicing per
-# bar: Am9 (C E G B), Dm9 (F A C E), Fmaj9 (A C E G), Em7 (G B D E). The
-# common tones keep the top voices moving by step.
-CHORDS = ((3, 7, 10, 14), (-4, 0, 3, 7), (0, 3, 7, 10), (-2, 2, 5, 7))
+# bar, matching the rack's shared Dm9-G13-Cmaj9-Am9 vamp (see rack.py's
+# `HARMONY`) bar-for-bar rather than an independent progression: Dm9
+# (F A C E), G13 (F A B E, a 3-7-9-13 rootless dominant), Cmaj9 (E G B D),
+# Am9 (C E G B). The common tones keep the top voices moving by step.
+CHORDS = ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (3, 7, 10, 14))
 # step on the 16th grid -> velocity: the Charleston rhythm
 HITS = {0: 1.0, 6: 0.55}
+# HITS' steps, in order - used to number each bar's hits (0, 1, ...) so the
+# slot rotation below stays deterministic from the shared clock
+HIT_STEPS = tuple(sorted(HITS))
 BAR_STEPS = 16
 NOTES = 4
 SLOTS = 4
@@ -218,8 +223,6 @@ class Keys(GatedVoice):
     def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
 
-        self._step = 0
-        self._slot = 0
         self.velocities = [0.0] * SLOTS
         self.freqs = [self.root_freq] * (SLOTS * NOTES)
         self.triggers = [Trig().stop() for _ in range(SLOTS)]
@@ -268,11 +271,17 @@ class Keys(GatedVoice):
         self.voice_signal = self.chord * self.throb
 
         def next_step() -> None:
-            step = self._step % BAR_STEPS
+            # derived from the shared clock's own tick, not a local counter
+            # that starts at 0 whenever this patch is built or restarted -
+            # see Harmony's docstring on why chord/beat position must come
+            # from the clock, never from a patch's own step count
+            step = (clock.tick // self._division.steps) % BAR_STEPS
             velocity = HITS.get(step)
             if velocity is not None:
-                slot = self._slot
-                chord_notes = CHORDS[(self._step // BAR_STEPS) % len(CHORDS)]
+                bar = clock.bar_index
+                hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step)
+                slot = hit_index % SLOTS
+                chord_notes = CHORDS[bar % len(CHORDS)]
                 start = slot * NOTES
                 new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
                 self.freqs[start : start + NOTES] = new_freqs
@@ -281,8 +290,6 @@ class Keys(GatedVoice):
                 self.velocities[slot] = velocity
                 self.apply_touch()
                 self.triggers[slot].play()
-                self._slot = (slot + 1) % SLOTS
-            self._step += 1
 
         self.schedule(self.base_division, self.rate, clock, next_step)
         return self.finish(

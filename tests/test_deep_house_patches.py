@@ -135,19 +135,30 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         self.assertEqual(resource_types.count("Osc"), len(chord.INTERVALS))
 
     def sounding_roots(self, harmony: Harmony) -> dict[str, float]:
-        """Fire each pitched patch's sequencer up to its first note in the
+        """Fire each pitched patch's sequencer at its first note in the
         clock's current bar, and return the pitch it played, divided by the
-        interval its pattern puts on that note - i.e. the chord root it used."""
+        interval its pattern puts on that note - i.e. the chord root it used.
+
+        Each patch's step is derived live from `clock.tick` (see
+        `GatedVoice.step_pattern`), not from a counter that advances once per
+        call - so a step is fired by moving the clock to that step's tick and
+        calling the sequencer's callback once, rather than calling it
+        repeatedly with the clock held still."""
         chord_patch = chord.ChordVelvet().build(self.tempo, self.clock, harmony=harmony)
         bass_patch = bass.BassRolling().build(self.tempo, self.clock, harmony=harmony)
         tom_patch = tom.Tom().build(self.tempo, self.clock, harmony=harmony)
+        bar_start = self.clock._tick
+
+        def fire(patch: Patch, step_index: int) -> None:
+            self.clock._tick = bar_start + step_index * patch.sequencer.steps
+            patch.sequencer.callback()
+
         # the chord stabs on the third 16th, the bass on the first, the tom's
         # first fill note (a fifth up) on the eleventh
-        for _ in range(3):
-            chord_patch.sequencer.callback()
-        bass_patch.sequencer.callback()
-        for _ in range(11):
-            tom_patch.sequencer.callback()
+        fire(chord_patch, 2)
+        fire(bass_patch, 0)
+        fire(tom_patch, 10)
+        self.clock._tick = bar_start
         chord_osc = next(r for r in chord_patch.resources if type(r).__name__ == "Osc")
         bass_osc = next(r for r in bass_patch.resources if type(r).__name__ == "Osc")
         tom_tuning = next(r for r in tom_patch.resources if type(r).__name__ == "Sig")
