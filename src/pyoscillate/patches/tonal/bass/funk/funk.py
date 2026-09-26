@@ -31,6 +31,7 @@ ghost notes stay dark.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar, NamedTuple
 
 from pyo import PyoObject
@@ -142,6 +143,11 @@ class FunkBass(Bass):
     gate_end: TrigFunc
     body: PyoObject
 
+    # current-root callable and the sixteenth-note duration `next_step`
+    # reads at trigger time, frozen at build time
+    _current_root: Callable[[], float]
+    _sixteenth: float
+
     octave = Bass.octave.replace(
         help_text="Lifts the bassline up an octave; low sits deep under the kick, high brings the "
         "quack forward like a slap line. The notes always follow the rack's key and chord changes.",
@@ -220,7 +226,10 @@ class FunkBass(Bass):
         # onto `Bass`'s trigger: silent until the clock ticks (see
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
-        current_root = self.note_root(REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY)
+        self._current_root = self.note_root(
+            REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY
+        )
+        self._sixteenth = tempo.sixteenth
 
         self.pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
         self.upper_pitch = self.pitch * 2
@@ -260,20 +269,20 @@ class FunkBass(Bass):
 
         self.gate_end = TrigFunc(self.gate["trig"], note_off)
 
-        def next_step() -> None:
-            # derived from the shared clock's own tick - see `Clock.tick`'s
-            # docstring
-            step = LINE[(clock.tick // self._division.steps) % len(LINE)]
-            if step.semitones is None:
-                return
-            root = current_root()
-            self.pitch.value = root * 2 ** (step.semitones / 12)
-            self.gate.dur = tempo.sixteenth * step.length * self.length
-            self.amp.mul = step.accent
-            self.sweep.mul = self.quack * step.accent
-            self.amp.play()
-            self.sweep.play()
-            self.trigger.play()
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock)
         return self.finish(self.body)
+
+    def next_step(self) -> None:
+        # derived from the shared clock's own tick - see `Clock.tick`'s
+        # docstring
+        step = LINE[(self._clock.tick // self._division.steps) % len(LINE)]
+        if step.semitones is None:
+            return
+        root = self._current_root()
+        self.pitch.value = root * 2 ** (step.semitones / 12)
+        self.gate.dur = self._sixteenth * step.length * self.length
+        self.amp.mul = step.accent
+        self.sweep.mul = self.quack * step.accent
+        self.amp.play()
+        self.sweep.play()
+        self.trigger.play()

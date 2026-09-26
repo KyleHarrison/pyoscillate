@@ -7,6 +7,7 @@ whole envelope shapes white noise band-passed into the papery clap region.
 """
 
 import math
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -56,6 +57,11 @@ class Clap(DrumVoice):
     noise: Noise
     source: PyoObject
     tone_filter: Biquad
+
+    # the step pattern's callable, frozen at build time - fed to
+    # `next_step`, which build() can no longer close over now that it's a
+    # real method
+    _step: Callable[[], tuple[int, bool | None]]
 
     @Param(0.02, 0.6, 0.01, 0.18, "Presence", "Sets how loud and upfront the clap accent sits in the mix.")
     def level(self, value: float) -> None:
@@ -150,11 +156,11 @@ class Clap(DrumVoice):
             self.source, freq=self.tone, q=self.resonance, type=2, mul=self._makeup(self.tone)
         )
 
-        step = self.step_pattern(16, PATTERN)
+        self._step = self.step_pattern(16, PATTERN)
 
-        def next_step() -> None:
-            if step()[1] is not None:
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.tone_filter)
+
+    def next_step(self) -> None:
+        if self._step()[1] is not None:
+            self.trigger.play()

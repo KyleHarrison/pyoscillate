@@ -10,6 +10,7 @@ marks the start of each eight-bar phrase with a long, broad wash.
 """
 
 import math
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -68,6 +69,11 @@ class Cymbal(DrumVoice):
     drift: Sine
     band: PyoObject
     tone_filter: Biquad
+
+    # the step pattern's callable, frozen at build time - fed to
+    # `next_step`, which build() can no longer close over now that it's a
+    # real method
+    _step: Callable[[], tuple[int, float | None]]
 
     @Param(
         0.02,
@@ -145,16 +151,16 @@ class Cymbal(DrumVoice):
             self.shaped, freq=self.band, q=self.resonance, type=2, mul=self._makeup(self.tone)
         )
 
-        step = self.step_pattern(self.cycle, self.pattern)
+        self._step = self.step_pattern(self.cycle, self.pattern)
 
-        def next_step() -> None:
-            _, accent = step()
-            if accent is not None:
-                self.amp_env.mul = self.level * accent
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.tone_filter)
+
+    def next_step(self) -> None:
+        _, accent = self._step()
+        if accent is not None:
+            self.amp_env.mul = self.level * accent
+            self.trigger.play()
 
 
 class CymbalRide(Cymbal):

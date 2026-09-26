@@ -92,6 +92,11 @@ class Bass(GatedVoice):
     cutoff_lfo: LFO | None
     filtered: MoogLP
 
+    # the current-root callable and profile `next_step` reads at trigger
+    # time, frozen at build time by `build_voice`
+    _current_root: Callable[[], float]
+    _profile: BassProfile
+
     def note_root(
         self, root_freq: float, clock: Clock, *, harmony: Harmony | None = None
     ) -> Callable[[], float]:
@@ -160,17 +165,19 @@ class Bass(GatedVoice):
             res=profile.resonance if filter_res is None else filter_res,
         )
 
-        current_root = self.note_root(root_freq, clock, harmony=harmony)
+        self._current_root = self.note_root(root_freq, clock, harmony=harmony)
+        self._profile = profile
 
-        def next_step() -> None:
-            # derived from the shared clock's own tick, not a local counter
-            # that starts at 0 whenever this patch is built or restarted -
-            # see `Clock.tick`'s docstring
-            step = (clock.tick // self._division.steps) % len(profile.pattern)
-            if profile.gates is None or profile.gates[step]:
-                self.oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
-                self.envelope.mul = profile.accents[step]
-                self.trigger.play()
-
-        self.schedule(BASE_DIVISION, rate, clock, next_step)
+        self.schedule(BASE_DIVISION, rate, clock)
         return self.finish(self.filtered)
+
+    def next_step(self) -> None:
+        # derived from the shared clock's own tick, not a local counter
+        # that starts at 0 whenever this patch is built or restarted -
+        # see `Clock.tick`'s docstring
+        profile = self._profile
+        step = (self._clock.tick // self._division.steps) % len(profile.pattern)
+        if profile.gates is None or profile.gates[step]:
+            self.oscillator.freq = self._current_root() * 2 ** (profile.pattern[step] / 12)
+            self.envelope.mul = profile.accents[step]
+            self.trigger.play()

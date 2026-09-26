@@ -14,6 +14,7 @@ straight 16th grid for an MPC-style swing pocket and quiet ghost hits,
 without inventing a new timing mechanism.
 """
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -77,6 +78,10 @@ class Kick(DrumVoice):
     # every style that doesn't set `pattern`, and lets a live Body/Click
     # change coexist with a swung style's per-step ghost accents
     accent: float
+
+    # the per-step accent pattern's callable, frozen at build time - `None`
+    # for a style that fires every tick instead
+    _step: Callable[[], tuple[int, float | None]] | None
 
     @Param(0.1, 1.0, 0.05, 0.62, "Body", "Controls the fullness and weight of the kick's low end.")
     def level(self, value: float) -> None:
@@ -166,23 +171,25 @@ class Kick(DrumVoice):
         self.source = self.body_signal + self.click_signal
         self.shaper = Disto(self.source, slope=0.85)
 
-        step = self.step_pattern(self.pattern_cycle, self.pattern) if self.pattern is not None else None
+        self._step = (
+            self.step_pattern(self.pattern_cycle, self.pattern) if self.pattern is not None else None
+        )
 
-        def strike() -> None:
-            if step is not None:
-                _, accent = step()
-                if accent is None:
-                    return
-                self.accent = accent
-                self.apply_gains()
-            # restart the sine at phase zero so the full-level attack starts
-            # on a zero crossing instead of wherever the oscillator last
-            # stopped
-            self.body.reset()
-            self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, strike)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_output())
+
+    def next_step(self) -> None:
+        if self._step is not None:
+            _, accent = self._step()
+            if accent is None:
+                return
+            self.accent = accent
+            self.apply_gains()
+        # restart the sine at phase zero so the full-level attack starts
+        # on a zero crossing instead of wherever the oscillator last
+        # stopped
+        self.body.reset()
+        self.trigger.play()
 
 
 class KickRound(Kick):

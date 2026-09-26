@@ -114,16 +114,29 @@ class GatedVoice(Patch):
         self.retain(table, env)
         return env
 
+    def next_step(self) -> None:
+        """Per-tick hook for a scheduled voice: `schedule()`'s default
+        callback. A concrete voice overrides this instead of defining a
+        `build()`-local closure, reading whatever graph nodes and clock
+        state it needs off `self` (`self._clock`, `self._division`, and any
+        node `build()` assigned) - the same hook-method shape as `tone()`/
+        `voice_graph()` for a style that needs genuinely different behavior
+        (`patches/CLAUDE.md`'s design rule 1)."""
+        raise NotImplementedError
+
     def schedule(
         self,
         base_division: NoteDivision,
         rate: float,
         clock: Clock,
-        callback: Callable[[], None],
+        callback: Callable[[], None] | None = None,
     ) -> Division:
-        """Subscribe `callback` on `clock` and pre-register the `rate` live
-        control, so `build()` never has to hand-wire it."""
-        division = clock.subscribe(clock.ticks_for_rate(base_division, rate), callback)
+        """Subscribe `callback` (default: `self.next_step`) on `clock` and
+        pre-register the `rate` live control, so `build()` never has to
+        hand-wire it."""
+        division = clock.subscribe(
+            clock.ticks_for_rate(base_division, rate), callback or self.next_step
+        )
         self._division = division
         self._clock = clock
         self._base_division = base_division

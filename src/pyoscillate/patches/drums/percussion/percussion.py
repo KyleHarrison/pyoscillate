@@ -9,6 +9,7 @@ transient bright and woody; the conga uses a lower, longer body with only a
 soft touch of transient, a warmer answer to the kick.
 """
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -66,6 +67,11 @@ class Percussion(DrumVoice):
     click_freq: PyoObject
     click_signal: Biquad
     source: PyoObject
+
+    # the step pattern's callable, frozen at build time - fed to
+    # `next_step`, which build() can no longer close over now that it's a
+    # real method
+    _step: Callable[[], tuple[int, bool | None]]
 
     @Param(
         0.02,
@@ -139,18 +145,18 @@ class Percussion(DrumVoice):
 
         self.source = self.body_signal + self.click_signal
 
-        step = self.step_pattern(16, self.pattern)
+        self._step = self.step_pattern(16, self.pattern)
 
-        def next_step() -> None:
-            _, hit = step()
-            if hit is not None:
-                # restart the body on a zero crossing so the immediate
-                # attack doesn't click wherever the oscillator last stopped
-                self.body.reset()
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.source)
+
+    def next_step(self) -> None:
+        _, hit = self._step()
+        if hit is not None:
+            # restart the body on a zero crossing so the immediate
+            # attack doesn't click wherever the oscillator last stopped
+            self.body.reset()
+            self.trigger.play()
 
 
 class PercussionRim(Percussion):

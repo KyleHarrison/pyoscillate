@@ -16,6 +16,7 @@ an explicit per-step ghost-note level instead of that generic guess.
 16th-note bar, 32 for `GrooveLofi`'s 32nd-note (swung 16th) bar.
 """
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -72,6 +73,11 @@ class Groove(DrumVoice):
     source: Selector
     shaped: PyoObject
     filtered: ButHP
+
+    # the step pattern's callable, frozen at build time - fed to
+    # `next_step`, which build() can no longer close over now that it's a
+    # real method
+    _step: Callable[[], tuple[int, str | tuple[str, float] | None]]
 
     @Param(0.02, 0.5, 0.01, 0.14, "Presence", "Sets how loud and upfront the hat pattern sits in the mix.")
     def level(self, value: float) -> None:
@@ -142,24 +148,24 @@ class Groove(DrumVoice):
         self.shaped = self.source * self.choke_env
         self.filtered = ButHP(self.shaped)
 
-        step = self.step_pattern(self.pattern_cycle, self.pattern)
+        self._step = self.step_pattern(self.pattern_cycle, self.pattern)
 
-        def next_step() -> None:
-            step_index, entry = step()
-            if entry is not None:
-                if isinstance(entry, tuple):
-                    articulation, accent = entry
-                else:
-                    articulation = entry
-                    accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
-                self.choke_env.mul = self.level * accent
-                # one envelope for both articulations, so a closed hit
-                # restarting it cuts off an open tail - the hat choke
-                self.choke_env.dur = DURATIONS[articulation] * self.length
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_output())
+
+    def next_step(self) -> None:
+        step_index, entry = self._step()
+        if entry is not None:
+            if isinstance(entry, tuple):
+                articulation, accent = entry
+            else:
+                articulation = entry
+                accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
+            self.choke_env.mul = self.level * accent
+            # one envelope for both articulations, so a closed hit
+            # restarting it cuts off an open tail - the hat choke
+            self.choke_env.dur = DURATIONS[articulation] * self.length
+            self.trigger.play()
 
 
 class GrooveCrisp(Groove):

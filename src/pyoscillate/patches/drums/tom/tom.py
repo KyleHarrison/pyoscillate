@@ -7,6 +7,7 @@ two-bar fill down a minor pentatonic built on the rack's current chord root,
 adding pitched contour to the kit without the weight of the kick.
 """
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -85,6 +86,12 @@ class Tom(DrumVoice):
     partials: PyoObject
     voice_signal: PyoObject
 
+    # this bar's chord source and the fill's step pattern, frozen at build
+    # time - fed to `next_step`, which build() can no longer close over now
+    # that it's a real method
+    harmony: Harmony
+    _step: Callable[[], tuple[int, int | None]]
+
     @Param(
         0.02,
         0.6,
@@ -151,7 +158,7 @@ class Tom(DrumVoice):
 
     def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
-        harmony = harmony or FALLBACK_HARMONY
+        self.harmony = harmony or FALLBACK_HARMONY
 
         self.tuning = Sig(semitone_ratio(self.tune))
         self.root_freq = self.tuning * self.body_freq
@@ -178,18 +185,20 @@ class Tom(DrumVoice):
         self.partials = self.body_signal + self.overtone_signal
         self.voice_signal = self.partials + self.click_signal
 
-        step = self.step_pattern(CYCLE, PATTERN)
+        self._step = self.step_pattern(CYCLE, PATTERN)
 
-        def next_step() -> None:
-            _, offset = step()
-            if offset is not None:
-                chord_ratio = harmony.chord_freq(self.body_freq, clock.bar_index) / self.body_freq
-                self.tuning.value = chord_ratio * semitone_ratio(self.tune + offset)
-                # restart both partials on a zero crossing so the immediate
-                # attack doesn't click wherever the oscillators last stopped
-                self.body.reset()
-                self.overtone.reset()
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_signal)
+
+    def next_step(self) -> None:
+        _, offset = self._step()
+        if offset is not None:
+            chord_ratio = (
+                self.harmony.chord_freq(self.body_freq, self._clock.bar_index) / self.body_freq
+            )
+            self.tuning.value = chord_ratio * semitone_ratio(self.tune + offset)
+            # restart both partials on a zero crossing so the immediate
+            # attack doesn't click wherever the oscillators last stopped
+            self.body.reset()
+            self.overtone.reset()
+            self.trigger.play()

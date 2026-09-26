@@ -180,18 +180,18 @@ class FmBass(Bass):
         # is too slow for an offset that moves within a few milliseconds.
         self.body = ButHP(self.tone_signal, freq=SUBSONIC)
 
-        def next_step() -> None:
-            # derived from the shared clock's own tick - see `Clock.tick`'s
-            # docstring
-            step = (clock.tick // self._division.steps) % len(PROFILE.pattern)
-            self._accent = PROFILE.accents[step]
-            self.tone_signal.carrier = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
-            self.bark.mul = self.growl * self._accent
-            self.amp.mul = self._accent
-            self.trigger.play()
-
-        self.schedule(BASE_DIVISION, self.rate, clock, next_step)
+        self.schedule(BASE_DIVISION, self.rate, clock)
         return self.finish(self.body)
+
+    def next_step(self) -> None:
+        # derived from the shared clock's own tick - see `Clock.tick`'s
+        # docstring
+        step = (self._clock.tick // self._division.steps) % len(PROFILE.pattern)
+        self._accent = PROFILE.accents[step]
+        self.tone_signal.carrier = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
+        self.bark.mul = self.growl * self._accent
+        self.amp.mul = self._accent
+        self.trigger.play()
 
 
 class FmBassBark(FmBass):

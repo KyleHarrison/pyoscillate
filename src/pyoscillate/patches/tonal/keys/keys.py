@@ -270,29 +270,29 @@ class Keys(GatedVoice):
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb
 
-        def next_step() -> None:
-            # derived from the shared clock's own tick, not a local counter
-            # that starts at 0 whenever this patch is built or restarted -
-            # see Harmony's docstring on why chord/beat position must come
-            # from the clock, never from a patch's own step count
-            step = (clock.tick // self._division.steps) % BAR_STEPS
-            velocity = HITS.get(step)
-            if velocity is not None:
-                bar = clock.bar_index
-                hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step)
-                slot = hit_index % SLOTS
-                chord_notes = CHORDS[bar % len(CHORDS)]
-                start = slot * NOTES
-                new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
-                self.freqs[start : start + NOTES] = new_freqs
-                for offset, freq in enumerate(new_freqs):
-                    self.freq_sigs[start + offset].value = freq
-                self.velocities[slot] = velocity
-                self.apply_touch()
-                self.triggers[slot].play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(
             self.voice_signal,
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
         )
+
+    def next_step(self) -> None:
+        # derived from the shared clock's own tick, not a local counter
+        # that starts at 0 whenever this patch is built or restarted -
+        # see Harmony's docstring on why chord/beat position must come
+        # from the clock, never from a patch's own step count
+        step = (self._clock.tick // self._division.steps) % BAR_STEPS
+        velocity = HITS.get(step)
+        if velocity is not None:
+            bar = self._clock.bar_index
+            hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step)
+            slot = hit_index % SLOTS
+            chord_notes = CHORDS[bar % len(CHORDS)]
+            start = slot * NOTES
+            new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
+            self.freqs[start : start + NOTES] = new_freqs
+            for offset, freq in enumerate(new_freqs):
+                self.freq_sigs[start + offset].value = freq
+            self.velocities[slot] = velocity
+            self.apply_touch()
+            self.triggers[slot].play()

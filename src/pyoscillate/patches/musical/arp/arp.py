@@ -149,14 +149,16 @@ class Arp(GatedVoice):
         )
 
         self.step_root_freq = self.root_freq
-        step = self.step_pattern(len(MID_INTERVALS), dict(enumerate(MID_INTERVALS)))
-
-        def next_step() -> None:
-            _, interval = step()
-            self.mid_freq.value = self.step_root_freq * pow(2, interval / 12)
+        self._step = self.step_pattern(len(MID_INTERVALS), dict(enumerate(MID_INTERVALS)))
 
         # `step_bars` counts whole bars, not a `NoteDivision` offset, so this
         # subscribes directly rather than through `self.schedule()`'s
-        # rate-slider math
-        self._division = clock.subscribe(clock.bar * self.step_bars, next_step)
+        # rate-slider math - `self._clock` still has to be set by hand here,
+        # since it's normally `schedule()`'s job
+        self._clock = clock
+        self._division = clock.subscribe(clock.bar * self.step_bars, self.next_step)
         return self.finish(self.reverb)
+
+    def next_step(self) -> None:
+        _, interval = self._step()
+        self.mid_freq.value = self.step_root_freq * pow(2, interval / 12)

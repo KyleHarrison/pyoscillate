@@ -15,6 +15,7 @@ notes can sit at 32nd-note positions a plain 16-step pattern can't express -
 mechanism at a finer grid, not a new one.
 """
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -75,6 +76,10 @@ class Snare(DrumVoice):
     # per-hit accent from the step pattern, not a parameter: kept on self so
     # a live level/snap change doesn't lose the current step's accent
     accent: float
+    # the step pattern's callable, frozen at build time - fed to
+    # `next_step`, which build() can no longer close over now that it's a
+    # real method
+    _step: Callable[[], tuple[int, float | None]]
 
     @Param(0.02, 0.6, 0.01, 0.2, "Presence", "Sets how loud and upfront the snare sits in the mix.")
     def level(self, value: float) -> None:
@@ -165,20 +170,20 @@ class Snare(DrumVoice):
 
         self.source = self.body_signal + self.rattle
 
-        step = self.step_pattern(self.pattern_cycle, self.pattern)
+        self._step = self.step_pattern(self.pattern_cycle, self.pattern)
 
-        def next_step() -> None:
-            _, accent = step()
-            if accent is not None:
-                self.accent = accent
-                self.apply_gains()
-                # restart the body on a zero crossing so the immediate
-                # attack doesn't click wherever the oscillator last stopped
-                self.body.reset()
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_output())
+
+    def next_step(self) -> None:
+        _, accent = self._step()
+        if accent is not None:
+            self.accent = accent
+            self.apply_gains()
+            # restart the body on a zero crossing so the immediate
+            # attack doesn't click wherever the oscillator last stopped
+            self.body.reset()
+            self.trigger.play()
 
 
 # 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> accent. The backbeat

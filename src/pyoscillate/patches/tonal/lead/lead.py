@@ -102,6 +102,10 @@ class Lead(GatedVoice):
     shaped: Disto
     voice_signal: PyoObject
 
+    # the rack's harmony, frozen at build time - fed to `next_step`, which
+    # build() can no longer close over now that it's a real method
+    harmony: Harmony | None
+
     # anchor register for the melody; re-rooted on the rack's current chord
     # each note, in the octave nearest this note (see `note_root`)
     root_freq = Param(
@@ -185,6 +189,7 @@ class Lead(GatedVoice):
 
     def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
+        self.harmony = harmony
 
         initial_root = self.note_root(clock, harmony)
         self.pitch1 = SigTo(value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide_time)
@@ -222,24 +227,24 @@ class Lead(GatedVoice):
         self.shaped = Disto(self.filtered, drive=self.base_drive, slope=0.7, mul=self.amp_env)
         self.voice_signal = self.shaped
 
-        def next_step() -> None:
-            # derived from the shared clock's own tick, not a local counter
-            # that starts at 0 whenever this patch is built or restarted -
-            # see `Clock.tick`'s docstring
-            step = (clock.tick // self._division.steps) % len(self.pattern)
-            degree = self.pattern[step]
-            if degree < 0:
-                self.amp_env.stop()
-                self.filter_env.stop()
-            else:
-                target = self.note_root(clock, harmony) * 2 ** (degree / 12)
-                self.pitch1.value = target * 2 ** (self.osc1_detune / 12)
-                self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
-                self.amp_env.play()
-                self.filter_env.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_signal)
+
+    def next_step(self) -> None:
+        # derived from the shared clock's own tick, not a local counter
+        # that starts at 0 whenever this patch is built or restarted -
+        # see `Clock.tick`'s docstring
+        step = (self._clock.tick // self._division.steps) % len(self.pattern)
+        degree = self.pattern[step]
+        if degree < 0:
+            self.amp_env.stop()
+            self.filter_env.stop()
+        else:
+            target = self.note_root(self._clock, self.harmony) * 2 ** (degree / 12)
+            self.pitch1.value = target * 2 ** (self.osc1_detune / 12)
+            self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
+            self.amp_env.play()
+            self.filter_env.play()
 
 
 class LeadBrass(Lead):

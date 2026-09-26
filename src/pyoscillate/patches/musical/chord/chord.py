@@ -54,6 +54,10 @@ class Chord(GatedVoice):
     chorus_voice: Chorus | None
     reverb: Freeverb
 
+    # this bar's chord source, frozen at build time - fed to `next_step`,
+    # which build() can no longer close over now that it's a real method
+    harmony: Harmony
+
     def table(self) -> PyoTableObject:
         """This style's oscillator table. Overridden per style."""
         raise NotImplementedError
@@ -87,7 +91,7 @@ class Chord(GatedVoice):
 
     def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
-        harmony = harmony or FALLBACK_HARMONY
+        self.harmony = harmony or FALLBACK_HARMONY
 
         self.oscillator_table = self.table()
         self.envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
@@ -96,7 +100,7 @@ class Chord(GatedVoice):
         self.voices = [
             Osc(
                 self.oscillator_table,
-                freq=harmony.chord_freq(self.register_centre, clock.bar_index)
+                freq=self.harmony.chord_freq(self.register_centre, clock.bar_index)
                 * 2 ** (self.octave + interval / 12),
                 mul=self.amplitude,
             )
@@ -115,20 +119,21 @@ class Chord(GatedVoice):
 
         # fires on the third 16th of every 4-step group, i.e. every offbeat
         # 16th-note pair within the bar
-        step = self.step_pattern(16, {2, 6, 10, 14})
+        self._step = self.step_pattern(16, {2, 6, 10, 14})
 
-        def next_step() -> None:
-            _, fire = step()
-            if fire:
-                chord_root = (
-                    harmony.chord_freq(self.register_centre, clock.bar_index) * 2 ** self.octave
-                )
-                for oscillator, interval in zip(self.voices, INTERVALS, strict=True):
-                    oscillator.freq = chord_root * 2 ** (interval / 12)
-                self.trigger.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.reverb)
+
+    def next_step(self) -> None:
+        _, fire = self._step()
+        if fire:
+            chord_root = (
+                self.harmony.chord_freq(self.register_centre, self._clock.bar_index)
+                * 2 ** self.octave
+            )
+            for oscillator, interval in zip(self.voices, INTERVALS, strict=True):
+                oscillator.freq = chord_root * 2 ** (interval / 12)
+            self.trigger.play()
 
 
 class ChordVelvet(Chord):

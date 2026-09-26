@@ -63,6 +63,10 @@ class Strings(GatedVoice):
     amp_env: Adsr
     voice_signal: PyoObject
 
+    # the rack's harmony, frozen at build time - fed to `next_step`, which
+    # build() can no longer close over now that it's a real method
+    harmony: Harmony | None
+
     root_freq = Param(
         notes.A2,
         notes.A4,
@@ -154,13 +158,9 @@ class Strings(GatedVoice):
 
     def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
+        self.harmony = harmony
 
-        def current_root() -> float:
-            if harmony is None:
-                return self.root_freq
-            return harmony.chord_freq(self.root_freq, clock.bar_index)
-
-        root = current_root()
+        root = self.current_root(clock)
         # neutral detune/mul here; the Spread and Colour controls (run by
         # finish() below) apply the live values, per patches/CLAUDE.md's
         # rule against repeating a parameter's mapping in build()
@@ -178,12 +178,17 @@ class Strings(GatedVoice):
         )
         self.voice_signal = self.chorus * self.amp_env
 
-        def next_step() -> None:
-            new_root = current_root()
-            for saw, interval in zip(self.chord_saws, CHORD_TONES, strict=True):
-                saw.freq = new_root * 2 ** (interval / 12)
-            self.colour_saw.freq = new_root * 2 ** (COLOUR_TONE / 12)
-            self.amp_env.play()
-
-        self.schedule(self.base_division, self.rate, clock, next_step)
+        self.schedule(self.base_division, self.rate, clock)
         return self.finish(self.voice_signal, resources=(*self.chord_saws,))
+
+    def current_root(self, clock: Clock) -> float:
+        if self.harmony is None:
+            return self.root_freq
+        return self.harmony.chord_freq(self.root_freq, clock.bar_index)
+
+    def next_step(self) -> None:
+        new_root = self.current_root(self._clock)
+        for saw, interval in zip(self.chord_saws, CHORD_TONES, strict=True):
+            saw.freq = new_root * 2 ** (interval / 12)
+        self.colour_saw.freq = new_root * 2 ** (COLOUR_TONE / 12)
+        self.amp_env.play()
