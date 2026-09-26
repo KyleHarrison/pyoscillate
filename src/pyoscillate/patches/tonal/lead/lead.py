@@ -37,9 +37,12 @@ from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # semitone offsets above the current chord root; -1 is a rest, giving the
-# phrase somewhere for its Release tail to be heard
+# phrase somewhere for its Release tail to be heard. The default motif for
+# styles that don't override `pattern` (see `Lead.pattern`).
 PATTERN = (0, 4, 7, 12, 7, 4, -1, 0)
 BASE_DIVISION = NoteDivision.EIGHTH
+# a rest sentinel, distinct from a real degree (which is never negative)
+REST = -1
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
@@ -52,6 +55,9 @@ class Lead(GatedVoice):
     needs_harmony = True
     volume_default = 0.7
     base_division: ClassVar[NoteDivision] = BASE_DIVISION
+    # this style's melodic motif; a style with a sparser or differently-
+    # phrased line overrides it (different profile data, same graph)
+    pattern: ClassVar[tuple[int, ...]] = PATTERN
 
     # osc1/osc2 detune in semitones (osc2's can exceed an octave, e.g. +12.1)
     osc1_detune: ClassVar[float]
@@ -217,8 +223,8 @@ class Lead(GatedVoice):
         self.voice_signal = self.shaped
 
         def next_step() -> None:
-            step = self._step % len(PATTERN)
-            degree = PATTERN[step]
+            step = self._step % len(self.pattern)
+            degree = self.pattern[step]
             if degree < 0:
                 self.amp_env.stop()
                 self.filter_env.stop()
@@ -263,3 +269,38 @@ class LeadMellow70s(Lead):
     amp_attack, amp_release = 0.0, 0.35
     glide_time = 0.02
     base_drive = 0.0
+
+
+# 16th-note steps (one bar) -> semitones above the chord root, mostly rests:
+# a minor-pentatonic-ish phrase (root, minor 3rd, 5th, minor 7th) that leaves
+# space after each two- or three-note idea, rather than filling every
+# subdivision - see lofi/README.md, "The melody should often leave space
+# after a phrase."
+MUTED_KEYS_PATTERN = (
+    0, REST, REST, 3, REST, REST, 7, REST,
+    10, REST, REST, 7, REST, 3, REST, REST,
+)
+
+
+class LeadMutedKeys(Lead):
+    """Near-unison dual-pulse pair, no PWM, dark and narrow filter sweep, no
+    drive: a soft, covered pluck rather than a synth lead - the rack's
+    lofi lead-melody voice. Plays a sparse, rest-heavy pentatonic motif
+    instead of the family's default arpeggio (see `MUTED_KEYS_PATTERN`)."""
+
+    title = "Lead - Muted Keys"
+    summary = "Soft, dark dual-pulse pluck playing a sparse, rest-heavy minor-pentatonic motif."
+    base_division = NoteDivision.SIXTEENTH
+    pattern = MUTED_KEYS_PATTERN
+    osc1_detune, osc2_detune = -0.05, 0.05
+    osc1_duty, osc2_duty = 0.5, 0.45
+    pwm_rate, pwm_depth = 0.0, 0.0
+    filter_base, filter_env_depth, filter_resonance = 900.0, 700.0, 0.15
+    filter_attack, filter_release = 0.01, 0.5
+    amp_attack, amp_release = 0.005, 0.6
+    glide_time = 0.0
+    base_drive = 0.0
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the phrase's speed for each step away from its 16th-note default.",
+    )

@@ -1,0 +1,99 @@
+{
+  "lead_muted_keys": {
+    "enabled": false,
+    "root_freq": 220.0,
+    "brightness": 1500.0,
+    "attack": 0.01,
+    "sustain": 1.0,
+    "vibrato": 0.0,
+    "drive": 0.0,
+    "rate": 0,
+    "volume": 0.7
+  },
+  "keys": {
+    "enabled": true,
+    "root_freq": 220.0,
+    "bark": 2.1999999999999997,
+    "bite": 0.8,
+    "decay": 0.5,
+    "tremolo": 0.3,
+    "wobble": 0.0,
+    "rate": 0,
+    "volume": 0.8
+  },
+  "strings": {
+    "enabled": true,
+    "root_freq": 207.65234878997256,
+    "brightness": 2200,
+    "attack": 2.65,
+    "release": 3.5,
+    "spread": 0.35,
+    "shimmer": 0.5,
+    "colour": 0.05,
+    "rate": 0,
+    "volume": 0.4
+  },
+  "bass_conversation": {
+    "enabled": true,
+    "octave": 0,
+    "cutoff": 720,
+    "rate": 0,
+    "volume": 0.62
+  },
+  "bass_muted": {
+    "enabled": false,
+    "octave": 0,
+    "cutoff": 720,
+    "rate": 0,
+    "volume": 0.62
+  },
+  "bell_fm": {
+    "enabled": false,
+    "root_freq": 329.6275569128699,
+    "strike": 0.05,
+    "ring": 0.3,
+    "rate": -1,
+    "volume": 0.35
+  },
+  "noise_dust": {
+    "enabled": true,
+    "colour": 1.9,
+    "brightness": 1250.0,
+    "motion": 3.25,
+    "depth": 0.5,
+    "level": 0.43,
+    "volume": 0.16
+  },
+  "kick_lofi": {
+    "enabled": false,
+    "level": 0.8999999999999999,
+    "drive": 0.55,
+    "punch": 2.0,
+    "length": 2.0,
+    "click": 2.0,
+    "rate": 0,
+    "volume": 1.4
+  },
+  "snare_lofi": {
+    "enabled": true,
+    "level": 0.45,
+    "tune": -6.0,
+    "snap": 0.3,
+    "tone": 5300.0,
+    "decay": 0.37999999999999995,
+    "rate": 0,
+    "volume": 1.2
+  },
+  "hat_lofi": {
+    "enabled": false,
+    "level": 0.39999999999999997,
+    "cutoff": 12000.0,
+    "metal": 0.1,
+    "length": 1.5,
+    "rate": -2.0,
+    "volume": 1.2
+  },
+  "_rack": {
+    "key": "C"
+  }
+}

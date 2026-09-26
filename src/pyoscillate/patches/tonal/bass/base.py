@@ -43,13 +43,22 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 
 @dataclass(frozen=True)
 class BassProfile:
-    """Musical and perceptual policy for one bass voice."""
+    """Musical and perceptual policy for one bass voice.
+
+    `gates` marks which steps actually strike a note; a `False` step is a
+    rest - `next_step` skips both the retune and the trigger, so the
+    previous note's envelope tail (and the silence after it) is what's
+    heard, rather than every step restriking the pattern's pitch. Leaving
+    it `None` gates every step, matching every profile before this field
+    existed.
+    """
 
     pattern: tuple[int, ...]
     accents: tuple[float, ...]
     envelope_decay: float
     resonance: float
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
+    gates: tuple[bool, ...] | None = None
 
 
 class Bass(GatedVoice):
@@ -128,6 +137,8 @@ class Bass(GatedVoice):
         """
         if len(profile.pattern) != len(profile.accents):
             raise ValueError("Bass pattern and accent pattern must have equal lengths")
+        if profile.gates is not None and len(profile.gates) != len(profile.pattern):
+            raise ValueError("Bass gates must have the same length as the pattern")
 
         self.envelope_table = CosTable([(0, 0), (80, 1), (2100, 0.5), (8191, 0)])
         self.envelope = TrigEnv(
@@ -154,9 +165,10 @@ class Bass(GatedVoice):
 
         def next_step() -> None:
             step = self._step % len(profile.pattern)
-            self.oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
-            self.envelope.mul = profile.accents[step]
-            self.trigger.play()
+            if profile.gates is None or profile.gates[step]:
+                self.oscillator.freq = current_root() * 2 ** (profile.pattern[step] / 12)
+                self.envelope.mul = profile.accents[step]
+                self.trigger.play()
             self._step += 1
 
         self.schedule(BASE_DIVISION, rate, clock, next_step)

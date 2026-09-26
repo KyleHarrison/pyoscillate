@@ -1,39 +1,73 @@
-# Lofi
+# Lofi Beats
 
-An 80 BPM lofi hip-hop rack built around a dusty electric-piano chord loop, a
-muted sub bass, soft boom-bap-adjacent drums, and a continuous vinyl-dust /
-tape-wobble texture bed. Everything sits behind the beat with an MPC-style
-swing rather than a quantized grid — the goal is a hazy, "beats to study to"
-loop rather than an energetic dance groove.
+A slow, understated **lofi hip-hop / beats-to-study-and-relax-to** rack at
+80 BPM: a small, intimate musical scene rather than a conventional beat. A
+warm lead melody carries the listener's attention while a sparse, thumpy
+bass, soft strings, a high-register call-and-response voice, soft boom-bap
+drums, and a continuous vinyl-dust bed interact around it - **calm,
+repetitive, slightly imperfect, and gently hypnotic**, with a clear
+foreground/middle-ground/background rather than an equal-weighted "lofi
+drums + Rhodes" texture.
 
 ## Musical brief
 
-- **Tempo/feel:** 80 BPM, swung 16ths, behind-the-beat pocket, ghost notes on
-  hats/snare — see `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md`
+- **Tempo/feel:** 75-82 BPM, centred at 80; 4/4; primarily a 16th-note grid
+  with substantial MPC-style swing; behind-the-beat, slightly lazy pocket.
+  Ghost notes on hats/snare — see
+  `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md`
   and `genres/hip-hop-rnb.md` ("Cloud rap / lo-fi hip-hop").
+- **Density:** sparse. Empty space is part of the groove; nothing should
+  feel aggressively accented or pushed forward.
 - **Harmony:** a static, jazz-influenced vamp rather than a developing song
   form — `Dm9–G13–Cmaj7–Am9`, one chord per bar, four-bar loop.
-- **Form:** a single repeating loop with subtle per-cycle variation, not a
-  verse/hook structure — this is an instrument rack, not a fixed track.
+- **Form:** four- and eight-bar phrases that keep breathing, with small,
+  probabilistic per-cycle variation (a missing hit, a slightly different
+  note, one extra offbeat) rather than frequent fills or dramatic change —
+  see `.claude/skills/music-theory/references/melody/phrase-structure.md`
+  and `motivic-development.md`. The listener should always recognise it as
+  the same musical idea.
+- **Arrangement hierarchy:** lead melody (foreground) > bass and strings
+  (musical body) > high-register response (intermittent conversational
+  detail) > atmosphere (should almost disappear into the background).
 
 ## Concept-to-patch mapping
 
-| Concept | Patch | Notes |
+| Concept | Patch | Reuse / extend / new |
 |---|---|---|
-| Dusty Rhodes/keys chord loop | `tonal/keys` | Existing FM electric-piano voice; comps the vamp in close rootless voicings. Adds a slow pitch-drift ("Wobble") param — separate from its existing tremolo throb — as the tape wow-and-flutter mechanism. |
-| Muted sub bass | `tonal/bass` | Reuses an existing muted/dub style, re-rooting on the same chord as the keys. |
-| Vinyl dust / crackle | `texture/noise` | New style layering the existing colored-noise bed (pink/brown blend) with sparse randomized click/pop transients, so the dust reads as discrete grain rather than steady hiss. |
-| Soft boom-bap drums | `drums/kick`, `drums/snare`, `drums/hat` | New softened style per family: closed low-pass, light saturation, MPC-style swing with ghost notes — the 80 BPM boom-bap-adjacent pocket rather than deep_house's four-on-the-floor feel. |
+| Lead melody — warm, hummable, rest-heavy pentatonic motif ("muted pluck") | `tonal/lead`, new style `LeadMutedKeys` | **Extend.** `Lead` already plays a monophonic motif that follows the rack's chord and rests between phrases (`tonal/lead/lead.py`'s existing `PATTERN`/`REST`); its motif is now a per-style `ClassVar` (`Lead.pattern`) instead of one shared module constant, so a style can phrase differently, not just sound different. `LeadMutedKeys` is a near-unison, no-PWM, dark-filtered, undriven dual-pulse voice (a soft, covered pluck) playing a sparse, rest-heavy minor-pentatonic phrase — see `MUTED_KEYS_PATTERN`. |
+| Lead melody, alternate voice — dusty electric-piano comping | `tonal/keys` (`Keys`) | **Reuse, unmodified.** Offered as a second voice in the same rack group as an alternative to the strict monophonic line: close-voiced chord comping in a Charleston rhythm still reads as a hummable top line, and the existing FM electric-piano character (see `tonal/keys/CLAUDE.md`) already matches "warm electric piano". |
+| Strings / harmonic accompaniment — soft, sustained, occasional colour tones | `tonal/strings`, new `Strings` (first patch in this family) | **New.** `tonal/strings` was a placeholder; `strings.py` is a `SuperSaw`-ensemble pad that re-opens once per bar on the rack's chord (root/fifth/octave, always consonant) with a separate, blendable major-9th colour voice, low-pass, and `Chorus` for ensemble shimmer — no struck attack. See `tonal/strings/CLAUDE.md` (now filled in from placeholder). |
+| Bass — sparse, thumpy, occasional offbeat re-entry over a four-bar phrase | `tonal/bass`, new profile/style `BassConversation` | **Extend.** `BassProfile` gained an optional `gates` field (a per-step "rest" mask) so a bass voice can actually leave space instead of retriggering every step — the family's shared `build_voice` previously always retriggered on every clocked step. `profiles._conversation()` is a 64-step (four-bar) phrase of mostly rests, matching the brief's bar-by-bar ascii diagram one-for-one, with a longer envelope decay so held notes actually ring into the gaps. The original `BassMuted` stays available in the same rack group. |
+| High-register call-and-response — a soft "ting" answering the bass | `pitched_percussion/bell` (`BellFm`) | **Reuse, unmodified — approximated.** The rack has no cross-patch event bus (patches only share `Harmony`/`Clock`, never each other's live triggers — see `patches/CLAUDE.md`), so a bell that literally listens for a bass hit and answers it isn't buildable without new rack-level architecture. `BellFm` is tuned instead (`root_freq=A5`, soft `strike`, short `ring`, and one `rate` step slower than its default) to sit high, soft, and sparse on the shared clock, which reads as an intermittent answer without genuinely reacting to the bass. Noted here as a deliberate approximation, not an oversight. |
+| Atmosphere — vinyl dust / tape crackle, felt more than heard | `texture/noise` (`NoiseDust`) | **Reuse, unmodified.** Already the rack's continuous background bed; its sparse, randomly-timed click/pop transients over a pink/brown noise floor are exactly "vinyl dust and stylus crackle" rather than steady hiss. |
+| Soft boom-bap groove | `drums/kick` (`KickLofi`), `drums/snare` (`SnareLofi`), `drums/hat` (`GrooveLofi`) | **Reuse, unmodified.** Already closed-low-pass, lightly saturated, swung-32nd (MPC-style) patterns with ghost notes, built for this exact 80 BPM lofi pocket. |
+| Shared harmony/tempo | `rack.py` | `HARMONY`/`BPM`/`TICKS_PER_BAR`, unchanged from the previous rack. |
 
-## Shared harmony
+## Shared harmony and tempo
 
-`HARMONY` in `rack.py` holds one key and one vamp — `Dm9–G13–Cmaj7–Am9`, one
-chord per bar, four bars per loop. The keys and bass patches re-root on the
-same bar from the shared clock, so both change chord together regardless of
-their own Rate sliders.
+`HARMONY` in `rack.py` holds one key and vamp — `Dm9–G13–Cmaj7–Am9`, one
+chord per bar, four bars per loop. `BassConversation`, `Strings`, and
+`LeadMutedKeys` (via `Lead`'s existing `needs_harmony` support) all re-root
+on `clock.bar_index`'s current chord, so they change together regardless of
+their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
+as fixed voicings relative to its own Register slider (see `keys.py`'s
+module docstring) — it doesn't read `HARMONY` directly, so if the
+progression in `rack.py` ever changes, `Keys`'s `CHORDS` constant needs
+updating by hand to match.
 
-## Status
+## What this rack does not attempt
 
-This README documents the grounded musical/sonic brief agreed before
-implementation (see `src/pyoscillate/projects/CLAUDE.md`). `rack.py` and the
-patch changes above are not yet implemented.
+- **True bass/high-register conversation.** The brief's "bass speaks → space
+  → high register answers" is a cross-patch behaviour (one voice reacting to
+  another's live trigger) that the current patch/runtime architecture
+  doesn't support — every patch only shares `Clock`/`Harmony`, not each
+  other's events. The high-response bell approximates this by being sparse
+  and clock-phase-offset instead, per the mapping table above. A literal
+  version would need a rack-level event bus, which is future work beyond
+  this rack.
+- **Per-cycle probabilistic humanization** (velocity drift, an occasional
+  missing kick, a slightly different melody note each loop) is not wired up
+  as a rack-level mechanism; each patch's own fixed pattern/profile supplies
+  the "performed rather than mechanical" feel the brief asks for, but true
+  cycle-to-cycle randomization is a natural next step rather than something
+  this rack's patches do today.

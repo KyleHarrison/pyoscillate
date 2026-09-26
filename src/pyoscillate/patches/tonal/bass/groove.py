@@ -86,3 +86,13 @@ class BassMuted(GrooveBass):
 
     title = "Bass - Muted"
     style = "muted"
+
+
+class BassConversation(GrooveBass):
+    """Sparse, four-bar phrase of held root/fifth notes with a rare
+    syncopated re-entry, rather than a bassline that plays every step - see
+    `profiles._conversation()`."""
+
+    title = "Bass - Conversation"
+    summary = "Sparse, held root/fifth notes over a four-bar phrase, with an occasional offbeat re-entry."
+    style = "conversation"
