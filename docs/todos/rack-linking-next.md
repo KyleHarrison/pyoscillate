@@ -45,7 +45,7 @@ system the original plan proposed.
 **Why:** only `lead` rotates today. Different rotation periods per group is a cheap, real version of "stack several timescales" and "the rack arranges itself" without building an LFO engine.
 
 **Do:**
-- Give `bass`, `strings`, and/or `noise` their own `GroupController(..., bars=…)` in `projects/lofi/rack.py`'s `build_groups()`, each with a different period (for example bass pattern variant every 8 bars, strings voicing every 16, noise character every 64 — periods that don't share a common small multiple, so the combination doesn't repeat predictably).
+- Give `bass`, `strings`, and/or `noise` their own `GroupController(..., bars=…)` in `projects/lofi/boom_bap/rack.py`'s `build_groups()`, each with a different period (for example bass pattern variant every 8 bars, strings voicing every 16, noise character every 64 — periods that don't share a common small multiple, so the combination doesn't repeat predictably).
 - Each patch needs its own `on_evolve(index)` override reading from its own musical data (a tuple of pattern/voicing variants), following the `keys.Keys.PROGRESSIONS` precedent.
 - Read the relevant music-theory references before writing new bass/strings variants (see `.claude/skills/music-theory/references/electronic-parts/`).
 

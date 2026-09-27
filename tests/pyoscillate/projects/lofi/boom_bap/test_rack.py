@@ -63,7 +63,7 @@ from pyo.lib.server import Server
 from pyoscillate.clock import Clock
 from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.strings import strings
-from pyoscillate.projects.lofi.rack import LofiRack
+from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.tempo import Tempo
 
 output_path, pre_roll_sixteenths, bars_to_run = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])

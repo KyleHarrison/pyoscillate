@@ -136,3 +136,33 @@ MUTED_VARIANTS: tuple[BassProfile, ...] = (
     GROOVE["muted"],
     _MUTED_VARIANT_B,
 )
+
+# a four-bar (64-step), steady 8th-note-pulse phrase for `bass.hover.BassHover`
+# (see lofi/slowed_reverb's README "Bass" mapping row): every even step
+# strikes, odd steps rest, and the semitone offset above the tonic is fixed
+# per bar rather than per hit - E (tonic) for bar 1, then F, G, A (the
+# tonic's stepwise neighbours) for bars 2-4 before returning to E - so the
+# line hovers and slowly steps rather than following a chord
+_HOVER_STEPS = 64
+_HOVER_BAR_OFFSETS = (0, 1, 3, 5)  # E, F, G, A above the tonic, one per bar
+
+
+def _hover() -> BassProfile:
+    pattern = tuple(_HOVER_BAR_OFFSETS[step // 16] for step in range(_HOVER_STEPS))
+    gates = tuple(step % 2 == 0 for step in range(_HOVER_STEPS))
+    # a soft downbeat lean, otherwise flat - the pulse should read as steady
+    # and breathing, not accented
+    accents = tuple(0.95 if step % 16 == 0 else 0.8 for step in range(_HOVER_STEPS))
+    return BassProfile(
+        pattern=pattern,
+        accents=accents,
+        envelope_decay=1.8,
+        resonance=0.12,
+        # near-sine: a trace of the 2nd/3rd/4th harmonic for warmth, nothing
+        # that reads as growl or saturation
+        harmonics=(1.0, 0.06, 0.03, 0.015),
+        gates=gates,
+    )
+
+
+HOVER = _hover()

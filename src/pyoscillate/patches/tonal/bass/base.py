@@ -23,6 +23,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from pyo import PyoObject
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 from pyo.lib.tableprocess import Osc
@@ -169,7 +170,14 @@ class Bass(GatedVoice):
         self._profile = profile
 
         self.schedule(BASE_DIVISION, rate, clock)
-        return self.finish(self.filtered)
+        return self.finish(self.voice_output())
+
+    def voice_output(self) -> PyoObject:
+        """Hook: the final output node after `self.filtered`. The default is
+        a no-op; a style overrides this to add its own post-processing
+        (e.g. a reverb tail), assigning any node it builds onto `self` too -
+        same pattern as `Kick.voice_output`/`Groove.voice_output`."""
+        return self.filtered
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter

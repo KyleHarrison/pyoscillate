@@ -47,35 +47,51 @@ same as reasoning from a verbal description, per the root
 
 ## Tasks
 
-- [ ] **Ground the brief.** Run this data through `.claude/skills/music-theory/SKILL.md`
+- [x] **Ground the brief.** Run this data through `.claude/skills/music-theory/SKILL.md`
       and `.claude/skills/pyo-music/SKILL.md` before naming any Pyo object —
       particularly for the bass (clean sine-like tone, dominant energy share,
       soft envelope) and the mix-wide dark/reverberant timbre. Decide a
       project name (e.g. something distinct from `lofi`/`deep_house`).
-- [ ] **Write the README first** at `src/pyoscillate/projects/{project_name}/README.md`
+- [x] **Write the README first** at `src/pyoscillate/projects/{project_name}/README.md`
       per `projects/CLAUDE.md`'s "README before implementation" — musical
       brief (tempo ~61 BPM felt, E minor/Phrygian centre, dark/reverberant
       timbre, bass-dominant balance), concept-to-patch mapping table, shared
       harmony/tempo constants. Do this before any patch code.
-- [ ] **Bass patch decision.** Check `tonal/bass`'s existing profiles/styles
+- [x] **Bass patch decision.** Check `tonal/bass`'s existing profiles/styles
       (`src/pyoscillate/patches/tonal/bass/`) for a clean, sine-like,
       soft-envelope, tonic-hovering profile before creating a new one — the
       existing lofi rack's `BassMuted`/`BassConversation` are thumpy and
       sparse, not necessarily this bass's near-sine, always-present character.
       Extend or add a new style per the mapping table, not both.
-- [ ] **Mix-wide dark/reverb character.** Decide the synthesis strategy for
+- [x] **Mix-wide dark/reverb character.** Decide the synthesis strategy for
       the ~500-850 Hz ceiling and long reverb tail as a rack-level effect
       chain or per-patch treatment — reason through pyo-music, don't reach
       for a single shared `Lowpass`+`Freeverb` without checking it matches the
       "breathing" dynamic (RMS std) noted above.
-- [ ] **Reuse pass.** Search existing patch families (drums, keys, strings,
+- [x] **Reuse pass.** Search existing patch families (drums, keys, strings,
       texture) before adding new ones, per workflow step 4.
-- [ ] **Wire `rack.py`** once the mapping table is settled — tempo, harmony,
+- [x] **Wire `rack.py`** once the mapping table is settled — tempo, harmony,
       `build_groups()`.
-- [ ] **Tests.** Follow the existing project test convention (see
+- [x] **Tests.** Follow the existing project test convention (see
       `tests/pyoscillate/projects/lofi/`) for the new project.
 
 ## Log
 
 - 2026-09-27: reference track analyzed (tempo/key/timbre/bass specs above);
   todo created.
+- 2026-09-27: implemented as `lofi/slowed_reverb`, next to the existing
+  lofi rack moved to `lofi/boom_bap` (both now subdirectories of
+  `src/pyoscillate/projects/lofi/`). Grounded via the music-theory
+  (E Phrygian modal centre, i-♭II vamp) and pyo-music (per-patch reverb,
+  not a rack-level bus - the rack has none) skills; see
+  `src/pyoscillate/projects/lofi/slowed_reverb/README.md` for the full
+  mapping. New patch: `tonal/bass/hover.py`'s `BassHover`, plus a
+  `voice_output()` post-processing hook added to `tonal/bass/base.py`'s
+  shared `Bass` (same pattern as `Kick`/`Groove`'s own hook) so a bass style
+  can add its own effects chain. The pad and texture layers reuse
+  `tonal/drone`'s `SoundscapeWash` and `texture/noise`'s `NoiseDust`
+  unmodified, re-tuned dark via constructor overrides. Deliberately left out
+  a drums/comping layer - see the README's "What this rack does not
+  attempt" for why. Tests: `tests/pyoscillate/patches/tonal/bass/test_hover.py`
+  (a real gain-staging bug this surfaced - a clipping loudest corner from the
+  continuous reverb tail - is recorded there, not repeated here).

@@ -10,7 +10,7 @@ from pyoscillate.controller import GroupController
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
-from pyoscillate.projects.lofi.rack import LofiRack
+from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
