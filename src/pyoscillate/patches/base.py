@@ -105,18 +105,22 @@ def _humanize(class_name: str) -> str:
 
 @dataclass(frozen=True)
 class SidechainSource:
-    """Ducks a patch's output off another rack patch's live voice signal -
-    e.g. a kick ducking the bass on every hit.
+    """Ducks a patch's output off another rack group's currently active
+    voice signal - e.g. a kick ducking the bass on every hit.
 
-    The connection is resolved at the ducked patch's own build time: if
-    `patch_name` isn't already built (its switch was never turned on) when
-    the ducked patch is (re)built, it plays unducked. Turning the source on
+    `group_name` names a `GroupController` group, not a fixed patch instance,
+    so the duck always follows whichever patch is currently active in that
+    group (a kick style switch doesn't silently un-wire the duck).
+
+    The connection is resolved at the ducked patch's own build time: if the
+    named group has no patch built (its switch was never turned on) when the
+    ducked patch is (re)built, it plays unducked. Turning the source on
     afterward doesn't retroactively rewire an already-built target; toggle
     the ducked patch again to pick it up. Making that reactive is future
     work.
     """
 
-    patch_name: str
+    group_name: str
     depth: float = 0.6
     release: float = 0.15
 

@@ -8,15 +8,41 @@ See docs/todos/oo-rack-refactor.md for the design discussion behind this.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
 from pyoscillate.controller import GroupController
 from pyoscillate.harmony import Harmony
+from pyoscillate.patches.base import Patch
+from pyoscillate.patches.params import SliderSpec
 
 if TYPE_CHECKING:
     from src.flet.base import EngineSpec
+
+
+@dataclass(frozen=True)
+class MacroSpec:
+    """One rack-level slider that pushes a value across a few groups'
+    currently-active patches - the manual, user-triggered counterpart to
+    `Patch.on_evolve`'s clock-triggered push (same "push a value into
+    whichever patch is active" shape, just fired from a widget instead of a
+    `GroupController` timer). A single rack needs at most one of these, so
+    this is one slider spec plus one push function rather than a generic
+    multi-macro/routing system.
+
+    `apply` receives the slider's current value and a `resolve_group_patch`
+    lookup (a group name -> its active `Patch`, or `None` if that group has
+    nothing on) and pushes into whichever groups it targets, normally via
+    `Patch.configure(...)` - `configure` already skips parameter names a
+    given patch/style doesn't have, so `apply` doesn't need to branch on
+    which style is currently active in a targeted group.
+    """
+
+    slider: SliderSpec
+    apply: Callable[[float, Callable[[str], Patch | None]], None]
 
 
 class Rack(ABC):
@@ -35,6 +61,7 @@ class Rack(ABC):
     ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
     needs_clock: bool = False
     harmony: Harmony | None = None
+    macro: MacroSpec | None = None
     nchnls: int = 2
     # `None` means "use flet.base's default"; a subclass overrides only if
     # it needs a different ceiling/starting level than every other project
@@ -72,5 +99,6 @@ class Rack(ABC):
             if self.master_output_max is not None
             else MASTER_OUTPUT_MAX,
             harmony=self.harmony,
+            macro=self.macro,
             group_controllers=self.group_controllers,
         )

@@ -13,6 +13,7 @@ single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -28,7 +29,7 @@ from pyoscillate.controller import GroupController
 from pyoscillate.harmony import NOTE_NAMES, Harmony
 from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
-from pyoscillate.projects.base import Rack
+from pyoscillate.projects.base import MacroSpec, Rack
 from pyoscillate.tempo import Tempo
 
 ACCENT = "#00A896"
@@ -79,9 +80,15 @@ class PatchPanel:
     changed since the last build).
     """
 
-    def __init__(self, rack: PatchRack, patch: Patch) -> None:
+    def __init__(
+        self,
+        rack: PatchRack,
+        patch: Patch,
+        resolve_group_patch: Callable[[str], Patch | None] | None = None,
+    ) -> None:
         self.rack = rack
         self.patch = patch
+        self._resolve_group_patch = resolve_group_patch
         self.enabled = False
         self.volume = patch.volume_default
         self.build_kwargs: dict[str, Any] = {}
@@ -132,11 +139,12 @@ class PatchPanel:
                         controls=[ft.Text(spec.description, color=TEXT, size=14), value_text],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
+                    ft.Text(spec.help_text, color=MUTED, size=12),
                     slider,
-                    ft.Text(spec.help_text, color=MUTED, size=11),
                 ],
                 spacing=2,
             ),
+            col={"xs": 12, "md": 6},
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
 
@@ -157,20 +165,34 @@ class PatchPanel:
                     ],
                     spacing=2,
                 ),
+                col={"xs": 12, "md": 6},
                 padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
             )
         )
         return ft.Container(
-            content=ft.ExpansionTile(
-                title=ft.Text(self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD),
-                subtitle=ft.Text(self.patch.summary, color=MUTED, size=12),
-                leading=self.switch,
-                expanded=False,
-                controls=[ft.Container(content=ft.Column(controls=rows, spacing=0), padding=16)],
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Text(self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD),
+                                    ft.Text(self.patch.summary, color=MUTED, size=12),
+                                ],
+                                spacing=2,
+                                expand=True,
+                            ),
+                            self.switch,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.ResponsiveRow(controls=rows, spacing=12, run_spacing=4),
+                ],
+                spacing=8,
             ),
             bgcolor=TILE_BG,
             border_radius=8,
-            margin=ft.margin.Margin(left=0, top=0, right=0, bottom=8),
+            padding=12,
         )
 
     # -- engine lifecycle --------------------------------------------------
@@ -236,13 +258,14 @@ class PatchPanel:
         }
 
     def _wire_sidechain(self, patch: Patch) -> None:
-        """If this patch declares a `SidechainSource` and that source is
-        already built, duck this patch's voice off the source's live
-        signal. See `SidechainSource` for the resolution-order limitation."""
+        """If this patch declares a `SidechainSource` and that source
+        group's currently active patch is already built, duck this patch's
+        voice off the source's live signal. See `SidechainSource` for the
+        resolution-order limitation."""
         sidechain = patch.sidechain
-        if sidechain is None:
+        if sidechain is None or self._resolve_group_patch is None:
             return
-        source = self.rack.get(sidechain.patch_name)
+        source = self._resolve_group_patch(sidechain.group_name)
         if source is None:
             return
         follower = Follower2(source.voice, falltime=sidechain.release)
@@ -333,6 +356,7 @@ class PatchGroup:
                 ],
                 spacing=2,
             ),
+            col={"xs": 12, "md": 6},
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
 
@@ -351,13 +375,9 @@ class PatchGroup:
         e.page.update()
 
     def _build_control(self) -> ft.Control:
-        heading_controls: list[ft.Control] = [
-            ft.Text(self.group_def.title, color=TEXT, size=18, weight=ft.FontWeight.BOLD)
-        ]
-        if self.group_def.summary:
-            heading_controls.append(ft.Text(self.group_def.summary, color=MUTED, size=12))
+        controller_rows = []
         if self.controller is not None:
-            heading_controls.append(
+            controller_rows.append(
                 self._controller_row(
                     "Evolve every (bars)",
                     "How many bars pass before this group's evolution moves on.",
@@ -365,7 +385,7 @@ class PatchGroup:
                     self.bars_slider,
                 )
             )
-            heading_controls.append(
+            controller_rows.append(
                 self._controller_row(
                     "Repeat",
                     "How many times each step repeats before advancing to the next.",
@@ -375,28 +395,40 @@ class PatchGroup:
             )
 
         patch_columns = []
+        panel_column = 12 if len(self.panels) == 1 or len(self.panels) > 2 else 6
         for panel in self.panels:
-            panel.control.width = 320
-            patch_columns.append(panel.control)
+            patch_columns.append(
+                ft.Container(content=panel.control, col={"xs": 12, "md": panel_column})
+            )
 
         return ft.Container(
-            content=ft.Column(
+            content=ft.ExpansionTile(
+                title=ft.Text(self.group_def.title, color=TEXT, size=18, weight=ft.FontWeight.BOLD),
+                subtitle=ft.Text(self.group_def.summary, color=MUTED, size=12)
+                if self.group_def.summary
+                else None,
+                leading=self.switch,
+                expanded=False,
                 controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Column(controls=heading_controls, spacing=2, expand=True),
-                            self.switch,
-                        ],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    ft.Row(
-                        controls=patch_columns,
-                        spacing=8,
-                        scroll=ft.ScrollMode.AUTO,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
-                    ),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                *(
+                                    [ft.ResponsiveRow(controls=controller_rows, spacing=16)]
+                                    if controller_rows
+                                    else []
+                                ),
+                                ft.ResponsiveRow(
+                                    controls=patch_columns,
+                                    spacing=12,
+                                    run_spacing=12,
+                                ),
+                            ],
+                            spacing=12,
+                        ),
+                        padding=ft.padding.Padding(left=16, top=8, right=16, bottom=16),
+                    )
                 ],
-                spacing=12,
             ),
             bgcolor=PANEL,
             border=ft.Border.all(1, "#2A3A36"),
@@ -437,6 +469,7 @@ class EngineSpec:
     master_output_default: float = MASTER_OUTPUT_DEFAULT
     master_output_max: float = MASTER_OUTPUT_MAX
     harmony: Harmony | None = None
+    macro: MacroSpec | None = None
     group_controllers: tuple[GroupController, ...] = ()
 
 
@@ -468,7 +501,10 @@ class PatchRackApp:
         self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
         patches = [patch for group in patch_groups for patch in group.patches]
-        self.panels = {patch.name: PatchPanel(self.rack, patch) for patch in patches}
+        self.panels = {
+            patch.name: PatchPanel(self.rack, patch, resolve_group_patch=self._resolve_group_patch)
+            for patch in patches
+        }
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
         self.groups = [
@@ -514,6 +550,23 @@ class PatchRackApp:
                 width=140,
                 on_select=self._handle_key,
             )
+        self.macro: MacroSpec | None = engine.macro
+        self.macro_slider: ft.Slider | None = None
+        self.macro_text: ft.Text | None = None
+        if self.macro is not None:
+            spec = self.macro.slider
+            self.macro_text = ft.Text(
+                spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            )
+            self.macro_slider = ft.Slider(
+                min=spec.minimum,
+                max=spec.maximum,
+                divisions=spec.divisions,
+                value=spec.default,
+                active_color=ACCENT,
+                inactive_color="#31403D",
+                on_change=self._handle_macro,
+            )
 
         self._configure_page()
         self._build_view()
@@ -532,8 +585,81 @@ class PatchRackApp:
         self.page.on_close = self.close
 
     def _build_view(self) -> None:
+        rack_controls: list[ft.Control] = [
+            ft.Row(
+                controls=[
+                    self.engine_button,
+                    *([self.key_dropdown] if self.key_dropdown is not None else []),
+                ],
+                alignment=ft.MainAxisAlignment.END,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+                spacing=8,
+                run_spacing=8,
+            ),
+            ft.Row(
+                controls=[
+                    self.preset_dropdown,
+                    ft.Button("Load", on_click=self._load_preset),
+                ],
+                spacing=8,
+            ),
+            ft.Row(
+                controls=[
+                    self.preset_name_field,
+                    ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
+                ],
+                spacing=8,
+            ),
+        ]
+        level_controls: list[ft.Control] = []
+        if self.macro is not None:
+            level_controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Text(self.macro.slider.description, color=TEXT, size=14),
+                                    self.macro_text,
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            self.macro_slider,
+                        ],
+                        spacing=2,
+                    ),
+                    col={"xs": 12, "md": 6},
+                )
+            )
+        level_controls.append(
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("Master output", color=TEXT, size=14),
+                                self.master_output_text,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        self.master_output_slider,
+                        ft.Text(
+                            f"Safety-capped at {self.engine.master_output_max:.2f}; starts at a low level.",
+                            color=MUTED,
+                            size=11,
+                        ),
+                    ],
+                    spacing=2,
+                ),
+                col={"xs": 12, "md": 6 if self.macro is not None else 12},
+            )
+        )
+        rack_controls.append(
+            ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8)
+        )
         header = ft.Container(
-            content=ft.Row(
+            content=ft.ResponsiveRow(
                 controls=[
                     ft.Container(
                         content=ft.Column(
@@ -551,56 +677,18 @@ class PatchRackApp:
                             ],
                             spacing=3,
                         ),
-                        width=320,
+                        col={"xs": 12, "lg": 5},
                     ),
-                    self.engine_button,
+                    ft.Container(
+                        content=ft.Column(controls=rack_controls, spacing=8),
+                        col={"xs": 12, "lg": 7},
+                    ),
                 ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                wrap=True,
-                run_spacing=12,
+                spacing=24,
+                run_spacing=16,
             ),
             padding=28,
             bgcolor="#121D1B",
-        )
-        preset_controls = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        self.preset_dropdown,
-                        ft.Button("Load", on_click=self._load_preset),
-                    ]
-                ),
-                ft.Row(
-                    controls=[
-                        self.preset_name_field,
-                        ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
-                    ]
-                ),
-                *([self.key_dropdown] if self.key_dropdown is not None else []),
-            ],
-            spacing=8,
-        )
-        master_row = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text("Master output", color=TEXT, size=14),
-                            self.master_output_text,
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    self.master_output_slider,
-                    ft.Text(
-                        f"Safety-capped at {self.engine.master_output_max:.2f}; starts at a low level.",
-                        color=MUTED,
-                        size=11,
-                    ),
-                ],
-                spacing=2,
-            ),
-            padding=ft.padding.Padding(left=28, top=0, right=28, bottom=12),
         )
         group_list = ft.ListView(
             controls=[group.control for group in self.groups],
@@ -611,11 +699,6 @@ class PatchRackApp:
             ft.Column(
                 controls=[
                     header,
-                    ft.Container(
-                        content=preset_controls,
-                        padding=ft.padding.Padding(left=28, top=12, right=28, bottom=12),
-                    ),
-                    master_row,
                     ft.Container(
                         content=group_list,
                         padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
@@ -653,6 +736,17 @@ class PatchRackApp:
             return
         self.harmony.key = pitch_class
         self.key_dropdown.value = str(pitch_class)
+
+    def _handle_macro(self, e: ft.ControlEvent) -> None:
+        self._set_macro(float(e.control.value))
+        e.page.update()
+
+    def _set_macro(self, value: float) -> None:
+        if self.macro is None or self.macro_slider is None or self.macro_text is None:
+            return
+        self.macro_slider.value = value
+        self.macro_text.value = self.macro.slider.format(value)
+        self.macro.apply(value, self._resolve_group_patch)
 
     def _resolve_group_patch(self, name: str) -> Patch | None:
         """The `Patch` instance currently active (built and running) in the
@@ -738,9 +832,13 @@ class PatchRackApp:
             self.status.color = ERROR
             self.page.update()
             return
-        rack_key = preset.get(RACK_PRESET_KEY, {}).get("key")
+        rack_values = preset.get(RACK_PRESET_KEY, {})
+        rack_key = rack_values.get("key")
         if rack_key in NOTE_NAMES:
             self._set_key(NOTE_NAMES.index(rack_key))
+        macro_value = rack_values.get("macro")
+        if macro_value is not None:
+            self._set_macro(float(macro_value))
         for patch_name, panel in self.panels.items():
             if patch_name in preset:
                 panel.apply_preset(preset[patch_name])
@@ -751,8 +849,13 @@ class PatchRackApp:
         if not name:
             return
         values = {patch_name: panel.to_preset() for patch_name, panel in self.panels.items()}
-        if self.harmony is not None:
-            values[RACK_PRESET_KEY] = {"key": NOTE_NAMES[self.harmony.key]}
+        if self.harmony is not None or self.macro is not None:
+            rack_values: dict[str, Any] = {}
+            if self.harmony is not None:
+                rack_values["key"] = NOTE_NAMES[self.harmony.key]
+            if self.macro is not None and self.macro_slider is not None:
+                rack_values["macro"] = self.macro_slider.value
+            values[RACK_PRESET_KEY] = rack_values
         self.preset_store.save(name, values)
         self.preset_dropdown.options = [ft.dropdown.Option(n) for n in self.preset_store.names()]
         self.preset_dropdown.value = name

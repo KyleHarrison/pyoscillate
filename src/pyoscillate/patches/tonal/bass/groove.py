@@ -11,7 +11,11 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
-from pyoscillate.patches.tonal.bass.profiles import GROOVE
+from pyoscillate.patches.tonal.bass.profiles import (
+    CONVERSATION_VARIANTS,
+    GROOVE,
+    MUTED_VARIANTS,
+)
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -87,6 +91,14 @@ class BassMuted(GrooveBass):
     title = "Bass - Muted"
     style = "muted"
 
+    def on_evolve(self, index: int) -> None:
+        """Rotate which of `profiles.MUTED_VARIANTS` is stabbing; called
+        rarely (tens of bars) by a rack-level `GroupController`, never by
+        the clock directly - see `Keys.on_evolve`. The variants share this
+        style's envelope/resonance, so swapping `_profile` live is safe:
+        `next_step()` only reads `pattern`/`accents`/`gates` per step."""
+        self._profile = MUTED_VARIANTS[index % len(MUTED_VARIANTS)]
+
 
 class BassConversation(GrooveBass):
     """Sparse, four-bar phrase of held root/fifth notes with a rare
@@ -96,3 +108,8 @@ class BassConversation(GrooveBass):
     title = "Bass - Conversation"
     summary = "Sparse, held root/fifth notes over a four-bar phrase, with an occasional offbeat re-entry."
     style = "conversation"
+
+    def on_evolve(self, index: int) -> None:
+        """Rotate which of `profiles.CONVERSATION_VARIANTS` is phrasing;
+        same rationale as `BassMuted.on_evolve`."""
+        self._profile = CONVERSATION_VARIANTS[index % len(CONVERSATION_VARIANTS)]

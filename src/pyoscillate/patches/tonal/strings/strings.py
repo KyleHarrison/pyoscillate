@@ -33,10 +33,9 @@ from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
-# consonant against any chord quality: root, fifth, octave. The major-9th
-# colour voice is kept separate (see module docstring / CLAUDE.md).
+# consonant against any chord quality: root, fifth, octave. The colour
+# voice is kept separate (see module docstring / CLAUDE.md).
 CHORD_TONES: tuple[int, ...] = (0, 7, 12)
-COLOUR_TONE = 14
 # low-pass Q just under Butterworth, so brightness never rings or whistles
 FILTER_Q = 0.7
 # balances the four summed SuperSaw voices (three chord tones + colour)
@@ -54,6 +53,14 @@ class Strings(GatedVoice):
     base_division: ClassVar[NoteDivision] = NoteDivision.WHOLE
     needs_harmony: ClassVar[bool] = True
 
+    # candidate intervals (semitones above the root) for the colour voice: a
+    # major 9th (default) and a major 13th, an octave-and-a-6th up - both
+    # stay consonant against the rack's Dm9-G13-Cmaj9-Am9 vamp the way the
+    # 9th does. A rack-level `GroupController` rotates which one is blended
+    # in via `on_evolve`, tens of bars apart - see `Keys.PROGRESSIONS` for
+    # the same pattern.
+    COLOUR_TONE_VARIANTS: ClassVar[tuple[int, ...]] = (14, 21)
+
     # the graph, assigned by build(); finish() retains every one of them
     chord_saws: list[SuperSaw]
     colour_saw: SuperSaw
@@ -66,6 +73,11 @@ class Strings(GatedVoice):
     # the rack's harmony, frozen at build time - fed to `next_step`, which
     # build() can no longer close over now that it's a real method
     harmony: Harmony | None
+
+    # explicit per patches/CLAUDE.md rule 5 (timing/state), not a `@Param`:
+    # only `on_evolve` and `next_step`/`build` read/write it - which
+    # `COLOUR_TONE_VARIANTS` entry the colour voice is currently on
+    _colour_interval: int
 
     root_freq = Param(
         notes.A2,
@@ -144,8 +156,8 @@ class Strings(GatedVoice):
         0.05,
         0.3,
         "Colour",
-        "Blends in a bright major-9th tone above the chord root; zero is a plain open fifth, full brings "
-        "out a jazz-tinged upper colour.",
+        "Blends in a bright upper tone above the chord root (a 9th or, after it evolves, a 13th); zero "
+        "is a plain open fifth, full brings out a jazz-tinged upper colour.",
     )
     def colour(self, value: float) -> None:
         self.colour_saw.mul = GAIN * value
@@ -159,6 +171,7 @@ class Strings(GatedVoice):
     def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
         self._reset()
         self.harmony = harmony
+        self._colour_interval = self.COLOUR_TONE_VARIANTS[0]
 
         root = self.current_root(clock)
         # neutral detune/mul here; the Spread and Colour controls (run by
@@ -168,7 +181,9 @@ class Strings(GatedVoice):
             SuperSaw(freq=root * 2 ** (interval / 12), detune=0, bal=0.7, mul=GAIN)
             for interval in CHORD_TONES
         ]
-        self.colour_saw = SuperSaw(freq=root * 2 ** (COLOUR_TONE / 12), detune=0, bal=0.7, mul=0)
+        self.colour_saw = SuperSaw(
+            freq=root * 2 ** (self._colour_interval / 12), detune=0, bal=0.7, mul=0
+        )
         self.mixed = Mix([*self.chord_saws, self.colour_saw], voices=1)
         self.filtered = Biquad(self.mixed, freq=self.brightness, q=FILTER_Q, type=0)
         self.chorus = Chorus(self.filtered, depth=0, feedback=0.15, bal=0.5)
@@ -186,9 +201,17 @@ class Strings(GatedVoice):
             return self.root_freq
         return self.harmony.chord_freq(self.root_freq, clock.bar_index)
 
+    def on_evolve(self, index: int) -> None:
+        """Rotate which `COLOUR_TONE_VARIANTS` interval the colour voice is
+        on; called rarely (tens of bars) by a rack-level `GroupController`,
+        never by the clock directly - see `Keys.on_evolve`. Takes effect on
+        the next `next_step()`, not immediately, so the colour tone never
+        jumps mid-chord."""
+        self._colour_interval = self.COLOUR_TONE_VARIANTS[index % len(self.COLOUR_TONE_VARIANTS)]
+
     def next_step(self) -> None:
         new_root = self.current_root(self._clock)
         for saw, interval in zip(self.chord_saws, CHORD_TONES, strict=True):
             saw.freq = new_root * 2 ** (interval / 12)
-        self.colour_saw.freq = new_root * 2 ** (COLOUR_TONE / 12)
+        self.colour_saw.freq = new_root * 2 ** (self._colour_interval / 12)
         self.amp_env.play()
