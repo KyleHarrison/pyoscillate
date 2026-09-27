@@ -4,7 +4,7 @@
 
 An FM bass gets its harmonics from frequency modulation rather than filtering. The modulation index is the "growl" control: low index is round and sub-like, high index is buzzy and metallic. An index envelope makes each note bark then settle.
 
-It is a gated bassline voice (see "Choosing a family" in `patches/CLAUDE.md`): each note is struck on the clock, and the interest is in how the brightness moves within the note, not in a filter sweep across the bar.
+It is a gated bassline voice (see "Choosing a family" in `patches/AGENTS.md`): each note is struck on the clock, and the interest is in how the brightness moves within the note, not in a filter sweep across the bar.
 
 ## Minimal architecture
 

@@ -246,7 +246,7 @@ class Keys(GatedVoice):
     def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
 
-        # explicit per patches/CLAUDE.md rule 5 (timing/state), not a
+        # explicit per patches/AGENTS.md rule 5 (timing/state), not a
         # `@Param`: only `on_evolve` and `next_step()` read/write it
         self._progression_index = 0
         self.velocities = [0.0] * SLOTS

@@ -3,7 +3,7 @@
 This document describes the shape of `src/` — the runtime layers, how they
 compose, and the contract a concrete implementation must satisfy. It does
 not enumerate every patch family or every project; those are covered by the
-nested `CLAUDE.md` files cited throughout, and by the sonic-reasoning skills
+nested `AGENTS.md` files cited throughout, and by the sonic-reasoning skills
 outside `src/`. This file is about *structure*, not sound design.
 
 Code authored under `src/pyoscillate/` follows
@@ -38,11 +38,11 @@ duplicated inside them:
 
 ### `patches/`: the patch family layer
 
-Full contract: [patches/CLAUDE.md](pyoscillate/patches/CLAUDE.md). In outline:
+Full contract: [patches/AGENTS.md](pyoscillate/patches/AGENTS.md). In outline:
 
 - **Directory = patch type** — one sonic/musical role per directory (kick,
   bass, drone, ...), never one per project. Each directory: its own
-  `CLAUDE.md` (sonic concept) + implementation module(s).
+  `AGENTS.md` (sonic concept) + implementation module(s).
 - **Two runtime bases** (`patches/base.py`, `patches/common.py`):
   - `GatedVoice` — event-articulated (trigger/gate opens an envelope per
     hit/note): drums, tonal notes, transitions, samples.
@@ -124,7 +124,7 @@ by every patch module, not specific to any one family.
 `projects/<name>/rack.py` composes existing patch classes (instances, not
 new subclasses) into `GroupController` groups for one Flet app. Planning-first:
 `README.md` (musical brief + concept-to-patch mapping) precedes `rack.py`.
-Concrete workflow: [projects/CLAUDE.md](pyoscillate/projects/CLAUDE.md).
+Concrete workflow: [projects/AGENTS.md](pyoscillate/projects/AGENTS.md).
 
 A rack file owns *composition* only (which patch instances, grouped how,
 sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI.
@@ -160,5 +160,5 @@ flet/<name>/app.py  →  flet/base.py (PatchRackApp/PatchPanel: generic UI)
 ```
 
 Sound design and musical decisions belong in the music-theory and
-pyo-music skills and in each patch-type directory's own `CLAUDE.md`; this
+pyo-music skills and in each patch-type directory's own `AGENTS.md`; this
 file only covers how the code in `src/` is put together.

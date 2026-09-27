@@ -17,7 +17,7 @@ Notes rotate over `VOICES` voices so a long Ring overlaps the next strike
 instead of being cut or retuned mid-ring. Both styles share that rotation
 (`Bell.build`); only the resonance graph in `voice_graph()` differs, since
 that is genuinely different behavior, not just different profile data
-(`patches/CLAUDE.md`'s design rule 3).
+(`patches/AGENTS.md`'s design rule 3).
 """
 
 from __future__ import annotations

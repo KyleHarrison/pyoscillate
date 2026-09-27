@@ -4,7 +4,7 @@
 
 A funk bass is a gated, syncopated low line with a vocal "quack" on every note. The quack is a resonant low-pass opened by a per-note envelope with a slow attack, so the filter swells open *across* the note instead of clicking open at its start. The line's space, ghost notes and octave pops carry the groove; the filter sweep makes it talk.
 
-It is a gated bassline voice (see "Choosing a family" in `patches/CLAUDE.md`): each note has a gate, and the envelopes sustain for the gate's length and release when it closes.
+It is a gated bassline voice (see "Choosing a family" in `patches/AGENTS.md`): each note has a gate, and the envelopes sustain for the gate's length and release when it closes.
 
 ## Minimal architecture
 

@@ -6,7 +6,7 @@ per hit, one or more `TrigEnv`s read a break-point table off it, and a
 `Clock` `Division` schedules the hit with a live `rate` control. That shape
 isn't drums-specific - `tonal.bass.base.Bass` builds on the same base - so
 this module just gives the drums family its own name for it, matching
-`patches/CLAUDE.md`'s directory-level-base convention.
+`patches/AGENTS.md`'s directory-level-base convention.
 """
 
 from __future__ import annotations

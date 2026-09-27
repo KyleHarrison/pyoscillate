@@ -23,7 +23,7 @@ control instead of a choice. A low-pass then sets how much hiss survives.
 
 All four share one colour-crossfaded source (`Noise.build`); only the
 movement stage in `moved_signal()` differs, since that is genuinely
-different behavior, not just different profile data (`patches/CLAUDE.md`'s
+different behavior, not just different profile data (`patches/AGENTS.md`'s
 design rule 1). Each style's `moved_signal()` is a hook method: it assigns
 its own graph nodes onto `self` and leaves the final moving bed in
 `self.moved`, for `Noise.build()` to level and finish.
@@ -77,8 +77,8 @@ CLICK_DECAY = 0.01
 # unrelated so left/right pops never line up - scaled by 1/Motion so higher
 # Motion means more frequent crackle. Pyo's arithmetic operators only expand
 # a `list` operand into multiple streams, not a `tuple` (multiplying a
-# PyoObject by a tuple crashes natively - see keys/CLAUDE.md-style caution in
-# patches/CLAUDE.md on graph ownership), so these stay lists.
+# PyoObject by a tuple crashes natively - see keys/AGENTS.md-style caution in
+# patches/AGENTS.md on graph ownership), so these stay lists.
 DUST_MIN = [0.05, 0.6]
 DUST_MAX = [0.35, 3.0]
 DUST_GAIN = 1.3

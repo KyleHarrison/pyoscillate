@@ -12,9 +12,9 @@ This file records the few ideas worth keeping and the order to add them in.
 2. Before editing, re-read the files a task touches. They may have changed since this was written.
 3. Respect the existing layering. Don't duplicate contracts between layers:
    - [.claude/skills/pyo-music/SKILL.md](../../.claude/skills/pyo-music/SKILL.md) holds the sonic/perceptual reasoning.
-   - [src/pyoscillate/patches/CLAUDE.md](../../src/pyoscillate/patches/CLAUDE.md) holds the runtime/patch contract.
-   - The nested `CLAUDE.md` files in each patch-type directory hold that family's sonic concept.
-   - [CLAUDE.md](../../CLAUDE.md) holds project scaffolding.
+   - [src/pyoscillate/patches/AGENTS.md](../../src/pyoscillate/patches/AGENTS.md) holds the runtime/patch contract.
+   - The nested `AGENTS.md` files in each patch-type directory hold that family's sonic concept.
+   - [AGENTS.md](../../AGENTS.md) holds project scaffolding.
 4. Keep the foundational principle: **never map a word directly to a Pyo
    object.** Every descriptor or reference must go through perception → measurable
    correlate → several candidate mechanisms.
@@ -71,7 +71,7 @@ control.
 - In pyo-music SKILL.md, add step 8 to the "Minimal working pattern": render
   offline and check the measurable correlates from task 1 against the brief.
   Example: "raising Brightness raises the centroid"; "Decay 0.3 s reaches −40 dB in about 0.3 s".
-- In patches/CLAUDE.md, add an optional item to the quality bar: key controls
+- In patches/AGENTS.md, add an optional item to the quality bar: key controls
   move their correlate in the direction the label promises. Keep the
   implementation detail out of that file and point to a helper instead.
 - Build a small helper, possibly `src/pyoscillate/analysis/` or a test
@@ -125,7 +125,7 @@ variables. The latent-morph work (Neural Wavetable, the VAE papers) shows the
 value of interpolating between presets.
 
 **Do:**
-- In patches/CLAUDE.md, add to design rule 3 ("Parameter changes should usually be live"):
+- In patches/AGENTS.md, add to design rule 3 ("Parameter changes should usually be live"):
   - Continuous controls must be interpolable, so any blend between two presets sounds musical.
   - Categorical choices (waveform, topology, table) belong in profiles or rebuilds, never inside a slider's range.
 - Note this as the groundwork for a future preset-morph feature using `SigTo`
@@ -138,7 +138,7 @@ Generator, the random-preset GANs) only work when the parameter ranges are
 musically bounded.
 
 **Do:**
-- In patches/CLAUDE.md, add to design rule 2: choose each `SliderSpec`
+- In patches/AGENTS.md, add to design rule 2: choose each `SliderSpec`
   min/max so that every value in the range is usable. That makes a future
   randomise/mutate action safe to build.
 - Optionally, audit a few existing patches for ranges that go past the useful
@@ -157,10 +157,10 @@ time, and finds that the order of effects matters.
 ### 8. Mechanism notes for patch families — [ ] fold in as each family is filled
 
 These are not standalone tasks. Apply each one when its family's placeholder
-`CLAUDE.md` is filled in:
+`AGENTS.md` is filled in:
 
 - **tonal/bass/acid**
-  ([CLAUDE.md](../../src/pyoscillate/patches/tonal/bass/acid/CLAUDE.md)):
+  ([AGENTS.md](../../src/pyoscillate/patches/tonal/bass/acid/AGENTS.md)):
   - The DiffAPF paper (https://arxiv.org/abs/2404.07970,
     https://github.com/DiffAPF/TB-303) models the 303 as a mono oscillator →
     biquad whose cutoff sweeps fast with a per-note envelope ("squelch") →
@@ -169,7 +169,7 @@ These are not standalone tasks. Apply each one when its family's placeholder
   - The Abstract 303 pack
     (https://www.samplescience.info/2022/05/abstract-303.html) is a
     royalty-free, dry reference for A/B listening.
-- **Layer A modulation/effects** (patches/CLAUDE.md mechanism list, or a
+- **Layer A modulation/effects** (patches/AGENTS.md mechanism list, or a
   future effects/modulation family doc), from the mod_extraction paper
   (https://arxiv.org/abs/2305.13262):
   - A phaser is cascaded all-pass filters plus a dry path plus optional

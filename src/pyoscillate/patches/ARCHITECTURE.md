@@ -123,4 +123,4 @@ inert before the server boots, surviving a rebuild without leaking or
 crashing, staying in sync with the rack's shared clock, and getting a
 working slider-to-graph connection for free — comes from inheriting
 `Patch` and the right archetype base. See
-[CLAUDE.md](CLAUDE.md) for the concrete contract that shape has to satisfy.
+[AGENTS.md](AGENTS.md) for the concrete contract that shape has to satisfy.

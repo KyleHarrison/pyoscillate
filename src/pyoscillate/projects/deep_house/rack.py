@@ -41,7 +41,7 @@ class DeepHouseRack(Rack):
                 "Bass",
                 (
                     # a kick ducking the bass on every hit is a standard deep-house
-                    # sidechain move - see drums/kick/CLAUDE.md's "Sidechaining" reference.
+                    # sidechain move - see drums/kick/AGENTS.md's "Sidechaining" reference.
                     # Ducks off the "kicks" group's currently active style, not a fixed
                     # instance, so switching kick styles doesn't silently un-wire the duck.
                     bass.BassRolling(

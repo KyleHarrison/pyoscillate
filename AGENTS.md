@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project: Agentic Procedural Music and Sound Design with Pyo
 
@@ -15,9 +15,9 @@ For a request involving a real patch, a rack, or a new project, follow this orde
 1. Determine whether the task is purely musical, sonic-to-DSP translation, or implementation/project scaffolding.
 2. If it is musical theory/composition-only, read [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md).
 3. If it is sound design or synthesis translation, read [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md).
-4. If it is project architecture, rack creation, `Patch`/`GroupController` structure, or new project scaffolding, read [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md) for the concrete new-project workflow.
+4. If it is project architecture, rack creation, `Patch`/`GroupController` structure, or new project scaffolding, read [src/pyoscillate/projects/AGENTS.md](src/pyoscillate/projects/AGENTS.md) for the concrete new-project workflow.
 
-This file is the correct place for routing and the foundational principle below; the concrete new-project workflow itself lives in [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md). The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
+This file is the correct place for routing and the foundational principle below; the concrete new-project workflow itself lives in [src/pyoscillate/projects/AGENTS.md](src/pyoscillate/projects/AGENTS.md). The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
 
 ## Foundational principle
 
@@ -51,6 +51,6 @@ project patch docs and the real modules under that folder.
 
 ## Implementation authority
 
-Implementation authority is distributed, not centralized in this file: the shared patch lifecycle/runtime contract lives in [src/pyoscillate/patches/CLAUDE.md](src/pyoscillate/patches/CLAUDE.md), the concrete sonic concept for any given patch type lives in that patch-type directory's own instruction file (e.g. `src/pyoscillate/patches/<type>/CLAUDE.md`), and the new-project workflow (README ordering, layout, patch reuse, rack wiring) lives in [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md). Consult the nearest nested instruction set for a patch family rather than a fixed list of files here — specific modules move and get renamed as the patch set grows, so this file intentionally does not cite them.
+Implementation authority is distributed, not centralized in this file: the shared patch lifecycle/runtime contract lives in [src/pyoscillate/patches/AGENTS.md](src/pyoscillate/patches/AGENTS.md), the concrete sonic concept for any given patch type lives in that patch-type directory's own instruction file (e.g. `src/pyoscillate/patches/<type>/AGENTS.md`), and the new-project workflow (README ordering, layout, patch reuse, rack wiring) lives in [src/pyoscillate/projects/AGENTS.md](src/pyoscillate/projects/AGENTS.md). Consult the nearest nested instruction set for a patch family rather than a fixed list of files here — specific modules move and get renamed as the patch set grows, so this file intentionally does not cite them.
 
 The skill files should route into that implementation layer and explain the musical reasoning, not duplicate its implementation contracts.

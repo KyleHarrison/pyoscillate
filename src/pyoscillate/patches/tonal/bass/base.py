@@ -12,7 +12,7 @@ groove and techno voices build from a `BassProfile` (a fixed or LFO-swept
 low-pass driven by a per-step semitone/accent pattern). A voice with a
 genuinely different graph (`fm`, `funk`) still subclasses `Bass` for
 `note_root`/`schedule`/`finish`, but builds its own oscillator and filter
-chain directly in its own `build()` - see `patches/CLAUDE.md`'s design
+chain directly in its own `build()` - see `patches/AGENTS.md`'s design
 rule 1 on when a subclass needs different behavior, not just different
 profile data.
 """

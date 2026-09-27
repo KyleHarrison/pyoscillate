@@ -4,7 +4,7 @@ This family is for **gated, low-register note lines**: basslines that
 articulate notes on the clock and interact with the kick. Continuous low
 layers live elsewhere — a sustained or slowly moving sub with a pitch centre
 is a drone (`tonal/drone`), and an unpitched noise rumble is a texture
-(`texture/rumble`). See "Choosing a family" in `patches/CLAUDE.md`.
+(`texture/rumble`). See "Choosing a family" in `patches/AGENTS.md`.
 
 Bass patches are selected in two stages.
 
@@ -65,6 +65,6 @@ index envelope, a gated two-oscillator voice whose filter envelope swells
 open on every note, and a detuned saw stack. All of them still subclass the
 shared `Bass` base for scheduling and chord-following (`note_root`); only the
 oscillator/filter graph itself is their own. `fm/` and `funk/` have patches
-(see their `CLAUDE.md`); `acid/` and `reese/` are still placeholders. A plain
+(see their `AGENTS.md`); `acid/` and `reese/` are still placeholders. A plain
 sub or harmonic bass stays in the shared core as a profile, because sub is a
 register, not a family.

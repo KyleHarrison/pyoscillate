@@ -4,7 +4,7 @@ Length holds notes longer, the loudest corner stays clean, and no corner of
 the sliders sends the ladder filter to NaN.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. Measurements come from the second bar, clear of
+tests/AGENTS.md. Measurements come from the second bar, clear of
 `Patch.start()`'s fade-in.
 
 Findings

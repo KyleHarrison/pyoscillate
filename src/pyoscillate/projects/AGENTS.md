@@ -1,7 +1,7 @@
 # New project workflow
 
 This file is the concrete authority for creating a new project rack — the
-root [CLAUDE.md](../../../CLAUDE.md) only routes here. Everything under this
+root [AGENTS.md](../../../AGENTS.md) only routes here. Everything under this
 directory follows it.
 
 When the user asks for a new project named `{project_name}` (a whole new
@@ -11,7 +11,7 @@ Flet app + patch rack, not a single patch edit), use this workflow in order:
 2. **Choose the project layout.** Create the project package under `src/flet/{project_name}/` and the rack under `src/pyoscillate/projects/{project_name}/` when a new app/rack is required.
 3. **Write the README before implementing.** Document the musical brief and concept-to-patch mapping in `src/pyoscillate/projects/{project_name}/README.md` right after grounding, before any patch code exists — see "README before implementation" below.
 4. **Reuse or extend existing patch families first.** Search the nearest patch family before creating a new module. Extend an existing family or builder when possible — per the mapping table just written.
-5. **Implement the patch set.** Use the existing patch-type directories under `src/pyoscillate/patches/` and the runtime conventions described in [src/pyoscillate/patches/CLAUDE.md](../patches/CLAUDE.md) as the implementation source of truth.
+5. **Implement the patch set.** Use the existing patch-type directories under `src/pyoscillate/patches/` and the runtime conventions described in [src/pyoscillate/patches/AGENTS.md](../patches/AGENTS.md) as the implementation source of truth.
 6. **Wire the rack.** Subclass `Rack` ([src/pyoscillate/projects/base.py](base.py)) as `class <Project>Rack(Rack):`, set its tempo/harmony/other class attributes, and implement `build_groups()` to construct every patch instance and return the project's `GroupController` tuple — keep the app layer thin, constructing `<Project>Rack()` and passing it straight to `PatchRackApp`. A `GroupController` ([src/pyoscillate/controller.py](../controller.py)) is both the group's `name`/`title`/`patches` and, when that group should get its own live evolution sliders in its Flet panel, its `bars`/`repeat` infrequent per-group evolution timer — one object, declared once in `build_groups()`; `Rack.group_controllers` is derived automatically from whichever groups set `bars`, so there is nothing else to wire.
 7. **Add presets.** Add a `presets/` folder for the Flet app when relevant.
 8. **Validate the runtime contract.** Keep the patch graph and runtime state aligned with the project's patch architecture rules.

@@ -4,7 +4,7 @@ the settled tone, accents bark harder, Length sets how long notes last, and
 the loudest corner stays clean.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. The first note sits under `Patch.start()`'s fade-in, so
+tests/AGENTS.md. The first note sits under `Patch.start()`'s fade-in, so
 tests measure later ones.
 
 Findings
@@ -130,7 +130,7 @@ class FMBassControlTests(unittest.TestCase):
                 self.assertGreater(_centroid(snarl), _centroid(soft) * 1.5)
 
     def test_growl_does_not_change_loudness(self) -> None:
-        # the CLAUDE.md claim: FM keeps its amplitude whatever the index
+        # the AGENTS.md claim: FM keeps its amplitude whatever the index
         soft = _note(_render(style="bark", growl=0), ACCENTED)
         snarl = _note(_render(style="bark", growl=12), ACCENTED)
 

@@ -37,7 +37,7 @@
 **tonal/drone**
 - [Perfect Circuit: Drone Music Explained](https://www.perfectcircuit.com/signal/drone-music-explained) and [Thom Holmes: Electronic Drone Music](https://www.thomholmes.com/post/electronic-drone-music): beating between close tunings, just intonation, and Radigue's work on the ARP 2500. These are secondary sources, lighter on DSP. Pair them with Puckette for the mechanism.
 
-**tonal/bass** (no `CLAUDE.md` yet)
+**tonal/bass** (no `AGENTS.md` yet)
 - [Devil Fish TB-303 manual, Robin Whittle](https://www.firstpr.com.au/rwi/dfish/Devil-Fish-Manual.pdf) (free, by the designer): real technical detail on the accent sweep, slide, filter envelope decay ranges and overdrive. It's a hardware manual, the same kind of source as your drum doc.
 - [Olney, *Computational Thinking through Modular Sound Synthesis*: TB-303 chapter](https://olney.ai/ct-modular-book/tb-303.html) (free).
 - For sub and Reese bass, what I found was mostly vendor blogs ([Noise Engineering: Reese](https://noiseengineering.us/blogs/loquelic-literitas-the-blog/quick-patch-how-to-make-a-reese-with-just-about-anything/) is the best of them). They're weaker, so use them only for style variants.
@@ -67,7 +67,7 @@
 ## Suggested order
 
 1. Answer the soundscape definition question. If it's the harmonic bed, the Szabo thesis, musicdsp and Valhalla give you a strong grounded doc for all three current patches.
-2. **Bass** next: the Devil Fish manual is the nearest equivalent to your drum source, and bass currently has no `CLAUDE.md`.
+2. **Bass** next: the Devil Fish manual is the nearest equivalent to your drum source, and bass currently has no `AGENTS.md`.
 3. **Bell and pluck**: Synth Secrets plus the CCRMA material are high quality and free.
 
 When we write each doc, I'd fetch the specific sources, turn them into principles in your kick-doc format, and add a short "Sources" line at the bottom of the doc so its origin is recorded. Tell me which patch to start with.

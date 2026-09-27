@@ -24,7 +24,7 @@ class TechnoBass(Bass):
     volume_default = 1.0
 
     # read live off `self.root_freq` by `Bass.note_root`'s trigger-time
-    # callback - no control body needed, see `patches/CLAUDE.md`'s note on a
+    # callback - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
     root_freq = Param(
         notes.B0,

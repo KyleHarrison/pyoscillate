@@ -83,7 +83,7 @@ class GatedVoice(Patch):
     `self.schedule(...)` instead of hand-wiring `clock.subscribe` and a
     `rate` control - both auto-register their Pyo objects for `resources`,
     so a `build()` can't forget to retain one (the crash risk
-    `patches/CLAUDE.md`'s resource-ownership rule exists to prevent).
+    `patches/AGENTS.md`'s resource-ownership rule exists to prevent).
     """
 
     needs_tempo: ClassVar[bool] = True
@@ -121,7 +121,7 @@ class GatedVoice(Patch):
         state it needs off `self` (`self._clock`, `self._division`, and any
         node `build()` assigned) - the same hook-method shape as `tone()`/
         `voice_graph()` for a style that needs genuinely different behavior
-        (`patches/CLAUDE.md`'s design rule 1)."""
+        (`patches/AGENTS.md`'s design rule 1)."""
         raise NotImplementedError
 
     def schedule(

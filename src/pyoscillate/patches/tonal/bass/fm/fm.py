@@ -17,7 +17,7 @@ equivalent of velocity opening the index.
 The note line is the `rolling` groove profile, on the shared clock. Both
 styles share the `FmBass` base below; only the operator pair built in
 `tone()` differs, since that is genuinely different behavior, not just
-different profile data (`patches/CLAUDE.md`'s design rule 1).
+different profile data (`patches/AGENTS.md`'s design rule 1).
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ class FmBass(Bass):
     body: ButHP
 
     # read live off `self.root_freq` by build()'s trigger-time callback - no
-    # control body needed, see `patches/CLAUDE.md`'s note on a parameter
+    # control body needed, see `patches/AGENTS.md`'s note on a parameter
     # only read by a sequencer callback
     root_freq = Param(
         notes.B0,

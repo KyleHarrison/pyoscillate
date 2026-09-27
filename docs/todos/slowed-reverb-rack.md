@@ -7,14 +7,14 @@ pitch tracking on the 30-250 Hz range). This is a **new sibling project** to
 `lofi` (see [src/pyoscillate/projects/lofi/](../../src/pyoscillate/projects/lofi/)),
 not an edit to it — the existing lofi rack is an 80 BPM boom-bap brief; this
 one is a slower, darker, reverb-soaked, bass-dominant mood pulled from the
-reference. Follow [src/pyoscillate/projects/CLAUDE.md](../../src/pyoscillate/projects/CLAUDE.md)'s
+reference. Follow [src/pyoscillate/projects/AGENTS.md](../../src/pyoscillate/projects/AGENTS.md)'s
 8-step workflow in order.
 
 **Not a clone.** The reference is a "slowed + reverb" remix of someone else's
 track. Nothing here should aim to reproduce its arrangement note-for-note —
 use the extracted numbers as sonic-reference grounding for an original brief,
 same as reasoning from a verbal description, per the root
-[CLAUDE.md](../../CLAUDE.md)'s foundational principle.
+[AGENTS.md](../../AGENTS.md)'s foundational principle.
 
 ## Extracted reference data (grounding, not a spec to copy verbatim)
 
@@ -26,7 +26,7 @@ same as reasoning from a verbal description, per the root
 - **Timbre:** spectral centroid ~513 Hz, rolloff ~853 Hz across the full mix —
   heavily low-passed, almost no top end. Whatever filtering strategy is chosen,
   the brief's overall ceiling should land in this range, not just "add a
-  lowpass and call it lofi" (see root CLAUDE.md).
+  lowpass and call it lofi" (see root AGENTS.md).
 - **Density/texture:** spectral flatness 0.0037 (full mix) — tonal/pad-like,
   not noise-driven.
 - **Dynamics:** RMS mean 0.134, std 0.084 — moderate, breathing dynamic
@@ -53,7 +53,7 @@ same as reasoning from a verbal description, per the root
       soft envelope) and the mix-wide dark/reverberant timbre. Decide a
       project name (e.g. something distinct from `lofi`/`deep_house`).
 - [x] **Write the README first** at `src/pyoscillate/projects/{project_name}/README.md`
-      per `projects/CLAUDE.md`'s "README before implementation" — musical
+      per `projects/AGENTS.md`'s "README before implementation" — musical
       brief (tempo ~61 BPM felt, E minor/Phrygian centre, dark/reverberant
       timbre, bass-dominant balance), concept-to-patch mapping table, shared
       harmony/tempo constants. Do this before any patch code.

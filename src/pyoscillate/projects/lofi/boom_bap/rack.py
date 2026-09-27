@@ -108,7 +108,7 @@ class LofiRack(Rack):
             # docs/todos/rack-linking-next.md
             # a light, "invisible mix help" duck off the kick, not an audible EDM
             # pump - the lofi genre's own subtler take on the deep-house sidechain
-            # move (see drums/kick/CLAUDE.md's "Sidechaining" reference and
+            # move (see drums/kick/AGENTS.md's "Sidechaining" reference and
             # docs/todos/rack-linking-next.md)
             GroupController(
                 "strings",

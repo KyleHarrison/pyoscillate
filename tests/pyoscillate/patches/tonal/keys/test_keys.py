@@ -4,7 +4,7 @@ sets how long a chord rings, Tremolo throbs the level, and the loudest
 corner stays clean.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. The first chord sits under `Patch.start()`'s fade-in, so
+tests/AGENTS.md. The first chord sits under `Patch.start()`'s fade-in, so
 tests measure later ones.
 
 Findings

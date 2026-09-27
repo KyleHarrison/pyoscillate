@@ -23,7 +23,7 @@ riser; one already in flight keeps its length and still lands on the downbeat.
 All three styles share the ramp, curve, filter opening and level stage
 (`Riser.build`); only the climbing source in `rising_source()` differs, since
 that is genuinely different behavior, not just different profile data
-(`patches/CLAUDE.md`'s design rule 1).
+(`patches/AGENTS.md`'s design rule 1).
 
 This is a one-shot gesture rather than a repeating clocked hit, so there is
 no Rate slider: `build()` subscribes `next_bar()` directly to `clock.bar`

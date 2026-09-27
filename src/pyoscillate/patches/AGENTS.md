@@ -14,7 +14,7 @@ the Pyo graph, the clock, and parameter updates — see
 
 - `.claude/skills/pyo-music/SKILL.md` — musical intent, synthesis strategy, and choice of Pyo objects
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how the shared `Patch`/`Param`/`Clock` framework works
-- The nested `CLAUDE.md` inside the patch-type directory you're working in — the concrete, concept-level authority for that sonic role (its sonic function, minimal architecture, and design alternatives)
+- The nested `AGENTS.md` inside the patch-type directory you're working in — the concrete, concept-level authority for that sonic role (its sonic function, minimal architecture, and design alternatives)
 - The other modules already living in that same directory — for their sound and signal graph, and for code structure, following `drums/kick/kick.py` and the contract below
 
 The goal is simple: musical reasoning is handled by the skill, the sonic concept for a given patch type is handled by that directory's own instruction file, and this file only covers the shared implementation/runtime contract every patch must follow.
@@ -26,14 +26,14 @@ musical role you need (see "Choosing a family" below) and extend it instead.
 
 When a new role genuinely isn't covered:
 
-1. Create `patches/<family>/` with an `__init__.py` and a `CLAUDE.md`.
-2. Write that `CLAUDE.md` as the sonic concept for the family, described
+1. Create `patches/<family>/` with an `__init__.py` and a `AGENTS.md`.
+2. Write that `AGENTS.md` as the sonic concept for the family, described
    abstractly: its musical role, its minimal signal-chain shape, and the
    design alternatives worth knowing about. It does not restate this file's
    implementation contract, and it does not need to cite its own modules by
    name — module content is the working reference for style and shape.
 3. If the directory holds a genuinely new role with no patches yet, mark the
-   `CLAUDE.md` "Status: placeholder" instead of writing module code. Fill it
+   `AGENTS.md` "Status: placeholder" instead of writing module code. Fill it
    in from sources and drop the placeholder status when the first patch in
    it is implemented.
 4. Add one module per implementation, following "Module anatomy" below, with
@@ -45,9 +45,9 @@ When a new role genuinely isn't covered:
 
 ## Directory model
 
-- Each patch-type directory is self-contained: its own `CLAUDE.md` (sonic concept, described abstractly) plus one or more implementation modules (concrete builders/profiles for that concept).
+- Each patch-type directory is self-contained: its own `AGENTS.md` (sonic concept, described abstractly) plus one or more implementation modules (concrete builders/profiles for that concept).
 - Before creating a new directory, check whether an existing one already covers the musical role you need and extend it instead.
-- When a patch-type directory's `CLAUDE.md` is still empty, treat the existing modules in that directory as the working reference for style and shape until it is filled in — do not backfill this file with citations to fill that gap.
+- When a patch-type directory's `AGENTS.md` is still empty, treat the existing modules in that directory as the working reference for style and shape until it is filled in — do not backfill this file with citations to fill that gap.
 
 ## Layered archetype model
 
@@ -82,9 +82,9 @@ These are recognisable sound families, each defined by how the mechanism is comb
 These answer: “How are those mechanisms combined to create a recognisable sound family?”
 
 Some directories are **placeholders**: they hold an `__init__.py` and a
-`CLAUDE.md` marked "Status: placeholder", but no patches yet. They record
+`AGENTS.md` marked "Status: placeholder", but no patches yet. They record
 roles a complete electronic toolkit needs. When you implement the first patch
-in one, fill in its `CLAUDE.md` from sources first, then drop the placeholder
+in one, fill in its `AGENTS.md` from sources first, then drop the placeholder
 status.
 
 Outside the archetype layers, `utility/` (click, sine) holds reference and

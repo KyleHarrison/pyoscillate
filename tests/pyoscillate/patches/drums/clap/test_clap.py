@@ -2,7 +2,7 @@
 control moves its measurable correlate the way its label promises.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md.
+tests/AGENTS.md.
 
 Findings
 ========

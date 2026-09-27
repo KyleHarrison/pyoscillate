@@ -5,7 +5,7 @@ no struck attack.
 Four `SuperSaw` voices (each already seven detuned sawtooths internally -
 pyo's JP-8000 "Supersaw" emulation) sit on the chord's root, fifth, octave,
 and a fourth voice on a major 9th above the root, whose level is a separate
-Colour blend rather than baked into the default chord - see `CLAUDE.md`'s
+Colour blend rather than baked into the default chord - see `AGENTS.md`'s
 "Voicing against the rack harmony" for why root/fifth/octave is the safe
 default. The mix goes through a low-pass for warmth, `Chorus` for ensemble
 shimmer, and a plain `Adsr` (no struck transient) that re-opens once per bar
@@ -34,7 +34,7 @@ from pyoscillate.tempo import Tempo
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
-# voice is kept separate (see module docstring / CLAUDE.md).
+# voice is kept separate (see module docstring / AGENTS.md).
 CHORD_TONES: tuple[int, ...] = (0, 7, 12)
 # low-pass Q just under Butterworth, so brightness never rings or whistles
 FILTER_Q = 0.7
@@ -45,7 +45,7 @@ GAIN = 0.16
 
 class Strings(GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
-    See the module docstring and `CLAUDE.md` for the synthesis approach."""
+    See the module docstring and `AGENTS.md` for the synthesis approach."""
 
     title = "Strings"
     summary = "Supersaw string ensemble sustaining the rack's chord, with a blendable 9th colour tone."
@@ -74,7 +74,7 @@ class Strings(GatedVoice):
     # build() can no longer close over now that it's a real method
     harmony: Harmony | None
 
-    # explicit per patches/CLAUDE.md rule 5 (timing/state), not a `@Param`:
+    # explicit per patches/AGENTS.md rule 5 (timing/state), not a `@Param`:
     # only `on_evolve` and `next_step`/`build` read/write it - which
     # `COLOUR_TONE_VARIANTS` entry the colour voice is currently on
     _colour_interval: int
@@ -175,7 +175,7 @@ class Strings(GatedVoice):
 
         root = self.current_root(clock)
         # neutral detune/mul here; the Spread and Colour controls (run by
-        # finish() below) apply the live values, per patches/CLAUDE.md's
+        # finish() below) apply the live values, per patches/AGENTS.md's
         # rule against repeating a parameter's mapping in build()
         self.chord_saws = [
             SuperSaw(freq=root * 2 ** (interval / 12), detune=0, bal=0.7, mul=GAIN)

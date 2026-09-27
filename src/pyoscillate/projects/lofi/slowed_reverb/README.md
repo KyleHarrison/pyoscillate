@@ -9,7 +9,7 @@ spectral centroid/rolloff/flatness, band-limited bass pitch tracking on
 30-250 Hz) of a "slowed + reverb" remix — see
 [docs/todos/slowed-reverb-rack.md](../../../../../docs/todos/slowed-reverb-rack.md)
 for the full extracted data. Per that data and the root
-[CLAUDE.md](../../../../../CLAUDE.md)'s foundational principle, this is
+[AGENTS.md](../../../../../AGENTS.md)'s foundational principle, this is
 grounding, not a spec to copy: nothing here reproduces the reference's
 arrangement note-for-note.
 

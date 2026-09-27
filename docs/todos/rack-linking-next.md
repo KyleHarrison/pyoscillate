@@ -17,10 +17,10 @@ system the original plan proposed.
 3. Respect the existing layering:
    - [.claude/skills/music-theory/SKILL.md](../../.claude/skills/music-theory/SKILL.md) — musical reasoning.
    - [.claude/skills/pyo-music/SKILL.md](../../.claude/skills/pyo-music/SKILL.md) — sonic reasoning, "Modulation and timescale" section.
-   - [src/pyoscillate/patches/CLAUDE.md](../../src/pyoscillate/patches/CLAUDE.md) — patch runtime contract, including `on_evolve` and `resources` ownership rules.
+   - [src/pyoscillate/patches/AGENTS.md](../../src/pyoscillate/patches/AGENTS.md) — patch runtime contract, including `on_evolve` and `resources` ownership rules.
    - [src/pyoscillate/controller.py](../../src/pyoscillate/controller.py) — `GroupController`: owns a group's name/title/patches/summary plus an optional `bars`-period evolution timer that calls `Patch.on_evolve(index)` on whichever patch is currently active in the group.
    - [src/pyoscillate/harmony.py](../../src/pyoscillate/harmony.py) — pulled, not routed. Shared key/root/progression, read independently by every `needs_harmony` patch each note.
-   - [CLAUDE.md](../../CLAUDE.md) — project scaffolding; the rack module owns declarative config (`build_groups()`, `harmony`), the app layer stays thin.
+   - [AGENTS.md](../../AGENTS.md) — project scaffolding; the rack module owns declarative config (`build_groups()`, `harmony`), the app layer stays thin.
 4. Keep the foundational principle: never map a word directly to a Pyo object. Reason musically first.
 5. When a task is done, tick it here, note the commit or files, and add anything learned to the Log.
 6. Use `uv run` for any Python (for example `uv run pytest`, `uv run ruff check src`).
@@ -31,7 +31,7 @@ system the original plan proposed.
 - **Step-phase bug fix** — every patch derives its rhythmic step from `clock.tick` instead of a private counter, so patches switched on mid-bar no longer drift out of phase with each other.
 - **`GroupController`** (`controller.py`) — absorbed the old, separately-tracked `PatchGroupDef`: a rack now declares a group's name/title/patches/summary and its optional evolution timer in one object, in `build_groups()`. `Rack.group_controllers` is derived from that list by filtering `bars is not None`.
 - **`Patch.on_evolve(index)`** — a live-only, non-`@Param` hook. The lofi rack's `lead` group (`keys.Keys`) uses it to rotate `PROGRESSIONS` every 32 bars — the only concrete instance so far.
-- **Documentation** landed in `patches/CLAUDE.md`, `projects/CLAUDE.md` (step 6, "Wire the rack"), and the lofi README.
+- **Documentation** landed in `patches/AGENTS.md`, `projects/AGENTS.md` (step 6, "Wire the rack"), and the lofi README.
 
 ## What's now obsolete from the original plan
 

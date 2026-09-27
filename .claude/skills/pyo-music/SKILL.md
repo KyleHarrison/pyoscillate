@@ -12,9 +12,9 @@ This skill is the bridge between the music-theory layer and the implementation l
 - Start with [../music-theory/SKILL.md](../music-theory/SKILL.md) for musical intent, genre, form, harmony, rhythm, and arrangement.
 - Use [references/timbre-descriptors.md](./references/timbre-descriptors.md) when a brief or control label uses a perceptual word ("bright", "warm", "metallic", "punchy"). It maps each word to a perception, a measurable correlate, and several alternative mechanisms.
 - Use [references/pyo-api-navigation.md](./references/pyo-api-navigation.md) to route from a synthesis idea into the authoritative Pyo docs in [references/pyo-api/](./references/pyo-api/).
-- Use [../../../CLAUDE.md](../../../CLAUDE.md) for project architecture, `Patch` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
+- Use [../../../AGENTS.md](../../../AGENTS.md) for project architecture, `Patch` rules, `SliderSpec`, patch/runtime implementation, and the project-scaffolding workflow.
 
-If a request is about new-project creation, app scaffolding, rack architecture, or patch implementation, do not keep that workflow inside this skill. That belongs in the project-level entry point: [../../../CLAUDE.md](../../../CLAUDE.md).
+If a request is about new-project creation, app scaffolding, rack architecture, or patch implementation, do not keep that workflow inside this skill. That belongs in the project-level entry point: [../../../AGENTS.md](../../../AGENTS.md).
 
 ## Core responsibility
 
@@ -22,7 +22,7 @@ This skill answers:
 
 > Given a musical intention, what should it sound like, what physical signal changes create that effect, what does the listener perceive, and how should the control or patch be described to a user?
 
-It is not a second implementation framework and it does not duplicate the patch architecture in [../../../CLAUDE.md](../../../CLAUDE.md).
+It is not a second implementation framework and it does not duplicate the patch architecture in [../../../AGENTS.md](../../../AGENTS.md).
 
 ## Reasoning model
 
@@ -210,7 +210,7 @@ This is the authority for musical intent: genre conventions, harmony, rhythm, fo
 
 These are the authority for DSP truth: the actual Pyo objects, constructor signatures, and technical behaviour.
 
-### [../../../CLAUDE.md](../../../CLAUDE.md)
+### [../../../AGENTS.md](../../../AGENTS.md)
 
 This is the authority for project architecture and implementation rules:
 
@@ -226,7 +226,7 @@ This skill should not repeat those rules.
 
 ## Project-level workflow entry point
 
-The project-scaffolding path is not owned by this skill. For new project creation, use the workflow in [../../../CLAUDE.md](../../../CLAUDE.md), especially its "New project workflow" section.
+The project-scaffolding path is not owned by this skill. For new project creation, use the workflow in [../../../AGENTS.md](../../../AGENTS.md), especially its "New project workflow" section.
 
 That workflow is the correct location for:
 

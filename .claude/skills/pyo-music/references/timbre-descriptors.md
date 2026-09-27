@@ -193,7 +193,7 @@ non-native measurements are worth adding it.
   - A noise or click transient layer.
   - A fast downward pitch envelope (`Expseg` into frequency).
   - A fast filter envelope that closes after the onset.
-- **Context:** percussive does not mean drums. Plucks, keys and bells are percussive and tonal. Use the family rules in [`patches/CLAUDE.md`](../../../../src/pyoscillate/patches/CLAUDE.md) to place the patch.
+- **Context:** percussive does not mean drums. Plucks, keys and bells are percussive and tonal. Use the family rules in [`patches/AGENTS.md`](../../../../src/pyoscillate/patches/AGENTS.md) to place the patch.
 - **Often confused with:** punchy, short.
 
 ### punchy
@@ -256,7 +256,7 @@ non-native measurements are worth adding it.
 - **Context:**
   - Distance needs a lower direct level and less high-frequency content as well as more reverb.
   - Reverb reduces rhythmic definition. Use pre-delay, or a shorter decay, on rhythmic parts.
-- **Often confused with:** long_release, wide, ambient (not a family; see [`patches/CLAUDE.md`](../../../../src/pyoscillate/patches/CLAUDE.md)).
+- **Often confused with:** long_release, wide, ambient (not a family; see [`patches/AGENTS.md`](../../../../src/pyoscillate/patches/AGENTS.md)).
 
 ### wide
 - **Perception:** fills the stereo field. Enveloping, not coming from one point.
@@ -281,7 +281,7 @@ non-native measurements are worth adding it.
   - Clock-driven retriggering of envelopes.
   - Delay times in beats.
   - Gated noise or amplitude patterns.
-- **Context:** timing parameters have state rules in this codebase. See rule 5, "Keep timing/state explicit", in [`patches/CLAUDE.md`](../../../../src/pyoscillate/patches/CLAUDE.md) before exposing a synced rate as a live slider.
+- **Context:** timing parameters have state rules in this codebase. See rule 5, "Keep timing/state explicit", in [`patches/AGENTS.md`](../../../../src/pyoscillate/patches/AGENTS.md) before exposing a synced rate as a live slider.
 - **Often confused with:** nonlinear_env, rhythmic (a musical judgement about the part).
 
 ## Sources

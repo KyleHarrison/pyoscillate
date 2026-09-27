@@ -9,7 +9,7 @@ bar).
 Brightness (the low-pass cutoff) is deliberately left untested: with the
 near-sine `HOVER` harmonics, most of the signal's energy is the fundamental
 regardless of cutoff, so a direction assertion would be asserting a proxy too
-weak to trust - see tests/CLAUDE.md ("leave it untested rather than asserting
+weak to trust - see tests/AGENTS.md ("leave it untested rather than asserting
 a weak proxy").
 
 The clock-stopped silence contract (`test_gated_patches.GATED_PATCHES`) isn't
@@ -18,7 +18,7 @@ duplicated here: it's a pre-existing, already-tracked failure shared by every
 not something introduced by this patch.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md.
+tests/AGENTS.md.
 
 Findings
 ========

@@ -9,7 +9,7 @@ listed first.
 
 - An example is a **mechanism reference**, not a patch spec. Still reason
   musical → sonic → synthesis → pyo through the skill chain, and fill in the
-  family's `CLAUDE.md` before the first build (see `patches/CLAUDE.md`,
+  family's `AGENTS.md` before the first build (see `patches/AGENTS.md`,
   placeholders).
 - Many examples use `SfPlayer("…drumloop.wav")` only as a demo input. The
   effect is independent of the source, so feed it one of our synth voices.
@@ -69,34 +69,34 @@ Work the phases in order; tasks inside a phase can go in any order unless a
 dependency is noted. The tables above hold the detail for each example. Tick a
 box when the task lands and add a line to the Log.
 
-**Done means:** the family's `CLAUDE.md` is filled from sources (placeholder
+**Done means:** the family's `AGENTS.md` is filled from sources (placeholder
 status dropped), the module exposes `PARAMETERS` + `build()`, every graph
 object is in `voice`/`sequencer`/`resources`, controls update live where the
 topology allows, the patch is registered in its family `__init__.py`, 
 
 ### Phase 1: `texture/noise`
 
-- [x] Fill `texture/noise/CLAUDE.md` from sources; drop placeholder status
+- [x] Fill `texture/noise/AGENTS.md` from sources; drop placeholder status
 - [x] x03/04 noise generators → first noise patch with a white/pink/brown "colour" control (`Selector`)
 - [x] x06/04 phasing → phaser movement profile (`Phaser(num=20)`, independent slow LFOs per channel)
 - [x] x06/07 Hilbert → barber-pole frequency-shift profile
 
 ### Phase 2: `transition/riser`
 
-- [x] Fill `transition/riser/CLAUDE.md`; drop placeholder status
+- [x] Fill `transition/riser/AGENTS.md`; drop placeholder status
 - [x] x06/07 Hilbert → endless-rise source (single-sideband shift)
 - [x] x05/05 break-point functions → rise shape over a duration set in bars from the tempo (`Linseg`/`Expseg`)
 - [x] x05/02–03 linear/exponential ramps → pitch and level climb (`SigTo`, `Port`)
 
 ### Phase 3: FM family (shared break-point-envelope pattern)
 
-- [x] Add the modal/resonator route to `pitched_percussion/bell/CLAUDE.md` as a design alternative
+- [x] Add the modal/resonator route to `pitched_percussion/bell/AGENTS.md` as a design alternative
 - [x] x06/03 complex resonator → bell chime profile (`Metro` impulses into a `ComplexRes` bank)
 - [x] x03/03 FM + x10/01 envelopes → Chowning FM bell profile (non-integer ratio, falling index)
-- [x] Fill `tonal/bass/fm/CLAUDE.md`; drop placeholder status
+- [x] Fill `tonal/bass/fm/AGENTS.md`; drop placeholder status
 - [x] x03/03 FM + x10/01 envelopes → FM bass with index envelope ("bark then settle")
 - [x] x03/03 `CrossFM` → gritty FM bass profile
-- [x] Fill `tonal/keys/CLAUDE.md`; drop placeholder status
+- [x] Fill `tonal/keys/AGENTS.md`; drop placeholder status
 - [x] x10/01 envelopes → electric-piano tine (amp/ratio/index tables, reader freq = `1/dur`, velocity scales index)
 
 ### Phase 4: shared drive stage (before lead and acid)
@@ -116,7 +116,7 @@ topology allows, the patch is registered in its family `__init__.py`,
 
 ### Phase 6: `tonal/strings` and `tonal/pad`
 
-- [ ] Fill `tonal/strings/CLAUDE.md`; drop placeholder status
+- [ ] Fill `tonal/strings/AGENTS.md`; drop placeholder status
 - [ ] x07/05 hand-made chorus → reusable 8-line ensemble chorus helper
 - [ ] x03/01 `SuperSaw` → string section source feeding the ensemble chorus
 - [ ] x10/07 moving points → "breathing" pad (small `LinTable` rewritten by slow LFOs via `Pattern`)
@@ -124,10 +124,10 @@ topology allows, the patch is registered in its family `__init__.py`,
 
 ### Phase 7: remaining bass sub-families
 
-- [ ] Fill `tonal/bass/reese/CLAUDE.md`; drop placeholder status
+- [ ] Fill `tonal/bass/reese/AGENTS.md`; drop placeholder status
 - [ ] x03/01 `SuperSaw.detune` → Reese beating control
 - [ ] x07/05 hand-made chorus → optional Reese widening (reuse Phase 6 helper)
-- [ ] Fill `tonal/bass/acid/CLAUDE.md` (Devil Fish manual for the filter envelope); drop placeholder status
+- [ ] Fill `tonal/bass/acid/AGENTS.md` (Devil Fish manual for the filter envelope); drop placeholder status
 - [ ] x05/03 exponential ramp → acid slide (`Port`)
 - [ ] x07/03 fuzz → acid overdrive (reuse Phase 4 helper)
 
@@ -144,13 +144,13 @@ topology allows, the patch is registered in its family `__init__.py`,
 ### Phase 9: sample families
 
 - [ ] Decide how a rack loads and owns a `SndTable` (file location, which params force a rebuild) — ask the user
-- [ ] Fill `sample/playback/CLAUDE.md`; drop placeholder status
+- [ ] Fill `sample/playback/AGENTS.md`; drop placeholder status
 - [ ] x10/03 looper → playback patch (`Looper`: pitch, start/dur, xfade, mode)
 - [ ] x04/03 read from RAM → one-shot playback profile
-- [ ] Fill `sample/grains/CLAUDE.md`; drop placeholder status
+- [ ] Fill `sample/grains/AGENTS.md`; drop placeholder status
 - [ ] x10/04 granulation → grains patch (`Particle2` + `WinTable`, sine × noise position)
 - [ ] x10/05 micro-montage → random-chunk table profile
-- [ ] Fill `sample/breakbeat/CLAUDE.md`; drop placeholder status
+- [ ] Fill `sample/breakbeat/AGENTS.md`; drop placeholder status
 - [ ] x10/06 table stutter → stutter/retrigger mechanics (`Pointer` + `Linseg` + `Fader`)
 
 ### Phase 10: rack-level (depends on `linked-rack-modulation.md`)
@@ -169,5 +169,5 @@ topology allows, the patch is registered in its family `__init__.py`,
 
 - 2026-09-24: examples surveyed and mapped; task list created.
 - 2026-09-24: Phase 1 done. `texture/noise/noise.py` (styles `air`, `surf`, `barber`); `frequency_shift`, `Stage` and `SequencerGroup` added to `patches/common.py`; `windows`/`spectral_movement` added to `analysis/features.py`. Finding: pyo's `Phaser` is a pure allpass, so x06/04's output alone has a flat spectrum; `surf` sums it with the dry bed (see `test_noise.py`).
-- 2026-09-25: Phase 2 done. `transition/riser/riser.py` (styles `noise`, `shift`, `pitch`) on an 8-bar phrase, Length 1–8 bars. One `Linseg` ramp raised to a live power (Surge) drives climb, filter and level, instead of `SigTo`/`Port`: `Port` is a one-pole lag (front-loaded, the wrong shape for a build) and neither restarts from zero per shot. The shift source climbs by SSB shift within the gesture, but it isn't a true endless barber-pole; that needs a shift inside a feedback delay, recorded as a design alternative in the riser `CLAUDE.md`. The noise band gets 1/√centre makeup (constant-Q bandwidth grows with the centre, which clipped at Climb 4). Also fixed ruff RUF007 in `analysis/features.py`.
+- 2026-09-25: Phase 2 done. `transition/riser/riser.py` (styles `noise`, `shift`, `pitch`) on an 8-bar phrase, Length 1–8 bars. One `Linseg` ramp raised to a live power (Surge) drives climb, filter and level, instead of `SigTo`/`Port`: `Port` is a one-pole lag (front-loaded, the wrong shape for a build) and neither restarts from zero per shot. The shift source climbs by SSB shift within the gesture, but it isn't a true endless barber-pole; that needs a shift inside a feedback delay, recorded as a design alternative in the riser `AGENTS.md`. The noise band gets 1/√centre makeup (constant-Q bandwidth grows with the centre, which clipped at Climb 4). Also fixed ruff RUF007 in `analysis/features.py`.
 - 2026-09-25: Phase 3 done. `pitched_percussion/bell/bell.py` (styles `chime`, `fm`), `tonal/bass/fm/fm.py` (styles `bark`, `grit`) and `tonal/keys/keys.py`, with `decay_points` and `RING_CURVE` in `patches/common.py` as the shared break-point envelope (`TrigEnv` `dur` plays the reader-frequency-1/dur role of x10/01's `TableRead`). The bell's modal route uses church-bell partial ratios with per-partial decay, not x06/03's random frequencies; that wind-chime version is recorded as a design alternative. Keys leave out x10/01's ratio table (a moving ratio sounds like a synth sweep, not a struck tine); a second, fixed 14:1 tine pair takes its place. Findings: ratio-1 FM puts a sideband on 0 Hz, and because pyo's `FM` integrates frequency it doesn't cancel, so the FM bass and keys carry a DC offset that follows the index envelope. Both got a 20 Hz `ButHP` (`DCBlock` is too slow). The keys' tine carrier, left ringing, partly cancelled the body after a hard strike (-7 dB), so the tine pair got its own 0.3 s envelope at half level. Both findings are in the test docstrings. `ComplexRes` `decay` is a 1/e time constant (-40 dB at ~4.6× decay).

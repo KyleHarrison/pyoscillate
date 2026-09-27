@@ -3,7 +3,7 @@
 These rules apply to all Python code under `src/pyoscillate/`. The
 architecture and runtime contracts are detailed in
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md),
-[`patches/CLAUDE.md`](patches/CLAUDE.md), and the nearest project or patch
+[`patches/AGENTS.md`](patches/AGENTS.md), and the nearest project or patch
 instructions. Those documents add domain-specific rules; they do not relax
 the scope and ownership rules below.
 
@@ -35,7 +35,7 @@ the scope and ownership rules below.
 - Keep rack modules declarative: subclass `Rack`, configure it with class
   attributes, and compose existing patch instances in `build_groups()`.
 - Follow the patch lifecycle, graph ownership, parameter, and timing rules in
-  [`patches/CLAUDE.md`](patches/CLAUDE.md); never create or mutate Pyo graph
+  [`patches/AGENTS.md`](patches/AGENTS.md); never create or mutate Pyo graph
   nodes outside the lifecycle they specify.
 - Use type annotations for public and cross-layer contracts, and keep
   functions and methods focused on one owned responsibility.

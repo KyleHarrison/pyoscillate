@@ -166,7 +166,7 @@ class FunkBass(Bass):
         self.cutoff_freq.mul = value
 
     # read live off `self.quack` by build()'s trigger-time callback - no
-    # control body needed, see `patches/CLAUDE.md`'s note on a parameter
+    # control body needed, see `patches/AGENTS.md`'s note on a parameter
     # only read by a sequencer callback
     quack = Param(
         0,

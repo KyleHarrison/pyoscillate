@@ -10,7 +10,7 @@ only) patch migrated — it's the reference every other patch family converges
 on. Re-read the files before relying on any detail here.
 
 This file records the **why**. The terse, authoritative rule set stays in
-[patches/CLAUDE.md](../../src/pyoscillate/patches/CLAUDE.md) — don't restate
+[patches/AGENTS.md](../../src/pyoscillate/patches/AGENTS.md) — don't restate
 its rules here, and don't let this file drift into a second contract. Read
 this when the reasoning behind a rule there isn't obvious, or when migrating
 the next patch and you want the worked example.
@@ -45,7 +45,7 @@ live control entirely.
   audio already running.
 - `build()` is **repeatable on the same instance** — `PatchPanel._apply()`
   calls it again whenever a `rebuild_parameters` value changes
-  (`patches/CLAUDE.md` design rule 3), and again every time the patch is
+  (`patches/AGENTS.md` design rule 3), and again every time the patch is
   switched back on. `__init__` can't play that role; it runs exactly once.
   Because the rebuild happens on the *same* instance, `Patch._reset()`
   stops a graph that's still playing (the caller can't reach it once

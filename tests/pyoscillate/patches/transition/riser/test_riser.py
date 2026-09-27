@@ -4,7 +4,7 @@ Surge, Brightness and Level each move their measurable correlate the way the
 label promises.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md. Renders run at 240 BPM so a bar is one second and an
+tests/AGENTS.md. Renders run at 240 BPM so a bar is one second and an
 8-bar phrase fits in a short render.
 """
 

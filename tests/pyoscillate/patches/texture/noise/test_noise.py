@@ -2,7 +2,7 @@
 movement each move their measurable correlate the way the label promises.
 
 Assertions are directions and tolerance bands, never golden values - see
-tests/CLAUDE.md.
+tests/AGENTS.md.
 
 Findings
 ========

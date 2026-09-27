@@ -2,7 +2,7 @@
 
 This file covers how to test what a patch *sounds like*. The patch
 lifecycle/runtime contract itself lives in
-[src/pyoscillate/patches/CLAUDE.md](../src/pyoscillate/patches/CLAUDE.md), and
+[src/pyoscillate/patches/AGENTS.md](../src/pyoscillate/patches/AGENTS.md), and
 the perceptual vocabulary (descriptor → measurable correlate) lives in
 [timbre-descriptors.md](../.claude/skills/pyo-music/references/timbre-descriptors.md).
 Don't duplicate either here.
