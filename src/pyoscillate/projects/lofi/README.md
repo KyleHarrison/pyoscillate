@@ -55,11 +55,12 @@ module docstring) — it doesn't read `HARMONY` directly, so its
 `PROGRESSIONS[0]` is kept in sync with this progression by hand and needs
 updating again if the progression in `rack.py` ever changes.
 
-Every 32 bars, a rack-level `GroupController` (`GROUP_CONTROLLERS` in
-`rack.py`) rotates which voicing set `Keys` is comping (`PROGRESSIONS[1]`,
-then back to `[0]`, ...) via `on_evolve` — the harmony itself never changes,
-only which inversion voices it, so the progression doesn't stay static
-forever without any slider movement.
+The "Lead Melody" `GroupController` (in `rack.py`, `bars=32`) rotates which
+voicing set `Keys` is comping (`PROGRESSIONS[1]`, then back to `[0]`, ...) via
+`on_evolve` — the harmony itself never changes, only which inversion voices
+it. The group's own UI panel (see `flet/base.py`'s `PatchGroup`) exposes this
+controller's interval and repeat as live sliders, so the rotation speed is
+adjustable instead of fixed.
 
 ## What this rack does not attempt
 

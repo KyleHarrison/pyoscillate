@@ -1,5 +1,6 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
+from pyoscillate.controller import GroupController
 from pyoscillate.harmony import A, Harmony
 from pyoscillate.patches.base import SidechainSource
 from pyoscillate.patches.drums.clap import clap
@@ -12,7 +13,6 @@ from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.base import Rack
-from src.flet.base import PatchGroupDef
 
 
 class DeepHouseRack(Rack):
@@ -29,14 +29,14 @@ class DeepHouseRack(Rack):
     # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
     harmony = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
-    def build_groups(self) -> tuple[PatchGroupDef, ...]:
+    def build_groups(self) -> tuple[GroupController, ...]:
         return (
-            PatchGroupDef(
+            GroupController(
                 "kicks",
                 "Kicks",
                 (kick.KickRound(), kick.KickPunch(), kick.KickSoft()),
             ),
-            PatchGroupDef(
+            GroupController(
                 "bass",
                 "Bass",
                 (
@@ -49,23 +49,23 @@ class DeepHouseRack(Rack):
                     bass.BassMuted(),
                 ),
             ),
-            PatchGroupDef(
+            GroupController(
                 "chords",
                 "Chord Stabs",
                 (chord.ChordVelvet(), chord.ChordOrgan(), chord.ChordShimmer()),
             ),
-            PatchGroupDef(
+            GroupController(
                 "hats",
                 "Hi-hats",
                 (hat.GrooveCrisp(), hat.GrooveOpen(), hat.GrooveShuffle()),
             ),
-            PatchGroupDef(
+            GroupController(
                 "percussion",
                 "Percussion",
                 (percussion.PercussionRim(), percussion.PercussionConga()),
             ),
-            PatchGroupDef("claps", "Claps", (clap.Clap(),)),
-            PatchGroupDef(
+            GroupController("claps", "Claps", (clap.Clap(),)),
+            GroupController(
                 "drums",
                 "Drums",
                 (snare.Snare(), tom.Tom(), cymbal.CymbalRide(), cymbal.CymbalCrash()),

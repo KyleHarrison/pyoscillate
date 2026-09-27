@@ -30,7 +30,7 @@ Rather than treating every patch as an isolated loop, the system is designed to 
 
 ### Flet rack GUI
 
-The Flet app is the main interface. Each project defines a rack of `Patch` instances grouped by `PatchGroupDef` (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared `PatchRack`, clock, and audio engine.
+The Flet app is the main interface. Each project defines a rack of `Patch` instances grouped by `GroupController` (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared `PatchRack`, clock, and audio engine.
 
 ### Preset-driven exploration
 

@@ -117,7 +117,7 @@ by every patch module, not specific to any one family.
 ## `projects/`: racks
 
 `projects/<name>/rack.py` composes existing patch classes (instances, not
-new subclasses) into `PatchGroupDef` groups for one Flet app. Planning-first:
+new subclasses) into `GroupController` groups for one Flet app. Planning-first:
 `README.md` (musical brief + concept-to-patch mapping) precedes `rack.py`.
 Concrete workflow: [projects/CLAUDE.md](pyoscillate/projects/CLAUDE.md).
 
@@ -126,7 +126,7 @@ sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI.
 
 ## `flet/`: UI layer
 
-`flet/base.py` (`PatchRackApp`, `PatchPanel`, `PatchGroupDef`) is the one
+`flet/base.py` (`PatchRackApp`, `PatchPanel`, `PatchGroup`) is the one
 generic adapter between a `Patch` instance and a Flet UI:
 
 - renders an enable switch, `@Param` sliders, a volume slider
@@ -143,10 +143,10 @@ tempo.py / clock.py / harmony.py   (shared rack-level state)
               ▼
 patches/<family>/<module>.py       (GatedVoice or ContinuousVoice subclass,
                                      @Param controls, build() graph)
-              │  instances composed into PatchGroupDefs
+              │  instances composed into GroupControllers
               ▼
 projects/<name>/rack.py            (one rack per project)
-              │  PatchGroupDefs passed in
+              │  GroupControllers passed in
               ▼
 flet/<name>/app.py  →  flet/base.py (PatchRackApp/PatchPanel: generic UI)
 ```

@@ -40,7 +40,7 @@ When a new role genuinely isn't covered:
    a family base class (subclassing `common.GatedVoice` or
    `common.ContinuousVoice`, see [ARCHITECTURE.md](ARCHITECTURE.md)) and one
    small style subclass per variant.
-5. List instances directly in a project rack's `PatchGroupDef` — a patch
+5. List instances directly in a project rack's `GroupController` — a patch
    module never wires its own UI (design rule 6).
 
 ## Directory model
@@ -145,7 +145,7 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 A module defines one family class (a `Patch` subclass, usually via a
 directory-level base) plus one small subclass per style. A project rack lists
-instances directly in its `PatchGroupDef`s. `name`/`title`/`summary` default
+instances directly in its `GroupController`s. `name`/`title`/`summary` default
 from the class name and docstring; pass `name=`/`title=`/`summary=`/
 `sidechain=` to the constructor only when the default is wrong.
 
@@ -374,7 +374,7 @@ Clocked and generative patches must preserve their sequence index, callback stat
 Patch modules describe sound and controls; the Flet layer owns the UI.
 
 - keep patch-specific ranges, labels, and descriptions in each `@Param` declaration
-- expose the patch to a GUI by listing an instance in the project rack's `PatchGroupDef`s, not UI code in the patch module
+- expose the patch to a GUI by listing an instance in the project rack's `GroupController`s, not UI code in the patch module
 - do not import Flet or build controls, preset handling, or slider wiring inside a patch module
 
 ## Quality bar
@@ -386,6 +386,6 @@ A patch is ready when it does all of the following:
 - updates live when the underlying topology is unchanged
 - preserves the full graph lifetime with explicit ownership
 - keeps timing behavior and state transitions deliberate
-- follows the `@Param` / `build()` / `finish()` contract and plugs directly into a project rack's `PatchGroupDef`
+- follows the `@Param` / `build()` / `finish()` contract and plugs directly into a project rack's `GroupController`
 
 If a concept belongs to the music skill rather than patch runtime discipline, move it there and keep this file focused on architecture and implementation rules.

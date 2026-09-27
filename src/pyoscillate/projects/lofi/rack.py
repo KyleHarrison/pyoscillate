@@ -13,7 +13,6 @@ from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.base import Rack
-from src.flet.base import PatchGroupDef
 
 
 class LofiRack(Rack):
@@ -34,27 +33,27 @@ class LofiRack(Rack):
     # their own Rate sliders; `keys.Keys` isn't `needs_harmony` and instead
     # writes out the same progression by hand as fixed voicings (see keys.py)
     harmony = Harmony(key=C, progression=(2, 7, 0, 9), bars_per_chord=1)
-    # rotates which voicing set `keys.Keys` is comping every 32 bars, so the
-    # progression doesn't stay static forever (see
-    # docs/todos/group-controller-evolution.md)
-    group_controllers = (GroupController(groups=("lead",), bars=32),)
 
-    def build_groups(self) -> tuple[PatchGroupDef, ...]:
+    def build_groups(self) -> tuple[GroupController, ...]:
         return (
             # lead melody: the rack's foreground - either the family's own sparse,
             # rest-heavy pentatonic motif (a "muted pluck") or the existing FM
-            # electric piano's close-voiced comping, reused unmodified
-            PatchGroupDef(
+            # electric piano's close-voiced comping, reused unmodified.
+            # `bars=32` rotates which voicing set `keys.Keys` is comping, live-
+            # adjustable from this group's own UI sliders (see flet/base.py's
+            # `PatchGroup`) - see docs/todos/group-controller-evolution.md
+            GroupController(
                 "lead",
                 "Lead Melody",
                 (lead.LeadMutedKeys(), keys.Keys()),
+                bars=32,
             ),
             # strings: soft, sustained harmonic accompaniment behind the lead
-            PatchGroupDef("strings", "Strings", (strings.Strings(),)),
+            GroupController("strings", "Strings", (strings.Strings(),)),
             # bass: sparse, thumpy, four-bar phrase with an occasional offbeat
             # re-entry (see tonal/bass/profiles.py's `_conversation`), or the
             # original one-bar muted groove
-            PatchGroupDef(
+            GroupController(
                 "bass",
                 "Bass",
                 (bass.BassConversation(), bass.BassMuted()),
@@ -65,14 +64,14 @@ class LofiRack(Rack):
             # approximation - a sparse, high, quiet voice on the shared clock
             # rather than one triggered by the bass's own triggers (see
             # lofi/README.md's "Concept-to-patch mapping")
-            PatchGroupDef(
+            GroupController(
                 "high",
                 "High Response",
                 (bell.BellFm(root_freq=notes.A5, strike=0.3, ring=1.1, rate=-1),),
             ),
             # atmosphere: continuous vinyl dust / tape crackle, felt more than heard
-            PatchGroupDef("noise", "Vinyl Dust", (noise.NoiseDust(),)),
-            PatchGroupDef("kick", "Kick", (kick.KickLofi(),)),
-            PatchGroupDef("snare", "Snare", (snare.SnareLofi(),)),
-            PatchGroupDef("hat", "Hi-hat", (hat.GrooveLofi(),)),
+            GroupController("noise", "Vinyl Dust", (noise.NoiseDust(),)),
+            GroupController("kick", "Kick", (kick.KickLofi(),)),
+            GroupController("snare", "Snare", (snare.SnareLofi(),)),
+            GroupController("hat", "Hi-hat", (hat.GrooveLofi(),)),
         )

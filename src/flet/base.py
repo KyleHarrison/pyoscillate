@@ -47,16 +47,6 @@ RACK_PRESET_KEY = "_rack"
 Preset = dict[str, dict[str, Any]]
 
 
-@dataclass
-class PatchGroupDef:
-    """A named set of related patch alternatives presented together."""
-
-    name: str
-    title: str
-    patches: tuple[Patch, ...]
-    summary: str = ""
-
-
 class PresetStore:
     """Loads/saves `{patch_name: {param: value}}` JSON presets for a rack."""
 
@@ -281,10 +271,18 @@ class PatchPanel:
         self._apply()
 
 
-class PatchGroup:
-    """Named group control that gates a row of related patch panels."""
+GROUP_CONTROLLER_BARS_MAX = 64
+GROUP_CONTROLLER_REPEAT_MAX = 16
 
-    def __init__(self, group_def: PatchGroupDef, panels: list[PatchPanel]) -> None:
+
+class PatchGroup:
+    """Named group control that gates a row of related patch panels, plus
+    (when `group_def.bars` is set) the live sliders for that
+    `GroupController`'s own interval/repeat - the group-level evolution
+    timer described in `controller.py`, distinct from any patch's own
+    parameters."""
+
+    def __init__(self, group_def: GroupController, panels: list[PatchPanel]) -> None:
         self.group_def = group_def
         self.panels = panels
         self.enabled = True
@@ -294,7 +292,63 @@ class PatchGroup:
             on_change=self._handle_enabled,
             disabled=True,
         )
+        self.controller = group_def if group_def.bars is not None else None
+        if self.controller is not None:
+            self.bars_text = ft.Text(
+                f"{self.controller.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            )
+            self.bars_slider = ft.Slider(
+                min=1,
+                max=GROUP_CONTROLLER_BARS_MAX,
+                divisions=GROUP_CONTROLLER_BARS_MAX - 1,
+                value=self.controller.bars,
+                active_color=ACCENT,
+                inactive_color="#31403D",
+                on_change=self._handle_bars,
+            )
+            self.repeat_text = ft.Text(
+                f"{self.controller.repeat}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            )
+            self.repeat_slider = ft.Slider(
+                min=1,
+                max=GROUP_CONTROLLER_REPEAT_MAX,
+                divisions=GROUP_CONTROLLER_REPEAT_MAX - 1,
+                value=self.controller.repeat,
+                active_color=ACCENT,
+                inactive_color="#31403D",
+                on_change=self._handle_repeat,
+            )
         self.control = self._build_control()
+
+    def _controller_row(self, label: str, help_text: str, text: ft.Text, slider: ft.Slider) -> ft.Container:
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[ft.Text(label, color=TEXT, size=14), text],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    slider,
+                    ft.Text(help_text, color=MUTED, size=11),
+                ],
+                spacing=2,
+            ),
+            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+        )
+
+    def _handle_bars(self, e: ft.ControlEvent) -> None:
+        assert self.controller is not None
+        value = round(float(e.control.value))
+        self.controller.set_bars(value)
+        self.bars_text.value = f"{value}"
+        e.page.update()
+
+    def _handle_repeat(self, e: ft.ControlEvent) -> None:
+        assert self.controller is not None
+        value = round(float(e.control.value))
+        self.controller.set_repeat(value)
+        self.repeat_text.value = f"{value}"
+        e.page.update()
 
     def _build_control(self) -> ft.Control:
         heading_controls: list[ft.Control] = [
@@ -302,6 +356,23 @@ class PatchGroup:
         ]
         if self.group_def.summary:
             heading_controls.append(ft.Text(self.group_def.summary, color=MUTED, size=12))
+        if self.controller is not None:
+            heading_controls.append(
+                self._controller_row(
+                    "Evolve every (bars)",
+                    "How many bars pass before this group's evolution moves on.",
+                    self.bars_text,
+                    self.bars_slider,
+                )
+            )
+            heading_controls.append(
+                self._controller_row(
+                    "Repeat",
+                    "How many times each step repeats before advancing to the next.",
+                    self.repeat_text,
+                    self.repeat_slider,
+                )
+            )
 
         patch_columns = []
         for panel in self.panels:

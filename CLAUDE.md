@@ -15,7 +15,7 @@ For a request involving a real patch, a rack, or a new project, follow this orde
 1. Determine whether the task is purely musical, sonic-to-DSP translation, or implementation/project scaffolding.
 2. If it is musical theory/composition-only, read [.claude/skills/music-theory/SKILL.md](.claude/skills/music-theory/SKILL.md).
 3. If it is sound design or synthesis translation, read [.claude/skills/pyo-music/SKILL.md](.claude/skills/pyo-music/SKILL.md).
-4. If it is project architecture, rack creation, `Patch`/`PatchGroupDef` structure, or new project scaffolding, read [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md) for the concrete new-project workflow.
+4. If it is project architecture, rack creation, `Patch`/`GroupController` structure, or new project scaffolding, read [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md) for the concrete new-project workflow.
 
 This file is the correct place for routing and the foundational principle below; the concrete new-project workflow itself lives in [src/pyoscillate/projects/CLAUDE.md](src/pyoscillate/projects/CLAUDE.md). The music skill remains a conceptual layer; it does not own the scaffolding or runtime architecture.
 
@@ -45,7 +45,7 @@ To run linting instead of: `source .venv/bin/activate && ruff check src` just us
 Patches live in `src/pyoscillate/patches/`; each exposes `PARAMETERS` and a
 `build(...) -> Patch`, wired into a project rack (a `Rack` subclass, see
 [src/pyoscillate/projects/base.py](src/pyoscillate/projects/base.py)) as
-`Patch` instances grouped by `PatchGroupDef` and played through the Flet apps
+`Patch` instances grouped by `GroupController` and played through the Flet apps
 in `src/flet/`. The actual implementation and runtime discipline live in the
 project patch docs and the real modules under that folder.
 

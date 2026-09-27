@@ -3,7 +3,7 @@
 """Play any single patch module in the rack GUI, without a project rack.
 
 The module's `Patch` subclass is instantiated directly and dropped into a
-`PatchGroupDef` of one: `name`/`title`/`summary`/`parameters`/`volume_default`/
+`GroupController` of one: `name`/`title`/`summary`/`parameters`/`volume_default`/
 `needs_*` all come from the instance itself, same as a project rack. When a
 module defines several style variants (e.g. `kick.py`'s `KickRound` /
 `KickPunch` / `KickSoft`), pass `style=<name fragment>` to pick one by a
@@ -22,10 +22,11 @@ from pathlib import Path
 from types import ModuleType
 
 import flet as ft
+from pyoscillate.controller import GroupController
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.base import Rack
-from src.flet.base import PatchGroupDef, PatchRackApp
+from src.flet.base import PatchRackApp
 
 BPM = 120
 
@@ -42,8 +43,8 @@ class SinglePatchRack(Rack):
         self.needs_clock = patch.needs_clock
         self.harmony = Harmony() if patch.needs_harmony else None
 
-    def build_groups(self) -> tuple[PatchGroupDef, ...]:
-        return (PatchGroupDef(self.patch.name, self.patch.title, (self.patch,)),)
+    def build_groups(self) -> tuple[GroupController, ...]:
+        return (GroupController(self.patch.name, self.patch.title, (self.patch,)),)
 
 
 def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:

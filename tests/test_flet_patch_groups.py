@@ -3,10 +3,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
+from pyoscillate.controller import GroupController
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
-from src.flet.base import PatchGroup, PatchGroupDef, PatchPanel
+from src.flet.base import PatchGroup, PatchPanel
 
 DEEP_HOUSE_GROUPS = DeepHouseRack().groups
 PATCH_GROUPS = PsyambientRack().groups
@@ -33,7 +34,7 @@ class PatchGroupTests(unittest.TestCase):
         self.rack.get.return_value = None
         self.panel = PatchPanel(self.rack, self.voice)
         self.group = PatchGroup(
-            PatchGroupDef("test", "Test Group", (self.voice,)), [self.panel]
+            GroupController("test", "Test Group", (self.voice,)), [self.panel]
         )
         self.panel.set_engine_ready(True)
         self.group.set_engine_ready(True)
