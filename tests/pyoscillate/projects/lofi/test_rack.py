@@ -63,7 +63,7 @@ from pyo.lib.server import Server
 from pyoscillate.clock import Clock
 from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.strings import strings
-from pyoscillate.projects.lofi import rack
+from pyoscillate.projects.lofi.rack import LofiRack
 from pyoscillate.tempo import Tempo
 
 output_path, pre_roll_sixteenths, bars_to_run = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
@@ -72,8 +72,9 @@ server = Server(sr=44100, nchnls=2, duplex=0, audio="offline")
 server.setGlobalSeed(1)
 server.boot()
 
-tempo = Tempo(bpm=rack.BPM)
-clock = Clock(tempo, ticks_per_bar=rack.TICKS_PER_BAR)
+rack = LofiRack()
+tempo = Tempo(bpm=rack.bpm)
+clock = Clock(tempo, ticks_per_bar=rack.ticks_per_bar)
 
 # simulate the rack's clock already having been running a while, off the
 # bar boundary, before these two patches are switched on together
@@ -85,7 +86,7 @@ keys_patch.build(tempo, clock)
 keys_patch.start()
 
 strings_patch = strings.Strings()
-strings_patch.build(tempo, clock, harmony=rack.HARMONY)
+strings_patch.build(tempo, clock, harmony=rack.harmony)
 strings_patch.start()
 
 # a slot is reused every SLOTS hits (see keys.py), so a hard hit can reassign

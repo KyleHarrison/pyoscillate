@@ -51,9 +51,15 @@ chord per bar, four bars per loop. `BassConversation`, `Strings`, and
 on `clock.bar_index`'s current chord, so they change together regardless of
 their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
 as fixed voicings relative to its own Register slider (see `keys.py`'s
-module docstring) — it doesn't read `HARMONY` directly, so its `CHORDS`
-constant is kept in sync with this progression by hand and needs updating
-again if the progression in `rack.py` ever changes.
+module docstring) — it doesn't read `HARMONY` directly, so its
+`PROGRESSIONS[0]` is kept in sync with this progression by hand and needs
+updating again if the progression in `rack.py` ever changes.
+
+Every 32 bars, a rack-level `GroupController` (`GROUP_CONTROLLERS` in
+`rack.py`) rotates which voicing set `Keys` is comping (`PROGRESSIONS[1]`,
+then back to `[0]`, ...) via `on_evolve` — the harmony itself never changes,
+only which inversion voices it, so the progression doesn't stay static
+forever without any slider movement.
 
 ## What this rack does not attempt
 

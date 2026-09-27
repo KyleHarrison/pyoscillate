@@ -4,9 +4,12 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from pyoscillate.patches.base import Patch
-from pyoscillate.projects.deep_house.rack import PATCH_GROUPS as DEEP_HOUSE_GROUPS
-from pyoscillate.projects.psyambient.rack import PATCH_GROUPS
+from pyoscillate.projects.deep_house.rack import DeepHouseRack
+from pyoscillate.projects.psyambient.rack import PsyambientRack
 from src.flet.base import PatchGroup, PatchGroupDef, PatchPanel
+
+DEEP_HOUSE_GROUPS = DeepHouseRack().groups
+PATCH_GROUPS = PsyambientRack().groups
 
 
 class _StubPatch(Patch):

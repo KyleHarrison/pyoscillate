@@ -24,9 +24,11 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
+from pyoscillate.controller import GroupController
 from pyoscillate.harmony import NOTE_NAMES, Harmony
 from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
+from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
 
 ACCENT = "#00A896"
@@ -364,6 +366,7 @@ class EngineSpec:
     master_output_default: float = MASTER_OUTPUT_DEFAULT
     master_output_max: float = MASTER_OUTPUT_MAX
     harmony: Harmony | None = None
+    group_controllers: tuple[GroupController, ...] = ()
 
 
 class PatchRackApp:
@@ -376,10 +379,11 @@ class PatchRackApp:
         page: ft.Page,
         title: str,
         subtitle: str,
-        patch_groups: list[PatchGroupDef],
-        engine: EngineSpec,
+        rack: Rack,
         catalog_dir: Path | None = None,
     ) -> None:
+        patch_groups = list(rack.groups)
+        engine = rack.engine_spec()
         self.page = page
         self.title = title
         self.subtitle = subtitle
@@ -388,6 +392,7 @@ class PatchRackApp:
         self.tempo: Tempo | None = None
         self.clock: Clock | None = None
         self.harmony = engine.harmony
+        self.group_controllers = engine.group_controllers
         self.rack = PatchRack()
         self.master_output = engine.master_output_default
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
@@ -578,6 +583,21 @@ class PatchRackApp:
         self.harmony.key = pitch_class
         self.key_dropdown.value = str(pitch_class)
 
+    def _resolve_group_patch(self, name: str) -> Patch | None:
+        """The `Patch` instance currently active (built and running) in the
+        named group, or `None` if the group has no patch on right now. Reuses
+        the same rack lookup a panel's own switch already relies on, rather
+        than tracking a second "which patch is on" state."""
+        for group in self.groups:
+            if group.group_def.name != name:
+                continue
+            for panel in group.panels:
+                patch = self.rack.get(panel.patch.name)
+                if patch is not None:
+                    return patch
+            return None
+        return None
+
     def _start_engine(self) -> None:
         try:
             self.server = start_server(nchnls=self.engine.nchnls)
@@ -589,6 +609,8 @@ class PatchRackApp:
                 if self.engine.needs_clock:
                     self.clock = Clock(self.tempo, ticks_per_bar=self.engine.ticks_per_bar)
                     self.clock.start()
+                    for controller in self.group_controllers:
+                        controller.start(self.clock, self._resolve_group_patch)
 
             for panel in self.panels.values():
                 kwargs: dict[str, Any] = {}
@@ -617,6 +639,8 @@ class PatchRackApp:
         for panel in self.panels.values():
             panel.set_engine_ready(False)
         self.rack.stop_all()
+        for controller in self.group_controllers:
+            controller.stop()
         if self.clock is not None:
             self.clock.stop()
             self.clock = None

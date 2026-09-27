@@ -46,12 +46,6 @@ from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
-# semitones above Register (the key's tonic), one close rootless voicing per
-# bar, matching the rack's shared Dm9-G13-Cmaj9-Am9 vamp (see rack.py's
-# `HARMONY`) bar-for-bar rather than an independent progression: Dm9
-# (F A C E), G13 (F A B E, a 3-7-9-13 rootless dominant), Cmaj9 (E G B D),
-# Am9 (C E G B). The common tones keep the top voices moving by step.
-CHORDS = ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (3, 7, 10, 14))
 # step on the 16th grid -> velocity: the Charleston rhythm
 HITS = {0: 1.0, 6: 0.55}
 # HITS' steps, in order - used to number each bar's hits (0, 1, ...) so the
@@ -68,8 +62,8 @@ def _per_note(per_slot: list[float]) -> list[float]:
 
 
 class Keys(GatedVoice):
-    """FM electric piano comping `CHORDS` in the Charleston rhythm. See the
-    module docstring for the sonic detail."""
+    """FM electric piano comping `PROGRESSIONS` in the Charleston rhythm.
+    See the module docstring for the sonic detail."""
 
     title = "Keys (FM electric piano)"
     summary = "Struck FM electric piano comping a close-voiced progression."
@@ -102,12 +96,34 @@ class Keys(GatedVoice):
     wobble_rate: ClassVar[float] = 0.18
     wobble_depth_max: ClassVar[float] = 0.015
 
+    # semitones above Register (the key's tonic), one close rootless voicing
+    # per bar, matching the rack's shared Dm9-G13-Cmaj9-Am9 vamp (see
+    # rack.py's `HARMONY`) bar-for-bar rather than an independent
+    # progression. Each entry is a full 4-bar voicing set for that same
+    # vamp; a `GroupController` (see controller.py) rotates which one is
+    # comping via `on_evolve`, so the harmony never changes, only which
+    # inversion voices it. PROGRESSIONS[0] is the original voicing, kept
+    # first so existing presets/behaviour don't silently change:
+    # - Dm9 (F A C E), G13 (F A B E, a 3-7-9-13 rootless dominant), Cmaj9
+    #   (E G B D), Am9 (C E G B). The common tones keep the top voices
+    #   moving by step.
+    # PROGRESSIONS[1] takes each chord's lowest note up an octave (a spread
+    # inversion of the same four rootless voicings): Dm9 (A C E F), G13
+    # (A B E F), Cmaj9 (G B D E), Am9 (E G B C). F is a held common tone
+    # across the first two bars, and E across the last two, so the
+    # top-voice-by-step discipline still holds.
+    PROGRESSIONS: ClassVar[tuple[tuple[tuple[int, ...], ...], ...]] = (
+        ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (3, 7, 10, 14)),
+        ((0, 3, 7, 8), (0, 2, 7, 8), (-2, 2, 5, 7), (7, 10, 14, 15)),
+    )
+
     # the graph, assigned by build(); finish() retains every one of them
     triggers: list[Trig]
     strikes: list[Trig]
     freqs: list[float]
     freq_sigs: list[Sig]
     velocities: list[float]
+    _progression_index: int
     amp_table: LinTable
     body_table: LinTable
     tine_table: LinTable
@@ -220,9 +236,19 @@ class Keys(GatedVoice):
             [self.bark * velocity**2 for velocity in self.velocities]
         )
 
+    def on_evolve(self, index: int) -> None:
+        """Rotate which voicing set is comping the shared vamp; called
+        rarely (tens of bars) by a rack-level `GroupController`, never by
+        the clock directly. Owns its own wraparound, per `on_evolve`'s
+        contract - there's no shared numeric range to clamp against."""
+        self._progression_index = index % len(self.PROGRESSIONS)
+
     def build(self, tempo: Tempo, clock: Clock) -> Patch:
         self._reset()
 
+        # explicit per patches/CLAUDE.md rule 5 (timing/state), not a
+        # `@Param`: only `on_evolve` and `next_step()` read/write it
+        self._progression_index = 0
         self.velocities = [0.0] * SLOTS
         self.freqs = [self.root_freq] * (SLOTS * NOTES)
         self.triggers = [Trig().stop() for _ in range(SLOTS)]
@@ -287,7 +313,8 @@ class Keys(GatedVoice):
             bar = self._clock.bar_index
             hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step)
             slot = hit_index % SLOTS
-            chord_notes = CHORDS[bar % len(CHORDS)]
+            progression = self.PROGRESSIONS[self._progression_index]
+            chord_notes = progression[bar % len(progression)]
             start = slot * NOTES
             new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
             self.freqs[start : start + NOTES] = new_freqs

@@ -39,7 +39,7 @@ switched on right now."
 
 ## Tasks
 
-### 1. `GroupController` primitive + `Patch.on_evolve` hook — [ ] not started
+### 1. `GroupController` primitive + `Patch.on_evolve` hook — [x] done
 
 **Do:**
 - Add `src/pyoscillate/controller.py` with `GroupController` as designed above. Ownership rule: the app must retain each started controller for as long as the engine runs (same rule as `Clock`/`Tempo` in `PatchRackApp`).
@@ -50,7 +50,7 @@ switched on right now."
 
 **Done when:** a controller with a synthetic `on_evolve` (e.g. printing/logging its index) fires every N bars, survives the group's active patch being swapped mid-run, and stops cleanly when the engine stops.
 
-### 2. Keys: rotate the chord progression — [ ] not started (depends on 1)
+### 2. Keys: rotate the chord progression — [x] done (depends on 1)
 
 **Do:**
 - In `src/pyoscillate/patches/tonal/keys/keys.py`: rename the single `CHORDS` tuple to a class-level `PROGRESSIONS: ClassVar[tuple[tuple[tuple[int, ...], ...], ...]]` — a tuple of progressions, each shaped like the current `CHORDS` (a tuple of 4 semitone-tuples, one per bar of the vamp). Keep the current progression as `PROGRESSIONS[0]` so existing presets/behaviour don't silently change.
@@ -62,10 +62,10 @@ switched on right now."
 
 **Done when:** running the lofi rack, the keys progression audibly changes every 32 bars without any slider movement, and switching the `lead` group to a different patch instance mid-run doesn't crash or leave the controller pointed at a stale instance.
 
-### 3. Documentation — [ ] fold in as tasks land
+### 3. Documentation — [x] done
 
 - **patches/CLAUDE.md**: add `on_evolve` to the patch contract section (it's a third live-update path alongside `@Param` controls and `Patch.set()`, but controller-driven and not user-facing).
-- **CLAUDE.md** new-project workflow step 5 ("Wire the rack"): mention `GROUP_CONTROLLERS` next to `PATCH_DEFS`/`MOD_SOURCES` (if task 2 of `linked-rack-modulation.md` has landed by then).
+- **CLAUDE.md** new-project workflow step 6 ("Wire the rack"): mention `GROUP_CONTROLLERS` next to `PATCH_DEFS` (`linked-rack-modulation.md` task 2's `MOD_SOURCES` hasn't landed yet, so left out for now).
 - **lofi README**: note the 32-bar progression rotation as a listener-facing fact, same as `linked-rack-modulation.md` task 4 asks for its LFO destinations.
 
 ### 4. Tests — [ ] fold in as tasks land
@@ -91,3 +91,4 @@ switched on right now."
 ## Log
 
 - 2026-09-27: design discussed and agreed; this plan written. No code changed yet.
+- 2026-09-27: tasks 1-3 implemented (uncommitted at time of writing): `GroupController`/`Patch.on_evolve` (`controller.py`, `patches/base.py`), wired through `EngineSpec.group_controllers` and `PatchRackApp._start_engine`/`_stop_engine`/`_resolve_group_patch` (`flet/base.py`), and `keys.Keys.PROGRESSIONS`/`on_evolve` with `GROUP_CONTROLLERS = (GroupController(groups=("lead",), bars=32),)` in `projects/lofi/rack.py` (confirmed `"lead"` is the group name in `PATCH_GROUPS`). Documentation added to `patches/CLAUDE.md` ("Live hooks outside `@Param`"), `projects/CLAUDE.md` step 6, and the lofi README's "Shared harmony and tempo" section. Tests (task 4) not yet written.

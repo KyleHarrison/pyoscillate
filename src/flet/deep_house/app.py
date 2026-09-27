@@ -3,13 +3,8 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.deep_house.rack import (
-    BPM,
-    HARMONY,
-    PATCH_GROUPS,
-    TICKS_PER_BAR,
-)
-from src.flet.base import EngineSpec, PatchRackApp
+from pyoscillate.projects.deep_house.rack import DeepHouseRack
+from src.flet.base import PatchRackApp
 
 
 def main(page: ft.Page) -> None:
@@ -17,14 +12,7 @@ def main(page: ft.Page) -> None:
         page,
         "Deep House Rack",
         "15 original, clock-locked voices",
-        PATCH_GROUPS,
-        EngineSpec(
-            nchnls=2,
-            bpm=BPM,
-            needs_clock=True,
-            ticks_per_bar=TICKS_PER_BAR,
-            harmony=HARMONY,
-        ),
+        DeepHouseRack(),
         catalog_dir=Path(__file__).parent / "presets",
     )
 

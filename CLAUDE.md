@@ -43,10 +43,11 @@ script.py` or `uv run python -c "..."`) rather than invoking `python` directly.
 To run linting instead of: `source .venv/bin/activate && ruff check src` just use `uv run ruff check src`
 
 Patches live in `src/pyoscillate/patches/`; each exposes `PARAMETERS` and a
-`build(...) -> Patch`, wired into a project rack as `Patch` instances grouped
-by `PatchGroupDef` and played through the Flet apps in `src/flet/`. The
-actual implementation and runtime discipline live in the project patch docs
-and the real modules under that folder.
+`build(...) -> Patch`, wired into a project rack (a `Rack` subclass, see
+[src/pyoscillate/projects/base.py](src/pyoscillate/projects/base.py)) as
+`Patch` instances grouped by `PatchGroupDef` and played through the Flet apps
+in `src/flet/`. The actual implementation and runtime discipline live in the
+project patch docs and the real modules under that folder.
 
 ## Implementation authority
 

@@ -24,9 +24,26 @@ from types import ModuleType
 import flet as ft
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
-from src.flet.base import EngineSpec, PatchGroupDef, PatchRackApp
+from pyoscillate.projects.base import Rack
+from src.flet.base import PatchGroupDef, PatchRackApp
 
 BPM = 120
+
+
+class SinglePatchRack(Rack):
+    """Wraps one `Patch` instance, selected at runtime from the CLI args, in
+    the `Rack` interface `PatchRackApp` expects - this dev harness has no
+    project-level `rack.py` of its own to subclass `Rack` from."""
+
+    def __init__(self, patch: Patch) -> None:
+        self.patch = patch
+        needs_tempo = patch.needs_tempo or patch.needs_clock
+        self.bpm = BPM if needs_tempo else None
+        self.needs_clock = patch.needs_clock
+        self.harmony = Harmony() if patch.needs_harmony else None
+
+    def build_groups(self) -> tuple[PatchGroupDef, ...]:
+        return (PatchGroupDef(self.patch.name, self.patch.title, (self.patch,)),)
 
 
 def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:
@@ -72,18 +89,11 @@ def main(page: ft.Page) -> None:
     style = fixed.pop("style", None)
     patch = _select_class(module, style)(**fixed)
 
-    needs_tempo = patch.needs_tempo or patch.needs_clock
     PatchRackApp(
         page,
         patch.title,
         patch.summary,
-        [PatchGroupDef(patch.name, patch.title, (patch,))],
-        EngineSpec(
-            nchnls=2,
-            bpm=BPM if needs_tempo else None,
-            needs_clock=patch.needs_clock,
-            harmony=Harmony() if patch.needs_harmony else None,
-        ),
+        SinglePatchRack(patch),
         catalog_dir=Path(__file__).parent / "presets" / patch.name,
     )
 

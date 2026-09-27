@@ -3,13 +3,8 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.lofi.rack import (
-    BPM,
-    HARMONY,
-    PATCH_GROUPS,
-    TICKS_PER_BAR,
-)
-from src.flet.base import EngineSpec, PatchRackApp
+from pyoscillate.projects.lofi.rack import LofiRack
+from src.flet.base import PatchRackApp
 
 
 def main(page: ft.Page) -> None:
@@ -17,14 +12,7 @@ def main(page: ft.Page) -> None:
         page,
         "Lofi Rack",
         "Dusty keys, muted bass, soft boom-bap drums",
-        PATCH_GROUPS,
-        EngineSpec(
-            nchnls=2,
-            bpm=BPM,
-            needs_clock=True,
-            ticks_per_bar=TICKS_PER_BAR,
-            harmony=HARMONY,
-        ),
+        LofiRack(),
         catalog_dir=Path(__file__).parent / "presets",
     )
 

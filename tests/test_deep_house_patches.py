@@ -13,7 +13,7 @@ from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
 from pyoscillate.patches.tonal.bass import groove as bass
-from pyoscillate.projects.deep_house.rack import BPM, PATCHES, TICKS_PER_BAR
+from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
 
 
@@ -92,9 +92,10 @@ server.shutdown()
 class DeepHousePatchSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.rack = DeepHouseRack()
         cls.server = start_server(audio="manual")
-        cls.tempo = Tempo(bpm=BPM)
-        cls.clock = Clock(cls.tempo, ticks_per_bar=TICKS_PER_BAR)
+        cls.tempo = Tempo(bpm=cls.rack.bpm)
+        cls.clock = Clock(cls.tempo, ticks_per_bar=cls.rack.ticks_per_bar)
         cls.clock.start()
 
     @classmethod
@@ -206,7 +207,9 @@ def make_lifecycle_test(voice):
     return test_lifecycle
 
 
-for voice in itertools.chain.from_iterable(PATCHES.values()):
+for voice in itertools.chain.from_iterable(
+    group.patches for group in DeepHouseRack().groups
+):
     setattr(
         DeepHousePatchSmokeTests,
         f"test_{voice.name}_lifecycle",

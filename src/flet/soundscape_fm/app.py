@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.soundscape_fm.rack import PATCH_GROUPS
-from src.flet.base import EngineSpec, PatchRackApp
+from pyoscillate.projects.soundscape_fm.rack import SoundscapeFmRack
+from src.flet.base import PatchRackApp
 
 
 def main(page: ft.Page) -> None:
@@ -12,8 +12,7 @@ def main(page: ft.Page) -> None:
         page,
         "FM Soundscape",
         "Chaotic drift",
-        PATCH_GROUPS,
-        EngineSpec(nchnls=2),
+        SoundscapeFmRack(),
         catalog_dir=Path(__file__).parent / "presets",
     )
 

@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.rack_demo.rack import BPM, PATCH_GROUPS
-from src.flet.base import EngineSpec, PatchRackApp
+from pyoscillate.projects.rack_demo.rack import RackDemoRack
+from src.flet.base import PatchRackApp
 
 
 def main(page: ft.Page) -> None:
@@ -12,8 +12,7 @@ def main(page: ft.Page) -> None:
         page,
         "Rack Demo",
         "Groove rack",
-        PATCH_GROUPS,
-        EngineSpec(nchnls=2, bpm=BPM, needs_clock=True),
+        RackDemoRack(),
         catalog_dir=Path(__file__).parent / "presets",
     )
 

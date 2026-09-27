@@ -327,6 +327,16 @@ class Patch(ABC):
             self.set(name, value)
         return self
 
+    def on_evolve(self, index: int) -> None:
+        """Hook for a rack-level `GroupController`: called live, every N
+        bars, on whichever patch instance is currently active in a watched
+        group. `index` is the controller's own fire count. A no-op by
+        default; deliberately not a `@Param` - no slider, no preset entry,
+        not user-facing - a plain live method call driven by the
+        controller's timer instead of a widget, the same relationship the
+        UI sliders already have to `set()`. An override owns its own index
+        wraparound (e.g. `index % len(self.SOMETHING)`)."""
+
     def start(self) -> Patch:
         # `volume` boosts *before* Compress, not after: Compress's own mul
         # multiplies its already-compressed output, so gain reduction would

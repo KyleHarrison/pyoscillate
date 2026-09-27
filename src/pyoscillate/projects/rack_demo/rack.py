@@ -1,36 +1,27 @@
 """Patch definitions for the clock-locked groove demo."""
 
-from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums import hat, low_hat
 from pyoscillate.patches.musical.clock_tick import ClockTick
 from pyoscillate.patches.texture.atmosphere import Atmosphere
 from pyoscillate.patches.tonal.bass import TechnoBass
 from pyoscillate.patches.tonal.drone import Drone
+from pyoscillate.projects.base import Rack
 from src.flet.base import PatchGroupDef
 
-# this project's own tempo - other projects set their own value instead of
-# sharing one hardcoded in app.py
-BPM = 132
 
-PATCHES: dict[str, tuple[Patch, ...]] = {
-    "rhythm": (
-        TechnoBass(),
-        hat.Tick(),
-        low_hat.LowHat(),
-    ),
-    "atmosphere": (
-        Atmosphere(),
-        Drone(),
-    ),
-    "utility": (ClockTick(),),
-}
+class RackDemoRack(Rack):
+    """The clock-locked groove demo."""
 
-GROUP_TITLES: dict[str, str] = {
-    "rhythm": "Rhythm",
-    "atmosphere": "Atmosphere",
-    "utility": "Utility",
-}
+    # this project's own tempo - other projects set their own value instead of
+    # sharing one hardcoded in app.py
+    bpm = 132
+    needs_clock = True
 
-PATCH_GROUPS: list[PatchGroupDef] = [
-    PatchGroupDef(key, GROUP_TITLES[key], patches) for key, patches in PATCHES.items()
-]
+    def build_groups(self) -> tuple[PatchGroupDef, ...]:
+        return (
+            PatchGroupDef(
+                "rhythm", "Rhythm", (TechnoBass(), hat.Tick(), low_hat.LowHat())
+            ),
+            PatchGroupDef("atmosphere", "Atmosphere", (Atmosphere(), Drone())),
+            PatchGroupDef("utility", "Utility", (ClockTick(),)),
+        )

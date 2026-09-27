@@ -260,6 +260,19 @@ return self.finish(self.<output node>)
    switched back on, or a `rebuild_parameters` value changes. `_reset()`
    stops a graph that is still playing and keeps it alive through its fade.
 
+### Live hooks outside `@Param`
+
+`on_evolve(self, index: int) -> None` is a no-op hook a patch may override
+for rack-level, infrequent (tens-of-bars) evolution — a `GroupController`
+(`controller.py`) calls it live, every N bars, on whichever patch instance is
+currently active in a watched group. It is a third live-update path
+alongside `@Param` controls and `Patch.set()`, but deliberately not a
+`@Param`: no slider, no preset entry, not user-facing, just a plain method
+call driven by the controller's timer instead of a widget. `index` is the
+controller's own fire count; an override reads it into its own musical data
+(e.g. `index % len(self.SOMETHING)`) and owns its own wraparound — there's
+no shared numeric range to clamp against.
+
 ## Design rules
 
 ### 1. Extend existing families before creating new files
