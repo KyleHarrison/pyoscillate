@@ -22,13 +22,10 @@ arrangement note-for-note.
   dominant F1 note is Phrygian's characteristic ♭2 above the E tonic) — see
   `.claude/skills/music-theory/references/harmony/modal-harmony.md`'s
   "Phrygian (♭2 in a minor frame)". The centre is established by repetition
-  and a held tonic, not a cadence, so the rack has no `Harmony`
-  chord-progression object (see "Shared harmony and tempo" below).
-- **Density:** very sparse instrumentation. The reference's bass carries
-  ~87% of total RMS — this is a bass-and-atmosphere piece, not a full band;
-  adding a conventional drum kit or comping instrument on top would
-  contradict the reference's own balance, so this rack deliberately doesn't
-  reach for `boom_bap`'s drums/keys/strings roster.
+  and a held tonic beneath the lead group's C-major progression (see
+  "Shared harmony and tempo" below).
+- **Density:** bass and atmosphere remain dominant, with one selectable
+  harmonic lead source adding sparse movement rather than a full band.
 - **Bass:** hovers on the E1 tonic with stepwise F1/G1/A1 neighbour motion
   (not chord-following), a clean near-sine timbre (bass-band spectral
   flatness 0.0036, centroid ~151 Hz — minimal harmonic content, no growl or
@@ -47,21 +44,19 @@ arrangement note-for-note.
 |---|---|---|
 | Bass — hovers on tonic with stepwise neighbour motion, clean near-sine tone, ~87% of the mix's energy, soft/reverb-shaped envelope | `tonal/bass`, new style `BassHover` (`hover.py`) | **Extend.** The existing `groove.GrooveBass` styles are all chord-following (`needs_harmony=True`) and dry, left for the rack to treat externally — neither fits a fixed-tonic voice with its own long reverb tail. `Bass.build_voice` gained a `voice_output()` hook (same pattern as `Kick`/`Groove`'s own post-processing hook) so a style can add effects after the shared oscillator/filter chain instead of every style needing its own copy of that graph. `BassHover` uses the shared graph via a new profile (`profiles.HOVER`: a four-bar, steady 8th-note pulse that steps E→F→G→A once per bar) and overrides `voice_output()` to add its own `Freeverb` plus a slow, four-bar `Sine`-modulated amplitude swell ("Breath") for the reference's breathing dynamics. |
 | Mix-wide dark, reverberant, breathing character | `tonal/drone` (`SoundscapeWash`) | **Reuse, re-tuned.** There is no rack-level master bus (`projects/base.py`'s `Rack` has no shared effects chain — see the todo's "reason through pyo-music, don't reach for a single shared `Lowpass`+`Freeverb`"), so the "mix-wide" character is realized as a per-patch decision instead: `BassHover`'s own reverb/breath (above) carries most of it, since the bass is ~87% of the mix's energy, and `SoundscapeWash` (already built for exactly this — chorus/reverb/delay smear, see `tonal/drone/wash.py`'s docstring) supplies a quiet, static, dark pad bed underneath at a low register (`root_freq=E2`) and a long, damped reverb (`reverb_size=0.92`, `reverb_damp=0.65`). Its own slow `Rossler` pitch wander already reads as gentle breathing without any further change. |
+| Harmonic lead — selectable sustained strings or syncopated FM keys | `tonal/strings` (`Strings`), `tonal/keys` (`Keys`) | **Reuse.** Both come from the lofi boom-bap rack and share its `Dm9-G13-Cmaj9-Am9` vamp. Their white-note pitch collection remains compatible with the rack's E-Phrygian colour. The active lead source drives a moderate sidechain on `SoundscapeWash`, giving its continuous haze rhythmic and harmonic breathing. |
 | Texture — quiet dust/hiss under the reverb tail, continuous with the `lofi` family's aesthetic | `texture/noise` (`NoiseDust`) | **Reuse, re-tuned.** Same style `boom_bap` already uses for its vinyl-dust bed; darkened further (`brightness=700`, up from its own default 3200) to sit under this brief's ~850 Hz mix-wide rolloff, and quieted (`level=0.12`) since this mix has almost none of its energy outside the bass. |
-| Drums, comping/lead instrument | — | **Deliberately not mapped.** The reference has no evidence of a separate drum or chordal-comping layer carrying meaningful energy (RMS is ~87% bass); adding `boom_bap`'s kick/snare/hat or keys/strings roster here would be reaching for "lofi = drums + chords" out of habit rather than following the data — see the root CLAUDE.md's foundational principle and the todo's "not just add a lowpass and call it lofi." |
-| Shared harmony/tempo | `rack.py` | `SlowedReverbRack.bpm = 61`; no `Harmony` object (see below). |
+| Drums | — | **Deliberately not mapped.** The arrangement stays pulse-led by the bass and keys rather than adding a conventional kit. |
+| Shared harmony/tempo | `rack.py` | `SlowedReverbRack.bpm = 61`; C-major `Dm9-G13-Cmaj9-Am9` harmony for strings and keys, heard against the E-Phrygian bass centre. |
 
 ## Shared harmony and tempo
 
-`SlowedReverbRack.bpm = 61` is the felt half-time tempo. Unlike `boom_bap`,
-this rack sets no `Harmony` (`Rack.harmony` stays `None`): neither patch
-follows a chord progression — `BassHover` hovers on a fixed `root_freq`
-(`ROOT_NOTE = notes.E1` in `rack.py`) with its own bar-by-bar neighbour-tone
-pattern (`profiles.HOVER`), and `SoundscapeWash` holds one static register
-(`notes.E2`). The E Phrygian centre is instead a compositional constant
-(`ROOT_NOTE`) both patches' root frequencies are chosen around, documented
-here rather than encoded as a `Harmony(key=..., progression=...)` object,
-since there is no chord-following voice for that object to drive.
+`SlowedReverbRack.bpm = 61` is the felt half-time tempo. `Strings` follows the
+same C-major `Dm9-G13-Cmaj9-Am9` progression that `Keys` encodes directly.
+`BassHover` remains independent, hovering on `ROOT_NOTE = notes.E1` with its
+E-F-G-A neighbour-tone pattern, while `SoundscapeWash` holds `notes.E2` as a
+common tone beneath the progression. Enable strings or keys before the wash
+so its sidechain can resolve the active lead signal when it builds.
 
 ## What this rack does not attempt
 

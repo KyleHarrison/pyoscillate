@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from pyoscillate.controller import GroupController
+from pyoscillate.harmony import C, Harmony
+from pyoscillate.patches.base import SidechainSource
 from pyoscillate.patches.texture.noise import noise
 from pyoscillate.patches.tonal.bass import hover as bass
 from pyoscillate.patches.tonal.drone import wash
+from pyoscillate.patches.tonal.keys import keys
+from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.base import Rack
 
@@ -25,9 +29,20 @@ class SlowedReverbRack(Rack):
     # felt tempo from the reference track's half-time drag (see README.md)
     bpm = 61
     needs_clock = True
+    # The lofi strings follow this vamp; Keys encodes the same voicings.
+    # Its white-note pitch collection also preserves the rack's E-Phrygian
+    # colour, while E remains a common tone for the wash underneath it.
+    harmony = Harmony(key=C, progression=(2, 7, 0, 9), bars_per_chord=1)
 
     def build_groups(self) -> tuple[GroupController, ...]:
         return (
+            GroupController(
+                "lead",
+                "Lead",
+                (strings.Strings(), keys.Keys()),
+                "Choose strings or keys to give the wash harmony and pulse.",
+                bars=8,
+            ),
             # foreground: carries ~87% of the reference's RMS - see
             # `bass.hover.BassHover`'s own long reverb tail and breathing
             # swell, which is this rack's main "dark, reverberant" carrier
@@ -44,6 +59,7 @@ class SlowedReverbRack(Rack):
                 "Pad",
                 (
                     wash.SoundscapeWash(
+                        sidechain=SidechainSource("lead", depth=0.35, release=0.3),
                         root_freq=notes.E2,
                         detune=0.4,
                         detune_bal=0.55,

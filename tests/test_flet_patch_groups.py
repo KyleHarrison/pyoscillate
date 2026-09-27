@@ -11,11 +11,13 @@ from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
+from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
 DEEP_HOUSE_GROUPS = DeepHouseRack().groups
 PATCH_GROUPS = PsyambientRack().groups
+SLOWED_REVERB_GROUPS = SlowedReverbRack().groups
 
 
 class _StubPatch(Patch):
@@ -175,6 +177,20 @@ class PatchGroupTests(unittest.TestCase):
             ["soundscapes", "mid", "bass"],
         )
         self.assertEqual([len(group.patches) for group in PATCH_GROUPS], [3, 3, 3])
+
+    def test_slowed_reverb_wash_follows_lead_group(self) -> None:
+        self.assertEqual(
+            [group.name for group in SLOWED_REVERB_GROUPS],
+            ["lead", "bass", "pad", "texture"],
+        )
+
+        lead = SLOWED_REVERB_GROUPS[0]
+        self.assertEqual([type(patch).__name__ for patch in lead.patches], ["Strings", "Keys"])
+
+        wash = SLOWED_REVERB_GROUPS[2].patches[0]
+        self.assertIsNotNone(wash.sidechain)
+        self.assertEqual(wash.sidechain.group_name, "lead")
+        self.assertEqual(SlowedReverbRack.harmony.progression, (2, 7, 0, 9))
 
     def test_deep_house_drums_group_holds_snare_tom_and_cymbals(self) -> None:
         drums = next(group for group in DEEP_HOUSE_GROUPS if group.name == "drums")
