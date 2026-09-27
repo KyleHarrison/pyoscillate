@@ -10,9 +10,13 @@ rather than wander.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
+from pyo import PyoObject
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Chorus, Delay, Freeverb
-from pyo.lib.generators import Rossler, SuperSaw
+from pyo.lib.filters import Tone
+from pyo.lib.generators import Rossler, Sine, SuperSaw
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import ContinuousVoice
@@ -32,6 +36,10 @@ class SoundscapeWash(ContinuousVoice):
     title = "Soundscape - washy detuned pad"
     summary = "Wide, hazy detuned wash that dissolves into echoing space."
     volume_default = 0.6
+    EVOLUTION_VARIANTS: ClassVar[tuple[tuple[float, float], ...]] = (
+        (1.0, 1.0),
+        (1.2, 1.1),
+    )
 
     # the graph, assigned by build(); finish() retains every one of them
     root_freq_sig: SigTo
@@ -48,9 +56,12 @@ class SoundscapeWash(ContinuousVoice):
     delay_feedback_sig: SigTo
     pitch_wander: Rossler
     saw_voice: SuperSaw
+    softened: Tone
+    chorus_motion: Sine
     chorused: Chorus
     reverb_voice: Freeverb
-    output: Delay
+    echo: Delay
+    output: PyoObject
 
     @Param(
         notes.A1,
@@ -216,11 +227,15 @@ class SoundscapeWash(ContinuousVoice):
         self.saw_voice = SuperSaw(
             freq=self.pitch_wander, detune=self.detune_sig, bal=self.detune_bal_sig, mul=0.2
         )
+        self.softened = Tone(self.saw_voice, freq=self.root_freq_sig * 4)
+        self.chorus_motion = Sine(
+            freq=0.12, mul=self.chorus_bal_sig * 0.4, add=self.chorus_bal_sig * 0.6
+        )
         self.chorused = Chorus(
-            self.saw_voice,
+            self.softened,
             depth=self.chorus_depth_sig,
             feedback=self.chorus_feedback_sig,
-            bal=self.chorus_bal_sig,
+            bal=self.chorus_motion,
         )
         self.reverb_voice = Freeverb(
             self.chorused,
@@ -228,10 +243,20 @@ class SoundscapeWash(ContinuousVoice):
             damp=self.reverb_damp_sig,
             bal=self.reverb_bal_sig,
         )
-        self.output = Delay(
+        self.echo = Delay(
             self.reverb_voice,
             delay=self.delay_time_sig,
             feedback=self.delay_feedback_sig,
             maxdelay=2,
         )
+        self.output = self.reverb_voice + self.echo * 0.3
         return self.finish(self.output)
+
+    def on_evolve(self, index: int) -> None:
+        depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[index % len(self.EVOLUTION_VARIANTS)]
+        self.chorus_depth_sig.value = min(
+            type(self).chorus_depth.spec.maximum, self.chorus_depth * depth_scale
+        )
+        self.delay_feedback_sig.value = min(
+            type(self).delay_feedback.spec.maximum, self.delay_feedback * feedback_scale
+        )

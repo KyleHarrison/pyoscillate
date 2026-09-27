@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Protocol
 
 from pyo import PyoObject
-from pyo.lib._core import PyoObjectBase
+from pyo.lib._core import PyoObjectBase, PyoPVObject
 from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server, pa_list_devices
@@ -166,20 +166,22 @@ class Patch(ABC):
         name: str | None = None,
         title: str | None = None,
         summary: str | None = None,
+        volume: float | None = None,
         **values: Any,
     ) -> None:
         """Seed this instance's current parameter values from `parameters`'
         defaults, overridden by any `values` given - so two instances of the
         same class can hold independent current settings instead of sharing
-        behavior baked into `build()`'s own defaults - then set up fresh
-        build/lifecycle state. `sidechain`/`name`/`title`/`summary` are only
-        ever restated at the rack call site when a project needs one to
-        differ from this instance's own default."""
+        behavior baked into `build()`'s own defaults. `volume` separately
+        overrides `volume_default`; then fresh build/lifecycle state is set
+        up. `sidechain`/`name`/`title`/`summary` are only ever restated at the
+        rack call site when a project needs one to differ from this instance's
+        own default."""
         self.resources: list[Any] = []
         self.controls: dict[str, Callable[[Any], None]] = {}
         self.sequencer: Sequencer | None = None
         self.voice: PyoObject | None = None
-        self.volume: float = self.volume_default
+        self.volume: float = self.volume_default if volume is None else volume
         self._output: PyoObject | None = None
         self._fade: SigTo | None = None
         self._volume_control: SigTo | None = None
@@ -381,11 +383,36 @@ class Patch(ABC):
             self._fade.value = 0.0
         # delay the hard stop until the fade above has finished ramping to
         # zero, otherwise the underlying objects (and the click) get cut
-        # off before the ramp ever reaches silence
-        self.voice.stop(wait=STOP_FADE)
-        if self._output is not None:
-            self._output.stop(wait=STOP_FADE)
+        # off before the ramp ever reaches silence. Every node is stopped,
+        # not just the voice: pyo keeps an active object's C stream running
+        # after its Python wrapper (and e.g. its table) is freed, so freeing
+        # a retired graph with upstream nodes still active segfaults.
+        for obj in self._graph_objects():
+            obj.stop(wait=STOP_FADE)
         return self
+
+    def _graph_objects(self) -> list[PyoObject | PyoPVObject]:
+        """Every stoppable Pyo object the current build owns, including
+        ones only held in public list/tuple attributes."""
+        pending: list[Any] = [
+            *self.resources,
+            self.voice,
+            self._output,
+            *self._output_resources,
+            self._fade,
+            self._volume_control,
+            *(value for key, value in vars(self).items() if not key.startswith("_")),
+        ]
+        seen: set[int] = set()
+        found: list[PyoObject | PyoPVObject] = []
+        while pending:
+            obj = pending.pop()
+            if isinstance(obj, (list, tuple)):
+                pending.extend(obj)
+            elif isinstance(obj, (PyoObject, PyoPVObject)) and id(obj) not in seen:
+                seen.add(id(obj))
+                found.append(obj)
+        return found
 
 
 @dataclass

@@ -79,7 +79,14 @@ class Groove(DrumVoice):
     # real method
     _step: Callable[[], tuple[int, str | tuple[str, float] | None]]
 
-    @Param(0.02, 0.5, 0.01, 0.14, "Presence", "Sets how loud and upfront the hat pattern sits in the mix.")
+    @Param(
+        0.02,
+        0.5,
+        0.01,
+        0.14,
+        "Presence",
+        "Sets how loud and upfront the hat pattern sits in the mix.",
+    )
     def level(self, value: float) -> None:
         self.choke_env.mul = value
 
@@ -221,6 +228,16 @@ GROOVE_LOFI_PATTERN: dict[int, tuple[str, float]] = {
     27: (CLOSED, 0.4),
     28: (OPEN, 0.55),
 }
+GROOVE_LOFI_FULL_PATTERN: dict[int, tuple[str, float]] = {
+    **GROOVE_LOFI_PATTERN,
+    2: (CLOSED, 0.25),
+    6: (CLOSED, 0.3),
+    10: (CLOSED, 0.25),
+    14: (CLOSED, 0.3),
+    18: (CLOSED, 0.25),
+    22: (CLOSED, 0.3),
+    26: (CLOSED, 0.25),
+}
 
 
 class GrooveLofi(Groove):
@@ -232,6 +249,10 @@ class GrooveLofi(Groove):
     title = "Hat - Lofi"
     summary = "Soft, filtered boom-bap hat pattern with MPC swing and ghost notes."
     pattern: ClassVar[dict[int, tuple[str, float]]] = GROOVE_LOFI_PATTERN
+    pattern_variants: ClassVar[tuple[dict[int, tuple[str, float]], ...]] = (
+        GROOVE_LOFI_PATTERN,
+        GROOVE_LOFI_FULL_PATTERN,
+    )
     pattern_cycle: ClassVar[int] = 32
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     # closes the hat's high-passed edge down into a duller, muffled top end
@@ -256,3 +277,7 @@ class GrooveLofi(Groove):
         self.lowpassed = Biquad(self.filtered, freq=self.lowpass_cutoff, q=0.7, type=0)
         self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
         return self.shaper
+
+    def on_evolve(self, index: int) -> None:
+        pattern = self.pattern_variants[index % len(self.pattern_variants)]
+        self._step = self.step_pattern(self.pattern_cycle, pattern)

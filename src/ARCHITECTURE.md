@@ -6,6 +6,11 @@ not enumerate every patch family or every project; those are covered by the
 nested `CLAUDE.md` files cited throughout, and by the sonic-reasoning skills
 outside `src/`. This file is about *structure*, not sound design.
 
+Code authored under `src/pyoscillate/` follows
+[`pyoscillate/AGENTS.md`](pyoscillate/AGENTS.md): keep values and behavior in
+the class that owns them rather than adding module-level constants, state, or
+helper functions.
+
 `src/` has two top-level packages with distinct jobs:
 
 - `pyoscillate/` — the DSP/runtime library: patches, shared timing/harmony
@@ -123,6 +128,9 @@ Concrete workflow: [projects/CLAUDE.md](pyoscillate/projects/CLAUDE.md).
 
 A rack file owns *composition* only (which patch instances, grouped how,
 sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI.
+Rack-specific constants and helper behavior belong to the rack subclass;
+at module scope, a rack module contains its docstring, imports, and rack class
+definition only.
 
 ## `flet/`: UI layer
 

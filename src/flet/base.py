@@ -783,6 +783,10 @@ class PatchRackApp:
         self.macro_slider.value = value
         self.macro_text.value = self.macro.slider.format(value)
         self.macro.apply(value, self._resolve_group_patch)
+        for panel in self.panels.values():
+            panel.volume = panel.patch.volume
+            panel.volume_slider.value = panel.volume
+            panel.volume_text.value = f"{panel.volume:.1f}"
 
     def _resolve_group_patch(self, name: str) -> Patch | None:
         """The `Patch` instance currently active (built and running) in the

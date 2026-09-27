@@ -2,31 +2,31 @@
   "strings": {
     "enabled": true,
     "root_freq": 174.61411571650194,
-    "brightness": 3900.0,
+    "brightness": 4215.0,
     "attack": 2.15,
     "release": 2.9,
-    "spread": 0.2,
-    "shimmer": 0.8,
+    "spread": 0.6,
+    "shimmer": 0.8300000000000001,
     "colour": 0.9,
-    "rate": 0.0,
-    "volume": 0.7
+    "rate": 0,
+    "volume": 0.73
   },
   "keys": {
     "enabled": true,
     "root_freq": 164.81377845643496,
     "bark": 5.0,
-    "bite": 0.30000000000000004,
+    "bite": 0.3,
     "decay": 3.1,
     "tremolo": 0.85,
     "wobble": 0.6,
-    "rate": 0.0,
-    "volume": 1.5
+    "rate": 0,
+    "volume": 0.8
   },
   "bass_hover": {
     "enabled": true,
-    "octave": 1.0,
-    "root_freq": 41.20344461410875,
-    "cutoff": 770.0,
+    "octave": 0,
+    "root_freq": 34.64782887210901,
+    "cutoff": 770,
     "reverb_size": 0.85,
     "reverb_damp": 0.85,
     "reverb_bal": 0.85,
@@ -36,59 +36,59 @@
   },
   "soundscape_wash": {
     "enabled": true,
-    "root_freq": 97.99885899543733,
+    "root_freq": 82.407,
     "detune": 0.45,
     "detune_bal": 0.1,
     "pitch_drift": 0.8,
-    "chorus_depth": 2.1,
+    "chorus_depth": 2.535,
     "chorus_feedback": 0.8,
     "chorus_bal": 0.75,
     "reverb_size": 0.25,
     "reverb_damp": 0.15,
     "reverb_bal": 0.75,
     "delay_time": 1.0,
-    "delay_feedback": 0.7000000000000001,
-    "volume": 0.5
+    "delay_feedback": 0.7,
+    "volume": 0.5225
+  },
+  "pluck_hook": {
+    "enabled": true,
+    "root_freq": 277.1826309768721,
+    "brightness": 2.79,
+    "decay": 1.0,
+    "brightness_decay": 0.2,
+    "rate": 4.0,
+    "volume": 1.0
   },
   "noise_dust": {
-    "enabled": true,
+    "enabled": false,
     "colour": 1.7,
-    "brightness": 1200.0,
+    "brightness": 1200,
     "motion": 0.3,
     "depth": 0.75,
     "level": 0.35,
     "volume": 0.3
   },
-  "pluck_hook": {
-    "enabled": true,
-    "root_freq": 164.81377845643496,
-    "brightness": 2.4,
-    "decay": 0.45,
-    "brightness_decay": 0.2,
-    "rate": -1.0,
-    "volume": 0.4
-  },
   "kick_lofi": {
     "enabled": true,
-    "level": 0.4,
-    "drive": 0.2,
-    "punch": 0.8,
-    "length": 0.8,
-    "click": 0.5,
+    "level": 1.0,
+    "drive": 0.15000000000000002,
+    "punch": 0.75,
+    "length": 1.8,
+    "click": 1.55,
     "rate": -1.0,
-    "volume": 0.3
+    "volume": 1.2
   },
   "hat_lofi": {
     "enabled": true,
-    "level": 0.06,
-    "cutoff": 3500.0,
+    "level": 0.41000000000000003,
+    "cutoff": 3600.0,
     "metal": 0.1,
-    "length": 0.75,
-    "rate": -1.0,
-    "volume": 0.12
+    "length": 1.5,
+    "rate": -1,
+    "volume": 1.4
   },
   "_rack": {
     "key": "C",
-    "macro": 0.0
+    "macro": 0.15
   }
 }

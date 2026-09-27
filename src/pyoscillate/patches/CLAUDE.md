@@ -166,7 +166,8 @@ called `schedule()`.
 
 1. A run comment (`# uv run flet run src/flet/patch/app.py -- <module> style=<x>`),
    then a module docstring describing the sound and its mechanism.
-2. Module constants for plain shared data (break-point lists, curve shapes).
+2. Class constants for plain shared data (break-point lists, curve shapes),
+   owned by the family class that uses them.
 3. The family class body, in this order:
    - `volume_default`, `base_division`, and any `needs_*` flags.
    - Style-invariant DSP constants as `ClassVar`s with values.

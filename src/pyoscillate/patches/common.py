@@ -94,7 +94,7 @@ class GatedVoice(Patch):
         resources/controls list every call, since one voice instance's
         `build()` may run again on a rebuild."""
         super()._reset()
-        self.trigger = Trig()
+        self.trigger = Trig().stop()
         self.retain(self.trigger)
         self._division: Division | None = None
 

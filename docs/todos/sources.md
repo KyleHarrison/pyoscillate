@@ -1,4 +1,13 @@
-The next step is the sourced pass: read the Szabo supersaw thesis, the musicdsp chaotic-oscillator article and the Valhalla posts, fill in the drone doc's synthesis sections, then refactor the five drone patches against it. Do you want me to go ahead?
+## Latest
+
+| Repository                                                                                       | What it gives you                                                          | Fit to your architecture                  |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------- |
+| [belangeo/zyne](https://github.com/belangeo/zyne?utm_source=chatgpt.com)                         | Modular synth built *on top of pyo*, with module classes and connections   | **Very high**                             |
+| [belangeo/pyo-tools](https://github.com/belangeo/pyo-tools?utm_source=chatgpt.com)               | Reusable higher-level DSP classes composed from pyo objects                | **High**                                  |
+| [belangeo/pyo](https://github.com/belangeo/pyo?utm_source=chatgpt.com)                           | The underlying `PyoObject` object graph itself                             | **Very high, but lower-level**            |
+| [alexandrepoirier/PyoSynth](https://github.com/alexandrepoirier/PyoSynth?utm_source=chatgpt.com) | Runtime manipulation of pyo scripts, MIDI-controlled parameters and voices | **Medium-high**                           |
+| [tiagovaz/pyo-collection](https://github.com/tiagovaz/pyo-collection?utm_source=chatgpt.com)     | Extensive examples showing composition of pyo graphs                       | **Useful reference, less framework-like** |
+
 
 ## Sources that cover several patches
 

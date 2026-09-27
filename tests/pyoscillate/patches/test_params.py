@@ -102,6 +102,12 @@ class _Bright(_Voice):
 
 
 class ParamTests(unittest.TestCase):
+    def test_constructor_can_override_output_volume(self):
+        voice = _Voice(volume=0.8, tone=0.2)
+
+        self.assertEqual(voice.volume, 0.8)
+        self.assertEqual(voice.tone, 0.2)
+
     def test_value_is_per_instance_and_control_waits_for_build(self):
         voice = _Voice(tone=0.2)
         other = _Voice()

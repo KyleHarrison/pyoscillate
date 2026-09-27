@@ -9,6 +9,7 @@ import flet as ft
 from pyoscillate.controller import GroupController
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
+from pyoscillate.projects.base import MacroSpec
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
@@ -181,7 +182,7 @@ class PatchGroupTests(unittest.TestCase):
     def test_slowed_reverb_wash_follows_lead_group(self) -> None:
         self.assertEqual(
             [group.name for group in SLOWED_REVERB_GROUPS],
-            ["lead", "bass", "pad", "texture"],
+            ["lead", "bass", "pad", "hook", "texture", "kick", "hat"],
         )
 
         lead = SLOWED_REVERB_GROUPS[0]
@@ -189,8 +190,31 @@ class PatchGroupTests(unittest.TestCase):
 
         wash = SLOWED_REVERB_GROUPS[2].patches[0]
         self.assertIsNotNone(wash.sidechain)
-        self.assertEqual(wash.sidechain.group_name, "lead")
+        self.assertEqual(wash.sidechain.group_name, "kick")
         self.assertEqual(SlowedReverbRack.harmony.progression, (2, 7, 0, 9))
+
+    def test_lift_updates_the_visible_output_level(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = PatchRackApp(
+                MagicMock(),
+                "Slowed Reverb",
+                "Test rack",
+                SlowedReverbRack(),
+                catalog_dir=Path(catalog_dir),
+            )
+
+        patch = app.panels["soundscape_wash"].patch
+        app._resolve_group_patch = lambda _: patch
+        app.macro = MacroSpec(
+            SliderSpec("lift", 0, 1, 0.05, 0, "Lift", ""),
+            lambda value, resolve: resolve("pad").set("volume", value),
+        )
+        app._set_macro(0.73)
+
+        panel = app.panels["soundscape_wash"]
+        self.assertAlmostEqual(panel.volume, 0.73)
+        self.assertAlmostEqual(panel.volume_slider.value, 0.73)
+        self.assertEqual(panel.volume_text.value, "0.7")
 
     def test_deep_house_drums_group_holds_snare_tom_and_cymbals(self) -> None:
         drums = next(group for group in DEEP_HOUSE_GROUPS if group.name == "drums")

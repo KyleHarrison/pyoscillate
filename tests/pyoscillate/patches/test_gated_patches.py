@@ -21,8 +21,8 @@ Change:
     fires at full level. texture/atmosphere gets the same change, but it
     is not tested here (see GATED_PATCHES).
 Status:
-    fix pending - test_started_patch_is_silent_until_its_clock_ticks fails
-    for all 12 patches until then.
+    fixed - `GatedVoice._reset()` constructs a stopped `Trig`, so a gated
+    patch stays silent until its scheduled callback calls `play()`.
 """
 
 import unittest
@@ -64,9 +64,7 @@ class GatedPatchSilenceTests(unittest.TestCase):
         for name, params in GATED_PATCHES.items():
             with self.subTest(module=name):
                 module = name.split("#")[0]
-                result = features(
-                    render(module, params, seconds=0.5, clock_running=False)
-                )
+                result = features(render(module, params, seconds=0.5, clock_running=False))
 
                 self.assertLess(result.peak, SILENT_PEAK)
 

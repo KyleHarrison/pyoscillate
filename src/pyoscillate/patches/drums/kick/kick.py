@@ -172,7 +172,9 @@ class Kick(DrumVoice):
         self.shaper = Disto(self.source, slope=0.85)
 
         self._step = (
-            self.step_pattern(self.pattern_cycle, self.pattern) if self.pattern is not None else None
+            self.step_pattern(self.pattern_cycle, self.pattern)
+            if self.pattern is not None
+            else None
         )
 
         self.schedule(self.base_division, self.rate, clock)
@@ -219,6 +221,7 @@ class KickSoft(Kick):
 # straight "a" (30) at 31, both sitting just behind the grid for the laid-back
 # boom-bap pocket.
 KICK_LOFI_PATTERN = {0: 1.0, 13: 0.85, 31: 0.3}
+KICK_LOFI_FULL_PATTERN = {0: 1.0, 8: 0.45, 13: 0.85, 24: 0.55, 31: 0.3}
 
 
 class KickLofi(Kick):
@@ -231,6 +234,10 @@ class KickLofi(Kick):
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     pattern_cycle: ClassVar[int] = 32
     pattern: ClassVar[dict[int, float]] = KICK_LOFI_PATTERN
+    pattern_variants: ClassVar[tuple[dict[int, float], ...]] = (
+        KICK_LOFI_PATTERN,
+        KICK_LOFI_FULL_PATTERN,
+    )
     # closes the kick down from the shaper's grittier top end into a muffled,
     # cushioned thump
     lowpass_cutoff: ClassVar[float] = 1100.0
@@ -249,3 +256,7 @@ class KickLofi(Kick):
     def voice_output(self) -> PyoObject:
         self.lowpassed = Biquad(self.shaper, freq=self.lowpass_cutoff, q=0.7, type=0)
         return self.lowpassed
+
+    def on_evolve(self, index: int) -> None:
+        pattern = self.pattern_variants[index % len(self.pattern_variants)]
+        self._step = self.step_pattern(self.pattern_cycle, pattern)
