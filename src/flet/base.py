@@ -176,7 +176,9 @@ class PatchPanel:
                         controls=[
                             ft.Column(
                                 controls=[
-                                    ft.Text(self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD
+                                    ),
                                     ft.Text(self.patch.summary, color=MUTED, size=12),
                                 ],
                                 spacing=2,
@@ -343,7 +345,9 @@ class PatchGroup:
             )
         self.control = self._build_control()
 
-    def _controller_row(self, label: str, help_text: str, text: ft.Text, slider: ft.Slider) -> ft.Container:
+    def _controller_row(
+        self, label: str, help_text: str, text: ft.Text, slider: ft.Slider
+    ) -> ft.Container:
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -493,6 +497,7 @@ class PatchRackApp:
         self.subtitle = subtitle
         self.engine = engine
         self.server: Server | None = None
+        self._paused_panels: set[str] | None = None
         self.tempo: Tempo | None = None
         self.clock: Clock | None = None
         self.harmony = engine.harmony
@@ -519,6 +524,12 @@ class PatchRackApp:
             bgcolor=ACCENT,
             color="#07110F",
             on_click=self._toggle_engine,
+        )
+        self.pause_button = ft.Button(
+            "Pause",
+            icon=ft.Icons.PAUSE,
+            disabled=True,
+            on_click=self._toggle_pause,
         )
         self.master_output_text = ft.Text(
             f"{self.master_output:.2f}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
@@ -578,6 +589,8 @@ class PatchRackApp:
         self.page.bgcolor = BACKGROUND
         self.page.padding = 0
         self.page.theme = ft.Theme(font_family="Avenir Next")
+        self.page.window.full_screen = False
+        self.page.window.maximized = True
         self.page.window.width = 1100
         self.page.window.height = 900
         self.page.window.min_width = 420
@@ -589,6 +602,7 @@ class PatchRackApp:
             ft.Row(
                 controls=[
                     self.engine_button,
+                    self.pause_button,
                     *([self.key_dropdown] if self.key_dropdown is not None else []),
                 ],
                 alignment=ft.MainAxisAlignment.END,
@@ -655,9 +669,7 @@ class PatchRackApp:
                 col={"xs": 12, "md": 6 if self.macro is not None else 12},
             )
         )
-        rack_controls.append(
-            ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8)
-        )
+        rack_controls.append(ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8))
         header = ft.Container(
             content=ft.ResponsiveRow(
                 controls=[
@@ -718,6 +730,30 @@ class PatchRackApp:
         else:
             self._start_engine()
         self.page.update()
+
+    def _toggle_pause(self, e: ft.ControlEvent | None = None) -> None:
+        if self.server is None:
+            return
+        if self._paused_panels is None:
+            self._paused_panels = {name for name, panel in self.panels.items() if panel.enabled}
+            for panel in self.panels.values():
+                panel.enabled = False
+                panel.switch.value = False
+                panel._apply()
+            self.pause_button.text = "Start"
+            self.pause_button.icon = ft.Icons.PLAY_ARROW
+        else:
+            for name, panel in self.panels.items():
+                panel.enabled = name in self._paused_panels
+                panel.switch.value = panel.enabled
+                panel._apply()
+            self._paused_panels = None
+            self.pause_button.text = "Pause"
+            self.pause_button.icon = ft.Icons.PAUSE
+        if e is not None:
+            e.page.update()
+        else:
+            self.page.update()
 
     def _handle_master_output(self, e: ft.ControlEvent) -> None:
         self.master_output = float(e.control.value)
@@ -793,12 +829,14 @@ class PatchRackApp:
             self.status.color = ACCENT
             self.engine_button.text = "Stop engine"
             self.engine_button.icon = ft.Icons.STOP
+            self.pause_button.disabled = False
         except (OSError, PyoError, RuntimeError) as error:
             self.status.value = f"Audio error: {error}"
             self.status.color = ERROR
             self._stop_engine()
 
     def _stop_engine(self) -> None:
+        self._paused_panels = None
         for group in self.groups:
             group.set_engine_ready(False)
         for panel in self.panels.values():
@@ -818,6 +856,9 @@ class PatchRackApp:
         self.status.color = MUTED
         self.engine_button.text = "Start engine"
         self.engine_button.icon = ft.Icons.POWER_SETTINGS_NEW
+        self.pause_button.text = "Pause"
+        self.pause_button.icon = ft.Icons.PAUSE
+        self.pause_button.disabled = True
 
     # -- presets -------------------------------------------------------------
 

@@ -47,9 +47,7 @@ class PatchGroupTests(unittest.TestCase):
         self.rack = MagicMock()
         self.rack.get.return_value = None
         self.panel = PatchPanel(self.rack, self.voice)
-        self.group = PatchGroup(
-            GroupController("test", "Test Group", (self.voice,)), [self.panel]
-        )
+        self.group = PatchGroup(GroupController("test", "Test Group", (self.voice,)), [self.panel])
         self.panel.set_engine_ready(True)
         self.group.set_engine_ready(True)
         self.panel.enabled = True
@@ -92,7 +90,9 @@ class PatchGroupTests(unittest.TestCase):
         patch_content = self.panel.control.content
         self.assertIsInstance(patch_content, ft.Column)
         self.assertIsInstance(patch_content.controls[-1], ft.ResponsiveRow)
-        self.assertFalse(any(isinstance(control, ft.ExpansionTile) for control in patch_content.controls))
+        self.assertFalse(
+            any(isinstance(control, ft.ExpansionTile) for control in patch_content.controls)
+        )
 
     def test_slider_help_text_is_above_track_and_larger(self) -> None:
         spec = SliderSpec("test_value", 0.0, 1.0, 0.1, 0.5, "Test value", "Helpful detail")
@@ -116,6 +116,8 @@ class PatchGroupTests(unittest.TestCase):
                 catalog_dir=Path(catalog_dir),
             )
 
+        self.assertFalse(page.window.full_screen)
+        self.assertTrue(page.window.maximized)
         root = page.add.call_args.args[0]
         self.assertEqual(len(root.controls), 2)
         header = root.controls[0]
@@ -123,6 +125,7 @@ class PatchGroupTests(unittest.TestCase):
         right_column = header.content.controls[1]
         for control in (
             app.engine_button,
+            app.pause_button,
             app.preset_dropdown,
             app.preset_name_field,
             app.key_dropdown,
@@ -130,6 +133,41 @@ class PatchGroupTests(unittest.TestCase):
             app.master_output_slider,
         ):
             self.assertTrue(self._contains_control(right_column, control))
+
+    def test_pause_resumes_only_patches_that_were_enabled(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            page = MagicMock()
+            app = PatchRackApp(
+                page,
+                "Lofi Rack",
+                "Test rack",
+                LofiRack(),
+                catalog_dir=Path(catalog_dir),
+            )
+
+        app.server = MagicMock()
+        enabled_names = list(app.panels)[:2]
+        for name in enabled_names:
+            app.panels[name].enabled = True
+            app.panels[name].switch.value = True
+        for panel in app.panels.values():
+            panel._apply = MagicMock()
+
+        app._toggle_pause()
+
+        self.assertEqual(app._paused_panels, set(enabled_names))
+        self.assertTrue(all(not panel.enabled for panel in app.panels.values()))
+        self.assertEqual(app.pause_button.text, "Start")
+
+        app.panels[list(app.panels)[-1]].enabled = True
+        app._toggle_pause()
+
+        self.assertEqual(
+            {name for name, panel in app.panels.items() if panel.enabled},
+            set(enabled_names),
+        )
+        self.assertEqual(app._paused_panels, None)
+        self.assertEqual(app.pause_button.text, "Pause")
 
     def test_psyambient_declares_conceptual_groups(self) -> None:
         self.assertEqual(
