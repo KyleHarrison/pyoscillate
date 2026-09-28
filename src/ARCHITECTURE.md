@@ -121,13 +121,18 @@ by every patch module, not specific to any one family.
 
 ## `projects/`: racks
 
-`projects/<name>/rack.py` composes existing patch classes (instances, not
-new subclasses) into `GroupController` groups for one Flet app. Planning-first:
+`projects/<name>/rack.py` declares existing patch factories as
+`GroupController` class attributes (`rack.pad`, `rack.lead`, and so on).
+`Rack` binds those immutable declarations into fresh `GroupRuntime` objects
+for one Flet app.
+Planning-first:
 `README.md` (musical brief + concept-to-patch mapping) precedes `rack.py`.
 Concrete workflow: [projects/AGENTS.md](pyoscillate/projects/AGENTS.md).
 
-A rack file owns *composition* only (which patch instances, grouped how,
-sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI.
+A rack file owns *composition* only (which patch recipes, grouped how,
+sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI. Runtime patches,
+controllers, and mutable harmony belong to one `Rack` instance, never to the
+class-level declarations. `GroupRuntime.active_patch` is the live selection.
 Rack-specific constants and helper behavior belong to the rack subclass;
 at module scope, a rack module contains its docstring, imports, and rack class
 definition only.

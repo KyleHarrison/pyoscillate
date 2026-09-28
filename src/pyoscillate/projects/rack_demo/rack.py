@@ -17,11 +17,8 @@ class RackDemoRack(Rack):
     bpm = 132
     needs_clock = True
 
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController(
-                "rhythm", "Rhythm", (TechnoBass(), hat.Tick(), low_hat.LowHat())
-            ),
-            GroupController("atmosphere", "Atmosphere", (Atmosphere(), Drone())),
-            GroupController("utility", "Utility", (ClockTick(),)),
-        )
+    rhythm = GroupController(
+        "rhythm", "Rhythm", (TechnoBass, hat.Tick, low_hat.LowHat)
+    )
+    atmosphere = GroupController("atmosphere", "Atmosphere", (Atmosphere, Drone))
+    utility = GroupController("utility", "Utility", (ClockTick,))
