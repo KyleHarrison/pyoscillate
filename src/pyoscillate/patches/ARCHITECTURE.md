@@ -52,7 +52,7 @@ listed and inspected for free.
 **`build()`** is what actually materializes the Pyo graph: the point where
 oscillators, envelopes, and filters are constructed and wired together on
 `self`. It only runs once a real audio server (and the shared `Tempo`/
-`Clock`, and `Harmony` if the patch needs it) exists, and it is
+`Clock`, and `Harmony`, handed in together as one `BuildContext`) exists, and it is
 **repeatable on the same instance** — a rebuild reruns `build()` when a
 structural parameter changes or a patch is switched back on, replacing the
 graph in place rather than constructing a new `Patch` object. Every
@@ -65,7 +65,7 @@ values describe. That shape lives once on the archetype base classes
 graph and calls it.
 
 Because construction and `build()` are separate, a patch can be freely
-reconfigured — new values, new presets — without ever touching audio, and
+reconfigured — new `Param` values — without ever touching audio, and
 audio is only ever (re)built when something actually needs to play.
 
 ## Connecting to shared state: `Clock` and `Tempo`
@@ -80,7 +80,8 @@ instead means every patch's "every Nth tick" always refers to the same
 tick, and a patch that rebuilds mid-session resubscribes into the clock's
 current position rather than resetting its own phase to zero.
 
-`Tempo`/`Clock`/`Harmony` are handed into `build()` as arguments (not stored
+`Tempo`/`Clock`/`Harmony` are handed into `build()` as one `BuildContext`
+(always fully populated; there are no `needs_*` flags) (not stored
 on the class, not looked up globally) precisely because they're
 rack-level, project-scoped state that doesn't exist until the audio engine
 does — a patch's musical behavior is a function of the clock and harmony it
@@ -95,25 +96,28 @@ otherwise be three separate, driftable pieces of state:
 1. The **slider contract** — its range, default, and label — is data on the
    class, shared by every instance and every style.
 2. The **current value** is per-instance state the same descriptor stores;
-   reading `self.<name>` always returns this instance's live setting.
+   reading `self.<name>` always returns this instance's live setting. `volume` is
+   one of these `Param`s, declared once on `Patch`.
 3. The **control** — the decorated method body — is how a new value reaches
    the already-running Pyo graph, called automatically whenever the value
    changes after the patch is built.
 
 The point of merging these is that a parameter's meaning is asserted once.
 There is no second dict mapping names to setter functions, no shadow copy of
-current values kept anywhere else (in the UI layer, in a preset loader);
-`self.<name>` is the only place a value lives, and assigning it — directly,
-through `set()`, or through `configure()` for several at once — is
-sufficient to update both the stored value and the running graph. A style
+current values kept anywhere else (in the UI layer);
+`self.<name>` is the only place a value lives, and assigning it
+(`patch.punch = 1.2`, or `param.write(patch, 1.2)` where only the `Param`
+object is in hand) is sufficient to update both the stored value and the running graph. A style
 subclass that needs a different range or default overrides just that one
 declaration and keeps the same control; it never needs to touch how the
 control reaches the graph.
 
 Parameters that would change the graph's topology rather than a running
-value are declared the same way but without a control — the framework
-treats them as staged state a caller rebuilds against, not something it can
-push live.
+value are declared `rebuild=True` (collected in `Patch.rebuild_params`) — the
+framework treats them as staged state a caller rebuilds against, not
+something it can push live. A parameter that only glides a graph node needs
+no control at all: `self.live(Cls.param)` returns a retained `SigTo` that
+follows it.
 
 ## What this buys a new patch author
 

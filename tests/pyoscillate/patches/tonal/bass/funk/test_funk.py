@@ -73,7 +73,6 @@ BPM = 120
 SIXTEENTH = 60 / BPM / 4
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
-SLIDERS = {spec.name: spec for spec in funk.FunkBass.parameters}
 # the held root on the One and a ghost note, both in the second bar
 ONE, GHOST = 16, 19
 
@@ -87,7 +86,9 @@ def _render(**params: float) -> Render:
     return render(MODULE, params, seconds=2.4, bpm=BPM)
 
 
-def _note(result: Render, step: int, start: float = 0.0, end: float = 0.1) -> np.ndarray:
+def _note(
+    result: Render, step: int, start: float = 0.0, end: float = 0.1
+) -> np.ndarray:
     """Samples `start`..`end` seconds into the note at `step`."""
     onset = step * SIXTEENTH + LATENCY
     rate = result.sample_rate
@@ -111,7 +112,7 @@ class FunkBassLineTests(unittest.TestCase):
     def test_every_pitch_is_a_minor_seventh_chord_tone(self) -> None:
         tones = {0, 3, 7, 10}
         for step in funk.LINE:
-            if step.semitones is not None:
+            if step.hit:
                 self.assertIn(step.semitones % 12, tones)
 
 
@@ -119,14 +120,17 @@ class FunkBassHealthTests(unittest.TestCase):
     def test_no_corner_goes_silent(self) -> None:
         # the widest sweeps, where a NaN from the filter would mute the patch
         for params in (
-            {"quack": SLIDERS["quack"].maximum},
-            {"cutoff": SLIDERS["cutoff"].maximum, "quack": SLIDERS["quack"].maximum},
+            {"quack": funk.FunkBass.quack.spec.maximum},
             {
-                "cutoff": SLIDERS["cutoff"].maximum,
-                "quack": SLIDERS["quack"].maximum,
-                "resonance": SLIDERS["resonance"].maximum,
-                "swell": SLIDERS["swell"].minimum,
-                "octave": SLIDERS["octave"].maximum,
+                "cutoff": funk.FunkBass.cutoff.spec.maximum,
+                "quack": funk.FunkBass.quack.spec.maximum,
+            },
+            {
+                "cutoff": funk.FunkBass.cutoff.spec.maximum,
+                "quack": funk.FunkBass.quack.spec.maximum,
+                "resonance": funk.FunkBass.resonance.spec.maximum,
+                "swell": funk.FunkBass.swell.spec.minimum,
+                "octave": funk.FunkBass.octave.spec.maximum,
             },
         ):
             with self.subTest(**params):
@@ -136,15 +140,18 @@ class FunkBassHealthTests(unittest.TestCase):
                 self.assertGreater(_rms(samples), 1e-3)
 
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
-        for resonance in (SLIDERS["resonance"].minimum, SLIDERS["resonance"].maximum):
+        for resonance in (
+            funk.FunkBass.resonance.spec.minimum,
+            funk.FunkBass.resonance.spec.maximum,
+        ):
             with self.subTest(resonance=resonance):
                 loudest = features(
                     _render(
-                        cutoff=SLIDERS["cutoff"].maximum,
-                        quack=SLIDERS["quack"].maximum,
+                        cutoff=funk.FunkBass.cutoff.spec.maximum,
+                        quack=funk.FunkBass.quack.spec.maximum,
                         resonance=resonance,
-                        length=SLIDERS["length"].maximum,
-                        octave=SLIDERS["octave"].maximum,
+                        length=funk.FunkBass.length.spec.maximum,
+                        octave=funk.FunkBass.octave.spec.maximum,
                     ),
                     ceiling=PATCH_OUTPUT_CEILING,
                 )

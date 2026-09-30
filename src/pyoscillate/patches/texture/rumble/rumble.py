@@ -10,7 +10,7 @@ from pyo import PyoObject
 from pyo.lib.filters import MoogLP, Tone
 from pyo.lib.generators import BrownNoise, Sine
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -23,7 +23,7 @@ class BassRumble(ContinuousVoice):
 
     title = "Bass - textural noise rumble"
     summary = "Unpitched, earthquake-like low-end texture."
-    volume_default = 0.8
+    volume = Patch.volume.replace(default=0.8)
 
     noise: BrownNoise
     noise_voice: MoogLP
@@ -32,7 +32,12 @@ class BassRumble(ContinuousVoice):
     mixed: PyoObject
 
     sub_freq = Param(
-        20, 80, 1, SUB_FREQ, "Register", "Sets the pitch of the faint sine layer under the rumble."
+        20,
+        80,
+        1,
+        SUB_FREQ,
+        "Register",
+        "Sets the pitch of the faint sine layer under the rumble.",
     )
     sub_level = Param(
         0,
@@ -70,13 +75,13 @@ class BassRumble(ContinuousVoice):
         "Darkens or brightens the faint sine layer sitting under the noise.",
     )
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        live = self.live_all("sub_freq", "sub_level", "noise_level", "noise_cutoff", "tone_cutoff")
+        cls = type(self)
 
-        self.noise = BrownNoise(mul=live["noise_level"])
-        self.noise_voice = MoogLP(self.noise, freq=live["noise_cutoff"], res=0)
-        self.sub = Sine(freq=live["sub_freq"], mul=live["sub_level"])
-        self.sub_voice = Tone(self.sub, freq=live["tone_cutoff"])
+        self.noise = BrownNoise(mul=self.live(cls.noise_level))
+        self.noise_voice = MoogLP(self.noise, freq=self.live(cls.noise_cutoff), res=0)
+        self.sub = Sine(freq=self.live(cls.sub_freq), mul=self.live(cls.sub_level))
+        self.sub_voice = Tone(self.sub, freq=self.live(cls.tone_cutoff))
         self.mixed = self.noise_voice + self.sub_voice
         return self.finish(self.mixed)

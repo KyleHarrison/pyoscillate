@@ -19,24 +19,20 @@ class PsyambientRack(Rack):
     # this project's own tempo - other projects set their own value instead of
     # sharing one hardcoded in app.py
     bpm = 70
-    needs_clock = True
 
     def build_groups(self) -> tuple[GroupController, ...]:
         return (
             GroupController(
-                "soundscapes",
                 "Soundscapes",
                 (SoundscapeFm(), SoundscapeFilter(), SoundscapeWash()),
                 "Choose and combine evolving atmospheric beds.",
             ),
             GroupController(
-                "mid",
                 "Mid Voices",
                 (Arp(), Generative(), Canon()),
                 "Melodic movement in the center of the arrangement.",
             ),
             GroupController(
-                "bass",
                 "Bass",
                 (BassDrone(), BassChaos(), BassRumble()),
                 "Low-frequency foundations and textures.",

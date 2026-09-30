@@ -15,7 +15,7 @@ from pyo.lib.generators import Sine
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -29,7 +29,7 @@ class BassDrone(ContinuousVoice):
 
     title = "Bass - slow-swelling sub drone"
     summary = "Slow-breathing sub bed that swells and recedes."
-    volume_default = 0.8
+    volume = Patch.volume.replace(default=0.8)
 
     # the graph, assigned by build(); finish() retains every one of them
     root_freq_sig: SigTo
@@ -103,14 +103,14 @@ class BassDrone(ContinuousVoice):
     def filter_res(self, value: float) -> None:
         self.filter_res_sig.value = value
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.root_freq_sig = self.live("root_freq", self.root_freq)
-        self.swell_period_sig = self.live("swell_period", self.swell_period)
-        self.swell_depth_sig = self.live("swell_depth", self.swell_depth)
-        self.filter_base_sig = self.live("filter_base", self.filter_base)
-        self.filter_res_sig = self.live("filter_res", self.filter_res)
+        self.root_freq_sig = self.live(type(self).root_freq)
+        self.swell_period_sig = self.live(type(self).swell_period)
+        self.swell_depth_sig = self.live(type(self).swell_depth)
+        self.filter_base_sig = self.live(type(self).filter_base)
+        self.filter_res_sig = self.live(type(self).filter_res)
 
         self.swell_frequency = 1 / self.swell_period_sig
         self.swell_amplitude = self.swell_depth_sig / 2
@@ -121,6 +121,10 @@ class BassDrone(ContinuousVoice):
         )
 
         self.sub_table = HarmTable(SUB_HARMONICS)
-        self.sub_osc = Osc(table=self.sub_table, freq=self.root_freq_sig, mul=self.swell)
-        self.output = MoogLP(self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig)
+        self.sub_osc = Osc(
+            table=self.sub_table, freq=self.root_freq_sig, mul=self.swell
+        )
+        self.output = MoogLP(
+            self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
+        )
         return self.finish(self.output)

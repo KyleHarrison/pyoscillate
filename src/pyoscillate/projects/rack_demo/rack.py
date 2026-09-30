@@ -15,13 +15,10 @@ class RackDemoRack(Rack):
     # this project's own tempo - other projects set their own value instead of
     # sharing one hardcoded in app.py
     bpm = 132
-    needs_clock = True
 
     def build_groups(self) -> tuple[GroupController, ...]:
         return (
-            GroupController(
-                "rhythm", "Rhythm", (TechnoBass(), hat.Tick(), low_hat.LowHat())
-            ),
-            GroupController("atmosphere", "Atmosphere", (Atmosphere(), Drone())),
-            GroupController("utility", "Utility", (ClockTick(),)),
+            GroupController("Rhythm", (TechnoBass(), hat.Tick(), low_hat.LowHat())),
+            GroupController("Atmosphere", (Atmosphere(), Drone())),
+            GroupController("Utility", (ClockTick(),)),
         )

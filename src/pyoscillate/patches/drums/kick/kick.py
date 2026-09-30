@@ -23,11 +23,11 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by every envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]
@@ -39,7 +39,7 @@ class Kick(DrumVoice):
     the profile attributes below with fixed data; the graph itself is
     identical across styles."""
 
-    volume_default = 0.8
+    volume = Patch.volume.replace(default=0.8)
     base_division: ClassVar[NoteDivision] = NoteDivision.QUARTER
     # exponent of the amplitude and pitch decay curves - higher values give the
     # fast-drop, long-tail shape of an analogue drum envelope; the body stays
@@ -56,11 +56,11 @@ class Kick(DrumVoice):
     decay: ClassVar[float]
     click_level: ClassVar[float]
 
-    # step in a `pattern_cycle`-step bar -> accent; `None` (the default) skips
-    # the pattern entirely and fires every base_division tick instead (plain
+    # step in a `pattern_cycle`-step bar -> accent; the default is a one-step
+    # cycle with a full-level hit, which fires every base_division tick (plain
     # four-on-the-floor) - a style sets both to place hits off the straight
     # grid (swing) and/or vary their level (ghost notes)
-    pattern: ClassVar[dict[int, float] | None] = None
+    pattern: ClassVar[dict[int, float]] = {0: 1.0}
     pattern_cycle: ClassVar[int] = 1
 
     # the graph, assigned by build(); finish() retains every one of them
@@ -79,11 +79,17 @@ class Kick(DrumVoice):
     # change coexist with a swung style's per-step ghost accents
     accent: float
 
-    # the per-step accent pattern's callable, frozen at build time - `None`
-    # for a style that fires every tick instead
-    _step: Callable[[], tuple[int, float | None]] | None
+    # the per-step accent pattern's callable, assigned by build()
+    _step: Callable[[], Step]
 
-    @Param(0.1, 1.0, 0.05, 0.62, "Body", "Controls the fullness and weight of the kick's low end.")
+    @Param(
+        0.1,
+        1.0,
+        0.05,
+        0.62,
+        "Body",
+        "Controls the fullness and weight of the kick's low end.",
+    )
     def level(self, value: float) -> None:
         self.apply_gains()
 
@@ -152,7 +158,7 @@ class Kick(DrumVoice):
         self.body_env.mul = self.level * self.accent
         self.click_env.mul = self.click_level * self.click * self.accent
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
         self.accent = 1.0
@@ -165,28 +171,25 @@ class Kick(DrumVoice):
         self.body_signal = self.body * self.body_env
 
         self.noise = Noise()
-        self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.pitch_curve)
+        self.click_env = self.envelope(
+            DROP, dur=self.click_duration, exp=self.pitch_curve
+        )
         self.click_signal = self.noise * self.click_env
 
         self.source = self.body_signal + self.click_signal
         self.shaper = Disto(self.source, slope=0.85)
 
-        self._step = (
-            self.step_pattern(self.pattern_cycle, self.pattern)
-            if self.pattern is not None
-            else None
-        )
+        self._step = self.step_pattern(self.pattern_cycle, self.pattern)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.voice_output())
 
     def next_step(self) -> None:
-        if self._step is not None:
-            _, accent = self._step()
-            if accent is None:
-                return
-            self.accent = accent
-            self.apply_gains()
+        step = self._step()
+        if not step.hit:
+            return
+        self.accent = step.value
+        self.apply_gains()
         # restart the sine at phase zero so the full-level attack starts
         # on a zero crossing instead of wherever the oscillator last
         # stopped
@@ -198,19 +201,37 @@ class KickRound(Kick):
     """Deep, rounded low-end thump."""
 
     summary = "Deep, rounded low-end thump anchoring the groove."
-    body_freq, sweep_depth, sweep_time, decay, click_level = 50.0, 80.0, 0.05, 0.27, 0.12
+    body_freq, sweep_depth, sweep_time, decay, click_level = (
+        50.0,
+        80.0,
+        0.05,
+        0.27,
+        0.12,
+    )
 
 
 class KickPunch(Kick):
     """Tighter, punchier kick with more transient snap."""
 
-    body_freq, sweep_depth, sweep_time, decay, click_level = 54.0, 140.0, 0.035, 0.2, 0.28
+    body_freq, sweep_depth, sweep_time, decay, click_level = (
+        54.0,
+        140.0,
+        0.035,
+        0.2,
+        0.28,
+    )
 
 
 class KickSoft(Kick):
     """Soft, cushioned kick that sits back in the mix."""
 
-    body_freq, sweep_depth, sweep_time, decay, click_level = 46.0, 50.0, 0.07, 0.37, 0.05
+    body_freq, sweep_depth, sweep_time, decay, click_level = (
+        46.0,
+        50.0,
+        0.07,
+        0.37,
+        0.05,
+    )
 
 
 # 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> accent. Beat 1's
@@ -230,7 +251,13 @@ class KickLofi(Kick):
     four-on-the-floor grid."""
 
     summary = "Soft, filtered boom-bap kick with an MPC swing pocket and a ghost hit."
-    body_freq, sweep_depth, sweep_time, decay, click_level = 48.0, 55.0, 0.06, 0.32, 0.04
+    body_freq, sweep_depth, sweep_time, decay, click_level = (
+        48.0,
+        55.0,
+        0.06,
+        0.32,
+        0.04,
+    )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     pattern_cycle: ClassVar[int] = 32
     pattern: ClassVar[dict[int, float]] = KICK_LOFI_PATTERN

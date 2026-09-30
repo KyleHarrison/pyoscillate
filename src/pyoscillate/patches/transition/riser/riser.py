@@ -28,7 +28,7 @@ that is genuinely different behavior, not just different profile data
 This is a one-shot gesture rather than a repeating clocked hit, so there is
 no Rate slider: `build()` subscribes `next_bar()` directly to `clock.bar`
 (one tick per bar) instead of going through `GatedVoice.schedule()`'s
-rate-slider machinery, and `Length` only ever changes when the next riser
+rate machinery, and `Length` only ever changes when the next riser
 starts, read straight off `self.length` with no mirrored state.
 """
 
@@ -42,8 +42,7 @@ from pyo.lib.controls import Linseg, SigTo
 from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, SuperSaw
 
-from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import GatedVoice, frequency_shift
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -58,7 +57,9 @@ DETUNE = 0.5
 BALANCE = 0.7
 
 
-def _ramp_points(tempo: Tempo, bars: int, cut_seconds: float) -> list[tuple[float, float]]:
+def _ramp_points(
+    tempo: Tempo, bars: int, cut_seconds: float
+) -> list[tuple[float, float]]:
     """Break-points for one riser: 0 → 1 across `bars`, cut to 0 on the downbeat."""
     duration = tempo.bar * bars
     return [(0, 0), (duration - cut_seconds, 1), (duration, 0)]
@@ -70,7 +71,7 @@ class Riser(GatedVoice):
     the ramp, curve, filter opening and level stage are identical. See the
     module docstring for the sonic detail."""
 
-    volume_default = 0.3
+    volume = Patch.volume.replace(default=0.3)
 
     # the ramp's fall to zero on the downbeat: short enough to read as a cut,
     # long enough not to click
@@ -96,9 +97,11 @@ class Riser(GatedVoice):
     filtered: Biquad
     gain: PyoObject
     voice_signal: PyoObject
+    _bar: int
+    _tempo: Tempo
 
     # only read at the top of each bar (next_bar()), so it needs no live
-    # control - Patch.set() already keeps self.length current on its own
+    # control - assigning the parameter already keeps self.length current
     length = Param(
         1,
         8,
@@ -159,17 +162,21 @@ class Riser(GatedVoice):
         per style."""
         raise NotImplementedError
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
         self._bar = 0
+        self._tempo = context.tempo
 
         self.climb_control = SigTo(value=self.climb, time=0.15, init=self.climb)
         self.surge_control = SigTo(value=self.surge, time=0.15, init=self.surge)
-        self.brightness_control = SigTo(value=self.brightness, time=0.15, init=self.brightness)
+        self.brightness_control = SigTo(
+            value=self.brightness, time=0.15, init=self.brightness
+        )
         self.level_control = SigTo(value=self.level, time=0.15, init=self.level)
 
         self.ramp = Linseg(
-            _ramp_points(tempo, round(self.length), self.cut_seconds), initToFirstVal=True
+            _ramp_points(context.tempo, round(self.length), self.cut_seconds),
+            initToFirstVal=True,
         )
         self.tension = Pow(self.ramp, self.surge_control)
         self.climb_octaves = self.tension * self.climb_control
@@ -186,15 +193,16 @@ class Riser(GatedVoice):
         self.gain = self.tension * self.level_control
         self.voice_signal = self.filtered * self.gain
 
-        def next_bar() -> None:
-            length = round(self.length)
-            if self._bar % PHRASE_BARS == PHRASE_BARS - length:
-                self.ramp.setList(_ramp_points(tempo, length, self.cut_seconds))
-                self.ramp.play()
-            self._bar += 1
-
-        self._division = clock.subscribe(clock.bar, next_bar)
+        # one tick per bar, not a `NoteDivision` rate
+        self.schedule_steps(context.clock, context.clock.bar, self.next_bar)
         return self.finish(self.voice_signal)
+
+    def next_bar(self) -> None:
+        length = round(self.length)
+        if self._bar % PHRASE_BARS == PHRASE_BARS - length:
+            self.ramp.setList(_ramp_points(self._tempo, length, self.cut_seconds))
+            self.ramp.play()
+        self._bar += 1
 
 
 class RiserNoise(Riser):
@@ -222,7 +230,11 @@ class RiserNoise(Riser):
         # curve rather than on the climb, as the clap's makeup does
         self.noise_makeup = Pow(climb_ratio, -0.5, mul=self.noise_gain)
         self.risen = Biquad(
-            self.noise, freq=self.noise_centre, q=self.noise_q, type=2, mul=self.noise_makeup
+            self.noise,
+            freq=self.noise_centre,
+            q=self.noise_q,
+            type=2,
+            mul=self.noise_makeup,
         )
 
 

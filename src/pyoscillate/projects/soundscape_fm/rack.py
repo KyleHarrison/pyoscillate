@@ -8,9 +8,7 @@ from pyoscillate.projects.base import Rack
 class SoundscapeFmRack(Rack):
     """The standalone FM soundscape."""
 
+    bpm = 60
+
     def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController(
-                "soundscapes", "Soundscapes", (SoundscapeFm(title="Soundscape FM"),)
-            ),
-        )
+        return (GroupController("Soundscapes", (SoundscapeFm(),)),)

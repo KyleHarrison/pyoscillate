@@ -27,11 +27,11 @@ from pyo.lib.generators import FM, Noise
 from pyo.lib.pan import Selector
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by the choke envelope
 DROP = [(0, 1), (8191, 0)]
@@ -51,7 +51,7 @@ class Groove(DrumVoice):
     with which articulation.
     """
 
-    volume_default = 0.25
+    volume = Patch.volume.replace(default=0.25)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     # after the high-pass the FM cluster sits a little below noise; this
@@ -77,7 +77,7 @@ class Groove(DrumVoice):
     # the step pattern's callable, frozen at build time - fed to
     # `next_step`, which build() can no longer close over now that it's a
     # real method
-    _step: Callable[[], tuple[int, str | tuple[str, float] | None]]
+    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -134,7 +134,7 @@ class Groove(DrumVoice):
         any node it builds onto `self` too."""
         return self.filtered
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Build a style-specific, grid-locked hat pattern with closed/open choke."""
         self._reset()
         self.choke_env = self.envelope(
@@ -157,17 +157,20 @@ class Groove(DrumVoice):
 
         self._step = self.step_pattern(self.pattern_cycle, self.pattern)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.voice_output())
 
     def next_step(self) -> None:
-        step_index, entry = self._step()
-        if entry is not None:
+        step = self._step()
+        if step.hit:
+            entry = step.value
             if isinstance(entry, tuple):
                 articulation, accent = entry
             else:
                 articulation = entry
-                accent = self.offbeat_accent if step_index % 4 == 2 else self.ghost_accent
+                accent = (
+                    self.offbeat_accent if step.index % 4 == 2 else self.ghost_accent
+                )
             self.choke_env.mul = self.level * accent
             # one envelope for both articulations, so a closed hit
             # restarting it cuts off an open tail - the hat choke
@@ -188,7 +191,13 @@ class GrooveOpen(Groove):
 
     name = "hat_open"
     title = "Hat - Open"
-    pattern: ClassVar[dict[int, str]] = {2: OPEN, 6: OPEN, 10: OPEN, 14: OPEN, 15: CLOSED}
+    pattern: ClassVar[dict[int, str]] = {
+        2: OPEN,
+        6: OPEN,
+        10: OPEN,
+        14: OPEN,
+        15: CLOSED,
+    }
 
 
 class GrooveShuffle(Groove):

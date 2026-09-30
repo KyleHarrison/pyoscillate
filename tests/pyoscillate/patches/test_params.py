@@ -4,14 +4,18 @@ frequencies, and every patch's Register (`root_freq`) slider is one."""
 import importlib
 import pkgutil
 import unittest
+from unittest.mock import MagicMock
 
 import pyoscillate.patches
-from pyoscillate.patches.base import Patch
+from pyoscillate.harmony import Harmony
+from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.patches.utility.notes.notes import freq_to_midi, midi_to_freq
 
-REGISTER = SliderSpec("root_freq", notes.B0, notes.A2, 1, notes.A1, "Register", "", scale="note")
+REGISTER = SliderSpec(
+    "root_freq", notes.B0, notes.A2, 1, notes.A1, "Register", "", scale="note"
+)
 
 
 def _is_note(freq: float) -> bool:
@@ -20,17 +24,21 @@ def _is_note(freq: float) -> bool:
 
 
 def _patch_parameters() -> dict[str, tuple[SliderSpec, ...]]:
-    """Every module's parameter specs, from a legacy module-level
-    `PARAMETERS` tuple and/or (post-migration) each `Patch` subclass's own
-    `parameters`, auto-derived from its `@Param`s."""
+    """Every `Patch` subclass's slider specs, derived from its `Param`s."""
     found = {}
-    for info in pkgutil.walk_packages(pyoscillate.patches.__path__, "pyoscillate.patches."):
+    for info in pkgutil.walk_packages(
+        pyoscillate.patches.__path__, "pyoscillate.patches."
+    ):
         module = importlib.import_module(info.name)
-        if isinstance(getattr(module, "PARAMETERS", None), tuple):
-            found[info.name] = module.PARAMETERS
         for name, value in vars(module).items():
-            if isinstance(value, type) and issubclass(value, Patch) and value is not Patch:
-                found[f"{info.name}.{name}"] = value.parameters
+            if (
+                isinstance(value, type)
+                and issubclass(value, Patch)
+                and value is not Patch
+            ):
+                found[f"{info.name}.{name}"] = tuple(
+                    param.spec for param in value.params
+                )
     return found
 
 
@@ -88,7 +96,7 @@ class _Voice(Patch):
 
     depth = Param(0, 2, 0.1, 1.0, "Depth", "")
 
-    def build(self, **kwargs: object) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.applied: list[float] = []
         self.voice = None
@@ -101,7 +109,17 @@ class _Bright(_Voice):
     extra = Param(0, 1, 0.1, 0.0, "Extra", "")
 
 
+CONTEXT = BuildContext(MagicMock(), MagicMock(), Harmony())
+
+
 class ParamTests(unittest.TestCase):
+    def setUp(self):
+        # `_bind()` creates the volume `SigTo`, which needs a booted server
+        self.server = start_server(audio="manual")
+
+    def tearDown(self):
+        self.server.shutdown()
+
     def test_constructor_can_override_output_volume(self):
         voice = _Voice(volume=0.8, tone=0.2)
 
@@ -116,17 +134,20 @@ class ParamTests(unittest.TestCase):
         self.assertFalse(hasattr(voice, "applied"))
 
     def test_build_applies_every_control_once_then_assignment_is_live(self):
-        voice = _Voice(tone=0.2).build()
+        voice = _Voice(tone=0.2).build(CONTEXT)
         self.assertEqual(voice.applied, [0.2])
         voice.tone = 0.7
-        voice.set("tone", 0.3)
+        _Voice.tone.write(voice, 0.3)
         self.assertEqual(voice.applied, [0.2, 0.7, 0.3])
 
     def test_subclass_override_keeps_order_and_control(self):
-        self.assertEqual([spec.name for spec in _Bright.parameters], ["tone", "depth", "extra"])
-        self.assertEqual(_Bright.parameters[0].default, 0.9)
-        self.assertEqual(_Voice.parameters[0].default, 0.5)
-        self.assertEqual(_Bright().build().applied, [0.9])
+        self.assertEqual(
+            [param.name for param in _Bright.params],
+            ["volume", "tone", "depth", "extra"],
+        )
+        self.assertEqual(_Bright.tone.default, 0.9)
+        self.assertEqual(_Voice.tone.default, 0.5)
+        self.assertEqual(_Bright().build(CONTEXT).applied, [0.9])
 
 
 class PatchRegisterTests(unittest.TestCase):

@@ -25,12 +25,12 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by every envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]
@@ -40,7 +40,7 @@ class Snare(DrumVoice):
     """Tone-plus-rattle snare on the backbeat with a ghost note."""
 
     summary = "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap."
-    volume_default = 0.3
+    volume = Patch.volume.replace(default=0.3)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6
@@ -79,9 +79,16 @@ class Snare(DrumVoice):
     # the step pattern's callable, frozen at build time - fed to
     # `next_step`, which build() can no longer close over now that it's a
     # real method
-    _step: Callable[[], tuple[int, float | None]]
+    _step: Callable[[], Step]
 
-    @Param(0.02, 0.6, 0.01, 0.2, "Presence", "Sets how loud and upfront the snare sits in the mix.")
+    @Param(
+        0.02,
+        0.6,
+        0.01,
+        0.2,
+        "Presence",
+        "Sets how loud and upfront the snare sits in the mix.",
+    )
     def level(self, value: float) -> None:
         self.apply_gains()
 
@@ -149,7 +156,7 @@ class Snare(DrumVoice):
         any node it builds onto `self` too."""
         return self.source
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.accent = 1.0
         self.tuning = Sig(semitone_ratio(self.tune))
@@ -172,13 +179,13 @@ class Snare(DrumVoice):
 
         self._step = self.step_pattern(self.pattern_cycle, self.pattern)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.voice_output())
 
     def next_step(self) -> None:
-        _, accent = self._step()
-        if accent is not None:
-            self.accent = accent
+        step = self._step()
+        if step.hit:
+            self.accent = step.value
             self.apply_gains()
             # restart the body on a zero crossing so the immediate
             # attack doesn't click wherever the oscillator last stopped
@@ -199,7 +206,9 @@ class SnareLofi(Snare):
     grid with ghost notes either side, filtered down and lightly saturated
     for an 80 BPM lofi pocket rather than a crisp modern crack."""
 
-    summary = "Soft, filtered boom-bap snare with a behind-the-beat backbeat and ghost notes."
+    summary = (
+        "Soft, filtered boom-bap snare with a behind-the-beat backbeat and ghost notes."
+    )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     pattern: ClassVar[dict[int, float]] = SNARE_LOFI_PATTERN
     pattern_cycle: ClassVar[int] = 32

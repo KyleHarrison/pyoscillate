@@ -15,7 +15,7 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -32,7 +32,7 @@ class Generative(Patch):
     arpeggio - notes never repeat in a predictable order, and because the
     period is measured in real seconds (not the shared `Clock`), this voice
     drifts in and out of phase with every other patch instead of locking to
-    a downbeat. `note_period`/`note_duration` are `rebuild_parameters`:
+    a downbeat. `note_period`/`note_duration` are `rebuild` parameters:
     each is baked into a `Metro`'s fixed `time` or a `TrigEnv`'s `dur` at
     build time, so changing either live can't just update an existing
     control.
@@ -41,11 +41,15 @@ class Generative(Patch):
     name = "mid_generative"
     title = "Mid - generative melody"
     summary = "Ever-changing generative melody that never quite repeats."
-    volume_default = 0.6
-    rebuild_parameters: ClassVar[tuple[str, ...]] = ("note_period", "note_duration")
+    volume = Patch.volume.replace(default=0.6)
 
     # note envelope: a fast rise then a longer, slightly uneven decay
-    ENVELOPE_POINTS: ClassVar[list[tuple[int, float]]] = [(0, 0), (800, 1), (4000, 0.5), (8191, 0)]
+    ENVELOPE_POINTS: ClassVar[list[tuple[int, float]]] = [
+        (0, 0),
+        (800, 1),
+        (4000, 0.5),
+        (8191, 0),
+    ]
     NOTE_LEVEL: ClassVar[float] = 0.18
 
     envelope_table: CosTable
@@ -74,6 +78,7 @@ class Generative(Patch):
         4.5,
         "Pace",
         "How often a new note is drawn; shorter feels more active, longer spaces the melody out.",
+        rebuild=True,
     )
 
     note_duration = Param(
@@ -84,6 +89,7 @@ class Generative(Patch):
         "Note length",
         "Shapes how long each note rings out; shorter feels more plucked and articulate, longer lets "
         "notes overlap into a smoother, sustained texture.",
+        rebuild=True,
     )
 
     @Param(
@@ -155,23 +161,26 @@ class Generative(Patch):
         self._bind()
         return self
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
 
         self.note_metro = Metro(time=self.note_period)
 
         self.envelope_table = CosTable(self.ENVELOPE_POINTS)
         self.note_env = TrigEnv(
-            self.note_metro, table=self.envelope_table, dur=self.note_duration, mul=self.NOTE_LEVEL
+            self.note_metro,
+            table=self.envelope_table,
+            dur=self.note_duration,
+            mul=self.NOTE_LEVEL,
         )
 
         self.fm_voice = FM(mul=self.note_env)
         self.reverb = Freeverb(self.fm_voice)
 
-        def next_note() -> None:
-            interval = random.choice(GENERATIVE_SCALE)
-            self.fm_voice.carrier = self.root_freq * pow(2, interval / 12)
-
-        self.note_func = TrigFunc(self.note_metro, next_note)
+        self.note_func = TrigFunc(self.note_metro, self.next_note)
         self.sequencer = self.note_metro
         return self.finish(self.reverb)
+
+    def next_note(self) -> None:
+        interval = random.choice(GENERATIVE_SCALE)
+        self.fm_voice.carrier = self.root_freq * pow(2, interval / 12)

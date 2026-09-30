@@ -22,53 +22,48 @@ class DeepHouseRack(Rack):
     # their own values instead of sharing a static default from `pyoscillate.clock`
     bpm = 132
     ticks_per_bar = 512
-    needs_clock = True
-    # the rack's shared key and progression: every `needs_harmony` patch (bass,
+    # the rack's shared key and progression: every harmonic patch (bass,
     # chords, tom) re-roots on the same chord on the same bar. i-iv-bVII-v as
     # parallel minor sevenths - the deep-house "chord memory" sound - one chord
     # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
     harmony = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
+    kicks: GroupController
+
     def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController(
-                "kicks",
-                "Kicks",
-                (kick.KickRound(), kick.KickPunch(), kick.KickSoft()),
-            ),
-            GroupController(
-                "bass",
-                "Bass",
-                (
-                    # a kick ducking the bass on every hit is a standard deep-house
-                    # sidechain move - see drums/kick/AGENTS.md's "Sidechaining" reference.
-                    # Ducks off the "kicks" group's currently active style, not a fixed
-                    # instance, so switching kick styles doesn't silently un-wire the duck.
-                    bass.BassRolling(
-                        sidechain=SidechainSource("kicks", depth=0.6, release=0.15)
-                    ),
-                    bass.BassDub(),
-                    bass.BassMuted(),
+        # built first so the bass can duck off it; returned in display order below
+        self.kicks = GroupController(
+            "Kicks", (kick.KickRound(), kick.KickPunch(), kick.KickSoft())
+        )
+        bass_group = GroupController(
+            "Bass",
+            (
+                # a kick ducking the bass on every hit is a standard deep-house
+                # sidechain move - see drums/kick/AGENTS.md's "Sidechaining" reference.
+                # Ducks off the kicks group's currently active style, not a fixed
+                # instance, so switching kick styles doesn't silently un-wire the duck.
+                bass.BassRolling(
+                    sidechains=(SidechainSource(self.kicks, depth=0.6, release=0.15),)
                 ),
+                bass.BassDub(),
+                bass.BassMuted(),
             ),
+        )
+        return (
+            self.kicks,
+            bass_group,
             GroupController(
-                "chords",
                 "Chord Stabs",
                 (chord.ChordVelvet(), chord.ChordOrgan(), chord.ChordShimmer()),
             ),
             GroupController(
-                "hats",
-                "Hi-hats",
-                (hat.GrooveCrisp(), hat.GrooveOpen(), hat.GrooveShuffle()),
+                "Hi-hats", (hat.GrooveCrisp(), hat.GrooveOpen(), hat.GrooveShuffle())
             ),
             GroupController(
-                "percussion",
-                "Percussion",
-                (percussion.PercussionRim(), percussion.PercussionConga()),
+                "Percussion", (percussion.PercussionRim(), percussion.PercussionConga())
             ),
-            GroupController("claps", "Claps", (clap.Clap(),)),
+            GroupController("Claps", (clap.Clap(),)),
             GroupController(
-                "drums",
                 "Drums",
                 (snare.Snare(), tom.Tom(), cymbal.CymbalRide(), cymbal.CymbalCrash()),
             ),

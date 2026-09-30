@@ -2,6 +2,7 @@
 #   style: velvet | organ | shimmer
 """Offbeat chord-stab voices."""
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject, PyoTableObject
@@ -11,16 +12,12 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable, SawTable
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
-# i-iv-bVII-v as parallel minor-seventh stabs, one chord per bar - used
-# only when the patch runs outside a rack that shares its own `Harmony`
-FALLBACK_HARMONY = Harmony(progression=(0, 5, 10, 7))
 INTERVALS = (0, 3, 7, 10)
 
 
@@ -30,9 +27,8 @@ class Chord(GatedVoice):
     own oscillator table, plus the profile attributes below; the rest of
     the graph is identical across styles."""
 
-    volume_default: ClassVar[float] = 0.4
+    volume = Patch.volume.replace(default=0.4)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    needs_harmony: ClassVar[bool] = True
 
     # every chord root snaps to the octave nearest this, around D3
     register_centre: ClassVar[float] = 146
@@ -51,12 +47,14 @@ class Chord(GatedVoice):
     voices: list[Osc]
     source: PyoObject
     filter_voice: Biquad
-    chorus_voice: Chorus | None
+    # only assigned by styles with `chorus` on
+    chorus_voice: Chorus
     reverb: Freeverb
 
     # this bar's chord source, frozen at build time - fed to `next_step`,
     # which build() can no longer close over now that it's a real method
     harmony: Harmony
+    _step: Callable[[], Step]
 
     def table(self) -> PyoTableObject:
         """This style's oscillator table. Overridden per style."""
@@ -89,9 +87,9 @@ class Chord(GatedVoice):
         "Halves or doubles the chord-stab pattern speed for each step away from its 16th-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.harmony = harmony or FALLBACK_HARMONY
+        self.harmony = context.harmony
 
         self.oscillator_table = self.table()
         self.envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
@@ -100,7 +98,9 @@ class Chord(GatedVoice):
         self.voices = [
             Osc(
                 self.oscillator_table,
-                freq=self.harmony.chord_freq(self.register_centre, clock.bar_index)
+                freq=self.harmony.chord_freq(
+                    self.register_centre, context.clock.bar_index
+                )
                 * 2 ** (self.octave + interval / 12),
                 mul=self.amplitude,
             )
@@ -111,9 +111,10 @@ class Chord(GatedVoice):
         self.filter_voice = Biquad(self.source, freq=self.brightness, q=1.2, type=0)
 
         pre_reverb: PyoObject = self.filter_voice
-        self.chorus_voice = None
         if self.chorus:
-            self.chorus_voice = Chorus(self.filter_voice, depth=1.2, feedback=0.15, bal=0.28)
+            self.chorus_voice = Chorus(
+                self.filter_voice, depth=1.2, feedback=0.15, bal=0.28
+            )
             pre_reverb = self.chorus_voice
         self.reverb = Freeverb(pre_reverb, size=0.72, damp=0.45, bal=self.wet)
 
@@ -121,15 +122,14 @@ class Chord(GatedVoice):
         # 16th-note pair within the bar
         self._step = self.step_pattern(16, {2, 6, 10, 14})
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.reverb)
 
     def next_step(self) -> None:
-        _, fire = self._step()
-        if fire:
+        if self._step().hit:
             chord_root = (
                 self.harmony.chord_freq(self.register_centre, self._clock.bar_index)
-                * 2 ** self.octave
+                * 2**self.octave
             )
             for oscillator, interval in zip(self.voices, INTERVALS, strict=True):
                 oscillator.freq = chord_root * 2 ** (interval / 12)

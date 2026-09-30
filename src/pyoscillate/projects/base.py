@@ -1,8 +1,6 @@
 """Abstract project rack: the shared shape every project's `rack.py`
-implements instead of a module-level `PATCHES`/`GROUP_TITLES`/`PATCH_GROUPS`
-trio plus loose `BPM`/`TICKS_PER_BAR`/`HARMONY`/`GROUP_CONTROLLERS` globals.
-
-See docs/todos/oo-rack-refactor.md for the design discussion behind this.
+implements - engine config as class attributes, and the patches and groups
+built once in `build_groups()` and held as typed attributes on the rack.
 """
 
 from __future__ import annotations
@@ -10,95 +8,56 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import ClassVar
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import EvolvingGroup, GroupController
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
-
-if TYPE_CHECKING:
-    from src.flet.base import EngineSpec
 
 
 @dataclass(frozen=True)
-class MacroSpec:
-    """One rack-level slider that pushes a value across a few groups'
-    currently-active patches - the manual, user-triggered counterpart to
-    `Patch.on_evolve`'s clock-triggered push (same "push a value into
-    whichever patch is active" shape, just fired from a widget instead of a
-    `GroupController` timer). A single rack needs at most one of these, so
-    this is one slider spec plus one push function rather than a generic
-    multi-macro/routing system.
+class Macro:
+    """One rack-level slider that pushes a value across several patches - the
+    manual, user-triggered counterpart to `Patch.on_evolve`'s clock-triggered
+    push.
 
-    `apply` receives the slider's current value and a `resolve_group_patch`
-    lookup (a group name -> its active `Patch`, or `None` if that group has
-    nothing on) and pushes into whichever groups it targets, normally via
-    `Patch.configure(...)` - `configure` already skips parameter names a
-    given patch/style doesn't have, so `apply` doesn't need to branch on
-    which style is currently active in a targeted group.
+    `apply` is a method of the rack subclass, called as `apply(rack, value)`;
+    it assigns parameters directly on the rack's own typed patch attributes
+    (`self.pad.chorus_depth = ...`). Assigning stages the value on every
+    patch, and live-updates the ones playing, so it needs no lookup of "which
+    patch is active" and no branching on the active style.
     """
 
     slider: SliderSpec
-    apply: Callable[[float, Callable[[str], Patch | None]], None]
+    apply: Callable[[Rack, float], None]
 
 
 class Rack(ABC):
     """A project's patch groups plus the engine config to run them with.
 
     A subclass sets the class attributes below as needed and implements
-    `build_groups()`; everything else (`groups`, `group_controllers`,
-    `engine_spec()`) is concrete and shared. Every `EngineSpec` field is an
-    explicit attribute here - none of it is derived by scanning
-    `build_groups()`'s patches for `needs_clock`/`needs_tempo` flags (see the
-    "Open questions" note in docs/todos/oo-rack-refactor.md on why that's
-    deliberate).
+    `build_groups()`, which constructs every patch, stores the ones a macro
+    or sidechain needs as typed attributes on `self`, and returns the
+    `GroupController`s in display order. Everything else is concrete and
+    shared.
     """
 
-    bpm: float | None = None
-    ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
-    needs_clock: bool = False
-    harmony: Harmony | None = None
-    macro: MacroSpec | None = None
-    nchnls: int = 2
-    # `None` means "use flet.base's default"; a subclass overrides only if
-    # it needs a different ceiling/starting level than every other project
-    master_output_default: float | None = None
-    master_output_max: float | None = None
+    bpm: ClassVar[float]
+    ticks_per_bar: ClassVar[int] = DEFAULT_TICKS_PER_BAR
+    harmony: ClassVar[Harmony] = Harmony()
+    macros: ClassVar[tuple[Macro, ...]] = ()
+    nchnls: ClassVar[int] = 2
+    # the master output's starting level and safety ceiling
+    master_output_default: ClassVar[float] = 0.1
+    master_output_max: ClassVar[float] = 0.2
+
+    def __init__(self) -> None:
+        self.groups = self.build_groups()
+        self.evolving_groups = tuple(
+            g for g in self.groups if isinstance(g, EvolvingGroup)
+        )
 
     @abstractmethod
     def build_groups(self) -> tuple[GroupController, ...]:
         """Construct every patch instance and its `GroupController` grouping."""
-
-    @cached_property
-    def groups(self) -> tuple[GroupController, ...]:
-        return self.build_groups()
-
-    @cached_property
-    def group_controllers(self) -> tuple[GroupController, ...]:
-        """The subset of `groups` that own a rack-level evolution timer
-        (`bars is not None`) - derived from `groups` rather than declared
-        separately, so a group's evolution timer is declared in exactly one
-        place instead of being listed twice."""
-        return tuple(group for group in self.groups if group.bars is not None)
-
-    def engine_spec(self) -> EngineSpec:
-        from src.flet.base import MASTER_OUTPUT_DEFAULT, MASTER_OUTPUT_MAX, EngineSpec
-
-        return EngineSpec(
-            nchnls=self.nchnls,
-            bpm=self.bpm,
-            needs_clock=self.needs_clock,
-            ticks_per_bar=self.ticks_per_bar,
-            master_output_default=self.master_output_default
-            if self.master_output_default is not None
-            else MASTER_OUTPUT_DEFAULT,
-            master_output_max=self.master_output_max
-            if self.master_output_max is not None
-            else MASTER_OUTPUT_MAX,
-            harmony=self.harmony,
-            macro=self.macro,
-            group_controllers=self.group_controllers,
-        )

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from pyo import PyoObject
 from pyo.lib._core import Mix
+from pyo.lib.controls import SigTo
 from pyo.lib.filters import Biquad, Phaser
 from pyo.lib.generators import BrownNoise, PinkNoise, Sine
 from pyo.lib.generators import Noise as WhiteNoise
@@ -41,7 +42,7 @@ from pyo.lib.randoms import RandDur
 from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Change, TrigEnv
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, frequency_shift
 from pyoscillate.patches.params import Param
 
@@ -95,7 +96,7 @@ class Noise(ContinuousVoice):
     subclass this and override `moved_signal()` for their own kind of
     movement - cutoff breathing, notch sweep, or frequency shift."""
 
-    volume_default = VOLUME_DEFAULT
+    volume = Patch.volume.replace(default=VOLUME_DEFAULT)
 
     colour = Param(
         0,
@@ -138,6 +139,11 @@ class Noise(ContinuousVoice):
         "How loud the noise bed sits under everything else.",
     )
 
+    colour_sig: SigTo
+    brightness_sig: SigTo
+    motion_sig: SigTo
+    depth_sig: SigTo
+    level_sig: SigTo
     white: WhiteNoise
     pink: PinkNoise
     brown: BrownNoise
@@ -145,24 +151,31 @@ class Noise(ContinuousVoice):
     moved: PyoObject
     leveled: PyoObject
 
-    def moved_signal(self, live: dict[str, PyoObject], source: PyoObject) -> None:
+    def moved_signal(self, source: PyoObject) -> None:
         """This style's filtered, moving noise bed built from the shared
         colour-crossfaded `source`: assigns every node it builds onto
         `self`, ending with the final bed in `self.moved`. Overridden per
         style."""
         raise NotImplementedError
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        live = self.live_all("colour", "brightness", "motion", "depth", "level")
+        cls = type(self)
+        self.colour_sig = self.live(cls.colour)
+        self.brightness_sig = self.live(cls.brightness)
+        self.motion_sig = self.live(cls.motion)
+        self.depth_sig = self.live(cls.depth)
+        self.level_sig = self.live(cls.level)
 
         self.white = WhiteNoise(mul=COLOUR_GAINS[0])
         self.pink = PinkNoise(mul=COLOUR_GAINS[1])
         self.brown = BrownNoise(mul=COLOUR_GAINS[2])
-        self.source = Selector([self.white, self.pink, self.brown], voice=live["colour"])
+        self.source = Selector(
+            [self.white, self.pink, self.brown], voice=self.colour_sig
+        )
 
-        self.moved_signal(live, self.source)
-        self.leveled = self.moved * live["level"]
+        self.moved_signal(self.source)
+        self.leveled = self.moved * self.level_sig
         return self.finish(self.leveled)
 
 
@@ -177,11 +190,11 @@ class NoiseAir(Noise):
     cutoff_lfo: Sine
     cutoff: PyoObject
 
-    def moved_signal(self, live, source):
-        self.rates = live["motion"] * AIR_RATES
-        self.swing = live["depth"] * AIR_SWING
+    def moved_signal(self, source: PyoObject) -> None:
+        self.rates = self.motion_sig * AIR_RATES
+        self.swing = self.depth_sig * AIR_SWING
         self.cutoff_lfo = Sine(freq=self.rates, mul=self.swing, add=1)
-        self.cutoff = live["brightness"] * self.cutoff_lfo
+        self.cutoff = self.brightness_sig * self.cutoff_lfo
         self.moved = Biquad(source, freq=self.cutoff, q=FILTER_Q, type=0)
 
 
@@ -206,26 +219,34 @@ class NoiseSurf(Noise):
     dry: PyoObject
     notched: PyoObject
 
-    def moved_signal(self, live, source):
-        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+    def moved_signal(self, source: PyoObject) -> None:
+        self.shaped = Biquad(source, freq=self.brightness_sig, q=FILTER_Q, type=0)
 
-        self.freq_rates = live["motion"] * SURF_FREQ[0]
-        self.freq_swing = live["depth"] * SURF_FREQ[1]
-        self.freq_lfo = Sine(freq=self.freq_rates, mul=self.freq_swing, add=SURF_FREQ[2])
+        self.freq_rates = self.motion_sig * SURF_FREQ[0]
+        self.freq_swing = self.depth_sig * SURF_FREQ[1]
+        self.freq_lfo = Sine(
+            freq=self.freq_rates, mul=self.freq_swing, add=SURF_FREQ[2]
+        )
 
-        self.spread_rates = live["motion"] * SURF_SPREAD[0]
-        self.spread_swing = live["depth"] * SURF_SPREAD[1]
-        self.spread_lfo = Sine(freq=self.spread_rates, mul=self.spread_swing, add=SURF_SPREAD[2])
+        self.spread_rates = self.motion_sig * SURF_SPREAD[0]
+        self.spread_swing = self.depth_sig * SURF_SPREAD[1]
+        self.spread_lfo = Sine(
+            freq=self.spread_rates, mul=self.spread_swing, add=SURF_SPREAD[2]
+        )
 
-        self.q_rates = live["motion"] * SURF_Q[0]
-        self.q_swing = live["depth"] * SURF_Q[1]
+        self.q_rates = self.motion_sig * SURF_Q[0]
+        self.q_swing = self.depth_sig * SURF_Q[1]
         self.q_lfo = Sine(freq=self.q_rates, mul=self.q_swing, add=SURF_Q[2])
 
         # pyo's Phaser is a pure allpass cascade: its own output has a flat
         # spectrum, and the notches only appear where it cancels against the
         # dry bed, so the two are summed here
         self.phased = Phaser(
-            self.shaped, freq=self.freq_lfo, spread=self.spread_lfo, q=self.q_lfo, num=SURF_NOTCHES
+            self.shaped,
+            freq=self.freq_lfo,
+            spread=self.spread_lfo,
+            q=self.q_lfo,
+            num=SURF_NOTCHES,
         )
         self.dry = self.shaped.mix(2)
         self.notched = self.dry + self.phased
@@ -250,18 +271,18 @@ class NoiseBarber(Noise):
     wet: Mix
     dry: PyoObject
 
-    def moved_signal(self, live, source):
-        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+    def moved_signal(self, source: PyoObject) -> None:
+        self.shaped = Biquad(source, freq=self.brightness_sig, q=FILTER_Q, type=0)
 
-        self.shift_rate_a = live["motion"] * BARBER_RATES[0]
-        self.shift_swing_a = live["depth"] * BARBER_SHIFT
+        self.shift_rate_a = self.motion_sig * BARBER_RATES[0]
+        self.shift_swing_a = self.depth_sig * BARBER_SHIFT
         self.shift_a = Sine(freq=self.shift_rate_a, mul=self.shift_swing_a)
         stage_a = frequency_shift(self.shaped, self.shift_a)
         self.shifted_a = stage_a.output
         self.retain(*stage_a.resources)
 
-        self.shift_rate_b = live["motion"] * BARBER_RATES[1]
-        self.shift_swing_b = live["depth"] * BARBER_SHIFT
+        self.shift_rate_b = self.motion_sig * BARBER_RATES[1]
+        self.shift_swing_b = self.depth_sig * BARBER_SHIFT
         self.shift_b = Sine(freq=self.shift_rate_b, mul=self.shift_swing_b)
         stage_b = frequency_shift(self.shaped, self.shift_b)
         self.shifted_b = stage_b.output
@@ -301,15 +322,15 @@ class NoiseDust(Noise):
     click_env: TrigEnv
     click_burst: PyoObject
 
-    def moved_signal(self, live, source):
-        self.shaped = Biquad(source, freq=live["brightness"], q=FILTER_Q, type=0)
+    def moved_signal(self, source: PyoObject) -> None:
+        self.shaped = Biquad(source, freq=self.brightness_sig, q=FILTER_Q, type=0)
         self.dry = self.shaped.mix(2)
 
         # RandDur's own `min`/`max` are the crackle's interval bounds in
         # seconds; dividing by Motion (not multiplying, unlike the other
         # styles' LFO rates) shortens that interval - and so densifies the
         # crackle - as Motion rises
-        self.motion_scale = 1 / live["motion"]
+        self.motion_scale = 1 / self.motion_sig
         self.click_min = self.motion_scale * DUST_MIN
         self.click_max = self.motion_scale * DUST_MAX
         self.click_interval = RandDur(min=self.click_min, max=self.click_max)
@@ -319,7 +340,10 @@ class NoiseDust(Noise):
         self.click_table = ExpTable(CLICK_POINTS, exp=CLICK_CURVE)
         self.click_noise = WhiteNoise()
         self.click_env = TrigEnv(
-            self.click_trigger, self.click_table, dur=CLICK_DECAY, mul=live["depth"] * DUST_GAIN
+            self.click_trigger,
+            self.click_table,
+            dur=CLICK_DECAY,
+            mul=self.depth_sig * DUST_GAIN,
         )
         self.click_burst = self.click_noise * self.click_env
         self.moved = self.dry + self.click_burst

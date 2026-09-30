@@ -3,7 +3,7 @@
 This module abstracts the conversion between a `Patch` subclass instance (as
 exposed by the modules under `pyoscillate.patches`) and a Flet UI: one patch
 per `PatchPanel`, rendering an enable switch, parameter sliders, and a volume
-slider, all wired to a shared `PatchRack`. `PatchRackApp` composes any number
+slider. `PatchRackApp` composes any number
 of `PatchPanel`s into a single scrollable page with an audio-engine
 start/stop control and JSON preset save/load, so the same code drives a
 single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
@@ -13,23 +13,19 @@ single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pyo.lib._core import PyoError
-from pyo.lib.analysis import Follower2
-from pyo.lib.dynamics import Clip
 from pyo.lib.server import Server
 
 import flet as ft
-from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
-from pyoscillate.controller import GroupController
-from pyoscillate.harmony import NOTE_NAMES, Harmony
-from pyoscillate.patches.base import Patch, PatchRack, start_server
-from pyoscillate.patches.params import SliderSpec
-from pyoscillate.projects.base import MacroSpec, Rack
+from pyoscillate.clock import Clock
+from pyoscillate.controller import EvolvingGroup, GroupController
+from pyoscillate.harmony import NOTE_NAMES
+from pyoscillate.patches.base import BuildContext, Patch, start_server
+from pyoscillate.patches.params import Param
+from pyoscillate.projects.base import Macro, Rack
 from pyoscillate.tempo import Tempo
 
 ACCENT = "#00A896"
@@ -39,8 +35,6 @@ TILE_BG = "#1D2B28"
 TEXT = "#F4F7F6"
 MUTED = "#A9B8B4"
 ERROR = "#FF8A80"
-MASTER_OUTPUT_DEFAULT = 0.1
-MASTER_OUTPUT_MAX = 0.2
 # preset entry for rack-wide settings; the leading underscore keeps it from
 # colliding with a patch name
 RACK_PRESET_KEY = "_rack"
@@ -69,57 +63,43 @@ class PresetStore:
 
 
 class PatchPanel:
-    """One patch's live controls, wired to a shared `PatchRack`.
+    """One patch's live controls: an enable switch plus one slider per
+    `Param` (volume included).
 
-    `self.patch`'s own attributes (one per `SliderSpec`, seeded at
-    construction and kept current by `Patch.set()`) are the only copy of a
-    slider's current value - this panel never shadows them in a separate
-    dict. A slider move calls `patch.set(...)` immediately, which live-updates
-    the running Pyo graph when one exists; `_apply()` only decides whether
-    that move also requires a full rebuild (one of `rebuild_parameters`
-    changed since the last build).
+    `self.patch`'s own parameter attributes are the only copy of a slider's
+    current value - this panel never shadows them in a separate dict. A slider
+    move assigns the `Param` on the patch, which live-updates the running Pyo
+    graph; `_apply()` only decides whether that move also requires a full
+    rebuild (a `rebuild` parameter changed since the last build).
     """
 
-    def __init__(
-        self,
-        rack: PatchRack,
-        patch: Patch,
-        resolve_group_patch: Callable[[str], Patch | None] | None = None,
-    ) -> None:
-        self.rack = rack
+    def __init__(self, patch: Patch) -> None:
         self.patch = patch
-        self._resolve_group_patch = resolve_group_patch
         self.enabled = False
-        self.volume = patch.volume_default
-        self.build_kwargs: dict[str, Any] = {}
+        self.context: BuildContext
         self._engine_ready = False
         self._group_enabled = True
-        self._built_values: dict[str, Any] | None = None
-        self._value_texts: dict[str, ft.Text] = {}
-        self._sliders: dict[str, ft.Slider] = {}
+        self._built_values: dict[Param, float] = {}
+        self._value_texts: dict[Param, ft.Text] = {}
+        self._sliders: dict[Param, ft.Slider] = {}
 
         self.switch = ft.Switch(
-            value=False, active_color=ACCENT, on_change=self._handle_enabled, disabled=True
-        )
-        self.volume_slider = ft.Slider(
-            min=0,
-            max=2,
-            divisions=20,
-            value=self.volume,
+            value=False,
             active_color=ACCENT,
-            on_change=self._handle_volume,
-        )
-        self.volume_text = ft.Text(
-            f"{self.volume:.1f}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            on_change=self._handle_enabled,
+            disabled=True,
         )
         self.control = self._build_control()
 
     # -- UI construction -------------------------------------------------
 
-    def _slider_row(self, spec: SliderSpec) -> ft.Container:
-        value = getattr(self.patch, spec.name)
-        value_text = ft.Text(spec.format(value), color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
-        self._value_texts[spec.name] = value_text
+    def _slider_row(self, param: Param) -> ft.Container:
+        spec = param.spec
+        value = param.read(self.patch)
+        value_text = ft.Text(
+            spec.format(value), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        self._value_texts[param] = value_text
         # the track runs in the spec's position space (semitones for a note
         # slider), so its ticks are what the slider can actually produce
         slider = ft.Slider(
@@ -129,14 +109,17 @@ class PatchPanel:
             value=spec.to_position(value),
             active_color=ACCENT,
             inactive_color="#31403D",
-            on_change=lambda e, spec=spec: self._handle_slider(spec, e),
+            on_change=lambda e, param=param: self._handle_slider(param, e),
         )
-        self._sliders[spec.name] = slider
+        self._sliders[param] = slider
         return ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
-                        controls=[ft.Text(spec.description, color=TEXT, size=14), value_text],
+                        controls=[
+                            ft.Text(spec.description, color=TEXT, size=14),
+                            value_text,
+                        ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                     ft.Text(spec.help_text, color=MUTED, size=12),
@@ -149,26 +132,7 @@ class PatchPanel:
         )
 
     def _build_control(self) -> ft.Control:
-        rows = [self._slider_row(spec) for spec in self.patch.parameters]
-        rows.append(
-            ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Row(
-                            controls=[
-                                ft.Text("Output level", color=TEXT, size=14),
-                                self.volume_text,
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        self.volume_slider,
-                    ],
-                    spacing=2,
-                ),
-                col={"xs": 12, "md": 6},
-                padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
-            )
-        )
+        rows = [self._slider_row(param) for param in self.patch.params]
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -177,7 +141,9 @@ class PatchPanel:
                             ft.Column(
                                 controls=[
                                     ft.Text(
-                                        self.patch.title, color=TEXT, weight=ft.FontWeight.BOLD
+                                        self.patch.title,
+                                        color=TEXT,
+                                        weight=ft.FontWeight.BOLD,
                                     ),
                                     ft.Text(self.patch.summary, color=MUTED, size=12),
                                 ],
@@ -197,17 +163,29 @@ class PatchPanel:
             padding=12,
         )
 
+    def sync_sliders(self) -> None:
+        """Move every slider to its parameter's current value - for values
+        changed from outside this panel, e.g. a rack macro."""
+        for param in self.patch.params:
+            self._show(param, param.read(self.patch))
+
+    def _show(self, param: Param, value: float) -> None:
+        self._sliders[param].value = param.spec.to_position(value)
+        self._value_texts[param].value = param.spec.format(value)
+
     # -- engine lifecycle --------------------------------------------------
 
-    def set_engine_ready(self, ready: bool, build_kwargs: dict[str, Any] | None = None) -> None:
-        self._engine_ready = ready
-        self.build_kwargs = build_kwargs or {}
-        self.switch.disabled = not ready
-        if not ready:
-            self.enabled = False
-            self.switch.value = False
-            self._built_values = None
-            self.rack.stop(self.patch.name)
+    def engine_started(self, context: BuildContext) -> None:
+        self.context = context
+        self._engine_ready = True
+        self.switch.disabled = False
+
+    def engine_stopped(self) -> None:
+        self._engine_ready = False
+        self.switch.disabled = True
+        self.enabled = False
+        self.switch.value = False
+        self.patch.stop()
 
     def set_group_enabled(self, enabled: bool) -> None:
         self._group_enabled = enabled
@@ -221,78 +199,49 @@ class PatchPanel:
         self._apply()
         e.page.update()
 
-    def _handle_volume(self, e: ft.ControlEvent) -> None:
-        self.volume = float(e.control.value)
-        self.volume_text.value = f"{self.volume:.1f}"
-        patch = self.rack.get(self.patch.name)
-        if patch is not None:
-            patch.set("volume", self.volume)
-        e.page.update()
-
-    def _handle_slider(self, spec: SliderSpec, e: ft.ControlEvent) -> None:
-        value = spec.from_position(float(e.control.value))
-        self.patch.set(spec.name, value)
-        self._value_texts[spec.name].value = spec.format(value)
+    def _handle_slider(self, param: Param, e: ft.ControlEvent) -> None:
+        value = param.spec.from_position(float(e.control.value))
+        param.write(self.patch, value)
+        self._value_texts[param].value = param.spec.format(value)
         self._apply()
         e.page.update()
 
+    def apply_enabled(self, enabled: bool) -> None:
+        """Turn this patch on or off from outside its own switch."""
+        self.enabled = enabled
+        self.switch.value = enabled
+        self._apply()
+
     def _apply(self) -> None:
-        name = self.patch.name
-        if not self.enabled or not self._engine_ready or not self._group_enabled:
-            self.rack.stop(name)
+        if not (self.enabled and self._engine_ready and self._group_enabled):
+            self.patch.stop()
             return
 
-        running = self.rack.get(name)
-        rebuild = running is None or (
-            self._built_values is not None
-            and any(
-                getattr(self.patch, key) != self._built_values[key]
-                for key in self.patch.rebuild_parameters
-            )
+        rebuild = not self.patch.playing or any(
+            param.read(self.patch) != self._built_values[param]
+            for param in self.patch.rebuild_params
         )
         if rebuild:
-            running = self.patch.build(**self.build_kwargs)
-            self._wire_sidechain(running)
-            self.rack.start(name, running)
-        running.set("volume", self.volume)
-        self._built_values = {
-            key: getattr(self.patch, key) for key in self.patch.rebuild_parameters
-        }
-
-    def _wire_sidechain(self, patch: Patch) -> None:
-        """If this patch declares a `SidechainSource` and that source
-        group's currently active patch is already built, duck this patch's
-        voice off the source's live signal. See `SidechainSource` for the
-        resolution-order limitation."""
-        sidechain = patch.sidechain
-        if sidechain is None or self._resolve_group_patch is None:
-            return
-        source = self._resolve_group_patch(sidechain.group_name)
-        if source is None:
-            return
-        follower = Follower2(source.voice, falltime=sidechain.release)
-        duck = 1 - Clip(follower, min=0, max=1) * sidechain.depth
-        patch.voice = patch.voice * duck
-        patch.retain(follower, duck)
+            self.patch.build(self.context)
+            self.patch.start()
+            self._built_values = {
+                param: param.read(self.patch) for param in self.patch.rebuild_params
+            }
 
     # -- presets -------------------------------------------------------------
 
     def to_preset(self) -> dict[str, Any]:
-        values = {spec.name: getattr(self.patch, spec.name) for spec in self.patch.parameters}
-        return {"enabled": self.enabled, **values, "volume": self.volume}
+        values = {param.name: param.read(self.patch) for param in self.patch.params}
+        return {"enabled": self.enabled, **values}
 
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
         self.switch.value = self.enabled
-        for spec in self.patch.parameters:
-            if spec.name in data:
-                value = spec.snap(float(data[spec.name]))
-                self.patch.set(spec.name, value)
-                self._sliders[spec.name].value = spec.to_position(value)
-                self._value_texts[spec.name].value = spec.format(value)
-        self.volume = float(data.get("volume", self.patch.volume_default))
-        self.volume_slider.value = self.volume
-        self.volume_text.value = f"{self.volume:.1f}"
+        for param in self.patch.params:
+            if param.name in data:
+                value = param.spec.snap(float(data[param.name]))
+                param.write(self.patch, value)
+                self._show(param, value)
         self._apply()
 
 
@@ -301,11 +250,10 @@ GROUP_CONTROLLER_REPEAT_MAX = 16
 
 
 class PatchGroup:
-    """Named group control that gates a row of related patch panels, plus
-    (when `group_def.bars` is set) the live sliders for that
-    `GroupController`'s own interval/repeat - the group-level evolution
-    timer described in `controller.py`, distinct from any patch's own
-    parameters."""
+    """Titled group control that gates a row of related patch panels, plus
+    (for an `EvolvingGroup`) the live sliders for its own interval/repeat -
+    the group-level evolution timer described in `controller.py`, distinct
+    from any patch's own parameters."""
 
     def __init__(self, group_def: GroupController, panels: list[PatchPanel]) -> None:
         self.group_def = group_def
@@ -317,32 +265,6 @@ class PatchGroup:
             on_change=self._handle_enabled,
             disabled=True,
         )
-        self.controller = group_def if group_def.bars is not None else None
-        if self.controller is not None:
-            self.bars_text = ft.Text(
-                f"{self.controller.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-            )
-            self.bars_slider = ft.Slider(
-                min=1,
-                max=GROUP_CONTROLLER_BARS_MAX,
-                divisions=GROUP_CONTROLLER_BARS_MAX - 1,
-                value=self.controller.bars,
-                active_color=ACCENT,
-                inactive_color="#31403D",
-                on_change=self._handle_bars,
-            )
-            self.repeat_text = ft.Text(
-                f"{self.controller.repeat}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-            )
-            self.repeat_slider = ft.Slider(
-                min=1,
-                max=GROUP_CONTROLLER_REPEAT_MAX,
-                divisions=GROUP_CONTROLLER_REPEAT_MAX - 1,
-                value=self.controller.repeat,
-                active_color=ACCENT,
-                inactive_color="#31403D",
-                on_change=self._handle_repeat,
-            )
         self.control = self._build_control()
 
     def _controller_row(
@@ -364,39 +286,68 @@ class PatchGroup:
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
 
-    def _handle_bars(self, e: ft.ControlEvent) -> None:
-        assert self.controller is not None
+    def _evolution_rows(self, group: EvolvingGroup) -> list[ft.Container]:
+        bars_text = ft.Text(
+            f"{group.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        bars_slider = ft.Slider(
+            min=1,
+            max=GROUP_CONTROLLER_BARS_MAX,
+            divisions=GROUP_CONTROLLER_BARS_MAX - 1,
+            value=group.bars,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=lambda e: self._handle_bars(group, bars_text, e),
+        )
+        repeat_text = ft.Text(
+            f"{group.repeat}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        repeat_slider = ft.Slider(
+            min=1,
+            max=GROUP_CONTROLLER_REPEAT_MAX,
+            divisions=GROUP_CONTROLLER_REPEAT_MAX - 1,
+            value=group.repeat,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=lambda e: self._handle_repeat(group, repeat_text, e),
+        )
+        return [
+            self._controller_row(
+                "Evolve every (bars)",
+                "How many bars pass before this group's evolution moves on.",
+                bars_text,
+                bars_slider,
+            ),
+            self._controller_row(
+                "Repeat",
+                "How many times each step repeats before advancing to the next.",
+                repeat_text,
+                repeat_slider,
+            ),
+        ]
+
+    def _handle_bars(
+        self, group: EvolvingGroup, text: ft.Text, e: ft.ControlEvent
+    ) -> None:
         value = round(float(e.control.value))
-        self.controller.set_bars(value)
-        self.bars_text.value = f"{value}"
+        group.set_bars(value)
+        text.value = f"{value}"
         e.page.update()
 
-    def _handle_repeat(self, e: ft.ControlEvent) -> None:
-        assert self.controller is not None
+    def _handle_repeat(
+        self, group: EvolvingGroup, text: ft.Text, e: ft.ControlEvent
+    ) -> None:
         value = round(float(e.control.value))
-        self.controller.set_repeat(value)
-        self.repeat_text.value = f"{value}"
+        group.set_repeat(value)
+        text.value = f"{value}"
         e.page.update()
 
     def _build_control(self) -> ft.Control:
-        controller_rows = []
-        if self.controller is not None:
-            controller_rows.append(
-                self._controller_row(
-                    "Evolve every (bars)",
-                    "How many bars pass before this group's evolution moves on.",
-                    self.bars_text,
-                    self.bars_slider,
-                )
-            )
-            controller_rows.append(
-                self._controller_row(
-                    "Repeat",
-                    "How many times each step repeats before advancing to the next.",
-                    self.repeat_text,
-                    self.repeat_slider,
-                )
-            )
+        controller_rows = (
+            self._evolution_rows(self.group_def)
+            if isinstance(self.group_def, EvolvingGroup)
+            else []
+        )
 
         patch_columns = []
         panel_column = 12 if len(self.panels) == 1 or len(self.panels) > 2 else 6
@@ -407,10 +358,10 @@ class PatchGroup:
 
         return ft.Container(
             content=ft.ExpansionTile(
-                title=ft.Text(self.group_def.title, color=TEXT, size=18, weight=ft.FontWeight.BOLD),
-                subtitle=ft.Text(self.group_def.summary, color=MUTED, size=12)
-                if self.group_def.summary
-                else None,
+                title=ft.Text(
+                    self.group_def.title, color=TEXT, size=18, weight=ft.FontWeight.BOLD
+                ),
+                subtitle=ft.Text(self.group_def.summary, color=MUTED, size=12),
                 leading=self.switch,
                 expanded=False,
                 controls=[
@@ -418,7 +369,11 @@ class PatchGroup:
                         content=ft.Column(
                             controls=[
                                 *(
-                                    [ft.ResponsiveRow(controls=controller_rows, spacing=16)]
+                                    [
+                                        ft.ResponsiveRow(
+                                            controls=controller_rows, spacing=16
+                                        )
+                                    ]
                                     if controller_rows
                                     else []
                                 ),
@@ -453,34 +408,59 @@ class PatchGroup:
         e.page.update()
 
 
-@dataclass
-class EngineSpec:
-    """How to boot the shared Pyo engine for a `PatchRackApp`: nchnls plus
-    an optional shared tempo/clock for patches that need one.
+class MacroControl:
+    """A rack `Macro`'s slider and value readout."""
 
-    `bpm` and `ticks_per_bar` should come from the project's own rack module
-    (e.g. `pyoscillate.projects.<project>.rack`), not be hardcoded here or
-    in `app.py` alone - each project owns its own tempo and clock timing
-    resolution. The same goes for `harmony`: when a rack shares one, the
-    app shows a Key control that retunes every `needs_harmony` patch
-    together, and saves the key with each preset.
-    """
+    def __init__(self, rack: Rack, macro: Macro, app: PatchRackApp) -> None:
+        self.rack = rack
+        self.macro = macro
+        self.app = app
+        spec = macro.slider
+        self.text = ft.Text(
+            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        self.slider = ft.Slider(
+            min=spec.minimum,
+            max=spec.maximum,
+            divisions=spec.divisions,
+            value=spec.default,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_change,
+        )
+        self.control = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(spec.description, color=TEXT, size=14),
+                            self.text,
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    self.slider,
+                ],
+                spacing=2,
+            ),
+            col={"xs": 12, "md": 6},
+        )
 
-    nchnls: int = 2
-    bpm: float | None = None
-    needs_clock: bool = False
-    ticks_per_bar: int = DEFAULT_TICKS_PER_BAR
-    master_output_default: float = MASTER_OUTPUT_DEFAULT
-    master_output_max: float = MASTER_OUTPUT_MAX
-    harmony: Harmony | None = None
-    macro: MacroSpec | None = None
-    group_controllers: tuple[GroupController, ...] = ()
+    def set_value(self, value: float) -> None:
+        self.slider.value = value
+        self.text.value = self.macro.slider.format(value)
+        self.macro.apply(self.rack, value)
+        self.app.sync_panels()
+
+    def _handle_change(self, e: ft.ControlEvent) -> None:
+        self.set_value(float(e.control.value))
+        e.page.update()
 
 
 class PatchRackApp:
-    """A scrollable page of `PatchPanel`s sharing one `PatchRack`, one Pyo
-    `Server`, and one JSON preset catalog - the generic shape behind both
-    the single-patch `soundscape_fm` app and the multi-patch rack apps."""
+    """A scrollable page of `PatchPanel`s for one `Rack`, sharing one Pyo
+    `Server`, one clock, and one JSON preset catalog - the generic shape
+    behind both the single-patch `soundscape_fm` app and the multi-patch rack
+    apps."""
 
     def __init__(
         self,
@@ -488,33 +468,26 @@ class PatchRackApp:
         title: str,
         subtitle: str,
         rack: Rack,
-        catalog_dir: Path | None = None,
+        catalog_dir: Path,
     ) -> None:
-        patch_groups = list(rack.groups)
-        engine = rack.engine_spec()
         self.page = page
         self.title = title
         self.subtitle = subtitle
-        self.engine = engine
-        self.server: Server | None = None
-        self._paused_panels: set[str] | None = None
-        self.tempo: Tempo | None = None
-        self.clock: Clock | None = None
-        self.harmony = engine.harmony
-        self.group_controllers = engine.group_controllers
-        self.rack = PatchRack()
-        self.master_output = engine.master_output_default
-        self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
-        patches = [patch for group in patch_groups for patch in group.patches]
-        self.panels = {
-            patch.name: PatchPanel(self.rack, patch, resolve_group_patch=self._resolve_group_patch)
-            for patch in patches
-        }
+        self.rack = rack
+        self.server: Server
+        self.clock: Clock
+        self.running = False
+        self.paused = False
+        self._paused_panels: set[str] = set()
+        self.master_output = rack.master_output_default
+        self.preset_store = PresetStore(catalog_dir)
+        patches = [patch for group in rack.groups for patch in group.patches]
+        self.panels = {patch.name: PatchPanel(patch) for patch in patches}
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
         self.groups = [
             PatchGroup(group, [self.panels[patch.name] for patch in group.patches])
-            for group in patch_groups
+            for group in rack.groups
         ]
 
         self.status = ft.Text("Engine stopped", color=MUTED, size=13)
@@ -523,20 +496,23 @@ class PatchRackApp:
             icon=ft.Icons.POWER_SETTINGS_NEW,
             bgcolor=ACCENT,
             color="#07110F",
-            on_click=self._toggle_engine,
+            on_click=self._handle_engine,
         )
         self.pause_button = ft.Button(
             "Pause",
             icon=ft.Icons.PAUSE,
             disabled=True,
-            on_click=self._toggle_pause,
+            on_click=self._handle_pause,
         )
         self.master_output_text = ft.Text(
-            f"{self.master_output:.2f}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+            f"{self.master_output:.2f}",
+            color=ACCENT,
+            size=13,
+            weight=ft.FontWeight.BOLD,
         )
         self.master_output_slider = ft.Slider(
             min=0,
-            max=engine.master_output_max,
+            max=rack.master_output_max,
             divisions=20,
             value=self.master_output,
             active_color=ACCENT,
@@ -548,36 +524,20 @@ class PatchRackApp:
             options=[ft.dropdown.Option(name) for name in self.preset_store.names()],
             expand=True,
         )
-        self.preset_name_field = ft.TextField(label="Save as", value="my_preset", expand=True)
-        self.key_dropdown: ft.Dropdown | None = None
-        if self.harmony is not None:
-            self.key_dropdown = ft.Dropdown(
-                label="Key",
-                options=[
-                    ft.dropdown.Option(key=str(pitch_class), text=name)
-                    for pitch_class, name in enumerate(NOTE_NAMES)
-                ],
-                value=str(self.harmony.key),
-                width=140,
-                on_select=self._handle_key,
-            )
-        self.macro: MacroSpec | None = engine.macro
-        self.macro_slider: ft.Slider | None = None
-        self.macro_text: ft.Text | None = None
-        if self.macro is not None:
-            spec = self.macro.slider
-            self.macro_text = ft.Text(
-                spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-            )
-            self.macro_slider = ft.Slider(
-                min=spec.minimum,
-                max=spec.maximum,
-                divisions=spec.divisions,
-                value=spec.default,
-                active_color=ACCENT,
-                inactive_color="#31403D",
-                on_change=self._handle_macro,
-            )
+        self.preset_name_field = ft.TextField(
+            label="Save as", value="my_preset", expand=True
+        )
+        self.key_dropdown = ft.Dropdown(
+            label="Key",
+            options=[
+                ft.dropdown.Option(key=str(pitch_class), text=name)
+                for pitch_class, name in enumerate(NOTE_NAMES)
+            ],
+            value=str(rack.harmony.key),
+            width=140,
+            on_select=self._handle_key,
+        )
+        self.macro_controls = [MacroControl(rack, macro, self) for macro in rack.macros]
 
         self._configure_page()
         self._build_view()
@@ -600,11 +560,7 @@ class PatchRackApp:
     def _build_view(self) -> None:
         rack_controls: list[ft.Control] = [
             ft.Row(
-                controls=[
-                    self.engine_button,
-                    self.pause_button,
-                    *([self.key_dropdown] if self.key_dropdown is not None else []),
-                ],
+                controls=[self.engine_button, self.pause_button, self.key_dropdown],
                 alignment=ft.MainAxisAlignment.END,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 wrap=True,
@@ -626,26 +582,9 @@ class PatchRackApp:
                 spacing=8,
             ),
         ]
-        level_controls: list[ft.Control] = []
-        if self.macro is not None:
-            level_controls.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Row(
-                                controls=[
-                                    ft.Text(self.macro.slider.description, color=TEXT, size=14),
-                                    self.macro_text,
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            ),
-                            self.macro_slider,
-                        ],
-                        spacing=2,
-                    ),
-                    col={"xs": 12, "md": 6},
-                )
-            )
+        level_controls: list[ft.Control] = [
+            macro.control for macro in self.macro_controls
+        ]
         level_controls.append(
             ft.Container(
                 content=ft.Column(
@@ -659,17 +598,19 @@ class PatchRackApp:
                         ),
                         self.master_output_slider,
                         ft.Text(
-                            f"Safety-capped at {self.engine.master_output_max:.2f}; starts at a low level.",
+                            f"Safety-capped at {self.rack.master_output_max:.2f}; starts at a low level.",
                             color=MUTED,
                             size=11,
                         ),
                     ],
                     spacing=2,
                 ),
-                col={"xs": 12, "md": 6 if self.macro is not None else 12},
+                col={"xs": 12, "md": 6},
             )
         )
-        rack_controls.append(ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8))
+        rack_controls.append(
+            ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8)
+        )
         header = ft.Container(
             content=ft.ResponsiveRow(
                 controls=[
@@ -683,7 +624,10 @@ class PatchRackApp:
                                     weight=ft.FontWeight.BOLD,
                                 ),
                                 ft.Text(
-                                    self.subtitle, size=28, color=TEXT, weight=ft.FontWeight.BOLD
+                                    self.subtitle,
+                                    size=28,
+                                    color=TEXT,
+                                    weight=ft.FontWeight.BOLD,
                                 ),
                                 self.status,
                             ],
@@ -722,43 +666,51 @@ class PatchRackApp:
             )
         )
 
+    def sync_panels(self) -> None:
+        """Refresh every slider from its patch, after values changed outside
+        the panels (a macro push)."""
+        for panel in self.panels.values():
+            panel.sync_sliders()
+
     # -- engine lifecycle --------------------------------------------------
 
-    def _toggle_engine(self, e: ft.ControlEvent | None = None) -> None:
-        if self.server is not None:
+    def _handle_engine(self, e: ft.ControlEvent) -> None:
+        self.toggle_engine()
+
+    def toggle_engine(self) -> None:
+        if self.running:
             self._stop_engine()
         else:
             self._start_engine()
         self.page.update()
 
-    def _toggle_pause(self, e: ft.ControlEvent | None = None) -> None:
-        if self.server is None:
+    def _handle_pause(self, e: ft.ControlEvent) -> None:
+        self.toggle_pause()
+
+    def toggle_pause(self) -> None:
+        if not self.running:
             return
-        if self._paused_panels is None:
-            self._paused_panels = {name for name, panel in self.panels.items() if panel.enabled}
+        if not self.paused:
+            self._paused_panels = {
+                name for name, panel in self.panels.items() if panel.enabled
+            }
             for panel in self.panels.values():
-                panel.enabled = False
-                panel.switch.value = False
-                panel._apply()
+                panel.apply_enabled(False)
+            self.paused = True
             self.pause_button.text = "Start"
             self.pause_button.icon = ft.Icons.PLAY_ARROW
         else:
             for name, panel in self.panels.items():
-                panel.enabled = name in self._paused_panels
-                panel.switch.value = panel.enabled
-                panel._apply()
-            self._paused_panels = None
+                panel.apply_enabled(name in self._paused_panels)
+            self.paused = False
             self.pause_button.text = "Pause"
             self.pause_button.icon = ft.Icons.PAUSE
-        if e is not None:
-            e.page.update()
-        else:
-            self.page.update()
+        self.page.update()
 
     def _handle_master_output(self, e: ft.ControlEvent) -> None:
         self.master_output = float(e.control.value)
         self.master_output_text.value = f"{self.master_output:.2f}"
-        if self.server is not None:
+        if self.running:
             self.server.setAmp(self.master_output)
         e.page.update()
 
@@ -768,94 +720,51 @@ class PatchRackApp:
 
     def _set_key(self, pitch_class: int) -> None:
         # patches read the key on each note, so no rebuild is needed
-        if self.harmony is None or self.key_dropdown is None:
-            return
-        self.harmony.key = pitch_class
+        self.rack.harmony.key = pitch_class
         self.key_dropdown.value = str(pitch_class)
-
-    def _handle_macro(self, e: ft.ControlEvent) -> None:
-        self._set_macro(float(e.control.value))
-        e.page.update()
-
-    def _set_macro(self, value: float) -> None:
-        if self.macro is None or self.macro_slider is None or self.macro_text is None:
-            return
-        self.macro_slider.value = value
-        self.macro_text.value = self.macro.slider.format(value)
-        self.macro.apply(value, self._resolve_group_patch)
-        for panel in self.panels.values():
-            panel.volume = panel.patch.volume
-            panel.volume_slider.value = panel.volume
-            panel.volume_text.value = f"{panel.volume:.1f}"
-
-    def _resolve_group_patch(self, name: str) -> Patch | None:
-        """The `Patch` instance currently active (built and running) in the
-        named group, or `None` if the group has no patch on right now. Reuses
-        the same rack lookup a panel's own switch already relies on, rather
-        than tracking a second "which patch is on" state."""
-        for group in self.groups:
-            if group.group_def.name != name:
-                continue
-            for panel in group.panels:
-                patch = self.rack.get(panel.patch.name)
-                if patch is not None:
-                    return patch
-            return None
-        return None
 
     def _start_engine(self) -> None:
         try:
-            self.server = start_server(nchnls=self.engine.nchnls)
-            self.server.setAmp(self.master_output)
-            build_kwargs_common: dict[str, Any] = {}
-            if self.engine.bpm is not None:
-                self.tempo = Tempo(bpm=self.engine.bpm)
-                build_kwargs_common["tempo"] = self.tempo
-                if self.engine.needs_clock:
-                    self.clock = Clock(self.tempo, ticks_per_bar=self.engine.ticks_per_bar)
-                    self.clock.start()
-                    for controller in self.group_controllers:
-                        controller.start(self.clock, self._resolve_group_patch)
-
-            for panel in self.panels.values():
-                kwargs: dict[str, Any] = {}
-                if panel.patch.needs_tempo and self.tempo is not None:
-                    kwargs["tempo"] = self.tempo
-                if panel.patch.needs_clock and self.clock is not None:
-                    kwargs["clock"] = self.clock
-                if panel.patch.needs_harmony and self.harmony is not None:
-                    kwargs["harmony"] = self.harmony
-                panel.set_engine_ready(True, kwargs)
-            for group in self.groups:
-                group.set_engine_ready(True)
-
-            self.status.value = "Engine running"
-            self.status.color = ACCENT
-            self.engine_button.text = "Stop engine"
-            self.engine_button.icon = ft.Icons.STOP
-            self.pause_button.disabled = False
+            server = start_server(nchnls=self.rack.nchnls)
         except (OSError, PyoError, RuntimeError) as error:
             self.status.value = f"Audio error: {error}"
             self.status.color = ERROR
-            self._stop_engine()
+            return
+        self.server = server
+        self.server.setAmp(self.master_output)
+        tempo = Tempo(bpm=self.rack.bpm)
+        self.clock = Clock(tempo, ticks_per_bar=self.rack.ticks_per_bar)
+        self.clock.start()
+        for group in self.rack.evolving_groups:
+            group.start(self.clock)
+        context = BuildContext(tempo, self.clock, self.rack.harmony)
+        self.running = True
+        for panel in self.panels.values():
+            panel.engine_started(context)
+        for group in self.groups:
+            group.set_engine_ready(True)
+
+        self.status.value = "Engine running"
+        self.status.color = ACCENT
+        self.engine_button.text = "Stop engine"
+        self.engine_button.icon = ft.Icons.STOP
+        self.pause_button.disabled = False
 
     def _stop_engine(self) -> None:
-        self._paused_panels = None
+        if not self.running:
+            return
+        self.running = False
+        self.paused = False
+        self._paused_panels = set()
         for group in self.groups:
             group.set_engine_ready(False)
         for panel in self.panels.values():
-            panel.set_engine_ready(False)
-        self.rack.stop_all()
-        for controller in self.group_controllers:
-            controller.stop()
-        if self.clock is not None:
-            self.clock.stop()
-            self.clock = None
-        self.tempo = None
-        if self.server is not None:
-            self.server.stop()
-            self.server.shutdown()
-            self.server = None
+            panel.engine_stopped()
+        for group in self.rack.evolving_groups:
+            group.stop()
+        self.clock.stop()
+        self.server.stop()
+        self.server.shutdown()
         self.status.value = "Engine stopped"
         self.status.color = MUTED
         self.engine_button.text = "Start engine"
@@ -878,12 +787,12 @@ class PatchRackApp:
             self.page.update()
             return
         rack_values = preset.get(RACK_PRESET_KEY, {})
-        rack_key = rack_values.get("key")
-        if rack_key in NOTE_NAMES:
-            self._set_key(NOTE_NAMES.index(rack_key))
-        macro_value = rack_values.get("macro")
-        if macro_value is not None:
-            self._set_macro(float(macro_value))
+        if rack_values.get("key") in NOTE_NAMES:
+            self._set_key(NOTE_NAMES.index(rack_values["key"]))
+        macro_values = rack_values.get("macros", {})
+        for control in self.macro_controls:
+            if control.macro.slider.name in macro_values:
+                control.set_value(float(macro_values[control.macro.slider.name]))
         for patch_name, panel in self.panels.items():
             if patch_name in preset:
                 panel.apply_preset(preset[patch_name])
@@ -893,20 +802,24 @@ class PatchRackApp:
         name = (self.preset_name_field.value or "").strip()
         if not name:
             return
-        values = {patch_name: panel.to_preset() for patch_name, panel in self.panels.items()}
-        if self.harmony is not None or self.macro is not None:
-            rack_values: dict[str, Any] = {}
-            if self.harmony is not None:
-                rack_values["key"] = NOTE_NAMES[self.harmony.key]
-            if self.macro is not None and self.macro_slider is not None:
-                rack_values["macro"] = self.macro_slider.value
-            values[RACK_PRESET_KEY] = rack_values
+        values: dict[str, Any] = {
+            patch_name: panel.to_preset() for patch_name, panel in self.panels.items()
+        }
+        values[RACK_PRESET_KEY] = {
+            "key": NOTE_NAMES[self.rack.harmony.key],
+            "macros": {
+                control.macro.slider.name: control.slider.value
+                for control in self.macro_controls
+            },
+        }
         self.preset_store.save(name, values)
-        self.preset_dropdown.options = [ft.dropdown.Option(n) for n in self.preset_store.names()]
+        self.preset_dropdown.options = [
+            ft.dropdown.Option(n) for n in self.preset_store.names()
+        ]
         self.preset_dropdown.value = name
         self.status.value = f"Saved preset '{name}'"
         self.status.color = ACCENT
         self.page.update()
 
-    def close(self, e: ft.ControlEvent | None = None) -> None:
+    def close(self, e: ft.ControlEvent) -> None:
         self._stop_engine()

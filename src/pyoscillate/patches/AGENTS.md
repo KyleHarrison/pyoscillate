@@ -145,21 +145,26 @@ The operational rule is simple: sound archetypes describe construction; musical 
 
 A module defines one family class (a `Patch` subclass, usually via a
 directory-level base) plus one small subclass per style. A project rack lists
-instances directly in its `GroupController`s. `name`/`title`/`summary` default
-from the class name and docstring; pass `name=`/`title=`/`summary=`/
-`sidechain=` to the constructor only when the default is wrong.
+instances directly in its `GroupController`s. `name`/`title`/`summary` are
+plain class attributes, derived in `__init_subclass__` from the class name and
+docstring unless the class body assigns its own. The constructor takes only
+`Param` values (`Kick(punch=1.2, volume=1.6)`; an unknown key is a `TypeError`)
+and `sidechains: tuple[SidechainSource, ...] = ()` - there are no `name=`/
+`title=`/`summary=`/`volume=` arguments, so a different title means a subclass.
 
 ### Bases
 
 - `common.GatedVoice` (named `drums.base.DrumVoice` in the drums family) —
   event-articulated voices. Provides `self.trigger`, `self.envelope(...)`
   (an `ExpTable` + `TrigEnv` off the trigger, auto-retained),
-  `self.schedule(base_division, rate, clock, callback)`, `self.reschedule()`,
-  and `self.step_pattern(...)`.
+  `self.schedule(base_division, rate, clock)` (subscribes `self.next_step`;
+  `schedule_with(..., callback)` takes an explicit callback), `self.reschedule()`,
+  and `self.step_pattern(cycle, pattern)`, which returns a callable giving a
+  `Step(index, hit, value)`.
 - `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
   a no-op `ContinuousSequencer`.
 
-Both provide `finish(voice)`. `GatedVoice.finish` raises if `build()` never
+Both provide `finish(voice, *, resources=())`. `GatedVoice.finish` raises if `build()` never
 called `schedule()`.
 
 ### Module anatomy (follow `Kick`'s order)
@@ -169,7 +174,8 @@ called `schedule()`.
 2. Class constants for plain shared data (break-point lists, curve shapes),
    owned by the family class that uses them.
 3. The family class body, in this order:
-   - `volume_default`, `base_division`, and any `needs_*` flags.
+   - `volume = Patch.volume.replace(default=...)` when the patch's default
+     output level differs, and `base_division`.
    - Style-invariant DSP constants as `ClassVar`s with values.
    - Per-style profile data as bare `ClassVar` annotations (no value) — each
      style subclass supplies them.
@@ -194,9 +200,11 @@ def punch(self, value: float) -> None:
 
 - The method body is the **live control**: it maps the value onto the
   running graph. It may read style constants and other nodes off `self`.
-- `self.punch` is the instance's current value. Assigning it — directly,
-  via `Patch.set()`, or `configure()` — stores it and, once built, runs the
-  control. Nothing else may hold a copy of a parameter's value.
+- `self.punch` is the instance's current value. Assigning it (`patch.punch =
+  1.2`, or `param.write(patch, 1.2)`) stores it and, once built, runs the
+  control. The `Param` object is the only handle: nothing looks a parameter
+  up by its string name, and nothing else may hold a copy of its value.
+  `volume` is itself a `Param` on `Patch`.
 - Controls run once at the end of every build and again on every change, so
   they must be cheap, idempotent attribute writes. Never construct a Pyo
   object inside a control.
@@ -204,8 +212,11 @@ def punch(self, value: float) -> None:
   accent depth applied per step) needs no control: declare it as
   `name = Param(...)` and read `self.name` in the callback. Don't mirror it
   into a state dict.
-- A parameter that changes topology is a bare `Param` listed in
-  `rebuild_parameters`.
+- A parameter that changes topology is declared `rebuild=True`; the Flet
+  layer rebuilds the patch when it changes (`Patch.rebuild_params`).
+- A parameter that should only glide a graph node needs no control: hand the
+  node `self.live(Cls.param, time=...)`, a retained `SigTo` that follows the
+  `Param` whenever it is assigned.
 - Pitch parameters in Hz take `scale="note"` (design rule 2).
 - `rate_param(base_division, help)` is the clocked rate; its control calls
   `reschedule()`, so don't register a rate control by hand.
@@ -219,9 +230,10 @@ self.schedule(...)                       # gated voices
 return self.finish(self.<output node>)
 ```
 
-- The signature is `build(self, tempo, clock)` for gated voices, adding
-  `harmony: Harmony | None = None` when `needs_harmony`. It takes no
-  per-parameter kwargs and never calls `configure()`.
+- The signature is `build(self, context: BuildContext)` for every patch:
+  `context.tempo`, `context.clock` and `context.harmony` are always fully
+  populated (there are no `needs_*` flags and no `None` harmony); a patch
+  ignores the parts it doesn't use. It takes no per-parameter kwargs.
 - Assign every node to `self.<name>`, never a local (design rule 4).
 - Construct nodes with neutral or style-constant values only. Never repeat
   a parameter's mapping (`mul=self.sweep_depth * self.punch`) in `build()`;
@@ -231,7 +243,7 @@ return self.finish(self.<output node>)
   values off `self` at call time.
 - `finish(voice)` sets `self.voice` and `self.sequencer`, retains every
   public Pyo object on `self`, marks the patch built, and runs every
-  control with its current value. No `controls` dict, no `resources=` tuple.
+  control with its current value. No `controls` dict.
 
 ### Style variation
 
@@ -250,25 +262,25 @@ return self.finish(self.<output node>)
 1. **Construct** (rack import time, before any audio server exists): seeds
    each parameter from its default, then applies constructor overrides. No
    control runs and no Pyo object is created.
-2. **Configure**: presets and sliders call `configure()`/`set()`; values are
-   staged on `self`.
+2. **Configure**: sliders and rack macros assign `Param`s on the instance;
+   values are staged on `self`.
 3. **Build**: `_reset()` → graph on `self` → `finish()`. From here,
    assignment is live.
 4. **Start/stop**: `start()` adds the volume/limiter/fade output chain and
    plays the sequencer; `stop()` fades out and does nothing if the patch
    isn't playing.
 5. **Rebuild**: `build()` again on the same instance — when the patch is
-   switched back on, or a `rebuild_parameters` value changes. `_reset()`
+   switched back on, or a `rebuild=True` parameter changes. `_reset()`
    stops a graph that is still playing and keeps it alive through its fade.
 
 ### Live hooks outside `@Param`
 
 `on_evolve(self, index: int) -> None` is a no-op hook a patch may override
-for rack-level, infrequent (tens-of-bars) evolution — a `GroupController`
-(`controller.py`) calls it live, every N bars, on whichever patch instance is
+for rack-level, infrequent (tens-of-bars) evolution — an `EvolvingGroup`
+(an `EvolvingGroup` in `controller.py`) calls it live, every N bars, on whichever patch instance is
 currently active in a watched group. It is a third live-update path
-alongside `@Param` controls and `Patch.set()`, but deliberately not a
-`@Param`: no slider, no preset entry, not user-facing, just a plain method
+alongside `@Param` controls, but deliberately not a
+`@Param`: no slider, not user-facing, just a plain method
 call driven by the controller's timer instead of a widget. `index` is the
 controller's own fire count; an override reads it into its own musical data
 (e.g. `index % len(self.SOMETHING)`) and owns its own wraparound — there's
@@ -376,7 +388,7 @@ Patch modules describe sound and controls; the Flet layer owns the UI.
 
 - keep patch-specific ranges, labels, and descriptions in each `@Param` declaration
 - expose the patch to a GUI by listing an instance in the project rack's `GroupController`s, not UI code in the patch module
-- do not import Flet or build controls, preset handling, or slider wiring inside a patch module
+- do not import Flet or build controls or slider wiring inside a patch module
 
 ## Quality bar
 

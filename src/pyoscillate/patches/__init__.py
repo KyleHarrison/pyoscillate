@@ -1,9 +1,4 @@
-from pyoscillate.patches.base import (
-    Patch,
-    PatchRack,
-    setup_notebook,
-    start_server,
-)
+from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums import (
     clap,
     cymbal,
@@ -20,8 +15,8 @@ from pyoscillate.patches.texture import atmosphere, rumble, texture
 from pyoscillate.patches.tonal import bass, drone, lead, pad, pluck
 
 __all__ = [
+    "BuildContext",
     "Patch",
-    "PatchRack",
     "arp",
     "atmosphere",
     "bass",
@@ -41,7 +36,6 @@ __all__ = [
     "percussion",
     "pluck",
     "rumble",
-    "setup_notebook",
     "snare",
     "start_server",
     "texture",

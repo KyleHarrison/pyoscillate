@@ -18,12 +18,12 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by every envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]
@@ -34,7 +34,7 @@ class Percussion(DrumVoice):
     band-passed noise transient. Style variants share this graph and
     override the profile attributes below."""
 
-    volume_default = 0.28
+    volume = Patch.volume.replace(default=0.28)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6
@@ -71,7 +71,7 @@ class Percussion(DrumVoice):
     # the step pattern's callable, frozen at build time - fed to
     # `next_step`, which build() can no longer close over now that it's a
     # real method
-    _step: Callable[[], tuple[int, bool | None]]
+    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -124,7 +124,7 @@ class Percussion(DrumVoice):
         "Halves or doubles the accent pattern speed for each step away from its 16th-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.tuning = Sig(semitone_ratio(self.tune))
         self.body_freq = self.tuning * self.base_freq
@@ -138,21 +138,24 @@ class Percussion(DrumVoice):
         self.body_signal = self.body * self.body_env
 
         self.noise = Noise()
-        self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.bend_curve)
+        self.click_env = self.envelope(
+            DROP, dur=self.click_duration, exp=self.bend_curve
+        )
         self.click_burst = self.noise * self.click_env
         self.click_freq = self.body_freq * self.click_ratio
-        self.click_signal = Biquad(self.click_burst, freq=self.click_freq, q=self.click_q, type=2)
+        self.click_signal = Biquad(
+            self.click_burst, freq=self.click_freq, q=self.click_q, type=2
+        )
 
         self.source = self.body_signal + self.click_signal
 
         self._step = self.step_pattern(16, self.pattern)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.source)
 
     def next_step(self) -> None:
-        _, hit = self._step()
-        if hit is not None:
+        if self._step().hit:
             # restart the body on a zero crossing so the immediate
             # attack doesn't click wherever the oscillator last stopped
             self.body.reset()

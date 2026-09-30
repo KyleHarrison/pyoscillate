@@ -29,7 +29,6 @@ SECONDS = DOWNBEAT + 0.3
 ONSET_TOLERANCE = 0.02
 # -80 dBFS: comfortably above numerical noise, far below anything audible
 SILENT_PEAK = 1e-4
-SLIDERS = {spec.name: spec for spec in riser.Riser.parameters}
 
 
 @cache
@@ -48,7 +47,9 @@ def _audible(result: Render) -> tuple[float, float]:
     return loud[0] / result.sample_rate, loud[-1] / result.sample_rate
 
 
-def _stretch(result: Render, fraction: float, length: float, width: float = 0.1) -> Window:
+def _stretch(
+    result: Render, fraction: float, length: float, width: float = 0.1
+) -> Window:
     """Level and brightness `width` of the riser long, `fraction` of the way in."""
     start = DOWNBEAT - length * BAR * (1 - fraction)
     samples = _span(result, start, start + length * BAR * width)
@@ -61,7 +62,7 @@ def _stretch(result: Render, fraction: float, length: float, width: float = 0.1)
 
 def _peak(**params: float | str) -> Window:
     """The stretch just before the cut, where the riser is at full height."""
-    length = params.get("length", SLIDERS["length"].default)
+    length = params.get("length", riser.Riser.length.spec.default)
     return _stretch(_render(**params), 0.85, length)
 
 
@@ -81,16 +82,19 @@ class RiserHealthTests(unittest.TestCase):
 
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
         for style in riser.STYLES:
-            for climb in (SLIDERS["climb"].minimum, SLIDERS["climb"].maximum):
+            for climb in (
+                riser.Riser.climb.spec.minimum,
+                riser.Riser.climb.spec.maximum,
+            ):
                 with self.subTest(style=style, climb=climb):
                     loudest = features(
                         _render(
                             style=style,
                             length=1,
                             climb=climb,
-                            surge=SLIDERS["surge"].minimum,
-                            brightness=SLIDERS["brightness"].maximum,
-                            level=SLIDERS["level"].maximum,
+                            surge=riser.Riser.surge.spec.minimum,
+                            brightness=riser.Riser.brightness.spec.maximum,
+                            level=riser.Riser.level.spec.maximum,
                         ),
                         ceiling=PATCH_OUTPUT_CEILING,
                     )
@@ -122,13 +126,22 @@ class RiserControlTests(unittest.TestCase):
     def test_surge_holds_the_energy_back(self) -> None:
         for style in riser.STYLES:
             with self.subTest(style=style):
-                early_rise = _render(style=style, length=4, surge=SLIDERS["surge"].minimum)
-                late_surge = _render(style=style, length=4, surge=SLIDERS["surge"].maximum)
+                early_rise = _render(
+                    style=style, length=4, surge=riser.Riser.surge.spec.minimum
+                )
+                late_surge = _render(
+                    style=style, length=4, surge=riser.Riser.surge.spec.maximum
+                )
 
                 def midpoint_gap(result: Render) -> float:
-                    return _stretch(result, 0.85, 4).rms_db - _stretch(result, 0.5, 4).rms_db
+                    return (
+                        _stretch(result, 0.85, 4).rms_db
+                        - _stretch(result, 0.5, 4).rms_db
+                    )
 
-                self.assertGreater(midpoint_gap(late_surge) - midpoint_gap(early_rise), 6)
+                self.assertGreater(
+                    midpoint_gap(late_surge) - midpoint_gap(early_rise), 6
+                )
 
     def test_brightness_opens_the_peak(self) -> None:
         dull = _peak(style="noise", brightness=2000)

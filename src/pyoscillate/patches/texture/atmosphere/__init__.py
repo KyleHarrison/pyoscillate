@@ -6,7 +6,7 @@ Each arpeggio step is a real event - a trigger opens an envelope through
 ungated `texture/` family, this patch's shape is a gated voice's, not a
 continuous one. It subscribes to the clock at a raw tick count
 (`step_division`) instead of through `self.schedule()`'s rate machinery:
-that count is a `rebuild_parameters` entry, a structural step count rather
+that count is a `rebuild` parameter, a structural step count rather
 than a live rate offset from a base division, so `self._division` is set
 directly the way `schedule()` would set it, which is all `finish()` needs
 to have happened.
@@ -14,19 +14,15 @@ to have happened.
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import GatedVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
@@ -39,7 +35,7 @@ ENVELOPE_POINTS = [(0, 0), (2000, 1), (5000, 0.4), (8191, 0)]
 class Atmosphere(GatedVoice):
     """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
-    `step_division` is a `rebuild_parameters` entry: the swell period and
+    `step_division` is a `rebuild` parameter: the swell period and
     envelope `dur` are derived from it at build time, and the sequencer is
     subscribed at that raw tick count, so changing it live can't just
     update an existing control - the graph has to be rebuilt. `fm_index` is
@@ -49,8 +45,7 @@ class Atmosphere(GatedVoice):
 
     title = "Atmosphere (FM pad + arpeggiator)"
     summary = "Breathing melodic pad that arpeggiates and swells overhead."
-    volume_default = 0.6
-    rebuild_parameters: ClassVar[tuple[str, ...]] = ("step_division",)
+    volume = Patch.volume.replace(default=0.6)
 
     arp_swell: Sine
     envelope_table: CosTable
@@ -78,6 +73,7 @@ class Atmosphere(GatedVoice):
         "Speed",
         "Sets how quickly the arpeggio steps; lower values race by breathlessly, higher values stretch "
         "it into a slower, more spacious pattern.",
+        rebuild=True,
     )
 
     @Param(
@@ -139,17 +135,21 @@ class Atmosphere(GatedVoice):
     def reverb_bal(self, value: float) -> None:
         self.reverb.bal = value
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
 
-        step_time = tempo.sixteenth * self.step_division
+        step_time = context.tempo.sixteenth * self.step_division
 
         # slow swell over 32 steps so the pad breathes in and out across two bars
         self.arp_swell = Sine(freq=1 / (32 * step_time), mul=0.01, add=0.5)
 
         self.envelope_table = CosTable(ENVELOPE_POINTS)
         self.arp_env = TrigEnv(
-            self.trigger, self.envelope_table, dur=step_time * 1.2, mul=self.arp_swell, add=-0.3
+            self.trigger,
+            self.envelope_table,
+            dur=step_time * 1.2,
+            mul=self.arp_swell,
+            add=-0.3,
         )
 
         # slow, detuned ratio for a warm, slightly unstable atmospheric tone;
@@ -159,12 +159,8 @@ class Atmosphere(GatedVoice):
         self.reverb = Freeverb(self.fm_voice)
 
         # step_division is a rebuild-only raw tick count, not a live rate
-        # offset from a base division, so self.schedule()'s rate machinery
-        # doesn't apply here; self._division/self._clock are set directly,
-        # the way schedule() would, which is all finish()/next_step need to
-        # have happened.
-        self._clock = clock
-        self._division = clock.subscribe(self.step_division, self.next_step)
+        # offset from a base division
+        self.schedule_steps(context.clock, self.step_division, self.next_step)
         return self.finish(self.reverb)
 
     def next_step(self) -> None:

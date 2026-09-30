@@ -26,11 +26,10 @@ from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import GatedVoice
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
@@ -49,9 +48,8 @@ class Strings(GatedVoice):
 
     title = "Strings"
     summary = "Supersaw string ensemble sustaining the rack's chord, with a blendable 9th colour tone."
-    volume_default = 0.5
+    volume = Patch.volume.replace(default=0.5)
     base_division: ClassVar[NoteDivision] = NoteDivision.WHOLE
-    needs_harmony: ClassVar[bool] = True
 
     # candidate intervals (semitones above the root) for the colour voice: a
     # major 9th (default) and a major 13th, an octave-and-a-6th up - both
@@ -72,7 +70,7 @@ class Strings(GatedVoice):
 
     # the rack's harmony, frozen at build time - fed to `next_step`, which
     # build() can no longer close over now that it's a real method
-    harmony: Harmony | None
+    harmony: Harmony
 
     # explicit per patches/AGENTS.md rule 5 (timing/state), not a `@Param`:
     # only `on_evolve` and `next_step`/`build` read/write it - which
@@ -168,12 +166,12 @@ class Strings(GatedVoice):
         "bar; it can't go slower than once per bar.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.harmony = harmony
+        self.harmony = context.harmony
         self._colour_interval = self.COLOUR_TONE_VARIANTS[0]
 
-        root = self.current_root(clock)
+        root = self.current_root(context.clock)
         # neutral detune/mul here; the Spread and Colour controls (run by
         # finish() below) apply the live values, per patches/AGENTS.md's
         # rule against repeating a parameter's mapping in build()
@@ -193,12 +191,10 @@ class Strings(GatedVoice):
         )
         self.voice_signal = self.chorus * self.amp_env
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.voice_signal, resources=(*self.chord_saws,))
 
     def current_root(self, clock: Clock) -> float:
-        if self.harmony is None:
-            return self.root_freq
         return self.harmony.chord_freq(self.root_freq, clock.bar_index)
 
     def on_evolve(self, index: int) -> None:
@@ -207,7 +203,9 @@ class Strings(GatedVoice):
         never by the clock directly - see `Keys.on_evolve`. Takes effect on
         the next `next_step()`, not immediately, so the colour tone never
         jumps mid-chord."""
-        self._colour_interval = self.COLOUR_TONE_VARIANTS[index % len(self.COLOUR_TONE_VARIANTS)]
+        self._colour_interval = self.COLOUR_TONE_VARIANTS[
+            index % len(self.COLOUR_TONE_VARIANTS)
+        ]
 
     def next_step(self) -> None:
         new_root = self.current_root(self._clock)

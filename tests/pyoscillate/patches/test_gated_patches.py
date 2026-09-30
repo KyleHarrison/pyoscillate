@@ -64,7 +64,9 @@ class GatedPatchSilenceTests(unittest.TestCase):
         for name, params in GATED_PATCHES.items():
             with self.subTest(module=name):
                 module = name.split("#")[0]
-                result = features(render(module, params, seconds=0.5, clock_running=False))
+                result = features(
+                    render(module, params, seconds=0.5, clock_running=False)
+                )
 
                 self.assertLess(result.peak, SILENT_PEAK)
 

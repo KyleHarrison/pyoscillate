@@ -8,7 +8,6 @@ fresh interpreter per render is what keeps renders isolated from each other.
 from __future__ import annotations
 
 import importlib
-import inspect
 import json
 import subprocess
 import sys
@@ -16,9 +15,12 @@ import tempfile
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from pyoscillate.patches.base import Patch
 
 SAMPLE_RATE = 44100
 # fixed seed so noise-based patches render the same samples every run
@@ -44,12 +46,11 @@ class Render:
 
 def render(
     module: str,
-    params: dict[str, Any] | None = None,
+    params: dict[str, float | str],
     *,
     seconds: float = 1.0,
     bpm: float = DEFAULT_BPM,
     clock_running: bool = True,
-    volume: float | None = None,
 ) -> Render:
     """Build `module`'s patch with `params`, start it, and render `seconds`
     of its output offline in a fresh subprocess.
@@ -57,19 +58,20 @@ def render(
     With `clock_running=False` the patch is started but never receives a
     tick, so anything audible was not scheduled by its sequencer.
 
-    `volume` defaults to the module's `VOLUME_DEFAULT` (the level its volume
-    slider starts at), so the render passes through the output limiter the way the
-    listener hears it.
+    The patch plays at its `volume` Param's default unless `params` sets
+    `volume`, so the render passes through the output limiter the way the
+    listener hears it. `params` maps Param names to values, plus an optional
+    `style` string that selects the subclass (strings from the CLI are this
+    module's external boundary).
     """
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "render.wav"
         request = {
             "module": module,
-            "params": params or {},
+            "params": params,
             "seconds": seconds,
             "bpm": bpm,
             "clock_running": clock_running,
-            "volume": volume,
             "path": str(path),
         }
         result = subprocess.run(
@@ -98,18 +100,18 @@ def _read_wav(path: Path) -> Render:
     )
 
 
-def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float]:
-    """Build callable and volume default for a module exposing `Patch`
-    subclasses: a single-voice module has one, and a multi-variant family
-    like `Kick` has a base plus one leaf subclass per `style`. Any `--set`
-    overrides in `params` (besides `style`) are applied to the resolved
-    instance via `configure()` before `build` is handed back, since `build`
-    itself no longer takes per-parameter kwargs.
+def _resolve_patch(module: Any, params: dict[str, Any]) -> Patch:
+    """The patch instance for a module exposing `Patch` subclasses: a
+    single-voice module has one, and a multi-variant family like `Kick` has
+    a base plus one leaf subclass per `style`. Any `--set` overrides in
+    `params` (besides `style`) are written onto the instance by matching
+    `Param.name` - these names arrive as CLI strings, so this is the one
+    place they are resolved.
     """
     from pyoscillate.patches.base import Patch
 
     remaining = dict(params)
-    style = remaining.pop("style", None)
+    style = remaining.pop("style", "")
     candidates = [
         obj
         for obj in vars(module).values()
@@ -121,19 +123,23 @@ def _resolve_build(module: Any, params: dict[str, Any]) -> tuple[Any, float]:
     # varies by style, without relying on a `style` attribute convention
     bases = {base for cls in candidates for base in cls.__bases__}
     leaves = [cls for cls in candidates if cls not in bases]
-    if style is not None:
-        # each style subclass's own rack `name` ends in its style, e.g.
-        # `KickRound().name` is "kick_round" - reusing it here instead of a
+    if style:
+        # each style subclass's own `name` ends in its style, e.g.
+        # `KickRound.name` is "kick_round" - reusing it here instead of a
         # separate `style` attribute keeps one name per subclass authoritative
-        leaves = [cls for cls in leaves if cls().name.rsplit("_", 1)[-1] == style]
+        leaves = [cls for cls in leaves if cls.name.rsplit("_", 1)[-1] == style]
     if len(leaves) != 1:
         raise ValueError(
             f"{module.__name__}: expected exactly one Patch for style={style!r}, "
             f"found {len(leaves)}"
         )
-    voice = leaves[0]()
-    voice.configure(**remaining)
-    return voice.build, voice.volume_default
+    patch = leaves[0]()
+    for name, value in remaining.items():
+        matching = [param for param in patch.params if param.name == name]
+        if len(matching) != 1:
+            raise ValueError(f"{leaves[0].__name__} has no parameter {name!r}")
+        matching[0].write(patch, float(value))
+    return patch
 
 
 def _render_in_process(request: dict[str, Any]) -> None:
@@ -141,6 +147,8 @@ def _render_in_process(request: dict[str, Any]) -> None:
     from pyo.lib.server import Server
 
     from pyoscillate.clock import Clock
+    from pyoscillate.harmony import Harmony
+    from pyoscillate.patches.base import BuildContext
     from pyoscillate.tempo import Tempo
 
     server = Server(sr=SAMPLE_RATE, nchnls=2, duplex=0, audio="offline")
@@ -154,18 +162,13 @@ def _render_in_process(request: dict[str, Any]) -> None:
     )
 
     module = importlib.import_module(request["module"])
-    build, module_volume_default = _resolve_build(module, request["params"])
+    patch = _resolve_patch(module, request["params"])
     tempo = Tempo(bpm=request["bpm"])
     clock = Clock(tempo, ticks_per_bar=DEFAULT_TICKS_PER_BAR)
-    context = {"tempo": tempo, "clock": clock}
-    accepted = inspect.signature(build).parameters
-    kwargs = {name: value for name, value in context.items() if name in accepted}
 
     # keep the patch and clock referenced for the whole render so their
     # pyo graph (including `resources`) cannot be collected mid-render
-    patch = build(**kwargs)
-    volume = request["volume"]
-    patch.volume = volume if volume is not None else module_volume_default
+    patch.build(BuildContext(tempo, clock, Harmony()))
     patch.start()
     if request["clock_running"]:
         clock.start()

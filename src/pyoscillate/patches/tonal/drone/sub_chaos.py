@@ -15,7 +15,7 @@ from pyo.lib.generators import Rossler
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -34,7 +34,7 @@ class BassChaos(ContinuousVoice):
 
     title = "Bass - chaotic sub drift"
     summary = "Living, unstable sub rumble whose pitch subtly wanders."
-    volume_default = 0.8
+    volume = Patch.volume.replace(default=0.8)
 
     # the graph, assigned by build(); finish() retains every one of them
     root_freq_sig: SigTo
@@ -120,15 +120,15 @@ class BassChaos(ContinuousVoice):
     def filter_res(self, value: float) -> None:
         self.filter_res_sig.value = value
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.root_freq_sig = self.live("root_freq", self.root_freq)
-        self.chaos_speed_sig = self.live("chaos_speed", self.chaos_speed)
-        self.chaos_amount_sig = self.live("chaos_amount", self.chaos_amount)
-        self.drift_range_sig = self.live("drift_range", self.drift_range)
-        self.filter_base_sig = self.live("filter_base", self.filter_base)
-        self.filter_res_sig = self.live("filter_res", self.filter_res)
+        self.root_freq_sig = self.live(type(self).root_freq)
+        self.chaos_speed_sig = self.live(type(self).chaos_speed)
+        self.chaos_amount_sig = self.live(type(self).chaos_amount)
+        self.drift_range_sig = self.live(type(self).drift_range)
+        self.filter_base_sig = self.live(type(self).filter_base)
+        self.filter_res_sig = self.live(type(self).filter_res)
 
         self.pitch_chaos = Rossler(
             pitch=self.chaos_speed_sig,
@@ -139,5 +139,7 @@ class BassChaos(ContinuousVoice):
 
         self.sub_table = HarmTable(SUB_HARMONICS)
         self.sub_osc = Osc(table=self.sub_table, freq=self.pitch_chaos, mul=0.5)
-        self.output = MoogLP(self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig)
+        self.output = MoogLP(
+            self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
+        )
         return self.finish(self.output)

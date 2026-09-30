@@ -51,7 +51,7 @@ Change:
     the tine's phase no longer matters. At full tine level the strike rose
     about 6 dB above the ring, so a chord's -40 dB point came early (0.54 s
     for Decay 0.8); half level keeps it within the Decay band. The strike's
-    share of the level falls, so VOLUME_DEFAULT went from 0.6 to 0.8 (the
+    share of the level falls, so the `volume` default went from 0.6 to 0.8 (the
     loudest corner peaks at ~0.16).
 Status:
     fixed - src/pyoscillate/patches/tonal/keys/keys.py.
@@ -80,7 +80,6 @@ BAR = SIXTEENTH * keys.BAR_STEPS
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
 ONSET_TOLERANCE = 0.02
-SLIDERS = {spec.name: spec for spec in keys.Keys.parameters}
 # bar two: the hard chord on beat one, the soft push on the "and" of two
 HARD = BAR
 SOFT = BAR + 6 * SIXTEENTH
@@ -105,7 +104,9 @@ def _hit(result: Features, onset: float) -> Hit:
     for hit in result.hits:
         if abs(hit.onset - onset) < ONSET_TOLERANCE:
             return hit
-    raise AssertionError(f"no hit near {onset:.3f} s in {[h.onset for h in result.hits]}")
+    raise AssertionError(
+        f"no hit near {onset:.3f} s in {[h.onset for h in result.hits]}"
+    )
 
 
 class KeysHealthTests(unittest.TestCase):
@@ -115,7 +116,7 @@ class KeysHealthTests(unittest.TestCase):
             _hit(result, onset)
 
     def test_chords_carry_no_dc_offset(self) -> None:
-        for bite in (0, SLIDERS["bite"].maximum):
+        for bite in (0, keys.Keys.bite.spec.maximum):
             with self.subTest(bite=bite):
                 samples = _span(_render(bite=bite, tremolo=0), HARD, 0, 0.4)
                 rms = float(np.sqrt(np.mean(samples**2)))
@@ -123,14 +124,17 @@ class KeysHealthTests(unittest.TestCase):
                 self.assertLess(abs(float(samples.mean())), rms * 0.05)
 
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
-        for root_freq in (SLIDERS["root_freq"].minimum, SLIDERS["root_freq"].maximum):
+        for root_freq in (
+            keys.Keys.root_freq.spec.minimum,
+            keys.Keys.root_freq.spec.maximum,
+        ):
             with self.subTest(root_freq=root_freq):
                 loudest = features(
                     _render(
                         root_freq=root_freq,
-                        bark=SLIDERS["bark"].maximum,
-                        bite=SLIDERS["bite"].maximum,
-                        decay=SLIDERS["decay"].maximum,
+                        bark=keys.Keys.bark.spec.maximum,
+                        bite=keys.Keys.bite.spec.maximum,
+                        decay=keys.Keys.decay.spec.maximum,
                         tremolo=0,
                     ),
                     ceiling=PATCH_OUTPUT_CEILING,
@@ -142,7 +146,7 @@ class KeysHealthTests(unittest.TestCase):
 class KeysControlTests(unittest.TestCase):
     def test_bark_pings_mostly_on_hard_notes(self) -> None:
         round_ = _render(bark=0, tremolo=0)
-        barking = _render(bark=SLIDERS["bark"].maximum, tremolo=0)
+        barking = _render(bark=keys.Keys.bark.spec.maximum, tremolo=0)
 
         def lift(onset: float) -> float:
             """How much Bark brightens the strike at `onset`."""
@@ -156,13 +160,17 @@ class KeysControlTests(unittest.TestCase):
     def test_bark_is_gone_once_the_chord_rings(self) -> None:
         # the tine dies in TINE_TIME; well after it, Bark changes nothing
         round_ = _span(_render(bark=0, tremolo=0), HARD, 0.3, 0.5)
-        barking = _span(_render(bark=SLIDERS["bark"].maximum, tremolo=0), HARD, 0.3, 0.5)
+        barking = _span(
+            _render(bark=keys.Keys.bark.spec.maximum, tremolo=0), HARD, 0.3, 0.5
+        )
 
         self.assertLess(abs(_centroid(barking) / _centroid(round_) - 1), 0.1)
 
     def test_bite_brightens_the_sustained_tone(self) -> None:
         mellow = _span(_render(bark=0, bite=0, tremolo=0), HARD, 0.1, 0.3)
-        reedy = _span(_render(bark=0, bite=SLIDERS["bite"].maximum, tremolo=0), HARD, 0.1, 0.3)
+        reedy = _span(
+            _render(bark=0, bite=keys.Keys.bite.spec.maximum, tremolo=0), HARD, 0.1, 0.3
+        )
 
         self.assertGreater(_centroid(reedy), _centroid(mellow) * 1.3)
 
@@ -171,7 +179,10 @@ class KeysControlTests(unittest.TestCase):
         onset = 6 * 4 * SIXTEENTH
         for decay in (0.8, 2.0):
             with self.subTest(decay=decay):
-                hit = _hit(features(_render(seconds=5.5, decay=decay, rate=-2, tremolo=0)), onset)
+                hit = _hit(
+                    features(_render(seconds=5.5, decay=decay, rate=-2, tremolo=0)),
+                    onset,
+                )
 
                 # the amplitude table is RING_CURVE e-folds (-40 dB) at `decay`
                 self.assertGreater(hit.decay_time, decay * 0.7)
@@ -182,7 +193,9 @@ class KeysControlTests(unittest.TestCase):
             """Spread in dB of 10 ms levels over the ring, around the decay's trend."""
             window = Render(_span(result, HARD, 0.1, 0.6), result.sample_rate)
             levels = envelope(window, 0.01)
-            trend = np.polyval(np.polyfit(np.arange(levels.size), levels, 1), np.arange(levels.size))
+            trend = np.polyval(
+                np.polyfit(np.arange(levels.size), levels, 1), np.arange(levels.size)
+            )
             return float(np.std(levels - trend))
 
         steady = depth(_render(tremolo=0, decay=4))

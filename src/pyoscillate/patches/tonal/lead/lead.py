@@ -20,6 +20,7 @@ note per 8th note, with a rest that lets each phrase's Release breathe.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -30,19 +31,16 @@ from pyo.lib.generators import LFO
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
-# semitone offsets above the current chord root; -1 is a rest, giving the
-# phrase somewhere for its Release tail to be heard. The default motif for
-# styles that don't override `pattern` (see `Lead.pattern`).
-PATTERN = (0, 4, 7, 12, 7, 4, -1, 0)
+# step -> semitone offset above the current chord root; an absent step (6) is
+# a rest, giving the phrase somewhere for its Release tail to be heard. The
+# default motif for styles that don't override `pattern` (see `Lead.pattern`).
+PATTERN = {0: 0, 1: 4, 2: 7, 3: 12, 4: 7, 5: 4, 7: 0}
 BASE_DIVISION = NoteDivision.EIGHTH
-# a rest sentinel, distinct from a real degree (which is never negative)
-REST = -1
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
@@ -52,12 +50,13 @@ class Lead(GatedVoice):
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
     graph is identical across styles."""
 
-    needs_harmony = True
-    volume_default = 0.7
+    volume = Patch.volume.replace(default=0.7)
     base_division: ClassVar[NoteDivision] = BASE_DIVISION
     # this style's melodic motif; a style with a sparser or differently-
     # phrased line overrides it (different profile data, same graph)
-    pattern: ClassVar[tuple[int, ...]] = PATTERN
+    pattern: ClassVar[dict[int, int]] = PATTERN
+    # the number of steps one pass of `pattern` spans
+    cycle: ClassVar[int] = 8
 
     # osc1/osc2 detune in semitones (osc2's can exceed an octave, e.g. +12.1)
     osc1_detune: ClassVar[float]
@@ -104,7 +103,8 @@ class Lead(GatedVoice):
 
     # the rack's harmony, frozen at build time - fed to `next_step`, which
     # build() can no longer close over now that it's a real method
-    harmony: Harmony | None
+    harmony: Harmony
+    _step: Callable[[], Step]
 
     # anchor register for the melody; re-rooted on the rack's current chord
     # each note, in the octave nearest this note (see `note_root`)
@@ -179,21 +179,22 @@ class Lead(GatedVoice):
         "Halves or doubles the phrase's speed for each step away from its 8th-note default.",
     )
 
-    def note_root(self, clock: Clock, harmony: Harmony | None) -> float:
+    def note_root(self, clock: Clock) -> float:
         """This voice's current root pitch (Hz), re-rooted on the rack's
-        current chord in the octave nearest `root_freq` when harmony is
-        given, otherwise held on the live `root_freq` value."""
-        if harmony is None:
-            return self.root_freq
-        return harmony.chord_freq(self.root_freq, clock.bar_index)
+        current chord in the octave nearest `root_freq`."""
+        return self.harmony.chord_freq(self.root_freq, clock.bar_index)
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.harmony = harmony
+        self.harmony = context.harmony
 
-        initial_root = self.note_root(clock, harmony)
-        self.pitch1 = SigTo(value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide_time)
-        self.pitch2 = SigTo(value=initial_root * 2 ** (self.osc2_detune / 12), time=self.glide_time)
+        initial_root = self.note_root(context.clock)
+        self.pitch1 = SigTo(
+            value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide_time
+        )
+        self.pitch2 = SigTo(
+            value=initial_root * 2 ** (self.osc2_detune / 12), time=self.glide_time
+        )
 
         self.pitch_vibrato = LFO(freq=5.0, type=3, sharp=0.5, mul=0.0)
         self.osc1_freq = self.pitch1 + self.pitch_vibrato
@@ -216,7 +217,9 @@ class Lead(GatedVoice):
             mul=self.filter_env_depth,
             add=self.filter_base,
         )
-        self.filtered = MoogLP(self.mixed, freq=self.filter_env, res=self.filter_resonance)
+        self.filtered = MoogLP(
+            self.mixed, freq=self.filter_env, res=self.filter_resonance
+        )
 
         self.amp_env = Adsr(
             attack=self.amp_attack,
@@ -224,23 +227,25 @@ class Lead(GatedVoice):
             sustain=1.0,
             release=self.amp_release,
         )
-        self.shaped = Disto(self.filtered, drive=self.base_drive, slope=0.7, mul=self.amp_env)
+        self.shaped = Disto(
+            self.filtered, drive=self.base_drive, slope=0.7, mul=self.amp_env
+        )
         self.voice_signal = self.shaped
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
+        self._step = self.step_pattern(self.cycle, self.pattern)
         return self.finish(self.voice_signal)
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter
         # that starts at 0 whenever this patch is built or restarted -
         # see `Clock.tick`'s docstring
-        step = (self._clock.tick // self._division.steps) % len(self.pattern)
-        degree = self.pattern[step]
-        if degree < 0:
+        step = self._step()
+        if not step.hit:
             self.amp_env.stop()
             self.filter_env.stop()
         else:
-            target = self.note_root(self._clock, self.harmony) * 2 ** (degree / 12)
+            target = self.note_root(self._clock) * 2 ** (step.value / 12)
             self.pitch1.value = target * 2 ** (self.osc1_detune / 12)
             self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
             self.amp_env.play()
@@ -277,15 +282,12 @@ class LeadMellow70s(Lead):
     base_drive = 0.0
 
 
-# 16th-note steps (one bar) -> semitones above the chord root, mostly rests:
-# a minor-pentatonic-ish phrase (root, minor 3rd, 5th, minor 7th) that leaves
-# space after each two- or three-note idea, rather than filling every
-# subdivision - see lofi/README.md, "The melody should often leave space
-# after a phrase."
-MUTED_KEYS_PATTERN = (
-    0, REST, REST, 3, REST, REST, 7, REST,
-    10, REST, REST, 7, REST, 3, REST, REST,
-)
+# 16th-note steps (one bar) -> semitones above the chord root, mostly rests
+# (absent steps): a minor-pentatonic-ish phrase (root, minor 3rd, 5th, minor
+# 7th) that leaves space after each two- or three-note idea, rather than
+# filling every subdivision - see lofi/README.md, "The melody should often
+# leave space after a phrase."
+MUTED_KEYS_PATTERN = {0: 0, 3: 3, 6: 7, 8: 10, 11: 7, 13: 3}
 
 
 class LeadMutedKeys(Lead):
@@ -298,6 +300,7 @@ class LeadMutedKeys(Lead):
     summary = "Soft, dark dual-pulse pluck playing a sparse, rest-heavy minor-pentatonic motif."
     base_division = NoteDivision.SIXTEENTH
     pattern = MUTED_KEYS_PATTERN
+    cycle = 16
     osc1_detune, osc2_detune = -0.05, 0.05
     osc1_duty, osc2_duty = 0.5, 0.45
     pwm_rate, pwm_depth = 0.0, 0.0

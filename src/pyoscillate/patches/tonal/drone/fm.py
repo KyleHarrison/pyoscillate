@@ -16,7 +16,7 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -27,7 +27,7 @@ class SoundscapeFm(ContinuousVoice):
 
     title = "Soundscape - chaotic FM pad"
     summary = "Slow-morphing, unpredictable pad that never quite repeats itself."
-    volume_default = 0.6
+    volume = Patch.volume.replace(default=0.6)
 
     # the graph, assigned by build(); finish() retains every one of them
     root_freq_sig: SigTo
@@ -137,17 +137,17 @@ class SoundscapeFm(ContinuousVoice):
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.root_freq_sig = self.live("root_freq", self.root_freq)
-        self.chaos_speed_sig = self.live("chaos_speed", self.chaos_speed)
-        self.chaos_amount_sig = self.live("chaos_amount", self.chaos_amount)
-        self.reverb_size_sig = self.live("reverb_size", self.reverb_size)
-        self.reverb_damp_sig = self.live("reverb_damp", self.reverb_damp)
-        self.reverb_bal_sig = self.live("reverb_bal", self.reverb_bal)
-        self.delay_time_sig = self.live("delay_time", self.delay_time)
-        self.delay_feedback_sig = self.live("delay_feedback", self.delay_feedback)
+        self.root_freq_sig = self.live(type(self).root_freq)
+        self.chaos_speed_sig = self.live(type(self).chaos_speed)
+        self.chaos_amount_sig = self.live(type(self).chaos_amount)
+        self.reverb_size_sig = self.live(type(self).reverb_size)
+        self.reverb_damp_sig = self.live(type(self).reverb_damp)
+        self.reverb_bal_sig = self.live(type(self).reverb_bal)
+        self.delay_time_sig = self.live(type(self).delay_time)
+        self.delay_feedback_sig = self.live(type(self).delay_feedback)
 
         self.ratio_chaos = Rossler(
             pitch=self.chaos_speed_sig, chaos=self.chaos_amount_sig, mul=0.4, add=1.5
@@ -158,7 +158,10 @@ class SoundscapeFm(ContinuousVoice):
         )
 
         self.fm_voice = FM(
-            carrier=self.root_freq_sig, ratio=self.ratio_chaos, index=self.index_chaos, mul=0.2
+            carrier=self.root_freq_sig,
+            ratio=self.ratio_chaos,
+            index=self.index_chaos,
+            mul=0.2,
         )
         self.reverb_voice = Freeverb(
             self.fm_voice,

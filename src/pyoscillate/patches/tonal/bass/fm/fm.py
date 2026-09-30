@@ -31,13 +31,12 @@ from pyo.lib.generators import FM, CrossFM
 from pyo.lib.tables import CosTable, LinTable
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 STYLES = ("bark", "grit")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -66,7 +65,7 @@ class FmBass(Bass):
     CrossFM; the rest of the graph is identical. See the module docstring
     for the sonic detail."""
 
-    volume_default = 0.42
+    volume = Patch.volume.replace(default=0.42)
 
     ratio: ClassVar[int]
 
@@ -80,6 +79,11 @@ class FmBass(Bass):
     level: PyoObject
     tone_signal: PyoObject
     body: ButHP
+
+    # the sixteenth-note length and current step accent `next_step` and the
+    # `growl`/`length` controls read, assigned by build()
+    _sixteenth: float
+    _accent: float
 
     # read live off `self.root_freq` by build()'s trigger-time callback - no
     # control body needed, see `patches/AGENTS.md`'s note on a parameter
@@ -148,27 +152,33 @@ class FmBass(Bass):
         "Halves or doubles the bassline speed for each step away from its 16th-note grid.",
     )
 
-    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+    def tone(
+        self, index: PyoObject, level: PyoObject
+    ) -> tuple[PyoObject, tuple[Any, ...]]:
         """This style's FM operator pair, unfiltered, plus any extra Pyo
         objects it built for `build()` to retain. Overridden per style."""
         raise NotImplementedError
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Build an FM bassline whose index barks on each note."""
         self._reset()
         # matches the free `Trig()` this voice used before it was migrated
         # onto `Bass`'s trigger: silent until the clock ticks (see
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
-        self._sixteenth = tempo.sixteenth
+        self._sixteenth = context.tempo.sixteenth
         self._accent = 1.0
 
         self.index_table = LinTable(INDEX_POINTS)
         self.amp_table = CosTable(AMP_POINTS)
-        self.bark = TrigEnv(self.trigger, self.index_table, dur=self.settle, mul=self.growl)
+        self.bark = TrigEnv(
+            self.trigger, self.index_table, dur=self.settle, mul=self.growl
+        )
         self.floor = SigTo(value=self.edge, time=0.05, init=self.edge)
         self.index = self.bark + self.floor
-        self.amp = TrigEnv(self.trigger, self.amp_table, dur=self._sixteenth * self.length)
+        self.amp = TrigEnv(
+            self.trigger, self.amp_table, dur=self._sixteenth * self.length
+        )
         self.level = self.amp * GAIN
 
         self.tone_signal, tone_resources = self.tone(self.index, self.level)
@@ -180,7 +190,7 @@ class FmBass(Bass):
         # is too slow for an offset that moves within a few milliseconds.
         self.body = ButHP(self.tone_signal, freq=SUBSONIC)
 
-        self.schedule(BASE_DIVISION, self.rate, clock)
+        self.schedule(BASE_DIVISION, self.rate, context.clock)
         return self.finish(self.body)
 
     def next_step(self) -> None:
@@ -199,7 +209,9 @@ class FmBassBark(FmBass):
 
     ratio = RATIOS["bark"]
 
-    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+    def tone(
+        self, index: PyoObject, level: PyoObject
+    ) -> tuple[PyoObject, tuple[Any, ...]]:
         tone = FM(carrier=self.root_freq, ratio=self.ratio, index=index, mul=level)
         return tone, ()
 
@@ -209,7 +221,11 @@ class FmBassGrit(FmBass):
 
     ratio = RATIOS["grit"]
 
-    def tone(self, index: PyoObject, level: PyoObject) -> tuple[PyoObject, tuple[Any, ...]]:
+    def tone(
+        self, index: PyoObject, level: PyoObject
+    ) -> tuple[PyoObject, tuple[Any, ...]]:
         cross = index * CROSS
-        tone = CrossFM(carrier=self.root_freq, ratio=self.ratio, ind1=cross, ind2=index, mul=level)
+        tone = CrossFM(
+            carrier=self.root_freq, ratio=self.ratio, ind1=cross, ind2=index, mul=level
+        )
         return tone, (cross,)

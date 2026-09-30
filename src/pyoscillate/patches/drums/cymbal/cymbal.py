@@ -19,11 +19,11 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import FM, Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # carrier (Hz), modulator ratio, index
 METAL_OPERATORS = (
@@ -41,7 +41,7 @@ class Cymbal(DrumVoice):
     band-pass with a slow, tempo-locked drift of the band's centre. Style
     variants share this graph and override the profile attributes below."""
 
-    volume_default = 0.15
+    volume = Patch.volume.replace(default=0.15)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     noise_level: ClassVar[float] = 0.3
     # one full drift of the band centre spans this many bars
@@ -73,7 +73,7 @@ class Cymbal(DrumVoice):
     # the step pattern's callable, frozen at build time - fed to
     # `next_step`, which build() can no longer close over now that it's a
     # real method
-    _step: Callable[[], tuple[int, float | None]]
+    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -129,7 +129,7 @@ class Cymbal(DrumVoice):
     def _makeup(self, tone: float) -> float:
         return self.makeup_gain * math.sqrt(self.reference_tone / tone)
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Build a ride or crash cymbal with slow strike-to-strike colour drift."""
         self._reset()
 
@@ -145,21 +145,27 @@ class Cymbal(DrumVoice):
         self.shaped = self.source * self.amp_env
 
         self.centre = Sig(self.tone)
-        self.drift = Sine(freq=1 / (self.movement_bars * tempo.bar), mul=self.movement, add=1)
+        self.drift = Sine(
+            freq=1 / (self.movement_bars * context.tempo.bar), mul=self.movement, add=1
+        )
         self.band = self.centre * self.drift
         self.tone_filter = Biquad(
-            self.shaped, freq=self.band, q=self.resonance, type=2, mul=self._makeup(self.tone)
+            self.shaped,
+            freq=self.band,
+            q=self.resonance,
+            type=2,
+            mul=self._makeup(self.tone),
         )
 
         self._step = self.step_pattern(self.cycle, self.pattern)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.tone_filter)
 
     def next_step(self) -> None:
-        _, accent = self._step()
-        if accent is not None:
-            self.amp_env.mul = self.level * accent
+        step = self._step()
+        if step.hit:
+            self.amp_env.mul = self.level * step.value
             self.trigger.play()
 
 

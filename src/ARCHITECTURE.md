@@ -49,12 +49,15 @@ Full contract: [patches/AGENTS.md](pyoscillate/patches/AGENTS.md). In outline:
   - `ContinuousVoice` — ungated, free-running, driven by modulation (LFOs,
     chaos), no start/end per event: drones, textures.
   - Both share one `Patch` lifecycle (construct → configure → build →
-    start/stop → rebuild) and both return a `Patch` from `build()`.
+    start/stop → rebuild) and both take a `BuildContext` (tempo, clock,
+    harmony - always populated) in `build()` and return the `Patch`.
 - **One family class per directory, one small subclass per style** — the
   family class owns the graph and every `@Param` control; a style subclass
   only overrides profile data or a hook method, never the graph shape.
 - **`@Param`** — single declaration point for a musical control (range,
-  step, default, label, help text, live-update method). Perceptual names
+  step, default, label, help text, live-update method, and `rebuild=True` for
+  topology-changing parameters). `volume` is a `Param` on `Patch`. The
+  `Param` object is the only handle - nothing looks a parameter up by name. Perceptual names
   (`Punch`, `Body`, `Warmth`), never raw DSP terms.
 - **Retained ownership** — `build()` assigns every Pyo node to `self`;
   `finish()` retains them, because an unretained Pyo wrapper can be
@@ -96,8 +99,8 @@ each required piece is *for*:
 
 - **`@Param`-declared attributes** (`level`, `punch`, `rate`, ...) — per-
   *instance* current values, declared on the class:
-  - assigning `self.<name>` (directly, via `set()`, or `configure()`)
-    updates the stored value immediately
+  - assigning `self.<name>` (or `param.write(patch, v)`) updates the stored
+    value immediately
   - if already built, also re-runs that param's control against the new
     value, reaching the live graph
   - before `build()`, assignment just stages the value — no graph exists yet
@@ -122,7 +125,10 @@ by every patch module, not specific to any one family.
 ## `projects/`: racks
 
 `projects/<name>/rack.py` composes existing patch classes (instances, not
-new subclasses) into `GroupController` groups for one Flet app. Planning-first:
+new subclasses) into `GroupController`/`EvolvingGroup` groups for one Flet
+app. `build_groups()` assigns the patches and groups a macro or sidechain
+needs as typed attributes on the rack (`self.pad_wash`, `self.kick`), and rack
+`Macro`s are rack methods that assign `Param`s directly on those attributes. Planning-first:
 `README.md` (musical brief + concept-to-patch mapping) precedes `rack.py`.
 Concrete workflow: [projects/AGENTS.md](pyoscillate/projects/AGENTS.md).
 
@@ -138,7 +144,8 @@ definition only.
 generic adapter between a `Patch` instance and a Flet UI:
 
 - renders an enable switch, `@Param` sliders, a volume slider
-- handles preset save/load and server start/stop
+- handles JSON preset save/load (into a `catalog_dir` the app supplies) and
+  server start/stop
 - every `flet/<project>/` app is a thin composition over that adapter — no
   patch internals imported, no hand-built sliders; a missing control is
   fixed in `@Param` declarations or `base.py`, never in the project app

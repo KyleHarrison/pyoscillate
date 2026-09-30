@@ -15,11 +15,10 @@ from pyo.lib.filters import ButHP, ButLP
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by the tick's envelope
 DROP = [(0, 1), (8191, 0)]
@@ -35,7 +34,7 @@ class LowHat(DrumVoice):
 
     title = "Low hat"
     summary = "Darker, rarer accent beneath the main hat."
-    volume_default = 0.2
+    volume = Patch.volume.replace(default=0.2)
     base_division: ClassVar[NoteDivision] = NoteDivision.QUARTER
     # exponent of the decay curve - a sharp, strongly exponential drop keeps
     # the accent percussive even with a darker spectrum
@@ -94,7 +93,7 @@ class LowHat(DrumVoice):
         "Halves or doubles the accent pattern speed for each step away from its quarter-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
 
@@ -103,7 +102,7 @@ class LowHat(DrumVoice):
         self.hat_env = self.envelope(DROP, dur=DECAY, exp=self.decay_curve)
         self.hat_burst = self.hat_noise * self.hat_env
 
-        self.hat_swell = Sine(freq=1 / (32 * tempo.eighth), mul=0.3, add=0.8)
+        self.hat_swell = Sine(freq=1 / (32 * context.tempo.eighth), mul=0.3, add=0.8)
 
         # a gentler high-pass than the main hat keeps lower-mid body while
         # still clearing the kick and bass; the linked low-pass removes the
@@ -113,5 +112,7 @@ class LowHat(DrumVoice):
         self.body = ButHP(self.hat_burst, freq=self.low_edge)
         self.filtered = ButLP(self.body, freq=self.high_edge, mul=self.hat_swell)
 
-        self.schedule(self.base_division, self.rate, clock, self.trigger.play)
+        self.schedule_with(
+            self.base_division, self.rate, context.clock, self.trigger.play
+        )
         return self.finish(self.filtered)

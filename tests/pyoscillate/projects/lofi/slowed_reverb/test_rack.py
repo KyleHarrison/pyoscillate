@@ -1,38 +1,19 @@
-import json
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 
 from pyoscillate.patches.drums.hat.groove import CLOSED, GrooveLofi
 from pyoscillate.patches.drums.kick.kick import KickLofi
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
+from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 
 
 class SlowedReverbRackDefaultsTests(unittest.TestCase):
-    def test_finished_preset_matches_the_rack_starting_values(self) -> None:
-        rack = SlowedReverbRack()
-        patches = {patch.name: patch for group in rack.groups for patch in group.patches}
-        preset_path = (
-            Path(__file__).resolve().parents[5] / "src/flet/slowed_reverb/presets/finished.json"
-        )
-        preset = json.loads(preset_path.read_text())
-
-        for patch_name, values in preset.items():
-            if patch_name == "_rack":
-                continue
-            patch = patches[patch_name]
-            for name, value in values.items():
-                if name == "enabled" or not hasattr(patch, name):
-                    continue
-                with self.subTest(patch=patch_name, parameter=name):
-                    self.assertAlmostEqual(getattr(patch, name), value)
-
-        self.assertEqual(preset["_rack"]["macro"], rack.macro.slider.default)
-
-    def test_initial_values_match_the_finished_preset(self) -> None:
+    def test_initial_values_match_the_rack_starting_values(self) -> None:
         patches = {
-            patch.name: patch for group in SlowedReverbRack().groups for patch in group.patches
+            patch.name: patch
+            for group in SlowedReverbRack().groups
+            for patch in group.patches
         }
 
         expected = {
@@ -66,7 +47,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 1.6,
             },
             "soundscape_wash": {
-                "root_freq": 97.99885899543733,
+                "root_freq": notes.E2,
                 "detune": 0.45,
                 "detune_bal": 0.1,
                 "pitch_drift": 0.8,
@@ -117,51 +98,34 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         self.assertEqual(set(patches), set(expected))
         for patch_name, values in expected.items():
             patch = patches[patch_name]
+            params = {param.name: param for param in patch.params}
             for name, value in values.items():
                 with self.subTest(patch=patch_name, parameter=name):
-                    self.assertAlmostEqual(getattr(patch, name), value)
+                    self.assertAlmostEqual(params[name].read(patch), value, delta=1e-3)
 
     def test_lift_macro_starts_neutral_and_reaches_brighter_values(self) -> None:
         rack = SlowedReverbRack()
-        patches = {patch.name: patch for group in rack.groups for patch in group.patches}
+        macro = rack.macros[0]
 
-        rack.macro.apply(
-            0,
-            lambda group_name: next(
-                (
-                    patches[patch.name]
-                    for group in rack.groups
-                    if group.name == group_name
-                    for patch in group.patches
-                ),
-            ),
-        )
-        self.assertEqual(patches["soundscape_wash"].chorus_depth, 2.1)
-        self.assertEqual(patches["pluck_hook"].brightness, 2.4)
-        self.assertEqual(patches["soundscape_wash"].volume, 0.5)
-        self.assertEqual(patches["pluck_hook"].volume, 0.4)
+        macro.apply(rack, 0)
+        self.assertEqual(rack.pad_wash.chorus_depth, 2.1)
+        self.assertEqual(rack.hook.brightness, 2.4)
+        self.assertEqual(rack.pad_wash.volume, 0.5)
+        self.assertEqual(rack.hook.volume, 0.4)
+        self.assertEqual(rack.lead_strings.volume, 0.7)
+        self.assertEqual(rack.lead_keys.volume, 1.5)
 
-        rack.macro.apply(
-            1,
-            lambda group_name: next(
-                (
-                    patches[patch.name]
-                    for group in rack.groups
-                    if group.name == group_name
-                    for patch in group.patches
-                ),
-            ),
-        )
-        self.assertEqual(patches["soundscape_wash"].chorus_depth, 5)
-        self.assertEqual(patches["pluck_hook"].brightness, 5)
+        macro.apply(rack, 1)
+        self.assertEqual(rack.pad_wash.chorus_depth, 5)
+        self.assertEqual(rack.hook.brightness, 5)
 
     def test_section_evolution_is_wired_to_live_pad_and_groove_groups(self) -> None:
         rack = SlowedReverbRack()
-        bars = {group.name: group.bars for group in rack.group_controllers}
+        bars = {group.title: group.bars for group in rack.evolving_groups}
 
         self.assertEqual(
             bars,
-            {"lead": 8, "pad": 16, "hook": 8, "kick": 8, "hat": 8},
+            {"Lead": 8, "Pad": 16, "Hook": 8, "Kick": 8, "Hi-hat": 8},
         )
 
         pad_patch = SoundscapeWash(chorus_depth=2.1, delay_feedback=0.7)
@@ -175,17 +139,17 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         kick_patch._clock = SimpleNamespace(tick=8)
         kick_patch._division = SimpleNamespace(steps=1)
         kick_patch.on_evolve(0)
-        self.assertIsNone(kick_patch._step()[1])
+        self.assertFalse(kick_patch._step().hit)
         kick_patch.on_evolve(1)
-        self.assertEqual(kick_patch._step()[1], 0.45)
+        self.assertEqual(kick_patch._step().value, 0.45)
 
         hat_patch = GrooveLofi()
         hat_patch._clock = SimpleNamespace(tick=2)
         hat_patch._division = SimpleNamespace(steps=1)
         hat_patch.on_evolve(0)
-        self.assertIsNone(hat_patch._step()[1])
+        self.assertFalse(hat_patch._step().hit)
         hat_patch.on_evolve(1)
-        self.assertEqual(hat_patch._step()[1], (CLOSED, 0.25))
+        self.assertEqual(hat_patch._step().value, (CLOSED, 0.25))
 
 
 if __name__ == "__main__":

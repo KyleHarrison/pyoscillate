@@ -15,8 +15,8 @@ Bass patches are selected in two stages.
    trigger timing, envelope length, harmonic content, filter movement, and
    resonance.
 
-`BassProfile` stores the musical policy: semitone pattern, accents, decay,
-resonance, and harmonic recipe. `Bass.build_voice` (the shared family base,
+`BassProfile` stores the musical policy: semitone pattern, accents, gates, decay,
+resonance, and harmonic recipe. `Bass.build` (the shared family base,
 `base.py`) owns the common signal path:
 
 ```text
@@ -60,10 +60,10 @@ different generator or filter for a different bass role.
 ## Sub-families
 
 `acid/`, `fm/`, `funk/` and `reese/` each need a different topology from
-`Bass.build_voice`: a per-note filter envelope with accent/slide, FM with an
+`Bass.build`: a per-note filter envelope with accent/slide, FM with an
 index envelope, a gated two-oscillator voice whose filter envelope swells
 open on every note, and a detuned saw stack. All of them still subclass the
-shared `Bass` base for scheduling and chord-following (`note_root`); only the
+shared `Bass` base for scheduling and chord-following (`chord_root`); only the
 oscillator/filter graph itself is their own. `fm/` and `funk/` have patches
 (see their `AGENTS.md`); `acid/` and `reese/` are still placeholders. A plain
 sub or harmonic bass stays in the shared core as a profile, because sub is a

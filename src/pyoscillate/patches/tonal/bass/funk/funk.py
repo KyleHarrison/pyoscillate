@@ -23,7 +23,7 @@ staying bright for the whole sustain. The cookbook's "envelope 85%" is a
 synth knob position; `QUACK` octaves is its reading here, tuned by ear.
 
 The line is a one-bar funk figure on chord tones, re-rooted on each bar's
-chord from the rack's `Harmony` (see `Bass.note_root`). It is written as
+chord from the rack's `Harmony` (see `Bass.chord_root`). It is written as
 degrees of a minor-seventh chord, like the groove profiles. Accents scale
 the level and the filter sweep together, so accented notes quack harder and
 ghost notes stay dark.
@@ -31,8 +31,7 @@ ghost notes stay dark.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import ClassVar, NamedTuple
+from typing import NamedTuple
 
 from pyo import PyoObject
 from pyo.lib.arithmetic import Pow
@@ -43,25 +42,24 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import LinTable, SawTable
 from pyo.lib.triggers import TrigEnv, TrigFunc
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
-from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 
 class Step(NamedTuple):
-    """One 16th of the line. `semitones` is above the chord root, or None for
-    a rest; `length` is how long the note is held, in 16ths."""
+    """One 16th of the line. `semitones` is above the chord root; `hit` is
+    False for a rest (the other fields are then unused); `length` is how long
+    the note is held, in 16ths."""
 
-    semitones: int | None
+    semitones: int
     accent: float = 1.0
     length: float = 1.0
+    hit: bool = True
 
 
-REST = Step(None)
+REST = Step(0, 0.0, 0.0, hit=False)
 # root on the One, held; octave pops; minor 7th, 5th and minor 3rd fills;
 # dead-note ghosts between them. Every pitch is a tone of the rack's
 # minor-seventh chords, so re-rooting keeps the line consonant. The minor
@@ -108,19 +106,13 @@ PULSE_WIDTH = 0.3
 # open, and below Nyquist for the top of the line (osc 2 at ~310 Hz)
 SAW_ORDER = 64
 GAIN = 0.4
-VOLUME_DEFAULT = 0.5
-# osc 1 (the saw) sits here; osc 2 (the pulse) is an octave above it
-REGISTER_CENTRE = notes.A1
-# a static key of A - used only outside a rack that shares its own `Harmony`
-FALLBACK_HARMONY = Harmony()
 
 
 class FunkBass(Bass):
     """Funk bass: a syncopated line whose filter quacks open on every note.
     See the module docstring for the sonic detail."""
 
-    volume_default = VOLUME_DEFAULT
-    needs_harmony: ClassVar[bool] = True
+    volume = Patch.volume.replace(default=0.5)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -143,9 +135,8 @@ class FunkBass(Bass):
     gate_end: TrigFunc
     body: PyoObject
 
-    # current-root callable and the sixteenth-note duration `next_step`
-    # reads at trigger time, frozen at build time
-    _current_root: Callable[[], float]
+    # the sixteenth-note duration `next_step` reads at trigger time, frozen at
+    # build time
     _sixteenth: float
 
     octave = Bass.octave.replace(
@@ -219,19 +210,24 @@ class FunkBass(Bass):
         "Halves or doubles the bassline speed for each step away from its 16th-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def current_root(self) -> float:
+        return self.chord_root()
+
+    def build(self, context: BuildContext) -> Patch:
         """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
         self._reset()
         # matches the free `Trig()` this voice used before it was migrated
         # onto `Bass`'s trigger: silent until the clock ticks (see
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
-        self._current_root = self.note_root(
-            REGISTER_CENTRE, clock, harmony=harmony or FALLBACK_HARMONY
-        )
-        self._sixteenth = tempo.sixteenth
+        self._context = context
+        self._sixteenth = context.tempo.sixteenth
 
-        self.pitch = SigTo(value=REGISTER_CENTRE, time=GLIDE, init=REGISTER_CENTRE)
+        # osc 1 (the saw) sits at the register centre; osc 2 (the pulse) is an
+        # octave above it
+        self.pitch = SigTo(
+            value=self.register_centre, time=GLIDE, init=self.register_centre
+        )
         self.upper_pitch = self.pitch * 2
         self.saw_table = SawTable(order=SAW_ORDER)
         self.saw = Osc(self.saw_table, freq=self.pitch)
@@ -247,7 +243,7 @@ class FunkBass(Bass):
         # releases both envelopes. A new note restarts it, so a long note's
         # release never lands on the note after it.
         self.gate_table = LinTable([(0, 1), (8191, 1)])
-        self.gate = TrigEnv(self.trigger, self.gate_table, dur=tempo.sixteenth)
+        self.gate = TrigEnv(self.trigger, self.gate_table, dur=context.tempo.sixteenth)
         self.amp = Adsr(**AMP_ENVELOPE)
         self.level = self.amp * GAIN
         self.sweep = Adsr(
@@ -263,22 +259,22 @@ class FunkBass(Bass):
         self.filtered = MoogLP(self.trimmed, freq=self.safe_cutoff, res=self.resonance)
         self.body = self.filtered * self.level
 
-        def note_off() -> None:
-            self.amp.stop()
-            self.sweep.stop()
+        self.gate_end = TrigFunc(self.gate["trig"], self.note_off)
 
-        self.gate_end = TrigFunc(self.gate["trig"], note_off)
-
-        self.schedule(BASE_DIVISION, self.rate, clock)
+        self.schedule(BASE_DIVISION, self.rate, context.clock)
         return self.finish(self.body)
+
+    def note_off(self) -> None:
+        self.amp.stop()
+        self.sweep.stop()
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick - see `Clock.tick`'s
         # docstring
         step = LINE[(self._clock.tick // self._division.steps) % len(LINE)]
-        if step.semitones is None:
+        if not step.hit:
             return
-        root = self._current_root()
+        root = self.current_root()
         self.pitch.value = root * 2 ** (step.semitones / 12)
         self.gate.dur = self._sixteenth * step.length * self.length
         self.amp.mul = step.accent

@@ -29,6 +29,7 @@ voice continuously between triggers, not just at the strike.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -39,12 +40,11 @@ from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import RING_CURVE, GatedVoice, decay_points
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import RING_CURVE, GatedVoice, Step, decay_points
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # step on the 16th grid -> velocity: the Charleston rhythm
 HITS = {0: 1.0, 6: 0.55}
@@ -67,7 +67,7 @@ class Keys(GatedVoice):
 
     title = "Keys (FM electric piano)"
     summary = "Struck FM electric piano comping a close-voiced progression."
-    volume_default = 0.8
+    volume = Patch.volume.replace(default=0.8)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
 
     body_ratio: ClassVar[float] = 1
@@ -124,6 +124,7 @@ class Keys(GatedVoice):
     freq_sigs: list[Sig]
     velocities: list[float]
     _progression_index: int
+    _step: Callable[[], Step]
     amp_table: LinTable
     body_table: LinTable
     tine_table: LinTable
@@ -146,8 +147,8 @@ class Keys(GatedVoice):
     throb: PyoObject
     voice_signal: PyoObject
 
-    # only read at trigger time (next_step()), so it needs no live control -
-    # Patch.set() already keeps self.root_freq current on its own
+    # only read at trigger time (next_step()), so it needs no live control:
+    # assigning it already keeps self.root_freq current
     root_freq = Param(
         notes.A2,
         notes.E4,
@@ -243,7 +244,7 @@ class Keys(GatedVoice):
         contract - there's no shared numeric range to clamp against."""
         self._progression_index = index % len(self.PROGRESSIONS)
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
 
         # explicit per patches/AGENTS.md rule 5 (timing/state), not a
@@ -260,7 +261,9 @@ class Keys(GatedVoice):
         self.tine_table = LinTable(decay_points())
         self.amp = TrigEnv(self.strikes, self.amp_table, dur=self.decay, mul=0)
         self.body_index = TrigEnv(self.strikes, self.body_table, dur=self.decay, mul=0)
-        self.tine_index = TrigEnv(self.strikes, self.tine_table, dur=self.tine_time, mul=0)
+        self.tine_index = TrigEnv(
+            self.strikes, self.tine_table, dur=self.tine_time, mul=0
+        )
         # the tine pair fades soon after its ping: `FM` integrates frequency, so
         # the index burst leaves the tine's carrier out of phase with the body's
         # on the same pitch, and a tine carrier left ringing would cancel part of
@@ -277,10 +280,16 @@ class Keys(GatedVoice):
         self.wobbled_freqs = [sig * self.wobble_ratio for sig in self.freq_sigs]
 
         self.body = FM(
-            carrier=self.wobbled_freqs, ratio=self.body_ratio, index=self.body_index, mul=self.amp
+            carrier=self.wobbled_freqs,
+            ratio=self.body_ratio,
+            index=self.body_index,
+            mul=self.amp,
         )
         self.tine = FM(
-            carrier=self.wobbled_freqs, ratio=self.tine_ratio, index=self.tine_index, mul=self.tine_amp
+            carrier=self.wobbled_freqs,
+            ratio=self.tine_ratio,
+            index=self.tine_index,
+            mul=self.tine_amp,
         )
         self.chord_notes_signal = self.body + self.tine
         self.mixed = self.chord_notes_signal.mix(1)
@@ -291,12 +300,13 @@ class Keys(GatedVoice):
 
         # gain swings between 1 - tremolo and 1
         self.depth = SigTo(value=self.tremolo / 2, time=0.05, init=self.tremolo / 2)
-        self.tremolo_lfo = Sine(freq=1 / tempo.eighth, mul=self.depth)
+        self.tremolo_lfo = Sine(freq=1 / context.tempo.eighth, mul=self.depth)
         self.swing = self.tremolo_lfo - self.depth
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
+        self._step = self.step_pattern(BAR_STEPS, HITS)
         return self.finish(
             self.voice_signal,
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
@@ -307,19 +317,20 @@ class Keys(GatedVoice):
         # that starts at 0 whenever this patch is built or restarted -
         # see Harmony's docstring on why chord/beat position must come
         # from the clock, never from a patch's own step count
-        step = (self._clock.tick // self._division.steps) % BAR_STEPS
-        velocity = HITS.get(step)
-        if velocity is not None:
+        step = self._step()
+        if step.hit:
             bar = self._clock.bar_index
-            hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step)
+            hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step.index)
             slot = hit_index % SLOTS
             progression = self.PROGRESSIONS[self._progression_index]
             chord_notes = progression[bar % len(progression)]
             start = slot * NOTES
-            new_freqs = [self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes]
+            new_freqs = [
+                self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes
+            ]
             self.freqs[start : start + NOTES] = new_freqs
             for offset, freq in enumerate(new_freqs):
                 self.freq_sigs[start + offset].value = freq
-            self.velocities[slot] = velocity
+            self.velocities[slot] = step.value
             self.apply_touch()
             self.triggers[slot].play()

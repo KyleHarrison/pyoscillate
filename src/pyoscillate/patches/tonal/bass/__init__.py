@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
-from pyoscillate.clock import Clock
+from pyo.lib.generators import LFO
+
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import Param
-from pyoscillate.patches.tonal.bass.base import Bass, BassProfile
+from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, Bass, BassProfile
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
@@ -21,9 +22,13 @@ class TechnoBass(Bass):
     name = "bass"
     title = "Bass"
     summary = "Rolling, resonant bassline that sweeps in tone across the groove."
-    volume_default = 1.0
+    volume = Patch.volume.replace(default=1.0)
+    profile = TECHNO
 
-    # read live off `self.root_freq` by `Bass.note_root`'s trigger-time
+    # the sweeping cutoff's own modulator, assigned by `cutoff_source()`
+    cutoff_lfo: LFO
+
+    # read live off `self.root_freq` by `current_root`'s trigger-time
     # callback - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
     root_freq = Param(
@@ -73,18 +78,18 @@ class TechnoBass(Bass):
     def filter_range(self, value: float) -> None:
         self.cutoff_lfo.mul = value
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
-        self._reset()
-        return self.build_voice(
-            tempo,
-            clock,
-            TECHNO,
-            self.root_freq,
-            cutoff=self.filter_base,
-            filter_base=self.filter_base,
-            filter_range=self.filter_range,
-            filter_res=self.filter_res,
-        )
+    rate = rate_param(
+        BASE_DIVISION,
+        "Halves or doubles the bass pattern speed for each step away from its 16th-note grid.",
+    )
+
+    def current_root(self) -> float:
+        return self.root_freq
+
+    def cutoff_source(self, tempo: Tempo) -> LFO:
+        # neutral depth/centre: `filter_base`/`filter_range` controls set the real ones
+        self.cutoff_lfo = LFO(freq=1 / tempo.bar, type=0, mul=0, add=0)
+        return self.cutoff_lfo
 
 
 __all__ = ["Bass", "BassProfile", "TechnoBass"]

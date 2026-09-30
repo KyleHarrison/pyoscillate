@@ -174,7 +174,9 @@ def band_levels(samples: np.ndarray, sample_rate: int) -> tuple[float, ...]:
     levels = []
     for low, high in pairwise(BAND_EDGES):
         band = power[(frequencies >= low) & (frequencies < high)]
-        levels.append(10 * np.log10(band.mean()) if band.size and band.mean() > 0 else SILENCE_DB)
+        levels.append(
+            10 * np.log10(band.mean()) if band.size and band.mean() > 0 else SILENCE_DB
+        )
     return tuple(float(level) for level in levels)
 
 

@@ -19,7 +19,6 @@ MODULE = "pyoscillate.patches.pitched_percussion.bell.bell"
 BPM = 120
 SIXTEENTH = 60 / BPM / 4
 ONSET_TOLERANCE = 0.02
-SLIDERS = {spec.name: spec for spec in bell.Bell.parameters}
 
 
 @cache
@@ -43,7 +42,9 @@ def _hit(result: Features, onset: float) -> Hit:
     for hit in result.hits:
         if abs(hit.onset - onset) < ONSET_TOLERANCE:
             return hit
-    raise AssertionError(f"no hit near {onset:.3f} s in {[h.onset for h in result.hits]}")
+    raise AssertionError(
+        f"no hit near {onset:.3f} s in {[h.onset for h in result.hits]}"
+    )
 
 
 class BellHealthTests(unittest.TestCase):
@@ -58,8 +59,14 @@ class BellHealthTests(unittest.TestCase):
 
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
         for style in bell.STYLES:
-            for root_freq in (SLIDERS["root_freq"].minimum, SLIDERS["root_freq"].maximum):
-                for strike in (SLIDERS["strike"].minimum, SLIDERS["strike"].maximum):
+            for root_freq in (
+                bell.Bell.root_freq.spec.minimum,
+                bell.Bell.root_freq.spec.maximum,
+            ):
+                for strike in (
+                    bell.Bell.strike.spec.minimum,
+                    bell.Bell.strike.spec.maximum,
+                ):
                     with self.subTest(style=style, root_freq=root_freq, strike=strike):
                         render_ = render(
                             MODULE,
@@ -67,7 +74,7 @@ class BellHealthTests(unittest.TestCase):
                                 "style": style,
                                 "root_freq": root_freq,
                                 "strike": strike,
-                                "ring": SLIDERS["ring"].maximum,
+                                "ring": bell.Bell.ring.spec.maximum,
                             },
                             seconds=4.0,
                             bpm=BPM,
@@ -95,7 +102,9 @@ class BellControlTests(unittest.TestCase):
         for style in bell.STYLES:
             for ring in (0.5, 1.5):
                 with self.subTest(style=style, ring=ring):
-                    hit = _hit(_features(seconds=5.5, style=style, ring=ring, rate=-2), onset)
+                    hit = _hit(
+                        _features(seconds=5.5, style=style, ring=ring, rate=-2), onset
+                    )
 
                     # Ring is the prime's (or the envelope's) time to -40 dB;
                     # the chime's hum outlasts it by up to 0.5^-DECAY_SLOPE

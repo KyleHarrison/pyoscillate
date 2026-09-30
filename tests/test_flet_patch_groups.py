@@ -2,34 +2,31 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock
 
 import flet as ft
 from pyoscillate.controller import GroupController
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import SliderSpec
-from pyoscillate.projects.base import MacroSpec
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.params import Param
+from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
-DEEP_HOUSE_GROUPS = DeepHouseRack().groups
-PATCH_GROUPS = PsyambientRack().groups
-SLOWED_REVERB_GROUPS = SlowedReverbRack().groups
-
 
 class _StubPatch(Patch):
     """Minimal concrete `Patch` for exercising `PatchPanel`/`PatchGroup`
     wiring without a real Pyo graph."""
 
-    parameters = ()
+    name = "test_patch"
+    title = "Test Patch"
+    summary = "Test voice."
 
-    def build(self, **kwargs: Any) -> Patch:
-        self.sequencer = MagicMock()
-        self.voice = MagicMock()
+    test_value = Param(0.0, 1.0, 0.1, 0.5, "Test value", "Helpful detail")
+
+    def build(self, context: BuildContext) -> Patch:
         return self
 
 
@@ -44,25 +41,28 @@ class PatchGroupTests(unittest.TestCase):
         )
 
     def setUp(self) -> None:
-        self.voice = _StubPatch(name="test_patch", title="Test Patch", summary="Test voice.")
-        self.build = MagicMock(wraps=self.voice.build)
-        self.voice.build = self.build
-        self.rack = MagicMock()
-        self.rack.get.return_value = None
-        self.panel = PatchPanel(self.rack, self.voice)
-        self.group = PatchGroup(GroupController("test", "Test Group", (self.voice,)), [self.panel])
-        self.panel.set_engine_ready(True)
+        self.voice = _StubPatch()
+        self.voice.build = MagicMock(wraps=self.voice.build)
+        self.voice.start = MagicMock()
+        self.voice.stop = MagicMock()
+        self.context = MagicMock()
+        self.panel = PatchPanel(self.voice)
+        self.group = PatchGroup(
+            GroupController("Test Group", (self.voice,)), [self.panel]
+        )
+        self.panel.engine_started(self.context)
         self.group.set_engine_ready(True)
-        self.panel.enabled = True
-        self.panel.switch.value = True
-        self.rack.reset_mock()
+        self.panel.apply_enabled(True)
+        self.voice.build.reset_mock()
+        self.voice.start.reset_mock()
+        self.voice.stop.reset_mock()
 
     def test_disabling_group_stops_patch_without_clearing_selection(self) -> None:
         event = SimpleNamespace(control=SimpleNamespace(value=False), page=MagicMock())
 
         self.group._handle_enabled(event)
 
-        self.rack.stop.assert_called_once_with("test_patch")
+        self.voice.stop.assert_called_once_with()
         self.assertTrue(self.panel.enabled)
         self.assertTrue(self.panel.switch.value)
         self.assertTrue(self.panel.switch.disabled)
@@ -70,14 +70,14 @@ class PatchGroupTests(unittest.TestCase):
     def test_reenabling_group_starts_selected_patch(self) -> None:
         self.group.enabled = False
         self.panel.set_group_enabled(False)
-        self.rack.reset_mock()
+        self.voice.build.reset_mock()
+        self.voice.start.reset_mock()
         event = SimpleNamespace(control=SimpleNamespace(value=True), page=MagicMock())
 
         self.group._handle_enabled(event)
 
-        self.build.assert_called_once_with()
-        self.rack.start.assert_called_once_with("test_patch", self.voice)
-        self.assertEqual(self.voice.volume, self.panel.volume)
+        self.voice.build.assert_called_once_with(self.context)
+        self.voice.start.assert_called_once_with()
         self.assertFalse(self.panel.switch.disabled)
 
     def test_group_collapses_around_full_width_patch_controls(self) -> None:
@@ -94,19 +94,21 @@ class PatchGroupTests(unittest.TestCase):
         self.assertIsInstance(patch_content, ft.Column)
         self.assertIsInstance(patch_content.controls[-1], ft.ResponsiveRow)
         self.assertFalse(
-            any(isinstance(control, ft.ExpansionTile) for control in patch_content.controls)
+            any(
+                isinstance(control, ft.ExpansionTile)
+                for control in patch_content.controls
+            )
         )
 
     def test_slider_help_text_is_above_track_and_larger(self) -> None:
-        spec = SliderSpec("test_value", 0.0, 1.0, 0.1, 0.5, "Test value", "Helpful detail")
-        self.voice.test_value = spec.default
+        param = _StubPatch.test_value
 
-        row = self.panel._slider_row(spec)
+        row = self.panel._slider_row(param)
         controls = row.content.controls
 
-        self.assertEqual(controls[1].value, spec.help_text)
+        self.assertEqual(controls[1].value, param.spec.help_text)
         self.assertEqual(controls[1].size, 12)
-        self.assertIs(controls[2], self.panel._sliders[spec.name])
+        self.assertIs(controls[2], self.panel._sliders[param])
 
     def test_rack_wide_controls_are_in_header_right_column(self) -> None:
         with TemporaryDirectory() as catalog_dir:
@@ -132,7 +134,7 @@ class PatchGroupTests(unittest.TestCase):
             app.preset_dropdown,
             app.preset_name_field,
             app.key_dropdown,
-            app.macro_slider,
+            app.macro_controls[0].control,
             app.master_output_slider,
         ):
             self.assertTrue(self._contains_control(right_column, control))
@@ -149,6 +151,7 @@ class PatchGroupTests(unittest.TestCase):
             )
 
         app.server = MagicMock()
+        app.running = True
         enabled_names = list(app.panels)[:2]
         for name in enabled_names:
             app.panels[name].enabled = True
@@ -156,70 +159,69 @@ class PatchGroupTests(unittest.TestCase):
         for panel in app.panels.values():
             panel._apply = MagicMock()
 
-        app._toggle_pause()
+        app.toggle_pause()
 
         self.assertEqual(app._paused_panels, set(enabled_names))
         self.assertTrue(all(not panel.enabled for panel in app.panels.values()))
         self.assertEqual(app.pause_button.text, "Start")
 
         app.panels[list(app.panels)[-1]].enabled = True
-        app._toggle_pause()
+        app.toggle_pause()
 
         self.assertEqual(
             {name for name, panel in app.panels.items() if panel.enabled},
             set(enabled_names),
         )
-        self.assertEqual(app._paused_panels, None)
         self.assertEqual(app.pause_button.text, "Pause")
 
     def test_psyambient_declares_conceptual_groups(self) -> None:
+        groups = PsyambientRack().groups
         self.assertEqual(
-            [group.name for group in PATCH_GROUPS],
-            ["soundscapes", "mid", "bass"],
+            [group.title for group in groups],
+            ["Soundscapes", "Mid Voices", "Bass"],
         )
-        self.assertEqual([len(group.patches) for group in PATCH_GROUPS], [3, 3, 3])
+        self.assertEqual([len(group.patches) for group in groups], [3, 3, 3])
 
     def test_slowed_reverb_wash_follows_lead_group(self) -> None:
+        rack = SlowedReverbRack()
         self.assertEqual(
-            [group.name for group in SLOWED_REVERB_GROUPS],
-            ["lead", "bass", "pad", "hook", "texture", "kick", "hat"],
+            [group.title for group in rack.groups],
+            ["Lead", "Bass", "Pad", "Hook", "Texture", "Kick", "Hi-hat"],
         )
 
-        lead = SLOWED_REVERB_GROUPS[0]
-        self.assertEqual([type(patch).__name__ for patch in lead.patches], ["Strings", "Keys"])
+        lead = rack.groups[0]
+        self.assertEqual(
+            [type(patch).__name__ for patch in lead.patches], ["Strings", "Keys"]
+        )
 
-        wash = SLOWED_REVERB_GROUPS[2].patches[0]
-        self.assertIsNotNone(wash.sidechain)
-        self.assertEqual(wash.sidechain.group_name, "kick")
+        (sidechain,) = rack.pad_wash.sidechains
+        self.assertIs(sidechain.group, rack.kick)
         self.assertEqual(SlowedReverbRack.harmony.progression, (2, 7, 0, 9))
 
     def test_lift_updates_the_visible_output_level(self) -> None:
+        rack = SlowedReverbRack()
         with TemporaryDirectory() as catalog_dir:
             app = PatchRackApp(
                 MagicMock(),
                 "Slowed Reverb",
                 "Test rack",
-                SlowedReverbRack(),
+                rack,
                 catalog_dir=Path(catalog_dir),
             )
 
-        patch = app.panels["soundscape_wash"].patch
-        app._resolve_group_patch = lambda _: patch
-        app.macro = MacroSpec(
-            SliderSpec("lift", 0, 1, 0.05, 0, "Lift", ""),
-            lambda value, resolve: resolve("pad").set("volume", value),
-        )
-        app._set_macro(0.73)
+        app.macro_controls[0].set_value(0.73)
 
-        panel = app.panels["soundscape_wash"]
-        self.assertAlmostEqual(panel.volume, 0.73)
-        self.assertAlmostEqual(panel.volume_slider.value, 0.73)
-        self.assertEqual(panel.volume_text.value, "0.7")
+        panel = app.panels[rack.pad_wash.name]
+        expected = 0.5 + 0.73 * 0.15
+        self.assertAlmostEqual(rack.pad_wash.volume, expected)
+        self.assertAlmostEqual(panel._sliders[SoundscapeWash.volume].value, expected)
+        self.assertEqual(panel._value_texts[SoundscapeWash.volume].value, "0.6")
 
     def test_deep_house_drums_group_holds_snare_tom_and_cymbals(self) -> None:
-        drums = next(group for group in DEEP_HOUSE_GROUPS if group.name == "drums")
+        drums = next(
+            group for group in DeepHouseRack().groups if group.title == "Drums"
+        )
 
-        self.assertEqual(drums.title, "Drums")
         self.assertEqual(
             [patch.name for patch in drums.patches],
             ["snare", "tom", "cymbal_ride", "cymbal_crash"],

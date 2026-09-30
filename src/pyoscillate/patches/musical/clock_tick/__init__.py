@@ -15,10 +15,9 @@ from pyo.lib.generators import Noise
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import SequencerGroup
 from pyoscillate.patches.params import Param
-from pyoscillate.tempo import Tempo
 
 OVERALL_LEVEL = 0.5  # background texture, not a groove element - keep it low in the mix
 
@@ -32,8 +31,7 @@ class ClockTick(Patch):
 
     title = "Clock tick"
     summary = "Drifting clockwork texture of overlapping ticks."
-    volume_default = 1.0
-    needs_tempo: ClassVar[bool] = True
+    volume = Patch.volume.replace(default=1.0)
 
     # same short, tight click shape used by the other hats - a tick, not a hiss
     ENVELOPE_POINTS: ClassVar[list[tuple[int, float]]] = [(0, 0), (20, 1), (400, 0)]
@@ -127,8 +125,8 @@ class ClockTick(Patch):
         self._bind()
         return self
 
-    def build(self, tempo: Tempo) -> Patch:
-        del tempo  # deliberately free-running, not tied to the tempo grid
+    def build(self, context: BuildContext) -> Patch:
+        del context  # deliberately free-running, not tied to the tempo grid
         self._reset()
 
         self.tick_envelope = CosTable(self.ENVELOPE_POINTS)
@@ -136,35 +134,54 @@ class ClockTick(Patch):
         self.bright_metro = Metro(time=self.BRIGHT_PERIOD)
         self.bright_noise = Noise(mul=self.BRIGHT_LEVEL)
         self.bright_env = TrigEnv(
-            self.bright_metro, table=self.tick_envelope, dur=self.BRIGHT_DUR, mul=self.bright_noise
+            self.bright_metro,
+            table=self.tick_envelope,
+            dur=self.BRIGHT_DUR,
+            mul=self.bright_noise,
         )
         self.bright_voice = ButHP(self.bright_env, freq=self.BRIGHT_FREQ)
 
         self.wood_metro = Metro(time=self.WOOD_PERIOD)
         self.wood_noise = Noise(mul=self.WOOD_LEVEL)
         self.wood_env = TrigEnv(
-            self.wood_metro, table=self.tick_envelope, dur=self.WOOD_DUR, mul=self.wood_noise
+            self.wood_metro,
+            table=self.tick_envelope,
+            dur=self.WOOD_DUR,
+            mul=self.wood_noise,
         )
         self.wood_voice = ButBP(self.wood_env, freq=self.WOOD_FREQ)
 
         self.deep_metro = Metro(time=self.DEEP_PERIOD)
         self.deep_noise = Noise(mul=self.DEEP_LEVEL)
         self.deep_env = TrigEnv(
-            self.deep_metro, table=self.tick_envelope, dur=self.DEEP_DUR, mul=self.deep_noise
+            self.deep_metro,
+            table=self.tick_envelope,
+            dur=self.DEEP_DUR,
+            mul=self.deep_noise,
         )
         self.deep_voice = ButLP(self.deep_env, freq=self.DEEP_FREQ)
 
         self.glass_metro = Metro(time=self.GLASS_PERIOD)
         self.glass_noise = Noise(mul=self.GLASS_LEVEL)
         self.glass_env = TrigEnv(
-            self.glass_metro, table=self.tick_envelope, dur=self.GLASS_DUR, mul=self.glass_noise
+            self.glass_metro,
+            table=self.tick_envelope,
+            dur=self.GLASS_DUR,
+            mul=self.glass_noise,
         )
         self.glass_voice = ButBP(self.glass_env, freq=self.GLASS_FREQ)
 
-        self.source = self.bright_voice + self.wood_voice + self.deep_voice + self.glass_voice
+        self.source = (
+            self.bright_voice + self.wood_voice + self.deep_voice + self.glass_voice
+        )
         self.mix = self.source * 1.0
 
         self.sequencer = SequencerGroup(
-            sequencers=(self.bright_metro, self.wood_metro, self.deep_metro, self.glass_metro)
+            sequencers=(
+                self.bright_metro,
+                self.wood_metro,
+                self.deep_metro,
+                self.glass_metro,
+            )
         )
         return self.finish(self.mix)

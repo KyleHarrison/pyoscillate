@@ -22,7 +22,6 @@ that is genuinely different behavior, not just different profile data
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -32,11 +31,10 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 STYLES = ("chime", "fm")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -92,13 +90,14 @@ class Bell(Patch):
     `set_strike()` and `set_ring()`; the pattern stepping and voice rotation
     are identical."""
 
-    volume_default = 0.35
+    volume = Patch.volume.replace(default=0.35)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    needs_tempo: ClassVar[bool] = True
-    needs_clock: ClassVar[bool] = True
 
     triggers: list[Trig]
     voice_signal: PyoObject
+    _clock: Clock
+    _pattern_step: int
+    _voice_slot: int
 
     root_freq = Param(
         notes.A3,
@@ -142,11 +141,15 @@ class Bell(Patch):
         self.triggers = [Trig().stop() for _ in range(VOICES)]
         self.retain(*self.triggers)
 
-    def voice_graph(self) -> tuple[PyoObject, Callable[[int, float], None]]:
+    def voice_graph(self) -> PyoObject:
         """This style's resonance graph, built from `self.triggers` and
-        assigned to `self`: the summed voice plus a `tune(slot, freq)`
-        callback the shared pattern stepper calls on each hit. Overridden per
+        assigned to `self`, returned as the summed voice. Overridden per
         style."""
+        raise NotImplementedError
+
+    def tune(self, slot: int, freq: float) -> None:
+        """Retune voice `slot` to `freq`; the shared pattern stepper calls
+        this on each hit. Overridden per style."""
         raise NotImplementedError
 
     def set_strike(self, value: float) -> None:
@@ -157,27 +160,27 @@ class Bell(Patch):
         """This style's Ring control. Overridden per style."""
         raise NotImplementedError
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self._clock = clock
+        self._clock = context.clock
+        self._pattern_step = 0
+        self._voice_slot = 0
 
-        self.voice_signal, tune = self.voice_graph()
+        self.voice_signal = self.voice_graph()
 
-        state = {"step": 0, "voice": 0}
-
-        def next_step() -> None:
-            semitones = PATTERN.get(state["step"] % PATTERN_STEPS)
-            if semitones is not None:
-                slot = state["voice"]
-                tune(slot, self.root_freq * 2 ** (semitones / 12))
-                self.triggers[slot].play()
-                state["voice"] = (slot + 1) % VOICES
-            state["step"] += 1
-
-        self.sequencer = clock.subscribe(
-            clock.ticks_for_rate(self.base_division, self.rate), next_step
+        self.sequencer = context.clock.subscribe(
+            context.clock.ticks_for_rate(self.base_division, self.rate), self.next_step
         )
         return self.finish(self.voice_signal)
+
+    def next_step(self) -> None:
+        index = self._pattern_step % PATTERN_STEPS
+        if index in PATTERN:
+            slot = self._voice_slot
+            self.tune(slot, self.root_freq * 2 ** (PATTERN[index] / 12))
+            self.triggers[slot].play()
+            self._voice_slot = (slot + 1) % VOICES
+        self._pattern_step += 1
 
     def reschedule(self, rate: float) -> None:
         """Live `rate` control: re-space the scheduled division."""
@@ -195,19 +198,22 @@ class BellChime(Bell):
     title = "Bell - Chime"
 
     bank: ComplexRes
+    _freqs: list[float]
 
-    def voice_graph(self) -> tuple[PyoObject, Callable[[int, float], None]]:
+    def voice_graph(self) -> PyoObject:
         excitation = [trigger for trigger in self.triggers for _ in PARTIALS]
-        self._freqs = [self.root_freq * ratio for _ in range(VOICES) for ratio in PARTIALS]
+        self._freqs = [
+            self.root_freq * ratio for _ in range(VOICES) for ratio in PARTIALS
+        ]
         self.bank = ComplexRes(excitation, freq=self._freqs)
-        voice = self.bank.mix(1)
+        return self.bank.mix(1)
 
-        def tune(slot: int, freq: float) -> None:
-            start = slot * len(PARTIALS)
-            self._freqs[start : start + len(PARTIALS)] = [freq * ratio for ratio in PARTIALS]
-            self.bank.freq = self._freqs
-
-        return voice, tune
+    def tune(self, slot: int, freq: float) -> None:
+        start = slot * len(PARTIALS)
+        self._freqs[start : start + len(PARTIALS)] = [
+            freq * ratio for ratio in PARTIALS
+        ]
+        self.bank.freq = self._freqs
 
     def set_strike(self, value: float) -> None:
         self.bank.mul = _chime_gains(value) * VOICES
@@ -226,21 +232,22 @@ class BellFm(Bell):
     amp: TrigEnv
     index: TrigEnv
     bell: FM
+    _carriers: list[float]
 
-    def voice_graph(self) -> tuple[PyoObject, Callable[[int, float], None]]:
+    def voice_graph(self) -> PyoObject:
         self.amp_table = LinTable(decay_points())
         self.index_table = LinTable(decay_points(RING_CURVE * INDEX_SPEED))
         self.amp = TrigEnv(self.triggers, self.amp_table, mul=FM_GAIN)
         self.index = TrigEnv(self.triggers, self.index_table)
         self._carriers = [self.root_freq] * VOICES
-        self.bell = FM(carrier=self._carriers, ratio=FM_RATIO, index=self.index, mul=self.amp)
-        voice = self.bell.mix(1)
+        self.bell = FM(
+            carrier=self._carriers, ratio=FM_RATIO, index=self.index, mul=self.amp
+        )
+        return self.bell.mix(1)
 
-        def tune(slot: int, freq: float) -> None:
-            self._carriers[slot] = freq
-            self.bell.carrier = self._carriers
-
-        return voice, tune
+    def tune(self, slot: int, freq: float) -> None:
+        self._carriers[slot] = freq
+        self.bell.carrier = self._carriers
 
     def set_strike(self, value: float) -> None:
         self.index.mul = _peak_index(value)

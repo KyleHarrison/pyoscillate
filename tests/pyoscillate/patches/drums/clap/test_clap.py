@@ -31,7 +31,7 @@ Status:
 2. The top of the Presence range is hard-clipped
 ------------------------------------------------
 Error:
-    At the default volume (VOLUME_DEFAULT 0.28), Presence above
+    At the default volume (`Clap.volume` default 0.28), Presence above
     ~0.4 drives the burst into the `PATCH_OUTPUT_CEILING` (0.18) clip. At the
     slider's maximum (0.6), the transient is flattened for ~2 ms per hit.
     The loudest case is the brightest Brightness (4000).
@@ -53,7 +53,7 @@ Corrected along the way
 -----------------------
 An early render reported the *default* clap as clipped. That was an
 artefact of rendering at `Patch.volume` 1.0 instead of the default
-VOLUME_DEFAULT. `render()` now defaults to the module's VOLUME_DEFAULT, so
+`Clap.volume` (0.28). `render()` now defaults to the patch's volume default, so
 tests hear what the listener hears.
 
 At that quieter volume the measurement layer had its own bug. The start-up
@@ -77,7 +77,6 @@ BPM = 120
 BACKBEATS = (0.5, 1.5)
 ONSET_TOLERANCE = 0.02
 SECONDS = 2.0
-SLIDERS = {spec.name: spec for spec in clap.Clap.parameters}
 
 
 @cache
@@ -116,8 +115,8 @@ class ClapHealthTests(unittest.TestCase):
 
     def test_presence_range_is_clean_at_default_volume(self) -> None:
         loudest = _measure(
-            level=SLIDERS["level"].maximum,
-            tone=SLIDERS["tone"].maximum,
+            level=clap.Clap.level.spec.maximum,
+            tone=clap.Clap.tone.spec.maximum,
         )
 
         self.assertEqual(loudest.clip_fraction, 0.0)
@@ -139,7 +138,7 @@ class ClapControlTests(unittest.TestCase):
         for decay in (0.08, 0.3):
             with self.subTest(decay=decay):
                 measured = _backbeat(_measure(decay=decay)).decay_time
-                expected = _envelope_length(SLIDERS["spread"].default, decay)
+                expected = _envelope_length(clap.Clap.spread.default, decay)
 
                 self.assertGreater(measured, expected * 0.7)
                 self.assertLess(measured, expected * 1.3)
