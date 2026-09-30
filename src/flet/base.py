@@ -25,7 +25,7 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR, Clock
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupRuntime
 from pyoscillate.harmony import NOTE_NAMES, Harmony
 from pyoscillate.patches.base import Patch, PatchRack, start_server
 from pyoscillate.patches.params import SliderSpec
@@ -85,10 +85,12 @@ class PatchPanel:
         rack: PatchRack,
         patch: Patch,
         resolve_group_patch: Callable[[str], Patch | None] | None = None,
+        on_patch_state: Callable[[Patch, bool], None] | None = None,
     ) -> None:
         self.rack = rack
         self.patch = patch
         self._resolve_group_patch = resolve_group_patch
+        self._on_patch_state = on_patch_state
         self.enabled = False
         self.volume = patch.volume_default
         self.build_kwargs: dict[str, Any] = {}
@@ -208,6 +210,8 @@ class PatchPanel:
             self.switch.value = False
             self._built_values = None
             self.rack.stop(self.patch.name)
+            if self._on_patch_state is not None:
+                self._on_patch_state(self.patch, False)
 
     def set_group_enabled(self, enabled: bool) -> None:
         self._group_enabled = enabled
@@ -240,6 +244,8 @@ class PatchPanel:
         name = self.patch.name
         if not self.enabled or not self._engine_ready or not self._group_enabled:
             self.rack.stop(name)
+            if self._on_patch_state is not None:
+                self._on_patch_state(self.patch, False)
             return
 
         running = self.rack.get(name)
@@ -254,6 +260,8 @@ class PatchPanel:
             running = self.patch.build(**self.build_kwargs)
             self._wire_sidechain(running)
             self.rack.start(name, running)
+            if self._on_patch_state is not None:
+                self._on_patch_state(self.patch, True)
         running.set("volume", self.volume)
         self._built_values = {
             key: getattr(self.patch, key) for key in self.patch.rebuild_parameters
@@ -307,7 +315,7 @@ class PatchGroup:
     timer described in `controller.py`, distinct from any patch's own
     parameters."""
 
-    def __init__(self, group_def: GroupController, panels: list[PatchPanel]) -> None:
+    def __init__(self, group_def: GroupRuntime, panels: list[PatchPanel]) -> None:
         self.group_def = group_def
         self.panels = panels
         self.enabled = True
@@ -474,7 +482,7 @@ class EngineSpec:
     master_output_max: float = MASTER_OUTPUT_MAX
     harmony: Harmony | None = None
     macro: MacroSpec | None = None
-    group_controllers: tuple[GroupController, ...] = ()
+    group_controllers: tuple[GroupRuntime, ...] = ()
 
 
 class PatchRackApp:
@@ -496,6 +504,7 @@ class PatchRackApp:
         self.title = title
         self.subtitle = subtitle
         self.engine = engine
+        self.project_rack = rack
         self.server: Server | None = None
         self._paused_panels: set[str] | None = None
         self.tempo: Tempo | None = None
@@ -507,7 +516,12 @@ class PatchRackApp:
         self.preset_store = PresetStore(catalog_dir or Path.cwd() / "presets")
         patches = [patch for group in patch_groups for patch in group.patches]
         self.panels = {
-            patch.name: PatchPanel(self.rack, patch, resolve_group_patch=self._resolve_group_patch)
+            patch.name: PatchPanel(
+                self.rack,
+                patch,
+                resolve_group_patch=self._resolve_group_patch,
+                on_patch_state=rack.set_active_patch,
+            )
             for patch in patches
         }
         if len(self.panels) != len(patches):
@@ -782,7 +796,7 @@ class PatchRackApp:
             return
         self.macro_slider.value = value
         self.macro_text.value = self.macro.slider.format(value)
-        self.macro.apply(value, self._resolve_group_patch)
+        self.project_rack.apply_macro(value)
         for panel in self.panels.values():
             panel.volume = panel.patch.volume
             panel.volume_slider.value = panel.volume
@@ -815,7 +829,7 @@ class PatchRackApp:
                     self.clock = Clock(self.tempo, ticks_per_bar=self.engine.ticks_per_bar)
                     self.clock.start()
                     for controller in self.group_controllers:
-                        controller.start(self.clock, self._resolve_group_patch)
+                        controller.start(self.clock)
 
             for panel in self.panels.values():
                 kwargs: dict[str, Any] = {}

@@ -21,24 +21,21 @@ class PsyambientRack(Rack):
     bpm = 70
     needs_clock = True
 
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController(
-                "soundscapes",
-                "Soundscapes",
-                (SoundscapeFm(), SoundscapeFilter(), SoundscapeWash()),
-                "Choose and combine evolving atmospheric beds.",
-            ),
-            GroupController(
-                "mid",
-                "Mid Voices",
-                (Arp(), Generative(), Canon()),
-                "Melodic movement in the center of the arrangement.",
-            ),
-            GroupController(
-                "bass",
-                "Bass",
-                (BassDrone(), BassChaos(), BassRumble()),
-                "Low-frequency foundations and textures.",
-            ),
-        )
+    soundscapes = GroupController(
+        "soundscapes",
+        "Soundscapes",
+        (SoundscapeFm, SoundscapeFilter, SoundscapeWash),
+        "Choose and combine evolving atmospheric beds.",
+    )
+    mid = GroupController(
+        "mid",
+        "Mid Voices",
+        (Arp, Generative, Canon),
+        "Melodic movement in the center of the arrangement.",
+    )
+    bass = GroupController(
+        "bass",
+        "Bass",
+        (BassDrone, BassChaos, BassRumble),
+        "Low-frequency foundations and textures.",
+    )

@@ -22,7 +22,7 @@ from pathlib import Path
 from types import ModuleType
 
 import flet as ft
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupRuntime
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.base import Rack
@@ -42,9 +42,8 @@ class SinglePatchRack(Rack):
         self.bpm = BPM if needs_tempo else None
         self.needs_clock = patch.needs_clock
         self.harmony = Harmony() if patch.needs_harmony else None
-
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (GroupController(self.patch.name, self.patch.title, (self.patch,)),)
+        self._groups = (GroupRuntime(self.patch.name, self.patch.title, (self.patch,)),)
+        self._group_bindings = ()
 
 
 def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:

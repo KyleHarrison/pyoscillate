@@ -6,10 +6,10 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import flet as ft
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupRuntime
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import SliderSpec
-from pyoscillate.projects.base import MacroSpec
+from pyoscillate.projects.base import MacroControl, MacroSpec, MacroTarget
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
@@ -50,7 +50,7 @@ class PatchGroupTests(unittest.TestCase):
         self.rack = MagicMock()
         self.rack.get.return_value = None
         self.panel = PatchPanel(self.rack, self.voice)
-        self.group = PatchGroup(GroupController("test", "Test Group", (self.voice,)), [self.panel])
+        self.group = PatchGroup(GroupRuntime("test", "Test Group", (self.voice,)), [self.panel])
         self.panel.set_engine_ready(True)
         self.group.set_engine_ready(True)
         self.panel.enabled = True
@@ -204,11 +204,12 @@ class PatchGroupTests(unittest.TestCase):
             )
 
         patch = app.panels["soundscape_wash"].patch
-        app._resolve_group_patch = lambda _: patch
-        app.macro = MacroSpec(
+        app.project_rack.pad.active_patch = patch
+        app.project_rack.macro = MacroSpec(
             SliderSpec("lift", 0, 1, 0.05, 0, "Lift", ""),
-            lambda value, resolve: resolve("pad").set("volume", value),
+            (MacroTarget(SlowedReverbRack.pad, (MacroControl("volume", 0, 1),)),),
         )
+        app.macro = app.project_rack.macro
         app._set_macro(0.73)
 
         panel = app.panels["soundscape_wash"]

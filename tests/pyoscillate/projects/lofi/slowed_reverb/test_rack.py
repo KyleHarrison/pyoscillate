@@ -125,33 +125,16 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         rack = SlowedReverbRack()
         patches = {patch.name: patch for group in rack.groups for patch in group.patches}
 
-        rack.macro.apply(
-            0,
-            lambda group_name: next(
-                (
-                    patches[patch.name]
-                    for group in rack.groups
-                    if group.name == group_name
-                    for patch in group.patches
-                ),
-            ),
-        )
+        rack.pad.active_patch = patches["soundscape_wash"]
+        rack.hook.active_patch = patches["pluck_hook"]
+        rack.lead.active_patch = patches["strings"]
+        rack.apply_macro(0)
         self.assertEqual(patches["soundscape_wash"].chorus_depth, 2.1)
         self.assertEqual(patches["pluck_hook"].brightness, 2.4)
         self.assertEqual(patches["soundscape_wash"].volume, 0.5)
         self.assertEqual(patches["pluck_hook"].volume, 0.4)
 
-        rack.macro.apply(
-            1,
-            lambda group_name: next(
-                (
-                    patches[patch.name]
-                    for group in rack.groups
-                    if group.name == group_name
-                    for patch in group.patches
-                ),
-            ),
-        )
+        rack.apply_macro(1)
         self.assertEqual(patches["soundscape_wash"].chorus_depth, 5)
         self.assertEqual(patches["pluck_hook"].brightness, 5)
 

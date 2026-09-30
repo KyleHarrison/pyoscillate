@@ -33,7 +33,8 @@ the scope and ownership rules below.
 - Reuse existing abstractions and follow the nearest nested instructions
   before creating a new module, family, or pattern.
 - Keep rack modules declarative: subclass `Rack`, configure it with class
-  attributes, and compose existing patch instances in `build_groups()`.
+  attributes, declare each group as a `GroupController` class attribute, and
+  let `Rack` bind fresh `GroupRuntime` instances.
 - Follow the patch lifecycle, graph ownership, parameter, and timing rules in
   [`patches/AGENTS.md`](patches/AGENTS.md); never create or mutate Pyo graph
   nodes outside the lifecycle they specify.
