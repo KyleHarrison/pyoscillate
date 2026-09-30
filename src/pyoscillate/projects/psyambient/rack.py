@@ -1,6 +1,6 @@
 """Patch definitions for the free-running psyambient rack."""
 
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.musical.arp.arp import Arp
 from pyoscillate.patches.musical.canon.canon import Canon
 from pyoscillate.patches.musical.generative.generative import Generative
@@ -20,21 +20,18 @@ class PsyambientRack(Rack):
     # sharing one hardcoded in app.py
     bpm = 70
 
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController(
-                "Soundscapes",
-                (SoundscapeFm(), SoundscapeFilter(), SoundscapeWash()),
-                "Choose and combine evolving atmospheric beds.",
-            ),
-            GroupController(
-                "Mid Voices",
-                (Arp(), Generative(), Canon()),
-                "Melodic movement in the center of the arrangement.",
-            ),
-            GroupController(
-                "Bass",
-                (BassDrone(), BassChaos(), BassRumble()),
-                "Low-frequency foundations and textures.",
-            ),
-        )
+    soundscapes_group = GroupController(
+        "Soundscapes",
+        (Slot(SoundscapeFm), Slot(SoundscapeFilter), Slot(SoundscapeWash)),
+        "Choose and combine evolving atmospheric beds.",
+    )
+    mid_group = GroupController(
+        "Mid Voices",
+        (Slot(Arp), Slot(Generative), Slot(Canon)),
+        "Melodic movement in the center of the arrangement.",
+    )
+    bass_group = GroupController(
+        "Bass",
+        (Slot(BassDrone), Slot(BassChaos), Slot(BassRumble)),
+        "Low-frequency foundations and textures.",
+    )

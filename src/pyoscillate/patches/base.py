@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol
+from typing import Any, ClassVar, Protocol
 
 from pyo import PyoObject
 from pyo.lib._core import PyoObjectBase, PyoPVObject
@@ -15,9 +15,6 @@ from pyoscillate.clock import Clock
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
-
-if TYPE_CHECKING:
-    from pyoscillate.controller import GroupController
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
@@ -68,15 +65,19 @@ class BuildContext:
     harmony: Harmony
 
 
-@dataclass(frozen=True)
-class SidechainSource:
-    """Ducks a patch's output off another rack group's currently playing
-    voice signal - e.g. a kick ducking the bass on every hit.
+class PlayingGroup(Protocol):
+    """A rack group at runtime: knows which of its patches are playing."""
 
-    `group` is the `GroupController` object itself, not a fixed patch
-    instance, so the duck always follows whichever patches are currently
-    playing in that group (a kick style switch doesn't silently un-wire the
-    duck).
+    def playing_patches(self) -> tuple[Patch, ...]: ...
+
+
+@dataclass(frozen=True)
+class Sidechain:
+    """Ducks a patch's output off another rack group's currently playing
+    voice signal - e.g. a kick ducking the bass on every hit. A rack declares
+    these with `SidechainSource` and binds them to its own runtime groups, so
+    the duck follows whichever patches are playing in that group (a kick style
+    switch doesn't silently un-wire it).
 
     The connection is made when the ducked patch starts: a source group with
     nothing playing then leaves the patch unducked. Turning the source on
@@ -84,9 +85,9 @@ class SidechainSource:
     the ducked patch again to pick it up.
     """
 
-    group: GroupController
-    depth: float = 0.6
-    release: float = 0.15
+    group: PlayingGroup
+    depth: float
+    release: float
 
 
 class Patch(ABC):
@@ -174,19 +175,14 @@ class Patch(ABC):
             words.append(current)
         return " - ".join(words)
 
-    def __init__(
-        self,
-        *,
-        sidechains: tuple[SidechainSource, ...] = (),
-        **values: float,
-    ) -> None:
+    def __init__(self, **values: float) -> None:
         """Seed every `Param` from its default, overridden by the matching
         keyword in `values` (so two instances of one class hold independent
         settings). Fresh build/lifecycle state is set up; no control runs and
         no Pyo object is created until `build()`."""
         self.resources: list[Any] = []
         self.live_signals: dict[Param, SigTo] = {}
-        self.sidechains = sidechains
+        self.sidechains: tuple[Sidechain, ...] = ()
         self._built = False
         self._playing = False
         self._retired: tuple[Any, ...] = ()
@@ -271,7 +267,7 @@ class Patch(ABC):
 
     def _duck(self) -> None:
         """Duck this patch's voice off each declared sidechain group's
-        currently playing patches (see `SidechainSource`)."""
+        currently playing patches (see `Sidechain`)."""
         for sidechain in self.sidechains:
             for source in sidechain.group.playing_patches():
                 follower = Follower2(source.voice, falltime=sidechain.release)

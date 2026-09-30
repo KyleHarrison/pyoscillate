@@ -144,12 +144,12 @@ The operational rule is simple: sound archetypes describe construction; musical 
 ## Patch contract
 
 A module defines one family class (a `Patch` subclass, usually via a
-directory-level base) plus one small subclass per style. A project rack lists
-instances directly in its `GroupController`s. `name`/`title`/`summary` are
+directory-level base) plus one small subclass per style. A project rack declares
+it as a `Slot` in a `GroupController`. `name`/`title`/`summary` are
 plain class attributes, derived in `__init_subclass__` from the class name and
 docstring unless the class body assigns its own. The constructor takes only
-`Param` values (`Kick(punch=1.2, volume=1.6)`; an unknown key is a `TypeError`)
-and `sidechains: tuple[SidechainSource, ...] = ()` - there are no `name=`/
+`Param` values (`Kick(punch=1.2, volume=1.6)`; an unknown key is a `TypeError`);
+sidechains are bound by the rack - there are no `name=`/
 `title=`/`summary=`/`volume=` arguments, so a different title means a subclass.
 
 ### Bases

@@ -21,7 +21,7 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import Clock
-from pyoscillate.controller import EvolvingGroup, GroupController
+from pyoscillate.controller import EvolvingRuntime, GroupRuntime
 from pyoscillate.harmony import NOTE_NAMES
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param
@@ -251,11 +251,11 @@ GROUP_CONTROLLER_REPEAT_MAX = 16
 
 class PatchGroup:
     """Titled group control that gates a row of related patch panels, plus
-    (for an `EvolvingGroup`) the live sliders for its own interval/repeat -
+    (for an `EvolvingRuntime`) the live sliders for its own interval/repeat -
     the group-level evolution timer described in `controller.py`, distinct
     from any patch's own parameters."""
 
-    def __init__(self, group_def: GroupController, panels: list[PatchPanel]) -> None:
+    def __init__(self, group_def: GroupRuntime, panels: list[PatchPanel]) -> None:
         self.group_def = group_def
         self.panels = panels
         self.enabled = True
@@ -286,7 +286,7 @@ class PatchGroup:
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
 
-    def _evolution_rows(self, group: EvolvingGroup) -> list[ft.Container]:
+    def _evolution_rows(self, group: EvolvingRuntime) -> list[ft.Container]:
         bars_text = ft.Text(
             f"{group.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
         )
@@ -327,7 +327,7 @@ class PatchGroup:
         ]
 
     def _handle_bars(
-        self, group: EvolvingGroup, text: ft.Text, e: ft.ControlEvent
+        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
     ) -> None:
         value = round(float(e.control.value))
         group.set_bars(value)
@@ -335,7 +335,7 @@ class PatchGroup:
         e.page.update()
 
     def _handle_repeat(
-        self, group: EvolvingGroup, text: ft.Text, e: ft.ControlEvent
+        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
     ) -> None:
         value = round(float(e.control.value))
         group.set_repeat(value)
@@ -345,7 +345,7 @@ class PatchGroup:
     def _build_control(self) -> ft.Control:
         controller_rows = (
             self._evolution_rows(self.group_def)
-            if isinstance(self.group_def, EvolvingGroup)
+            if isinstance(self.group_def, EvolvingRuntime)
             else []
         )
 
@@ -408,7 +408,7 @@ class PatchGroup:
         e.page.update()
 
 
-class MacroControl:
+class MacroSlider:
     """A rack `Macro`'s slider and value readout."""
 
     def __init__(self, rack: Rack, macro: Macro, app: PatchRackApp) -> None:
@@ -537,7 +537,7 @@ class PatchRackApp:
             width=140,
             on_select=self._handle_key,
         )
-        self.macro_controls = [MacroControl(rack, macro, self) for macro in rack.macros]
+        self.macro_sliders = [MacroSlider(rack, macro, self) for macro in rack.macros]
 
         self._configure_page()
         self._build_view()
@@ -583,7 +583,7 @@ class PatchRackApp:
             ),
         ]
         level_controls: list[ft.Control] = [
-            macro.control for macro in self.macro_controls
+            macro.control for macro in self.macro_sliders
         ]
         level_controls.append(
             ft.Container(
@@ -790,7 +790,7 @@ class PatchRackApp:
         if rack_values.get("key") in NOTE_NAMES:
             self._set_key(NOTE_NAMES.index(rack_values["key"]))
         macro_values = rack_values.get("macros", {})
-        for control in self.macro_controls:
+        for control in self.macro_sliders:
             if control.macro.slider.name in macro_values:
                 control.set_value(float(macro_values[control.macro.slider.name]))
         for patch_name, panel in self.panels.items():
@@ -809,7 +809,7 @@ class PatchRackApp:
             "key": NOTE_NAMES[self.rack.harmony.key],
             "macros": {
                 control.macro.slider.name: control.slider.value
-                for control in self.macro_controls
+                for control in self.macro_sliders
             },
         }
         self.preset_store.save(name, values)

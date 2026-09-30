@@ -1,10 +1,8 @@
 """Patch definitions for the dark, slowed-and-reverbed lofi rack."""
 
-from __future__ import annotations
-
-from pyoscillate.controller import EvolvingGroup, GroupController
+from pyoscillate.controller import EvolvingGroup, GroupController, SidechainSource, Slot
 from pyoscillate.harmony import C, Harmony
-from pyoscillate.patches.base import SidechainSource
+from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.params import SliderSpec
@@ -15,7 +13,7 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.projects.base import Macro, Rack
+from pyoscillate.projects.base import Macro, MacroControl, MacroTarget, Rack
 
 
 class SlowedReverbRack(Rack):
@@ -30,42 +28,121 @@ class SlowedReverbRack(Rack):
     # Its white-note pitch collection also preserves the rack's E-Phrygian
     # colour, while E remains a common tone for the wash underneath it.
     harmony = Harmony(key=C, progression=(2, 7, 0, 9), bars_per_chord=1)
-    # The bass hovers on E and the pad holds a static register; neither
-    # follows the rack's chord progression (see README.md's shared-harmony note).
-    ROOT_NOTE = notes.E1
 
-    lead_strings: strings.Strings
-    lead_keys: keys.Keys
-    bass_hover: bass.BassHover
-    pad_wash: wash.SoundscapeWash
-    hook: pluck.PluckHook
-    kick: GroupController
+    # The kick is declared first so the pad can duck off it; `layout` below
+    # sets the display order.
+    kick_lofi = Slot(
+        kick.KickLofi,
+        level=0.4,
+        drive=0.2,
+        punch=0.8,
+        length=0.8,
+        click=0.5,
+        rate=-1,
+        volume=0.3,
+    )
+    kick_group = EvolvingGroup("Kick", (kick_lofi,), bars=8)
 
-    @staticmethod
-    def _lifted(spec: SliderSpec, starting_value: float, lift: float) -> float:
-        return starting_value + lift * (spec.maximum - starting_value)
+    lead_strings = Slot(
+        strings.Strings,
+        root_freq=174.61411571650194,
+        brightness=3900,
+        attack=2.15,
+        release=2.9,
+        spread=0.2,
+        shimmer=0.8,
+        colour=0.9,
+        volume=0.7,
+    )
+    lead_keys = Slot(
+        keys.Keys,
+        root_freq=164.81377845643496,
+        bark=5.0,
+        bite=0.3,
+        decay=3.1,
+        tremolo=0.85,
+        wobble=0.6,
+        volume=1.5,
+    )
+    # the bass hovers on E and the pad holds a static register; neither
+    # follows the rack's chord progression (see README.md's shared-harmony note)
+    bass_hover = Slot(
+        bass.BassHover,
+        root_freq=notes.E1,
+        cutoff=770,
+        reverb_size=0.85,
+        reverb_damp=0.85,
+        reverb_bal=0.85,
+        breath=0.5,
+        rate=-1,
+        volume=1.6,
+    )
+    pad_wash = Slot(
+        wash.SoundscapeWash,
+        sidechains=(SidechainSource(kick_group, depth=0.15, release=0.3),),
+        root_freq=notes.E2,
+        detune=0.45,
+        detune_bal=0.1,
+        pitch_drift=0.8,
+        chorus_depth=2.1,
+        chorus_feedback=0.8,
+        chorus_bal=0.75,
+        reverb_size=0.25,
+        reverb_damp=0.15,
+        reverb_bal=0.75,
+        delay_time=1.0,
+        delay_feedback=0.7,
+        volume=0.5,
+    )
+    hook_pluck = Slot(pluck.PluckHook, root_freq=notes.E3, rate=-1, volume=0.4)
+    texture_dust = Slot(
+        noise.NoiseDust,
+        brightness=1200,
+        colour=1.7,
+        motion=0.3,
+        depth=0.75,
+        level=0.35,
+        volume=0.3,
+    )
+    hat_lofi = Slot(
+        hat.GrooveLofi,
+        level=0.06,
+        cutoff=3500,
+        metal=0.1,
+        length=0.75,
+        rate=-1,
+        volume=0.12,
+    )
 
-    def _apply_lift(self, value: float) -> None:
-        self.pad_wash.chorus_depth = self._lifted(
-            wash.SoundscapeWash.chorus_depth.spec, 2.1, value
-        )
-        self.pad_wash.volume = 0.5 + value * 0.15
-
-        self.hook.brightness = self._lifted(pluck.PluckHook.brightness.spec, 2.4, value)
-        self.hook.volume = 0.4 + value * 0.15
-
-        # the two lead styles are assigned separately: each keeps its own
-        # staged values and volume, whichever one is playing
-        self.lead_strings.brightness = self._lifted(
-            strings.Strings.brightness.spec, 3900, value
-        )
-        self.lead_strings.shimmer = self._lifted(
-            strings.Strings.shimmer.spec, 0.8, value
-        )
-        self.lead_strings.volume = 0.7 + value * 0.2
-        self.lead_keys.bark = self._lifted(keys.Keys.bark.spec, 5.0, value)
-        self.lead_keys.tremolo = self._lifted(keys.Keys.tremolo.spec, 0.85, value)
-        self.lead_keys.volume = 1.5 + value * 0.2
+    lead_group = EvolvingGroup(
+        "Lead",
+        (lead_strings, lead_keys),
+        "Choose strings or keys to give the wash harmony and pulse.",
+        bars=8,
+    )
+    # foreground: carries ~87% of the reference's RMS - see
+    # `bass.hover.BassHover`'s own long reverb tail and breathing swell, which
+    # is this rack's main "dark, reverberant" carrier
+    bass_group = GroupController("Bass", (bass_hover,))
+    # a static, dark reverberant pad bed under the bass - reused unmodified
+    # from `tonal/drone`'s existing wash style, just re-tuned dark and distant
+    # (see README.md's mapping table)
+    pad_group = EvolvingGroup("Pad", (pad_wash,), bars=16)
+    hook_group = EvolvingGroup("Hook", (hook_pluck,), bars=8)
+    # quiet, dusty texture bed - reused unmodified from the `boom_bap`
+    # sibling's own atmosphere layer, darkened further to match this brief's
+    # ~850 Hz mix-wide rolloff
+    texture_group = GroupController("Texture", (texture_dust,))
+    hat_group = EvolvingGroup("Hi-hat", (hat_lofi,), bars=8)
+    layout = (
+        lead_group,
+        bass_group,
+        pad_group,
+        hook_group,
+        texture_group,
+        kick_group,
+        hat_group,
+    )
 
     macros = (
         Macro(
@@ -78,119 +155,55 @@ class SlowedReverbRack(Rack):
                 "Lift",
                 "Gradually opens the chorus, upper hook and lead presence for a section arrival.",
             ),
-            _apply_lift,
+            (
+                MacroTarget(
+                    pad_wash,
+                    (
+                        MacroControl(
+                            wash.SoundscapeWash.chorus_depth,
+                            2.1,
+                            wash.SoundscapeWash.chorus_depth.spec.maximum,
+                        ),
+                        MacroControl(Patch.volume, 0.5, 0.65),
+                    ),
+                ),
+                MacroTarget(
+                    hook_pluck,
+                    (
+                        MacroControl(
+                            pluck.PluckHook.brightness,
+                            2.4,
+                            pluck.PluckHook.brightness.spec.maximum,
+                        ),
+                        MacroControl(Patch.volume, 0.4, 0.55),
+                    ),
+                ),
+                MacroTarget(
+                    lead_strings,
+                    (
+                        MacroControl(
+                            strings.Strings.brightness,
+                            3900,
+                            strings.Strings.brightness.spec.maximum,
+                        ),
+                        MacroControl(
+                            strings.Strings.shimmer,
+                            0.8,
+                            strings.Strings.shimmer.spec.maximum,
+                        ),
+                        MacroControl(Patch.volume, 0.7, 0.9),
+                    ),
+                ),
+                MacroTarget(
+                    lead_keys,
+                    (
+                        MacroControl(keys.Keys.bark, 5.0, keys.Keys.bark.spec.maximum),
+                        MacroControl(
+                            keys.Keys.tremolo, 0.85, keys.Keys.tremolo.spec.maximum
+                        ),
+                        MacroControl(Patch.volume, 1.5, 1.7),
+                    ),
+                ),
+            ),
         ),
     )
-
-    def build_groups(self) -> tuple[GroupController, ...]:
-        # the kick is built first so the pad can duck off it; the groups are
-        # returned in display order below
-        self.kick = EvolvingGroup(
-            "Kick",
-            (
-                kick.KickLofi(
-                    level=0.4,
-                    drive=0.2,
-                    punch=0.8,
-                    length=0.8,
-                    click=0.5,
-                    rate=-1,
-                    volume=0.3,
-                ),
-            ),
-            bars=8,
-        )
-        self.lead_strings = strings.Strings(
-            root_freq=174.61411571650194,
-            brightness=3900,
-            attack=2.15,
-            release=2.9,
-            spread=0.2,
-            shimmer=0.8,
-            colour=0.9,
-            volume=0.7,
-        )
-        self.lead_keys = keys.Keys(
-            root_freq=164.81377845643496,
-            bark=5.0,
-            bite=0.3,
-            decay=3.1,
-            tremolo=0.85,
-            wobble=0.6,
-            volume=1.5,
-        )
-        self.bass_hover = bass.BassHover(
-            root_freq=self.ROOT_NOTE,
-            cutoff=770,
-            reverb_size=0.85,
-            reverb_damp=0.85,
-            reverb_bal=0.85,
-            breath=0.5,
-            rate=-1,
-            volume=1.6,
-        )
-        # a static, dark reverberant pad bed under the bass - reused
-        # unmodified from `tonal/drone`'s existing wash style, just
-        # re-tuned dark and distant (see README.md's mapping table)
-        self.pad_wash = wash.SoundscapeWash(
-            sidechains=(SidechainSource(self.kick, depth=0.15, release=0.3),),
-            root_freq=notes.E2,
-            detune=0.45,
-            detune_bal=0.1,
-            pitch_drift=0.8,
-            chorus_depth=2.1,
-            chorus_feedback=0.8,
-            chorus_bal=0.75,
-            reverb_size=0.25,
-            reverb_damp=0.15,
-            reverb_bal=0.75,
-            delay_time=1.0,
-            delay_feedback=0.7,
-            volume=0.5,
-        )
-        self.hook = pluck.PluckHook(root_freq=notes.E3, rate=-1, volume=0.4)
-        return (
-            EvolvingGroup(
-                "Lead",
-                (self.lead_strings, self.lead_keys),
-                "Choose strings or keys to give the wash harmony and pulse.",
-                bars=8,
-            ),
-            # foreground: carries ~87% of the reference's RMS - see
-            # `bass.hover.BassHover`'s own long reverb tail and breathing
-            # swell, which is this rack's main "dark, reverberant" carrier
-            GroupController("Bass", (self.bass_hover,)),
-            EvolvingGroup("Pad", (self.pad_wash,), bars=16),
-            EvolvingGroup("Hook", (self.hook,), bars=8),
-            # quiet, dusty texture bed - reused unmodified from the
-            # `boom_bap` sibling's own atmosphere layer, darkened further to
-            # match this brief's ~850 Hz mix-wide rolloff
-            GroupController(
-                "Texture",
-                (
-                    noise.NoiseDust(
-                        brightness=1200,
-                        colour=1.7,
-                        motion=0.3,
-                        depth=0.75,
-                        level=0.35,
-                        volume=0.3,
-                    ),
-                ),
-            ),
-            self.kick,
-            EvolvingGroup(
-                "Hi-hat",
-                (
-                    hat.GrooveLofi(
-                        level=0.06,
-                        cutoff=3500,
-                        metal=0.1,
-                        length=0.75,
-                        rate=-1,
-                        volume=0.12,
-                    ),
-                ),
-                bars=8,
-            ),
-        )

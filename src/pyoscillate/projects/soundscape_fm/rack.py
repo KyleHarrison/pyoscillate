@@ -1,6 +1,6 @@
 """Patch definitions for the standalone FM soundscape."""
 
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.tonal.drone.fm import SoundscapeFm
 from pyoscillate.projects.base import Rack
 
@@ -10,5 +10,4 @@ class SoundscapeFmRack(Rack):
 
     bpm = 60
 
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (GroupController("Soundscapes", (SoundscapeFm(),)),)
+    soundscapes_group = GroupController("Soundscapes", (Slot(SoundscapeFm),))

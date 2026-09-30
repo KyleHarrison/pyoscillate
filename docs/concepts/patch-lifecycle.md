@@ -158,19 +158,20 @@ thread across method boundaries.
 
 ## 6. The rack is typed, too
 
-A rack (`projects/base.py`) holds what it needs as typed attributes assigned
-in `build_groups()`, so nothing is found by name: `self.pad_wash =
-wash.SoundscapeWash(...)`, `self.kick = GroupController("Kick", (...))`. A
-`SidechainSource` takes the group object (`SidechainSource(self.kick, ...)`),
-which is why the source group is constructed before the patch that ducks off
-it while the returned tuple keeps display order. A `Macro(SliderSpec(...),
-_apply_x)` calls a rack method that assigns `Param`s directly on those
-attributes (`self.pad_wash.chorus_depth = ...`); where two alternatives
-differ it assigns each separately, so there is no "which style is active"
-branch and no `None` check. Group evolution uses `EvolvingGroup(title,
-patches, bars=N, repeat=1)`. `PatchRack`, `MacroSpec`, notebooks and the
-committed `presets/` folders no longer exist; `PatchRackApp` takes the `Rack`
-and a `catalog_dir` for preset JSON created on demand.
+A rack (`projects/base.py`) is pure class attributes - no `build_groups()`.
+Each patch is a `Slot(PatchClass, param=value, ...)`, slots are grouped by
+`GroupController`/`EvolvingGroup(title, slots, bars=N, repeat=1)`, and
+`Rack.__init__` binds fresh patches and groups per rack. Each declaration is a
+descriptor: on the class it is the immutable declaration (what a
+`SidechainSource(kick_group, ...)` or `MacroTarget(slot, ...)` points at), on
+an instance it is that rack's runtime (`rack.pad_wash` is the bound
+`SoundscapeWash`). A `Macro(SliderSpec(...), targets)` is declarative too:
+each `MacroTarget` names a `Slot` and each `MacroControl` a `Param` object, so
+applying it assigns `Param`s directly on that rack's patches - where two
+alternatives differ each has its own target, so there is no "which style is
+active" branch and no `None` check. `PatchRack`, `MacroSpec`, notebooks and
+the committed `presets/` folders no longer exist; `PatchRackApp` takes the
+`Rack` and a `catalog_dir` for preset JSON created on demand.
 
 ## 7. Adding or migrating a patch
 

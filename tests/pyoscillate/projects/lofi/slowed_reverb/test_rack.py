@@ -109,15 +109,15 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
 
         macro.apply(rack, 0)
         self.assertEqual(rack.pad_wash.chorus_depth, 2.1)
-        self.assertEqual(rack.hook.brightness, 2.4)
+        self.assertEqual(rack.hook_pluck.brightness, 2.4)
         self.assertEqual(rack.pad_wash.volume, 0.5)
-        self.assertEqual(rack.hook.volume, 0.4)
+        self.assertEqual(rack.hook_pluck.volume, 0.4)
         self.assertEqual(rack.lead_strings.volume, 0.7)
         self.assertEqual(rack.lead_keys.volume, 1.5)
 
         macro.apply(rack, 1)
         self.assertEqual(rack.pad_wash.chorus_depth, 5)
-        self.assertEqual(rack.hook.brightness, 5)
+        self.assertEqual(rack.hook_pluck.brightness, 5)
 
     def test_section_evolution_is_wired_to_live_pad_and_groove_groups(self) -> None:
         rack = SlowedReverbRack()

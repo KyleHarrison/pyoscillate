@@ -1,6 +1,6 @@
 """Patch definitions for the clock-locked groove demo."""
 
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.drums import hat, low_hat
 from pyoscillate.patches.musical.clock_tick import ClockTick
 from pyoscillate.patches.texture.atmosphere import Atmosphere
@@ -16,9 +16,8 @@ class RackDemoRack(Rack):
     # sharing one hardcoded in app.py
     bpm = 132
 
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (
-            GroupController("Rhythm", (TechnoBass(), hat.Tick(), low_hat.LowHat())),
-            GroupController("Atmosphere", (Atmosphere(), Drone())),
-            GroupController("Utility", (ClockTick(),)),
-        )
+    rhythm_group = GroupController(
+        "Rhythm", (Slot(TechnoBass), Slot(hat.Tick), Slot(low_hat.LowHat))
+    )
+    atmosphere_group = GroupController("Atmosphere", (Slot(Atmosphere), Slot(Drone)))
+    utility_group = GroupController("Utility", (Slot(ClockTick),))

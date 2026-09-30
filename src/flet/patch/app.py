@@ -2,8 +2,8 @@
 #      uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
 """Play any single patch module in the rack GUI, without a project rack.
 
-The module's `Patch` subclass is instantiated directly and dropped into a
-`GroupController` of one: `name`/`title`/`summary`/`params` all come from the
+The module's `Patch` subclass is declared as a `Slot` in a one-group
+`SinglePatchRack`: `name`/`title`/`summary`/`params` all come from the
 patch itself, same as a project rack. When a
 module defines several style variants (e.g. `kick.py`'s `KickRound` /
 `KickPunch` / `KickSoft`), pass `style=<name fragment>` to pick one by a
@@ -24,28 +24,27 @@ from pathlib import Path
 from types import ModuleType
 
 import flet as ft
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.base import Rack
 from src.flet.base import PatchRackApp
 
 
 class SinglePatchRack(Rack):
-    """Wraps one `Patch` instance, selected at runtime from the CLI args, in
-    the `Rack` interface `PatchRackApp` expects - this dev harness has no
-    project-level `rack.py` of its own to subclass `Rack` from."""
+    """A rack of one patch, whose class and starting values come from the CLI
+    args - this dev harness has no project-level `rack.py` to subclass `Rack`
+    from. `for_patch()` builds the rack class declaratively: one `Slot` in one
+    `GroupController`."""
 
     bpm = 120
 
-    patch: Patch
-
-    def __init__(self, patch: Patch) -> None:
-        # assigned before `super().__init__()`, which calls `build_groups()`
-        self.patch = patch
-        super().__init__()
-
-    def build_groups(self) -> tuple[GroupController, ...]:
-        return (GroupController(self.patch.title, (self.patch,), self.patch.summary),)
+    @classmethod
+    def for_patch(
+        cls, patch_class: type[Patch], values: dict[str, float]
+    ) -> type[Rack]:
+        slot = Slot(patch_class, **values)
+        group = GroupController(patch_class.title, (slot,), patch_class.summary)
+        return type(cls.__name__, (cls,), {"patch_slot": slot, "patch_group": group})
 
 
 def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:
@@ -89,16 +88,16 @@ def main(page: ft.Page) -> None:
     module = importlib.import_module(sys.argv[1])
     fixed = dict(arg.split("=", 1) for arg in sys.argv[2:])
     style = fixed.pop("style", None)
-    patch = _select_class(module, style)(
-        **{key: float(value) for key, value in fixed.items()}
-    )
+    patch_class = _select_class(module, style)
 
     PatchRackApp(
         page,
-        patch.title,
-        patch.summary,
-        SinglePatchRack(patch),
-        catalog_dir=Path(__file__).parent / "presets" / patch.name,
+        patch_class.title,
+        patch_class.summary,
+        SinglePatchRack.for_patch(
+            patch_class, {key: float(value) for key, value in fixed.items()}
+        )(),
+        catalog_dir=Path(__file__).parent / "presets" / patch_class.name,
     )
 
 

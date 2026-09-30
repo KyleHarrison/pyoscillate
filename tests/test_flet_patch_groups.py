@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import flet as ft
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
@@ -47,9 +47,7 @@ class PatchGroupTests(unittest.TestCase):
         self.voice.stop = MagicMock()
         self.context = MagicMock()
         self.panel = PatchPanel(self.voice)
-        self.group = PatchGroup(
-            GroupController("Test Group", (self.voice,)), [self.panel]
-        )
+        self.group = PatchGroup(GroupRuntime("Test Group", (self.voice,)), [self.panel])
         self.panel.engine_started(self.context)
         self.group.set_engine_ready(True)
         self.panel.apply_enabled(True)
@@ -134,7 +132,7 @@ class PatchGroupTests(unittest.TestCase):
             app.preset_dropdown,
             app.preset_name_field,
             app.key_dropdown,
-            app.macro_controls[0].control,
+            app.macro_sliders[0].control,
             app.master_output_slider,
         ):
             self.assertTrue(self._contains_control(right_column, control))
@@ -195,7 +193,7 @@ class PatchGroupTests(unittest.TestCase):
         )
 
         (sidechain,) = rack.pad_wash.sidechains
-        self.assertIs(sidechain.group, rack.kick)
+        self.assertIs(sidechain.group, rack.kick_group)
         self.assertEqual(SlowedReverbRack.harmony.progression, (2, 7, 0, 9))
 
     def test_lift_updates_the_visible_output_level(self) -> None:
@@ -209,7 +207,7 @@ class PatchGroupTests(unittest.TestCase):
                 catalog_dir=Path(catalog_dir),
             )
 
-        app.macro_controls[0].set_value(0.73)
+        app.macro_sliders[0].set_value(0.73)
 
         panel = app.panels[rack.pad_wash.name]
         expected = 0.5 + 0.73 * 0.15

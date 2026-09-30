@@ -124,16 +124,21 @@ by every patch module, not specific to any one family.
 
 ## `projects/`: racks
 
-`projects/<name>/rack.py` composes existing patch classes (instances, not
-new subclasses) into `GroupController`/`EvolvingGroup` groups for one Flet
-app. `build_groups()` assigns the patches and groups a macro or sidechain
-needs as typed attributes on the rack (`self.pad_wash`, `self.kick`), and rack
-`Macro`s are rack methods that assign `Param`s directly on those attributes. Planning-first:
+`projects/<name>/rack.py` declares one Flet app as class attributes of a
+`Rack` subclass: `GroupController`/`EvolvingGroup` groups of `Slot`s (each a
+patch class plus starting `Param` values and sidechains), and `Macro`s whose
+`MacroTarget`s name a `Slot` and whose `MacroControl`s name a `Param` object.
+There is no construction code: `Rack.__init__` binds fresh `GroupRuntime`/
+patch instances per rack, and each declaration reads as its own runtime on an
+instance (`rack.pad_wash` is the bound `SoundscapeWash`, `rack.kick_group` its
+group) and as the immutable declaration on the class. Planning-first:
 `README.md` (musical brief + concept-to-patch mapping) precedes `rack.py`.
 Concrete workflow: [projects/AGENTS.md](pyoscillate/projects/AGENTS.md).
 
-A rack file owns *composition* only (which patch instances, grouped how,
-sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI.
+A rack file owns *composition* only (which `Slot`s, grouped how,
+sharing which `Tempo`/`Clock`/`Harmony`) — no DSP, no UI. Runtime patches,
+controllers, and mutable harmony belong to one `Rack` instance, never to the
+class-level declarations. `Patch.playing` is the live selection.
 Rack-specific constants and helper behavior belong to the rack subclass;
 at module scope, a rack module contains its docstring, imports, and rack class
 definition only.
