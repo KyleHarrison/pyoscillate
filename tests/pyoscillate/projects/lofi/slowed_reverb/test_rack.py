@@ -18,7 +18,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
 
         expected = {
             "strings": {
-                "root_freq": 174.61411571650194,
+                "root_freq": notes.F3,
                 "brightness": 3900,
                 "attack": 2.15,
                 "release": 2.9,
@@ -28,7 +28,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 0.7,
             },
             "keys": {
-                "root_freq": 164.81377845643496,
+                "root_freq": notes.E3,
                 "bark": 5.0,
                 "bite": 0.3,
                 "decay": 3.1,
@@ -70,7 +70,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 0.3,
             },
             "pluck_hook": {
-                "root_freq": 164.81377845643496,
+                "root_freq": notes.E3,
                 "brightness": 2.4,
                 "decay": 0.45,
                 "brightness_decay": 0.2,

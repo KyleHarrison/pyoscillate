@@ -35,6 +35,11 @@ the scope and ownership rules below.
 - Keep rack modules declarative: subclass `Rack`, configure it with class
   attributes, declare each group as a `GroupController` class attribute, and
   let `Rack` bind fresh `GroupRuntime` instances.
+- Declare every musical pitch from `patches/utility/notes/notes.py` (for
+  example `notes.F3`), never as a raw Hz literal such as
+  `174.61411571650194`. This applies to rack `Slot` kwargs, `Param`
+  defaults/bounds, and tests. Do not paste computed or snapped frequencies;
+  use the named note so the pitch is explicit and in tune.
 - Follow the patch lifecycle, graph ownership, parameter, and timing rules in
   [`patches/AGENTS.md`](patches/AGENTS.md); never create or mutate Pyo graph
   nodes outside the lifecycle they specify.
