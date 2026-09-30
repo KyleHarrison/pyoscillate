@@ -127,6 +127,9 @@ class Param:
         self.rebuild = rebuild
         self.name = ""
         self.spec: SliderSpec
+        # the `Param` this one was `replace`d from (itself if never replaced),
+        # so a rack control can recognise one parameter across style overrides
+        self.origin: Param = self
 
     def __call__(self, control: Control) -> Param:
         self.control = control
@@ -134,7 +137,9 @@ class Param:
 
     def replace(self, **changes: Any) -> Param:
         """A copy with some slider fields changed and the same control."""
-        return Param(**{**self._fields, **changes}, control=self.control)
+        copy = Param(**{**self._fields, **changes}, control=self.control)
+        copy.origin = self.origin
+        return copy
 
     def __set_name__(self, owner: type[Any], name: str) -> None:
         self.name = name

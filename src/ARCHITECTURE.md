@@ -126,8 +126,11 @@ by every patch module, not specific to any one family.
 
 `projects/<name>/rack.py` declares one Flet app as class attributes of a
 `Rack` subclass: `GroupController`/`EvolvingGroup` groups of `Slot`s (each a
-patch class plus starting `Param` values and sidechains), and `Macro`s whose
-`MacroTarget`s name a `Slot` and whose `MacroControl`s name a `Param` object.
+patch class plus starting `Param` values and sidechains). Groups nest (a
+group's members are `Slot`s and inner groups) and own their sliders as
+`GroupControl`s, whose targets are a `SlotTarget` (exact `Slot`, `ParamControl`s
+naming `Param` objects), a `FanOut` (every patch in the group with a `Param`)
+or an inner group's `GroupControl`, so an outer slider moves inner ones.
 There is no construction code: `Rack.__init__` binds fresh `GroupRuntime`/
 patch instances per rack, and each declaration reads as its own runtime on an
 instance (`rack.pad_wash` is the bound `SoundscapeWash`, `rack.kick_group` its

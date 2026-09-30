@@ -262,7 +262,7 @@ return self.finish(self.<output node>)
 1. **Construct** (rack import time, before any audio server exists): seeds
    each parameter from its default, then applies constructor overrides. No
    control runs and no Pyo object is created.
-2. **Configure**: sliders and rack macros assign `Param`s on the instance;
+2. **Configure**: sliders and group controls assign `Param`s on the instance;
    values are staged on `self`.
 3. **Build**: `_reset()` → graph on `self` → `finish()`. From here,
    assignment is live.

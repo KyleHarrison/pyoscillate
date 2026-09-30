@@ -132,10 +132,80 @@ class PatchGroupTests(unittest.TestCase):
             app.preset_dropdown,
             app.preset_name_field,
             app.key_dropdown,
-            app.macro_sliders[0].control,
             app.master_output_slider,
         ):
             self.assertTrue(self._contains_control(right_column, control))
+
+    def _slowed_reverb_app(self, catalog_dir: str) -> PatchRackApp:
+        return PatchRackApp(
+            MagicMock(),
+            "Slowed Reverb",
+            "Test rack",
+            SlowedReverbRack(),
+            catalog_dir=Path(catalog_dir),
+        )
+
+    def test_outer_control_moves_inner_sliders_and_patches(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._slowed_reverb_app(catalog_dir)
+        rack = app.rack
+        by_path = {slider.path: slider for slider in app.control_sliders}
+
+        by_path["Arrival/lift"].set_value(1.0)
+
+        for path in ("Arrival/Lead/lift", "Arrival/Pad/lift", "Arrival/Hook/lift"):
+            self.assertEqual(by_path[path].slider.value, 1.0)
+        self.assertEqual(rack.pad_wash.volume, 0.65)
+        self.assertEqual(rack.lead_keys.volume, 1.7)
+
+        by_path["Arrival/Pad/lift"].set_value(0.0)
+
+        self.assertEqual(rack.pad_wash.volume, 0.5)
+        self.assertEqual(rack.hook_pluck.volume, 0.55)
+        self.assertEqual(by_path["Arrival/lift"].slider.value, 1.0)
+
+    def test_control_values_round_trip_through_a_preset(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._slowed_reverb_app(catalog_dir)
+            by_path = {slider.path: slider for slider in app.control_sliders}
+            by_path["Arrival/Hook/lift"].set_value(0.4)
+            app.preset_name_field.value = "round_trip"
+            app._save_preset(MagicMock())
+
+            fresh = self._slowed_reverb_app(catalog_dir)
+            fresh.preset_dropdown.value = "round_trip"
+            fresh._load_preset(MagicMock())
+
+        self.assertEqual(fresh.rack.hook_pluck.volume, 0.4 + 0.4 * 0.15)
+        self.assertEqual(
+            next(
+                s for s in fresh.control_sliders if s.path == "Arrival/Hook/lift"
+            ).slider.value,
+            0.4,
+        )
+
+    def test_disabling_outer_group_gates_nested_patches(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._slowed_reverb_app(catalog_dir)
+        arrival = app.groups[0]
+        pad = next(g for g in arrival.walk() if g.group_def.title == "Pad")
+        panel = pad.panels[0]
+        panel.engine_started(MagicMock())
+        arrival.set_engine_ready(True)
+
+        arrival._handle_enabled(
+            SimpleNamespace(control=SimpleNamespace(value=False), page=MagicMock())
+        )
+
+        self.assertTrue(pad.switch.disabled)
+        self.assertTrue(panel.switch.disabled)
+
+        arrival._handle_enabled(
+            SimpleNamespace(control=SimpleNamespace(value=True), page=MagicMock())
+        )
+
+        self.assertFalse(pad.switch.disabled)
+        self.assertFalse(panel.switch.disabled)
 
     def test_pause_resumes_only_patches_that_were_enabled(self) -> None:
         with TemporaryDirectory() as catalog_dir:
@@ -184,10 +254,14 @@ class PatchGroupTests(unittest.TestCase):
         rack = SlowedReverbRack()
         self.assertEqual(
             [group.title for group in rack.groups],
-            ["Lead", "Bass", "Pad", "Hook", "Texture", "Kick", "Hi-hat"],
+            ["Arrival", "Bass", "Texture", "Kick", "Hi-hat"],
+        )
+        self.assertEqual(
+            [group.title for group in rack.groups[0].children],
+            ["Lead", "Pad", "Hook"],
         )
 
-        lead = rack.groups[0]
+        lead = rack.groups[0].children[0]
         self.assertEqual(
             [type(patch).__name__ for patch in lead.patches], ["Strings", "Keys"]
         )
@@ -207,7 +281,12 @@ class PatchGroupTests(unittest.TestCase):
                 catalog_dir=Path(catalog_dir),
             )
 
-        app.macro_sliders[0].set_value(0.73)
+        lift = next(
+            slider
+            for slider in app.control_sliders
+            if slider.control is SlowedReverbRack.arrival_lift
+        )
+        lift.set_value(0.73)
 
         panel = app.panels[rack.pad_wash.name]
         expected = 0.5 + 0.73 * 0.15

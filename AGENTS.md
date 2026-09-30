@@ -48,7 +48,8 @@ Patches live in `src/pyoscillate/patches/`; each is a `Patch` subclass whose
 a project rack (a `Rack` subclass, see
 [src/pyoscillate/projects/base.py](src/pyoscillate/projects/base.py)) as typed
 `Slot` class attributes, grouped by `GroupController` /
-`EvolvingGroup`, with declarative rack `Macro`s naming `Slot`s and `Param`s, and
+`EvolvingGroup` (groups nest, and own declarative `GroupControl`s naming
+`Slot`s and `Param`s), and
 played through the Flet apps in `src/flet/`. Nothing is looked up by string
 name. The actual implementation and runtime discipline live in the
 project patch docs and the real modules under that folder.

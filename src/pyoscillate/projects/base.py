@@ -1,71 +1,27 @@
-"""Abstract project rack: engine config, patch `Slot`s, groups and macros
-all declared as class attributes. `Rack.__init__` binds fresh runtime
+"""Abstract project rack: engine config, patch `Slot`s and groups (with their
+controls) all declared as class attributes. `Rack.__init__` binds fresh runtime
 instances of every declaration, so a rack needs no construction code.
 """
 
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any, ClassVar
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
 from pyoscillate.controller import EvolvingRuntime, GroupController, GroupRuntime, Slot
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.params import Param, SliderSpec
-
-
-@dataclass(frozen=True)
-class MacroControl:
-    """One linear mapping of a macro amount (0-1 of its slider) onto a `Param`
-    from `start` to `end`."""
-
-    param: Param
-    start: float
-    end: float
-
-    @classmethod
-    def sweep(cls, param: Param) -> MacroControl:
-        """The parameter's whole slider range."""
-        return cls(param, param.spec.minimum, param.spec.maximum)
-
-    def value(self, amount: float) -> float:
-        return self.start + amount * (self.end - self.start)
-
-
-@dataclass(frozen=True)
-class MacroTarget:
-    """One macro route: the controls to drive on one declared patch."""
-
-    slot: Slot[Any]
-    controls: tuple[MacroControl, ...]
-
-
-@dataclass(frozen=True)
-class Macro:
-    """One rack-level slider that pushes a value across several patches - the
-    manual, user-triggered counterpart to `Patch.on_evolve`'s clock-triggered
-    push. Fully declarative: each target names a `Slot` and each control a
-    `Param` object, and applying assigns the parameter on that rack's patch
-    (staging it on every patch, live-updating the ones playing)."""
-
-    slider: SliderSpec
-    targets: tuple[MacroTarget, ...]
-
-    def apply(self, rack: Rack, amount: float) -> None:
-        for target in self.targets:
-            patch = rack.patch_for(target.slot)
-            for control in target.controls:
-                control.param.write(patch, control.value(amount))
 
 
 class Rack(ABC):
     """A project's patches and groups plus the engine config to run them.
 
     A subclass sets the class attributes below and declares
-    `GroupController`/`EvolvingGroup`s of `Slot`s in its class body - groups in the order
-    they are displayed, unless `layout` lists a different order (needed when a
+    `GroupController`/`EvolvingGroup`s of `Slot`s (and of inner groups, which
+    nest in the display) in its class body - top-level groups in the order
+    they are declared, unless `layout` lists a different order (needed when a
     sidechain points at a group declared later in the display). The same
     object reads as its declaration on the class and as this rack's own
     runtime on an instance.
@@ -73,8 +29,8 @@ class Rack(ABC):
 
     bpm: ClassVar[float]
     ticks_per_bar: ClassVar[int] = DEFAULT_TICKS_PER_BAR
-    macros: ClassVar[tuple[Macro, ...]] = ()
-    # group display order; empty means declaration order
+    # top-level group display order; empty means declaration order, with every
+    # group nested inside another left out
     layout: ClassVar[tuple[GroupController, ...]] = ()
     nchnls: ClassVar[int] = 2
     # the master output's starting level and safety ceiling
@@ -95,17 +51,21 @@ class Rack(ABC):
             raise TypeError(
                 f"{type(self).__name__} must declare GroupController attributes"
             )
-        slots = [slot for group in declared for slot in group.slots]
+        slots = list(dict.fromkeys(slot for group in declared for slot in group.slots))
         self._patches: dict[Slot[Any], Patch] = {slot: slot.bind() for slot in slots}
-        self._groups: dict[GroupController, GroupRuntime] = {
-            group: group.bind(tuple(self._patches[slot] for slot in group.slots))
-            for group in declared
-        }
+        self._groups: dict[GroupController, GroupRuntime] = {}
+        for group in declared:
+            group.bind(self._patches, self._groups)
         for slot in slots:
             slot.link(self._patches[slot], self._groups)
-        self.groups = tuple(self._groups[group] for group in (self.layout or declared))
+        nested = {inner for group in declared for inner in group.descendants()}
+        top_level = self.layout or tuple(g for g in declared if g not in nested)
+        self.groups = tuple(self._groups[group] for group in top_level)
         self.evolving_groups = tuple(
-            g for g in self.groups if isinstance(g, EvolvingRuntime)
+            nested_group
+            for group in self.groups
+            for nested_group in group.walk()
+            if isinstance(nested_group, EvolvingRuntime)
         )
 
     def patch_for(self, slot: Slot[Any]) -> Patch:

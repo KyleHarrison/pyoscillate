@@ -105,9 +105,10 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
 
     def test_lift_macro_starts_neutral_and_reaches_brighter_values(self) -> None:
         rack = SlowedReverbRack()
-        macro = rack.macros[0]
+        arrival = rack.arrival_group
+        lift = SlowedReverbRack.arrival_lift
 
-        macro.apply(rack, 0)
+        arrival.apply(lift, 0)
         self.assertEqual(rack.pad_wash.chorus_depth, 2.1)
         self.assertEqual(rack.hook_pluck.brightness, 2.4)
         self.assertEqual(rack.pad_wash.volume, 0.5)
@@ -115,7 +116,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         self.assertEqual(rack.lead_strings.volume, 0.7)
         self.assertEqual(rack.lead_keys.volume, 1.5)
 
-        macro.apply(rack, 1)
+        arrival.apply(lift, 1)
         self.assertEqual(rack.pad_wash.chorus_depth, 5)
         self.assertEqual(rack.hook_pluck.brightness, 5)
 

@@ -13,6 +13,7 @@ single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,11 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import Clock
-from pyoscillate.controller import EvolvingRuntime, GroupRuntime
+from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
 from pyoscillate.harmony import NOTE_NAMES
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param
-from pyoscillate.projects.base import Macro, Rack
+from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
 
 ACCENT = "#00A896"
@@ -249,16 +250,98 @@ GROUP_CONTROLLER_BARS_MAX = 64
 GROUP_CONTROLLER_REPEAT_MAX = 16
 
 
-class PatchGroup:
-    """Titled group control that gates a row of related patch panels, plus
-    (for an `EvolvingRuntime`) the live sliders for its own interval/repeat -
-    the group-level evolution timer described in `controller.py`, distinct
-    from any patch's own parameters."""
+class GroupControlSlider:
+    """A group `GroupControl`'s slider and value readout. `on_change` runs
+    after a move so the page can refresh every slider the push reached."""
 
-    def __init__(self, group_def: GroupRuntime, panels: list[PatchPanel]) -> None:
+    def __init__(
+        self,
+        group: GroupRuntime,
+        control: GroupControl,
+        path: str,
+        on_change: Callable[[], None],
+    ) -> None:
+        self.group = group
+        self.control = control
+        # where the control sits in the rack, so equal slider names in
+        # different groups stay distinct in a preset
+        self.path = f"{path}/{control.slider.name}"
+        self.on_change = on_change
+        spec = control.slider
+        self.text = ft.Text(
+            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        self.slider = ft.Slider(
+            min=spec.minimum,
+            max=spec.maximum,
+            divisions=spec.divisions,
+            value=spec.default,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_change,
+        )
+        self.control_view = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(spec.description, color=TEXT, size=14),
+                            self.text,
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    self.slider,
+                    ft.Text(spec.help_text, color=MUTED, size=11),
+                ],
+                spacing=2,
+            ),
+            col={"xs": 12, "md": 6},
+            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+        )
+
+    def show(self) -> None:
+        """Move the slider to the amount its group last applied."""
+        value = self.group.values[self.control]
+        self.slider.value = value
+        self.text.value = self.control.slider.format(value)
+
+    def set_value(self, value: float) -> None:
+        self.group.apply(self.control, value)
+        self.on_change()
+
+    def _handle_change(self, e: ft.ControlEvent) -> None:
+        self.set_value(float(e.control.value))
+        e.page.update()
+
+
+class PatchGroup:
+    """Titled group control that gates a row of related patch panels and any
+    nested `PatchGroup`s, plus the group's own `GroupControl` sliders and (for
+    an `EvolvingRuntime`) the live sliders for its own interval/repeat - the
+    group-level evolution timer described in `controller.py`, distinct from
+    any patch's own parameters. Switching a group off silences everything
+    inside it, nested groups included."""
+
+    def __init__(
+        self,
+        group_def: GroupRuntime,
+        panels: list[PatchPanel],
+        children: Sequence[PatchGroup] = (),
+        *,
+        path: str = "",
+        on_control_change: Callable[[], None] = lambda: None,
+    ) -> None:
         self.group_def = group_def
         self.panels = panels
+        self.children = list(children)
+        self.path = f"{path}/{group_def.title}" if path else group_def.title
+        self.control_sliders = [
+            GroupControlSlider(group_def, control, self.path, on_control_change)
+            for control in group_def.controls
+        ]
         self.enabled = True
+        self._parent_enabled = True
+        self._engine_ready = False
         self.switch = ft.Switch(
             value=True,
             active_color=ACCENT,
@@ -343,11 +426,14 @@ class PatchGroup:
         e.page.update()
 
     def _build_control(self) -> ft.Control:
-        controller_rows = (
-            self._evolution_rows(self.group_def)
-            if isinstance(self.group_def, EvolvingRuntime)
-            else []
-        )
+        controller_rows = [
+            *(slider.control_view for slider in self.control_sliders),
+            *(
+                self._evolution_rows(self.group_def)
+                if isinstance(self.group_def, EvolvingRuntime)
+                else []
+            ),
+        ]
 
         patch_columns = []
         panel_column = 12 if len(self.panels) == 1 or len(self.panels) > 2 else 6
@@ -382,6 +468,7 @@ class PatchGroup:
                                     spacing=12,
                                     run_spacing=12,
                                 ),
+                                *(child.control for child in self.children),
                             ],
                             spacing=12,
                         ),
@@ -396,63 +483,30 @@ class PatchGroup:
             margin=ft.margin.Margin(left=0, top=0, right=0, bottom=12),
         )
 
+    def walk(self) -> list[PatchGroup]:
+        """This group then every group nested inside it, depth-first."""
+        return [self, *(nested for child in self.children for nested in child.walk())]
+
     def set_engine_ready(self, ready: bool) -> None:
-        self.switch.disabled = not ready
+        self._engine_ready = ready
+        self._propagate()
+
+    def set_parent_enabled(self, enabled: bool) -> None:
+        self._parent_enabled = enabled
+        self._propagate()
+
+    def _propagate(self) -> None:
+        self.switch.disabled = not self._engine_ready or not self._parent_enabled
+        active = self.enabled and self._parent_enabled
         for panel in self.panels:
-            panel.set_group_enabled(self.enabled)
+            panel.set_group_enabled(active)
+        for child in self.children:
+            child.set_engine_ready(self._engine_ready)
+            child.set_parent_enabled(active)
 
     def _handle_enabled(self, e: ft.ControlEvent) -> None:
         self.enabled = bool(e.control.value)
-        for panel in self.panels:
-            panel.set_group_enabled(self.enabled)
-        e.page.update()
-
-
-class MacroSlider:
-    """A rack `Macro`'s slider and value readout."""
-
-    def __init__(self, rack: Rack, macro: Macro, app: PatchRackApp) -> None:
-        self.rack = rack
-        self.macro = macro
-        self.app = app
-        spec = macro.slider
-        self.text = ft.Text(
-            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        self.slider = ft.Slider(
-            min=spec.minimum,
-            max=spec.maximum,
-            divisions=spec.divisions,
-            value=spec.default,
-            active_color=ACCENT,
-            inactive_color="#31403D",
-            on_change=self._handle_change,
-        )
-        self.control = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(spec.description, color=TEXT, size=14),
-                            self.text,
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    self.slider,
-                ],
-                spacing=2,
-            ),
-            col={"xs": 12, "md": 6},
-        )
-
-    def set_value(self, value: float) -> None:
-        self.slider.value = value
-        self.text.value = self.macro.slider.format(value)
-        self.macro.apply(self.rack, value)
-        self.app.sync_panels()
-
-    def _handle_change(self, e: ft.ControlEvent) -> None:
-        self.set_value(float(e.control.value))
+        self._propagate()
         e.page.update()
 
 
@@ -485,9 +539,12 @@ class PatchRackApp:
         self.panels = {patch.name: PatchPanel(patch) for patch in patches}
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
-        self.groups = [
-            PatchGroup(group, [self.panels[patch.name] for patch in group.patches])
-            for group in rack.groups
+        self.groups = [self._patch_group(group) for group in rack.groups]
+        self.control_sliders = [
+            slider
+            for top in self.groups
+            for group in top.walk()
+            for slider in group.control_sliders
         ]
 
         self.status = ft.Text("Engine stopped", color=MUTED, size=13)
@@ -537,10 +594,20 @@ class PatchRackApp:
             width=140,
             on_select=self._handle_key,
         )
-        self.macro_sliders = [MacroSlider(rack, macro, self) for macro in rack.macros]
 
         self._configure_page()
         self._build_view()
+
+    def _patch_group(self, group: GroupRuntime, path: str = "") -> PatchGroup:
+        """The view of `group` and, recursively, the groups nested in it."""
+        here = f"{path}/{group.title}" if path else group.title
+        return PatchGroup(
+            group,
+            [self.panels[patch.name] for patch in group.own_patches],
+            [self._patch_group(child, here) for child in group.children],
+            path=path,
+            on_control_change=self.sync_panels,
+        )
 
     # -- page setup ------------------------------------------------------
 
@@ -582,9 +649,7 @@ class PatchRackApp:
                 spacing=8,
             ),
         ]
-        level_controls: list[ft.Control] = [
-            macro.control for macro in self.macro_sliders
-        ]
+        level_controls: list[ft.Control] = []
         level_controls.append(
             ft.Container(
                 content=ft.Column(
@@ -667,10 +732,12 @@ class PatchRackApp:
         )
 
     def sync_panels(self) -> None:
-        """Refresh every slider from its patch, after values changed outside
-        the panels (a macro push)."""
+        """Refresh every slider from its patch and group, after values changed
+        outside the panels (a group control push)."""
         for panel in self.panels.values():
             panel.sync_sliders()
+        for slider in self.control_sliders:
+            slider.show()
 
     # -- engine lifecycle --------------------------------------------------
 
@@ -789,10 +856,10 @@ class PatchRackApp:
         rack_values = preset.get(RACK_PRESET_KEY, {})
         if rack_values.get("key") in NOTE_NAMES:
             self._set_key(NOTE_NAMES.index(rack_values["key"]))
-        macro_values = rack_values.get("macros", {})
-        for control in self.macro_sliders:
-            if control.macro.slider.name in macro_values:
-                control.set_value(float(macro_values[control.macro.slider.name]))
+        control_values = rack_values.get("controls", {})
+        for control in self.control_sliders:
+            if control.path in control_values:
+                control.set_value(float(control_values[control.path]))
         for patch_name, panel in self.panels.items():
             if patch_name in preset:
                 panel.apply_preset(preset[patch_name])
@@ -807,9 +874,9 @@ class PatchRackApp:
         }
         values[RACK_PRESET_KEY] = {
             "key": NOTE_NAMES[self.rack.harmony.key],
-            "macros": {
-                control.macro.slider.name: control.slider.value
-                for control in self.macro_sliders
+            "controls": {
+                control.path: control.group.values[control.control]
+                for control in self.control_sliders
             },
         }
         self.preset_store.save(name, values)

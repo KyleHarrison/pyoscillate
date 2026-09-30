@@ -1,6 +1,14 @@
 """Patch definitions for the dark, slowed-and-reverbed lofi rack."""
 
-from pyoscillate.controller import EvolvingGroup, GroupController, SidechainSource, Slot
+from pyoscillate.controller import (
+    EvolvingGroup,
+    GroupControl,
+    GroupController,
+    ParamControl,
+    SidechainSource,
+    Slot,
+    SlotTarget,
+)
 from pyoscillate.harmony import C, Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.hat import groove as hat
@@ -13,7 +21,7 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.projects.base import Macro, MacroControl, MacroTarget, Rack
+from pyoscillate.projects.base import Rack
 
 
 class SlowedReverbRack(Rack):
@@ -114,10 +122,111 @@ class SlowedReverbRack(Rack):
         volume=0.12,
     )
 
+    lead_lift = GroupControl(
+        SliderSpec(
+            "lift",
+            0,
+            1,
+            0.05,
+            0,
+            "Lift",
+            "Opens the strings' brightness and shimmer and the keys' bark and tremolo.",
+        ),
+        (
+            SlotTarget(
+                lead_strings,
+                (
+                    ParamControl(
+                        strings.Strings.brightness,
+                        3900,
+                        strings.Strings.brightness.spec.maximum,
+                    ),
+                    ParamControl(
+                        strings.Strings.shimmer,
+                        0.8,
+                        strings.Strings.shimmer.spec.maximum,
+                    ),
+                    ParamControl(Patch.volume, 0.7, 0.9),
+                ),
+            ),
+            SlotTarget(
+                lead_keys,
+                (
+                    ParamControl(keys.Keys.bark, 5.0, keys.Keys.bark.spec.maximum),
+                    ParamControl(
+                        keys.Keys.tremolo, 0.85, keys.Keys.tremolo.spec.maximum
+                    ),
+                    ParamControl(Patch.volume, 1.5, 1.7),
+                ),
+            ),
+        ),
+    )
+    pad_lift = GroupControl(
+        SliderSpec(
+            "lift",
+            0,
+            1,
+            0.05,
+            0,
+            "Lift",
+            "Gradually opens the pad's chorus and brings it forward.",
+        ),
+        (
+            SlotTarget(
+                pad_wash,
+                (
+                    ParamControl(
+                        wash.SoundscapeWash.chorus_depth,
+                        2.1,
+                        wash.SoundscapeWash.chorus_depth.spec.maximum,
+                    ),
+                    ParamControl(Patch.volume, 0.5, 0.65),
+                ),
+            ),
+        ),
+    )
+    hook_lift = GroupControl(
+        SliderSpec(
+            "lift",
+            0,
+            1,
+            0.05,
+            0,
+            "Lift",
+            "Brightens the upper hook and brings it forward.",
+        ),
+        (
+            SlotTarget(
+                hook_pluck,
+                (
+                    ParamControl(
+                        pluck.PluckHook.brightness,
+                        2.4,
+                        pluck.PluckHook.brightness.spec.maximum,
+                    ),
+                    ParamControl(Patch.volume, 0.4, 0.55),
+                ),
+            ),
+        ),
+    )
+    arrival_lift = GroupControl(
+        SliderSpec(
+            "lift",
+            0,
+            1,
+            0.05,
+            0,
+            "Lift",
+            "Gradually opens the chorus, upper hook and lead presence for a section arrival.",
+        ),
+        (lead_lift, pad_lift, hook_lift),
+    )
+
     lead_group = EvolvingGroup(
         "Lead",
         (lead_strings, lead_keys),
         "Choose strings or keys to give the wash harmony and pulse.",
+        controls=(lead_lift,),
         bars=8,
     )
     # foreground: carries ~87% of the reference's RMS - see
@@ -127,83 +236,25 @@ class SlowedReverbRack(Rack):
     # a static, dark reverberant pad bed under the bass - reused unmodified
     # from `tonal/drone`'s existing wash style, just re-tuned dark and distant
     # (see README.md's mapping table)
-    pad_group = EvolvingGroup("Pad", (pad_wash,), bars=16)
-    hook_group = EvolvingGroup("Hook", (hook_pluck,), bars=8)
+    pad_group = EvolvingGroup("Pad", (pad_wash,), controls=(pad_lift,), bars=16)
+    hook_group = EvolvingGroup("Hook", (hook_pluck,), controls=(hook_lift,), bars=8)
+    # the section-arrival layers: its own `lift` moves each inner group's
+    # `lift`, which keeps the per-patch mapping with the group that owns it
+    arrival_group = GroupController(
+        "Arrival",
+        (lead_group, pad_group, hook_group),
+        "Lead, pad and hook together.",
+        controls=(arrival_lift,),
+    )
     # quiet, dusty texture bed - reused unmodified from the `boom_bap`
     # sibling's own atmosphere layer, darkened further to match this brief's
     # ~850 Hz mix-wide rolloff
     texture_group = GroupController("Texture", (texture_dust,))
     hat_group = EvolvingGroup("Hi-hat", (hat_lofi,), bars=8)
     layout = (
-        lead_group,
+        arrival_group,
         bass_group,
-        pad_group,
-        hook_group,
         texture_group,
         kick_group,
         hat_group,
-    )
-
-    macros = (
-        Macro(
-            SliderSpec(
-                "lift",
-                0,
-                1,
-                0.05,
-                0,
-                "Lift",
-                "Gradually opens the chorus, upper hook and lead presence for a section arrival.",
-            ),
-            (
-                MacroTarget(
-                    pad_wash,
-                    (
-                        MacroControl(
-                            wash.SoundscapeWash.chorus_depth,
-                            2.1,
-                            wash.SoundscapeWash.chorus_depth.spec.maximum,
-                        ),
-                        MacroControl(Patch.volume, 0.5, 0.65),
-                    ),
-                ),
-                MacroTarget(
-                    hook_pluck,
-                    (
-                        MacroControl(
-                            pluck.PluckHook.brightness,
-                            2.4,
-                            pluck.PluckHook.brightness.spec.maximum,
-                        ),
-                        MacroControl(Patch.volume, 0.4, 0.55),
-                    ),
-                ),
-                MacroTarget(
-                    lead_strings,
-                    (
-                        MacroControl(
-                            strings.Strings.brightness,
-                            3900,
-                            strings.Strings.brightness.spec.maximum,
-                        ),
-                        MacroControl(
-                            strings.Strings.shimmer,
-                            0.8,
-                            strings.Strings.shimmer.spec.maximum,
-                        ),
-                        MacroControl(Patch.volume, 0.7, 0.9),
-                    ),
-                ),
-                MacroTarget(
-                    lead_keys,
-                    (
-                        MacroControl(keys.Keys.bark, 5.0, keys.Keys.bark.spec.maximum),
-                        MacroControl(
-                            keys.Keys.tremolo, 0.85, keys.Keys.tremolo.spec.maximum
-                        ),
-                        MacroControl(Patch.volume, 1.5, 1.7),
-                    ),
-                ),
-            ),
-        ),
     )

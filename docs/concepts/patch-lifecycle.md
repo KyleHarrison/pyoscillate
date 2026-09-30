@@ -163,13 +163,16 @@ Each patch is a `Slot(PatchClass, param=value, ...)`, slots are grouped by
 `GroupController`/`EvolvingGroup(title, slots, bars=N, repeat=1)`, and
 `Rack.__init__` binds fresh patches and groups per rack. Each declaration is a
 descriptor: on the class it is the immutable declaration (what a
-`SidechainSource(kick_group, ...)` or `MacroTarget(slot, ...)` points at), on
+`SidechainSource(kick_group, ...)` or `SlotTarget(slot, ...)` points at), on
 an instance it is that rack's runtime (`rack.pad_wash` is the bound
-`SoundscapeWash`). A `Macro(SliderSpec(...), targets)` is declarative too:
-each `MacroTarget` names a `Slot` and each `MacroControl` a `Param` object, so
-applying it assigns `Param`s directly on that rack's patches - where two
-alternatives differ each has its own target, so there is no "which style is
-active" branch and no `None` check. `PatchRack`, `MacroSpec`, notebooks and
+`SoundscapeWash`). Groups nest and own their sliders: a
+`GroupControl(SliderSpec(...), targets)` is declarative too. A `SlotTarget`
+names a `Slot` and each `ParamControl` a `Param` object, so applying it assigns
+`Param`s directly on that rack's patches - where two alternatives differ each
+has its own target, so there is no "which style is active" branch and no `None`
+check. A `FanOut` does the same for every patch in the group that has the
+`Param`, and a target that is an inner group's `GroupControl` passes the
+amount down, so an outer slider moves the inner ones. `PatchRack`, `MacroSpec`, notebooks and
 the committed `presets/` folders no longer exist; `PatchRackApp` takes the
 `Rack` and a `catalog_dir` for preset JSON created on demand.
 
@@ -209,5 +212,5 @@ the committed `presets/` folders no longer exist; `PatchRackApp` takes the
   `controls` removed); `volume` is a `Param`; `BuildContext` replaces
   `needs_tempo/needs_clock/needs_harmony`; `rebuild=True` replaces
   `rebuild_parameters`; `self.live(Param)` replaces `live("name")`; racks use
-  typed attributes, `Macro` methods and `EvolvingGroup`; `PatchRack`,
+  typed attributes, `GroupControl`s and `EvolvingGroup`; `PatchRack`,
   notebooks and preset files removed.

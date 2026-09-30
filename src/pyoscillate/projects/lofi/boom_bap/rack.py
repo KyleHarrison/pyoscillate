@@ -1,6 +1,15 @@
 """Patch definitions for the clock-locked lofi beats-to-study-to rack."""
 
-from pyoscillate.controller import EvolvingGroup, GroupController, SidechainSource, Slot
+from pyoscillate.controller import (
+    EvolvingGroup,
+    FanOut,
+    GroupControl,
+    GroupController,
+    ParamControl,
+    SidechainSource,
+    Slot,
+    SlotTarget,
+)
 from pyoscillate.harmony import C, Harmony
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -13,7 +22,7 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.projects.base import Macro, MacroControl, MacroTarget, Rack
+from pyoscillate.projects.base import Rack
 
 
 class LofiRack(Rack):
@@ -63,16 +72,102 @@ class LofiRack(Rack):
     # `bars=32` rotates which voicing set `keys.Keys` is comping, live-
     # adjustable from this group's own UI sliders (see flet/base.py's
     # `PatchGroup`) - see docs/todos/rack-linking-next.md
-    lead_group = EvolvingGroup("Lead Melody", (lead_muted_keys, lead_keys), bars=32)
+    # "Energy" sliders - the manual counterpart to the clock-triggered
+    # `on_evolve` rotations, see docs/todos/rack-linking-next.md. Each control
+    # sweeps its style's own `Param` slider range, so the mapping tracks a range
+    # if it's ever retuned. The outer `energy` below moves all three together.
+    lead_energy = GroupControl(
+        SliderSpec(
+            "energy",
+            0.0,
+            1.0,
+            0.05,
+            0.5,
+            "Energy",
+            "Brightens and drives the lead; low relaxes it, high pushes it brighter.",
+        ),
+        (
+            SlotTarget(
+                lead_muted_keys,
+                (
+                    ParamControl.sweep(lead.Lead.brightness),
+                    ParamControl.sweep(lead.Lead.drive),
+                ),
+            ),
+            SlotTarget(
+                lead_keys,
+                (
+                    ParamControl.sweep(keys.Keys.bark),
+                    ParamControl.sweep(keys.Keys.bite),
+                ),
+            ),
+        ),
+    )
+    strings_energy = GroupControl(
+        SliderSpec(
+            "energy",
+            0.0,
+            1.0,
+            0.05,
+            0.5,
+            "Energy",
+            "Lifts the strings' brightness and shimmer.",
+        ),
+        (
+            FanOut(
+                (
+                    ParamControl.sweep(strings.Strings.brightness),
+                    ParamControl.sweep(strings.Strings.shimmer),
+                )
+            ),
+        ),
+    )
+    # a fan-out, so either bass style follows without being named
+    bass_energy = GroupControl(
+        SliderSpec(
+            "energy",
+            0.0,
+            1.0,
+            0.05,
+            0.5,
+            "Energy",
+            "Opens the bass filter; low is darker and rounder, high is brighter.",
+        ),
+        (FanOut((ParamControl.sweep(bass.GrooveBass.cutoff),)),),
+    )
+    energy = GroupControl(
+        SliderSpec(
+            "energy",
+            0.0,
+            1.0,
+            0.05,
+            0.5,
+            "Energy",
+            "Lifts brightness and drive together across bass, strings, and lead; low relaxes the whole "
+            "rack, high pushes it brighter and more driven.",
+        ),
+        (lead_energy, strings_energy, bass_energy),
+    )
+
+    lead_group = EvolvingGroup(
+        "Lead Melody",
+        (lead_muted_keys, lead_keys),
+        controls=(lead_energy,),
+        bars=32,
+    )
     # strings: soft, sustained harmonic accompaniment behind the lead.
     # `bars=16` rotates the colour voice between a 9th and a 13th
     # (see strings.py's `COLOUR_TONE_VARIANTS`)
-    strings_group = EvolvingGroup("Strings", (pad_strings,), bars=16)
+    strings_group = EvolvingGroup(
+        "Strings", (pad_strings,), controls=(strings_energy,), bars=16
+    )
     # bass: sparse, thumpy, four-bar phrase with an occasional offbeat
     # re-entry (see tonal/bass/profiles.py's `_conversation`), or the
     # original one-bar muted groove. `bars=8` rotates each style's own
     # pattern variant (see profiles.py's `CONVERSATION_VARIANTS`/`MUTED_VARIANTS`)
-    bass_group = EvolvingGroup("Bass", (bass_conversation, bass_muted), bars=8)
+    bass_group = EvolvingGroup(
+        "Bass", (bass_conversation, bass_muted), controls=(bass_energy,), bars=8
+    )
     # high register call-and-response: a soft FM bell, tuned high and
     # sparse. The rack has no cross-patch event bus for the bell to
     # literally listen for a bass hit and answer it, so this is an
@@ -87,59 +182,18 @@ class LofiRack(Rack):
     noise_group = GroupController("Vinyl Dust", (Slot(noise.NoiseDust),))
     snare_group = GroupController("Snare", (Slot(snare.SnareLofi),))
     hat_group = GroupController("Hi-hat", (Slot(hat.GrooveLofi),))
+    # the layers "Energy" moves together
+    energy_group = GroupController(
+        "Energy",
+        (lead_group, strings_group, bass_group),
+        "Lead, strings and bass together.",
+        controls=(energy,),
+    )
     layout = (
-        lead_group,
-        strings_group,
-        bass_group,
+        energy_group,
         high_group,
         noise_group,
         kick_group,
         snare_group,
         hat_group,
-    )
-
-    # a single rack-wide "Energy" slider - the manual counterpart to the
-    # clock-triggered `on_evolve` rotations, see docs/todos/rack-linking-next.md.
-    # Each control sweeps its style's own `Param` slider range, so the mapping
-    # tracks a range if it's ever retuned.
-    macros = (
-        Macro(
-            SliderSpec(
-                "energy",
-                0.0,
-                1.0,
-                0.05,
-                0.5,
-                "Energy",
-                "Lifts brightness and drive together across bass, strings, and lead; low relaxes the whole "
-                "rack, high pushes it brighter and more driven.",
-            ),
-            (
-                MacroTarget(
-                    bass_conversation, (MacroControl.sweep(bass.GrooveBass.cutoff),)
-                ),
-                MacroTarget(bass_muted, (MacroControl.sweep(bass.GrooveBass.cutoff),)),
-                MacroTarget(
-                    pad_strings,
-                    (
-                        MacroControl.sweep(strings.Strings.brightness),
-                        MacroControl.sweep(strings.Strings.shimmer),
-                    ),
-                ),
-                MacroTarget(
-                    lead_muted_keys,
-                    (
-                        MacroControl.sweep(lead.Lead.brightness),
-                        MacroControl.sweep(lead.Lead.drive),
-                    ),
-                ),
-                MacroTarget(
-                    lead_keys,
-                    (
-                        MacroControl.sweep(keys.Keys.bark),
-                        MacroControl.sweep(keys.Keys.bite),
-                    ),
-                ),
-            ),
-        ),
     )
