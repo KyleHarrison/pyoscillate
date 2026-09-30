@@ -8,18 +8,16 @@ instead of being plucked note by note.
 
 from __future__ import annotations
 
-from typing import ClassVar
+from collections.abc import Callable
 
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
-from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import GatedVoice, Step
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # major pentatonic - consonant, calm, no leading tones to create tension
 MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
@@ -30,7 +28,7 @@ MID_ROOT = notes.E4  # current default
 class Arp(GatedVoice):
     """Calm, consonant melodic line locked to the groove.
 
-    `step_bars` is a `rebuild_parameters` entry: it sets the `SigTo` glide
+    `step_bars` is a `rebuild` parameter: it sets the `SigTo` glide
     time and the clock division at build time, so changing it live can't
     just update an existing control.
     """
@@ -38,14 +36,14 @@ class Arp(GatedVoice):
     name = "mid_arp"
     title = "Mid - slow pentatonic arpeggio"
     summary = "Calm, consonant melodic line locked to the groove."
-    volume_default: ClassVar[float] = 0.6
-    rebuild_parameters: ClassVar[tuple[str, ...]] = ("step_bars",)
+    volume = Patch.volume.replace(default=0.6)
 
     # the root frequency the running step sequence steps from, frozen at
     # build time - `root_freq`'s own control re-pitches whatever note is
     # currently gliding, but (as before migration) doesn't retroactively
     # change the interval walk's root until the next rebuild
     step_root_freq: float
+    _step: Callable[[], Step]
 
     mid_freq: SigTo
     fm_voice: FM
@@ -71,6 +69,7 @@ class Arp(GatedVoice):
         "Pace",
         "Sets how often the melody moves; fewer bars feels more active, more bars stretches it "
         "into a slower, more spacious unfolding.",
+        rebuild=True,
     )
 
     @Param(
@@ -133,9 +132,9 @@ class Arp(GatedVoice):
     def reverb_bal(self, value: float) -> None:
         self.reverb.bal = value
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        step_time = tempo.bar * self.step_bars
+        step_time = context.tempo.bar * self.step_bars
 
         # glides to each new note over most of the step time instead of
         # snapping, so the melody drifts between pitches rather than
@@ -145,20 +144,23 @@ class Arp(GatedVoice):
             carrier=self.mid_freq, ratio=self.fm_ratio, index=self.fm_index, mul=0.18
         )
         self.reverb = Freeverb(
-            self.fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal
+            self.fm_voice,
+            size=self.reverb_size,
+            damp=self.reverb_damp,
+            bal=self.reverb_bal,
         )
 
         self.step_root_freq = self.root_freq
-        self._step = self.step_pattern(len(MID_INTERVALS), dict(enumerate(MID_INTERVALS)))
+        self._step = self.step_pattern(
+            len(MID_INTERVALS), dict(enumerate(MID_INTERVALS))
+        )
 
-        # `step_bars` counts whole bars, not a `NoteDivision` offset, so this
-        # subscribes directly rather than through `self.schedule()`'s
-        # rate-slider math - `self._clock` still has to be set by hand here,
-        # since it's normally `schedule()`'s job
-        self._clock = clock
-        self._division = clock.subscribe(clock.bar * self.step_bars, self.next_step)
+        # `step_bars` counts whole bars, not a `NoteDivision` offset
+        self.schedule_steps(
+            context.clock, context.clock.bar * self.step_bars, self.next_step
+        )
         return self.finish(self.reverb)
 
     def next_step(self) -> None:
-        _, interval = self._step()
-        self.mid_freq.value = self.step_root_freq * pow(2, interval / 12)
+        step = self._step()
+        self.mid_freq.value = self.step_root_freq * pow(2, step.value / 12)

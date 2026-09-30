@@ -1,17 +1,16 @@
-import itertools
 import math
 import subprocess
 import sys
 import unittest
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import A, Harmony
-from pyoscillate.patches import Patch, PatchRack, start_server
+from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
 from pyoscillate.patches.musical.chord import chord
+from pyoscillate.patches.params import RateParam
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
@@ -27,7 +26,7 @@ class ServerStartupTests(unittest.TestCase):
         server.getIsStarted.return_value = False
 
         with self.assertRaisesRegex(RuntimeError, "could not boot"):
-            start_server(output_device=99)
+            start_server()
 
         server.start.assert_not_called()
 
@@ -45,7 +44,7 @@ class ClockRateTests(unittest.TestCase):
         self.assertEqual(clock.ticks_for_rate(NoteDivision.SIXTEENTH, maximum), 2)
 
     def test_clap_rate_slider_uses_clock_limits(self) -> None:
-        rate = next(spec for spec in clap.Clap.parameters if spec.name == "rate")
+        rate = clap.Clap.rate.spec
 
         self.assertEqual(
             (rate.minimum, rate.maximum),
@@ -57,7 +56,8 @@ class KickNativeCrashTests(unittest.TestCase):
     def test_two_kicks_survive_live_updates(self) -> None:
         code = """
 from pyoscillate.clock import Clock
-from pyoscillate.patches import PatchRack, start_server
+from pyoscillate.harmony import Harmony
+from pyoscillate.patches.base import BuildContext, start_server
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.tempo import Tempo
 
@@ -65,16 +65,15 @@ server = start_server(audio="manual")
 tempo = Tempo(bpm=122)
 clock = Clock(tempo)
 clock.start()
-rack = PatchRack()
-rack.start("kick_round", kick.KickRound().build(tempo, clock))
-punch = rack.start("kick_punch", kick.KickPunch().build(tempo, clock))
+context = BuildContext(tempo, clock, Harmony())
+round_kick = kick.KickRound().build(context).start()
+punch = kick.KickPunch().build(context).start()
 for index in range(500):
-    punch.update({
-        "level": 0.1 + (index % 19) * 0.05,
-        "drive": (index % 17) * 0.05,
-    })
+    punch.level = 0.1 + (index % 19) * 0.05
+    punch.drive = (index % 17) * 0.05
     server.process()
-rack.stop_all()
+round_kick.stop()
+punch.stop()
 clock.stop()
 server.stop()
 server.shutdown()
@@ -104,31 +103,27 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         cls.server.stop()
         cls.server.shutdown()
 
-    def assert_patch_lifecycle(self, voice) -> None:
-        rack = PatchRack()
-        values = {spec.name: spec.default for spec in voice.parameters}
-        voice.configure(**values)
-        build_kwargs: dict[str, Any] = {}
-        if voice.needs_tempo:
-            build_kwargs["tempo"] = self.tempo
-        if voice.needs_clock:
-            build_kwargs["clock"] = self.clock
-        if voice.needs_harmony:
-            build_kwargs["harmony"] = Harmony(progression=(0, 5, 10, 7))
+    def test_every_patch_survives_its_lifecycle(self) -> None:
+        context = BuildContext(self.tempo, self.clock, self.rack.harmony)
+        for group in self.rack.groups:
+            for voice in group.patches:
+                with self.subTest(patch=voice.name):
+                    for param in voice.params:
+                        param.write(voice, param.default)
 
-        patch = voice.build(**build_kwargs)
-        self.assertIsInstance(patch, Patch)
-        rack.start(voice.name, patch)
-        patch.update(values)
-        rate = next(
-            (spec for spec in voice.parameters if spec.name == "rate"), None
-        )
-        if rate is not None:
-            patch.set("rate", rate.maximum)
-        rack.stop(voice.name)
+                    patch = voice.build(context)
+                    self.assertIsInstance(patch, Patch)
+                    patch.start()
+                    for param in voice.params:
+                        param.write(voice, param.default)
+                        if isinstance(param, RateParam):
+                            param.write(voice, param.spec.maximum)
+                    patch.stop()
 
     def test_chord_retains_native_trigger_graph(self) -> None:
-        patch = chord.ChordVelvet().build(self.tempo, self.clock)
+        patch = chord.ChordVelvet().build(
+            BuildContext(self.tempo, self.clock, Harmony())
+        )
         resource_types = [type(resource).__name__ for resource in patch.resources]
 
         self.assertIn("Trig", resource_types)
@@ -145,9 +140,10 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         call - so a step is fired by moving the clock to that step's tick and
         calling the sequencer's callback once, rather than calling it
         repeatedly with the clock held still."""
-        chord_patch = chord.ChordVelvet().build(self.tempo, self.clock, harmony=harmony)
-        bass_patch = bass.BassRolling().build(self.tempo, self.clock, harmony=harmony)
-        tom_patch = tom.Tom().build(self.tempo, self.clock, harmony=harmony)
+        context = BuildContext(self.tempo, self.clock, harmony)
+        chord_patch = chord.ChordVelvet().build(context)
+        bass_patch = bass.BassRolling().build(context)
+        tom_patch = tom.Tom().build(context)
         bar_start = self.clock._tick
 
         def fire(patch: Patch, step_index: int) -> None:
@@ -198,23 +194,6 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             self.assert_same_pitch_class(self.sounding_roots(harmony), 0)
         finally:
             self.clock._tick = saved_tick
-
-
-def make_lifecycle_test(voice):
-    def test_lifecycle(self: DeepHousePatchSmokeTests) -> None:
-        self.assert_patch_lifecycle(voice)
-
-    return test_lifecycle
-
-
-for voice in itertools.chain.from_iterable(
-    group.patches for group in DeepHouseRack().groups
-):
-    setattr(
-        DeepHousePatchSmokeTests,
-        f"test_{voice.name}_lifecycle",
-        make_lifecycle_test(voice),
-    )
 
 
 if __name__ == "__main__":

@@ -13,11 +13,10 @@ from pyo.lib.filters import ButHP
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by the tick's envelope
 DROP = [(0, 1), (8191, 0)]
@@ -33,7 +32,7 @@ class Tick(DrumVoice):
     name = "hat"
     title = "Hi-hat"
     summary = "Subtle, airy top-end pulse."
-    volume_default = 0.2
+    volume = Patch.volume.replace(default=0.2)
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     # exponent of the decay curve - a sharp, strongly exponential drop keeps
     # the hat ticking rather than hissing
@@ -85,7 +84,7 @@ class Tick(DrumVoice):
         "Halves or doubles the tick pattern speed for each step away from its 8th-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
 
@@ -94,10 +93,12 @@ class Tick(DrumVoice):
         self.hat_burst = self.hat_noise * self.hat_env
 
         # slow swell over 32 steps so the ticks don't sit at a fixed level
-        self.hat_swell = Sine(freq=1 / (32 * tempo.sixteenth), mul=0.3, add=0.8)
+        self.hat_swell = Sine(freq=1 / (32 * context.tempo.sixteenth), mul=0.3, add=0.8)
 
         # high-pass to keep it thin and airy, out of the kick and bass range
         self.filtered = ButHP(self.hat_burst, mul=self.hat_swell)
 
-        self.schedule(self.base_division, self.rate, clock, self.trigger.play)
+        self.schedule_with(
+            self.base_division, self.rate, context.clock, self.trigger.play
+        )
         return self.finish(self.filtered)

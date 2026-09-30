@@ -27,7 +27,7 @@ Cause:
     `Keys.build()` seeded a private `self._step = 0` / `self._slot = 0` at
     build time and incremented them locally on every callback, instead of
     reading the shared clock's own tick/bar position the way Strings reads
-    `clock.bar_index` and every `needs_harmony` voice does. A patch's own
+    `clock.bar_index` and every harmonic voice does. A patch's own
     step count depends on when it was built, so it starts counting from
     whatever moment that was rather than from the rack's actual downbeat.
 Change:
@@ -61,6 +61,7 @@ import sys
 from pyo.lib.server import Server
 
 from pyoscillate.clock import Clock
+from pyoscillate.patches.base import BuildContext
 from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
@@ -81,12 +82,14 @@ clock = Clock(tempo, ticks_per_bar=rack.ticks_per_bar)
 for _ in range(pre_roll_sixteenths * clock.sixteenth):
     clock._advance()
 
+context = BuildContext(tempo, clock, rack.harmony)
+
 keys_patch = keys.Keys()
-keys_patch.build(tempo, clock)
+keys_patch.build(context)
 keys_patch.start()
 
 strings_patch = strings.Strings()
-strings_patch.build(tempo, clock, harmony=rack.harmony)
+strings_patch.build(context)
 strings_patch.start()
 
 # a slot is reused every SLOTS hits (see keys.py), so a hard hit can reassign

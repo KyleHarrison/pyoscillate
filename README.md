@@ -30,11 +30,11 @@ Rather than treating every patch as an isolated loop, the system is designed to 
 
 ### Flet rack GUI
 
-The Flet app is the main interface. Each project defines a rack of `Patch` instances grouped by `GroupController` (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared `PatchRack`, clock, and audio engine.
+The Flet app is the main interface. Each project defines a rack of `Patch` instances grouped by `GroupController` (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared rack, clock, and audio engine. Everything is wired statically: a rack holds its patches and groups as typed attributes, a `Param` object is the only handle to a setting (volume included), and rack-level sliders are `Macro` methods that assign parameters directly.
 
 ### Preset-driven exploration
 
-A rack can be tuned, saved, and reloaded as a whole from the GUI. Presets are JSON files in each app's `presets/` folder, which keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
+A rack can be tuned, saved, and reloaded as a whole from the GUI. Presets are JSON files saved from the GUI into each app's `presets/` folder (created on demand; none are committed), which keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
 
 ## Installation
 
@@ -105,7 +105,7 @@ A typical session looks like this:
 
 ## Debugging patches
 
-`notebooks/deep_house/deep_house.ipynb` is a patch build debugger, not a performance interface. Each section calls a patch's real `build()` and then runs start, live `set()` and stop as separate cells, so you can see which lifecycle stage fails. Autoreload picks up saved changes in the patch modules.
+Play any single patch module on its own with `uv run flet run src/flet/patch/app.py -- <module> style=<name> [param=value ...]`, or render and measure one offline with `uv run python -m pyoscillate.analysis <module> --set name=value`. Both build the patch with a full `BuildContext` (tempo, clock, harmony), so a failing lifecycle stage shows up in isolation.
 
 ## Why it exists
 

@@ -17,12 +17,10 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
-from pyoscillate.clock import Clock
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # mostly small steps so the pitch glides rather than leaps
 DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
@@ -33,9 +31,7 @@ class Drone(ContinuousVoice):
     """Slow-winding FM drone: note changes once every 8 bars, with a continuously drifting timbre."""
 
     summary = "Slow-winding sustained drone that rarely changes note."
-    volume_default = 1.0
-    needs_tempo: ClassVar[bool] = True
-    needs_clock: ClassVar[bool] = True
+    volume = Patch.volume.replace(default=1.0)
     # bars between note-step changes
     step_bars: ClassVar[int] = 8
 
@@ -94,15 +90,15 @@ class Drone(ContinuousVoice):
     def reverb_bal(self, value: float) -> None:
         self.reverb.bal = value
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
         # the drone changes note far more slowly than the bass (per 16th),
         # arp (per 8th), or either hat
-        step_time = tempo.bar * self.step_bars
+        step_time = context.tempo.bar * self.step_bars
 
         # glides to each new frequency over most of the step time instead of snapping
-        self.drone_freq_sig = self.live("root_freq", self.root_freq, time=step_time * 0.9)
+        self.drone_freq_sig = self.live(type(self).root_freq, time=step_time * 0.9)
 
         # ratio and index each ride their own slow LFO, with periods measured in
         # whole drone steps, so the tone keeps evolving independently of pitch changes
@@ -110,10 +106,16 @@ class Drone(ContinuousVoice):
         self.index_lfo = Sine(freq=1 / (step_time * 0.7), mul=2, add=3)
 
         self.fm_voice = FM(
-            carrier=self.drone_freq_sig, ratio=self.ratio_lfo, index=self.index_lfo, mul=0.2
+            carrier=self.drone_freq_sig,
+            ratio=self.ratio_lfo,
+            index=self.index_lfo,
+            mul=0.2,
         )
         self.reverb = Freeverb(
-            self.fm_voice, size=self.reverb_size, damp=self.reverb_damp, bal=self.reverb_bal
+            self.fm_voice,
+            size=self.reverb_size,
+            damp=self.reverb_damp,
+            bal=self.reverb_bal,
         )
 
         root_freq = self.root_freq
@@ -127,5 +129,7 @@ class Drone(ContinuousVoice):
         # a drone has no trigger-to-envelope path, but its slow scheduled
         # pitch step still needs to start/stop with the patch, so this
         # replaces ContinuousVoice's no-op sequencer with a real division
-        self.sequencer = clock.subscribe(clock.bar * self.step_bars, next_step)
+        self.sequencer = context.clock.subscribe(
+            context.clock.bar * self.step_bars, next_step
+        )
         return self.finish(self.reverb)

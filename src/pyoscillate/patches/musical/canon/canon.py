@@ -17,7 +17,7 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import SequencerGroup
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -38,7 +38,7 @@ class Canon(Patch):
     they rarely repeat the same relationship to one another - the "canon"
     quality comes from that drift, not from one voice literally echoing
     the other. `voice_a_period`/`voice_b_period`/`voice_b_interval`/
-    `note_duration` are all `rebuild_parameters`: each is baked into a
+    `note_duration` are all `rebuild` parameters: each is baked into a
     `Metro`'s fixed `time` or a `TrigEnv`'s `dur` at build time, so changing
     any of them live can't just update an existing control.
     """
@@ -46,16 +46,15 @@ class Canon(Patch):
     name = "mid_canon"
     title = "Mid - two-voice canon"
     summary = "Two melodic voices in a slow-shifting call and response."
-    volume_default = 0.6
-    rebuild_parameters: ClassVar[tuple[str, ...]] = (
-        "voice_a_period",
-        "voice_b_period",
-        "voice_b_interval",
-        "note_duration",
-    )
+    volume = Patch.volume.replace(default=0.6)
 
     # shared note envelope: a fast rise then a longer, slightly uneven decay
-    ENVELOPE_POINTS: ClassVar[list[tuple[int, float]]] = [(0, 0), (800, 1), (4000, 0.5), (8191, 0)]
+    ENVELOPE_POINTS: ClassVar[list[tuple[int, float]]] = [
+        (0, 0),
+        (800, 1),
+        (4000, 0.5),
+        (8191, 0),
+    ]
     # each voice's fixed level, so voice A sits a touch forward of voice B
     VOICE_A_LEVEL: ClassVar[float] = 0.18
     VOICE_B_LEVEL: ClassVar[float] = 0.14
@@ -96,6 +95,7 @@ class Canon(Patch):
         5.0,
         "Voice A pace",
         "How often voice A draws a new note; shorter feels more active, longer spaces it out.",
+        rebuild=True,
     )
 
     voice_b_period = Param(
@@ -106,6 +106,7 @@ class Canon(Patch):
         "Voice B pace",
         "How often voice B draws a new note; set apart from voice A's pace so the two drift in and out "
         "of alignment.",
+        rebuild=True,
     )
 
     voice_b_interval = Param(
@@ -116,6 +117,7 @@ class Canon(Patch):
         "Voice separation",
         "Sets voice B's pitch offset from voice A; wider intervals separate the two voices more clearly, "
         "narrower blends them together.",
+        rebuild=True,
     )
 
     note_duration = Param(
@@ -126,6 +128,7 @@ class Canon(Patch):
         "Note length",
         "Shapes how long each note rings out; shorter feels more plucked and articulate, longer lets "
         "notes overlap into a smoother, sustained texture.",
+        rebuild=True,
     )
 
     @Param(
@@ -199,37 +202,45 @@ class Canon(Patch):
         self._bind()
         return self
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
 
         self.envelope_table = CosTable(self.ENVELOPE_POINTS)
 
         self.voice_a_metro = Metro(time=self.voice_a_period)
         self.voice_a_env = TrigEnv(
-            self.voice_a_metro, table=self.envelope_table, dur=self.note_duration, mul=self.VOICE_A_LEVEL
+            self.voice_a_metro,
+            table=self.envelope_table,
+            dur=self.note_duration,
+            mul=self.VOICE_A_LEVEL,
         )
         self.voice_a_fm = FM(mul=self.voice_a_env)
 
         self.voice_b_root = self.root_freq * pow(2, self.voice_b_interval / 12)
         self.voice_b_metro = Metro(time=self.voice_b_period)
         self.voice_b_env = TrigEnv(
-            self.voice_b_metro, table=self.envelope_table, dur=self.note_duration, mul=self.VOICE_B_LEVEL
+            self.voice_b_metro,
+            table=self.envelope_table,
+            dur=self.note_duration,
+            mul=self.VOICE_B_LEVEL,
         )
         self.voice_b_fm = FM(carrier=self.voice_b_root, mul=self.voice_b_env)
 
         self.source = self.voice_a_fm + self.voice_b_fm
         self.reverb = Freeverb(self.source)
 
-        def next_voice_a() -> None:
-            interval = random.choice(CANON_SCALE)
-            self.voice_a_fm.carrier = self.root_freq * pow(2, interval / 12)
+        self.voice_a_func = TrigFunc(self.voice_a_metro, self.next_voice_a)
+        self.voice_b_func = TrigFunc(self.voice_b_metro, self.next_voice_b)
 
-        def next_voice_b() -> None:
-            interval = random.choice(CANON_SCALE)
-            self.voice_b_fm.carrier = self.voice_b_root * pow(2, interval / 12)
-
-        self.voice_a_func = TrigFunc(self.voice_a_metro, next_voice_a)
-        self.voice_b_func = TrigFunc(self.voice_b_metro, next_voice_b)
-
-        self.sequencer = SequencerGroup(sequencers=(self.voice_a_metro, self.voice_b_metro))
+        self.sequencer = SequencerGroup(
+            sequencers=(self.voice_a_metro, self.voice_b_metro)
+        )
         return self.finish(self.reverb)
+
+    def next_voice_a(self) -> None:
+        interval = random.choice(CANON_SCALE)
+        self.voice_a_fm.carrier = self.root_freq * pow(2, interval / 12)
+
+    def next_voice_b(self) -> None:
+        interval = random.choice(CANON_SCALE)
+        self.voice_b_fm.carrier = self.voice_b_root * pow(2, interval / 12)

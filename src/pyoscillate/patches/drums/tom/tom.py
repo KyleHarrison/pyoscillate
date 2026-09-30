@@ -16,13 +16,13 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 # full-to-zero break-points shared by every envelope
 DROP = [(0, 1), (8191, 0)]
@@ -31,8 +31,6 @@ DROP = [(0, 1), (8191, 0)]
 # four are tones of the rack's minor-seventh chords (E, E, C, A over Am7)
 PATTERN = {10: 7, 26: 7, 29: 3, 31: 0}
 CYCLE = 32
-# a static key of A - used only outside a rack that shares its own `Harmony`
-FALLBACK_HARMONY = Harmony()
 
 
 class Tom(DrumVoice):
@@ -44,9 +42,8 @@ class Tom(DrumVoice):
     """
 
     summary = "Sparse two-bar tom fill on the current chord's minor pentatonic."
-    volume_default = 0.3
+    volume = Patch.volume.replace(default=0.3)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    needs_harmony: ClassVar[bool] = True
 
     # settled body pitch (Hz); pitch-bend depth/time; body decay; membrane
     # overtone ratio/level/decay; transient level/tuning/resonance/duration;
@@ -90,7 +87,7 @@ class Tom(DrumVoice):
     # time - fed to `next_step`, which build() can no longer close over now
     # that it's a real method
     harmony: Harmony
-    _step: Callable[[], tuple[int, int | None]]
+    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -156,9 +153,9 @@ class Tom(DrumVoice):
         "Halves or doubles the fill speed for each step away from its 16th-note grid.",
     )
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.harmony = harmony or FALLBACK_HARMONY
+        self.harmony = context.harmony
 
         self.tuning = Sig(semitone_ratio(self.tune))
         self.root_freq = self.tuning * self.body_freq
@@ -171,11 +168,15 @@ class Tom(DrumVoice):
 
         self.overtone_pitch = self.pitch * self.overtone_ratio
         self.overtone = Sine(freq=self.overtone_pitch)
-        self.overtone_env = self.envelope(DROP, dur=self.overtone_decay, exp=self.decay_curve)
+        self.overtone_env = self.envelope(
+            DROP, dur=self.overtone_decay, exp=self.decay_curve
+        )
         self.overtone_signal = self.overtone * self.overtone_env
 
         self.noise = Noise()
-        self.click_env = self.envelope(DROP, dur=self.click_duration, exp=self.bend_curve)
+        self.click_env = self.envelope(
+            DROP, dur=self.click_duration, exp=self.bend_curve
+        )
         self.click_burst = self.noise * self.click_env
         self.click_freq = self.root_freq * self.click_ratio
         self.click_signal = Biquad(
@@ -187,16 +188,17 @@ class Tom(DrumVoice):
 
         self._step = self.step_pattern(CYCLE, PATTERN)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.voice_signal)
 
     def next_step(self) -> None:
-        _, offset = self._step()
-        if offset is not None:
+        step = self._step()
+        if step.hit:
             chord_ratio = (
-                self.harmony.chord_freq(self.body_freq, self._clock.bar_index) / self.body_freq
+                self.harmony.chord_freq(self.body_freq, self._clock.bar_index)
+                / self.body_freq
             )
-            self.tuning.value = chord_ratio * semitone_ratio(self.tune + offset)
+            self.tuning.value = chord_ratio * semitone_ratio(self.tune + step.value)
             # restart both partials on a zero crossing so the immediate
             # attack doesn't click wherever the oscillators last stopped
             self.body.reset()

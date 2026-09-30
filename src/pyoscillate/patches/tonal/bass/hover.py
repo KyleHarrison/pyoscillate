@@ -14,13 +14,11 @@ from pyo import PyoObject
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import Sine
 
-from pyoscillate.clock import Clock
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, Bass
 from pyoscillate.patches.tonal.bass.profiles import HOVER
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
 
 class BassHover(Bass):
@@ -34,14 +32,14 @@ class BassHover(Bass):
     # builds up more sustained energy than a single struck note - kept low
     # enough that the loudest corner (max Space/Breath/Brightness) still
     # clears the patch limiter, checked offline
-    volume_default = 0.22
+    volume = Patch.volume.replace(default=0.22)
+    profile = HOVER
 
     reverb_voice: Freeverb
     breath_lfo: Sine
     breathed: PyoObject
-    _tempo: Tempo
 
-    # read live off `self.root_freq` by `Bass.note_root`'s trigger-time
+    # read live off `self.root_freq` by `current_root`'s trigger-time
     # callback - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
     root_freq = Param(
@@ -121,7 +119,9 @@ class BassHover(Bass):
     )
 
     def voice_output(self) -> PyoObject:
-        self.reverb_voice = Freeverb(self.filtered, size=self.reverb_size, damp=self.reverb_damp)
+        self.reverb_voice = Freeverb(
+            self.filtered, size=self.reverb_size, damp=self.reverb_damp
+        )
         # a single slow cycle every four bars - slow enough to read as
         # "breathing" (see the rack's README) rather than tremolo. `mul`/
         # `add` are neutral (no swell) here; `breath`'s control sets the
@@ -130,15 +130,5 @@ class BassHover(Bass):
         self.breathed = self.reverb_voice * self.breath_lfo
         return self.breathed
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
-        self._reset()
-        self._tempo = tempo
-        return self.build_voice(
-            tempo,
-            clock,
-            HOVER,
-            self.root_freq,
-            self.cutoff,
-            self.rate,
-            harmony=None,
-        )
+    def current_root(self) -> float:
+        return self.root_freq

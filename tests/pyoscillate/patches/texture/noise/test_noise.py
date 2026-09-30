@@ -46,7 +46,6 @@ from pyoscillate.patches.texture.noise import noise
 
 MODULE = "pyoscillate.patches.texture.noise.noise"
 SECONDS = 4.0
-SLIDERS = {spec.name: spec for spec in noise.Noise.parameters}
 
 
 @cache
@@ -77,10 +76,10 @@ class NoiseHealthTests(unittest.TestCase):
             with self.subTest(style=style):
                 loudest = _measure(
                     style=style,
-                    colour=SLIDERS["colour"].minimum,
-                    brightness=SLIDERS["brightness"].maximum,
-                    depth=SLIDERS["depth"].maximum,
-                    level=SLIDERS["level"].maximum,
+                    colour=noise.Noise.colour.spec.minimum,
+                    brightness=noise.Noise.brightness.spec.maximum,
+                    depth=noise.Noise.depth.spec.maximum,
+                    level=noise.Noise.level.spec.maximum,
                 )
 
                 self.assertEqual(loudest.clip_fraction, 0.0)
@@ -94,8 +93,12 @@ class NoiseHealthTests(unittest.TestCase):
 class NoiseControlTests(unittest.TestCase):
     def test_colour_darkens_the_bed(self) -> None:
         # colour/brightness are shared across styles; any one style exercises them
-        white = _centroid(style="air", colour=0, brightness=SLIDERS["brightness"].maximum)
-        brown = _centroid(style="air", colour=2, brightness=SLIDERS["brightness"].maximum)
+        white = _centroid(
+            style="air", colour=0, brightness=noise.Noise.brightness.spec.maximum
+        )
+        brown = _centroid(
+            style="air", colour=2, brightness=noise.Noise.brightness.spec.maximum
+        )
 
         self.assertGreater(white, brown * 4)
 

@@ -71,6 +71,10 @@ class SliderSpec:
 Control = Callable[[Any, float], None]
 
 
+def noop_control(patch: Any, value: float) -> None:
+    """The control of a `Param` that only `build()` or a `live()` signal reads."""
+
+
 class Param:
     """One patch parameter declared once: its slider contract, its current
     per-instance value, and how that value drives the live graph.
@@ -82,13 +86,18 @@ class Param:
         def punch(self, value: float) -> None:
             self.pitch.mul = self.sweep_depth * value
 
-    `self.punch` reads the current value; assigning it (or `Patch.set`)
-    stores it and, once the patch is built, runs the control. `finish()`
-    runs every control once with the current value, so a mapping like
-    `sweep_depth * value` is written only here, never again in `build()`.
-    A `Param` with no control is a plain value `build()` reads (a
-    `rebuild_parameters` name). A style subclass changes a field while
+    `self.punch` reads the current value; assigning it stores it and, once
+    the patch is built, runs the control. `finish()` runs every control once
+    with the current value, so a mapping like `sweep_depth * value` is written
+    only here, never again in `build()`. A `Param` with no control is a plain
+    value `build()` reads (a `rebuild` parameter, see `rebuild=True`), unless
+    `build()` hands it a `SigTo` with `self.live(Patch.param)`, in which case
+    assigning it glides that signal. A style subclass changes a field while
     keeping the control with `punch = Kick.punch.replace(default=1.4)`.
+
+    The `Param` object itself is the handle everywhere: racks assign
+    `patch.punch = 1.2`, sliders and presets hold the `Param`, and nothing
+    looks a parameter up by its string name.
     """
 
     def __init__(
@@ -101,7 +110,8 @@ class Param:
         help_text: str,
         *,
         scale: Literal["linear", "note"] = "linear",
-        control: Control | None = None,
+        rebuild: bool = False,
+        control: Control = noop_control,
     ) -> None:
         self._fields: dict[str, Any] = {
             "minimum": minimum,
@@ -111,8 +121,10 @@ class Param:
             "label": label,
             "help_text": help_text,
             "scale": scale,
+            "rebuild": rebuild,
         }
         self.control = control
+        self.rebuild = rebuild
         self.name = ""
         self.spec: SliderSpec
 
@@ -127,43 +139,54 @@ class Param:
     def __set_name__(self, owner: type[Any], name: str) -> None:
         self.name = name
         fields = dict(self._fields)
+        fields.pop("rebuild")
         self.spec = SliderSpec(name, description=fields.pop("label"), **fields)
+
+    @property
+    def default(self) -> float:
+        return self.spec.default
+
+    def read(self, obj: Any) -> float:
+        """This parameter's current value on `obj`."""
+        return obj.__dict__[self.name]
+
+    def write(self, obj: Any, value: float) -> None:
+        """Assign `value` on `obj` exactly as `obj.<name> = value` does."""
+        self.__set__(obj, value)
 
     @overload
     def __get__(self, obj: None, owner: type[Any] | None = None) -> Param: ...
     @overload
     def __get__(self, obj: object, owner: type[Any] | None = None) -> float: ...
-    def __get__(self, obj: object | None, owner: type[Any] | None = None) -> Param | float:
+    def __get__(
+        self, obj: object | None, owner: type[Any] | None = None
+    ) -> Param | float:
         if obj is None:
             return self
         return obj.__dict__[self.name]
 
     def __set__(self, obj: Any, value: float) -> None:
         obj.__dict__[self.name] = value
-        if self.control is not None and obj._built:
-            self.control(obj, value)
+        if obj.built:
+            obj.apply_param(self, value)
+
+
+class RateParam(Param):
+    """The clocked-patch rate: an integer number of `NoteDivision` steps away
+    from `base_division`, valid across `Clock.rate_limits(base_division)`.
+    Its control re-spaces the patch's scheduled division."""
+
+    def __init__(self, base_division: NoteDivision, help_text: str) -> None:
+        minimum, maximum = Clock.rate_limits(base_division)
+        super().__init__(
+            minimum, maximum, 1, 0, "Rate", help_text, control=RateParam.reschedule
+        )
+
+    @staticmethod
+    def reschedule(patch: Any, value: float) -> None:
+        patch.reschedule(value)
 
 
 def rate_param(base_division: NoteDivision, help_text: str) -> Param:
-    """`Param` form of `rate_slider`, bound to `GatedVoice.reschedule`."""
-    minimum, maximum = Clock.rate_limits(base_division)
-    return Param(
-        minimum,
-        maximum,
-        1,
-        0,
-        "Rate",
-        help_text,
-        control=lambda patch, value: patch.reschedule(value),
-    )
-
-
-def rate_slider(base_division: NoteDivision, help_text: str) -> SliderSpec:
-    """The standard "rate" `SliderSpec` shared by every clocked patch: an
-    integer number of `NoteDivision` steps away from `base_division`, valid
-    across `Clock.rate_limits(base_division)`. Each patch still supplies its
-    own `help_text`, since the perceptual description of what the rate does
-    is family-specific.
-    """
-    minimum, maximum = Clock.rate_limits(base_division)
-    return SliderSpec("rate", minimum, maximum, 1, 0, "Rate", help_text)
+    """The standard "rate" `Param` shared by every clocked patch."""
+    return RateParam(base_division, help_text)

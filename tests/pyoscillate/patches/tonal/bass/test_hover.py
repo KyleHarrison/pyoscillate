@@ -26,7 +26,7 @@ Findings
 1. The loudest corner (max Space/Breath/Brightness) clipped
 -------------------------------------------------------------
 Error:
-    At the module's original `volume_default` (0.7), `reverb_size=1.0,
+    At the module's original the `volume` default (0.7), `reverb_size=1.0,
     breath=0.6, cutoff=900` measured `clip_fraction` 0.31 - the patch
     limiter's `Compress`+`Clip` couldn't tame it.
 Cause:
@@ -35,7 +35,7 @@ Cause:
     single struck note, unlike the patches most of this family's default
     volumes were tuned against.
 Change:
-    `volume_default` lowered to 0.22 (checked offline: clean at the same
+    the `volume` default lowered to 0.22 (checked offline: clean at the same
     extreme settings, with headroom to spare).
 Status:
     fixed - src/pyoscillate/patches/tonal/bass/hover.py.
@@ -58,7 +58,6 @@ SIXTEENTH = 60 / BPM / 4
 BAR = SIXTEENTH * 16
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
-SLIDERS = {spec.name: spec for spec in hover.BassHover.parameters}
 
 
 @cache
@@ -71,7 +70,9 @@ def _window(result: Render, start: float, end: float) -> np.ndarray:
     return result.samples[round(start * rate) : round(end * rate)]
 
 
-def _note(result: Render, step: int, start: float = 0.0, end: float = 0.05) -> np.ndarray:
+def _note(
+    result: Render, step: int, start: float = 0.0, end: float = 0.05
+) -> np.ndarray:
     onset = step * SIXTEENTH + LATENCY
     return _window(result, onset + start, onset + end)
 
@@ -92,7 +93,6 @@ class HoverProfileTests(unittest.TestCase):
         self.assertEqual(HOVER.pattern[48], 5)
 
     def test_pulses_every_other_step(self) -> None:
-        assert HOVER.gates is not None
         for step in range(len(HOVER.gates)):
             self.assertEqual(HOVER.gates[step], step % 2 == 0)
 
@@ -101,9 +101,9 @@ class HoverBassHealthTests(unittest.TestCase):
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
         loudest = features(
             _render(
-                cutoff=SLIDERS["cutoff"].maximum,
-                reverb_size=SLIDERS["reverb_size"].maximum,
-                breath=SLIDERS["breath"].maximum,
+                cutoff=hover.BassHover.cutoff.spec.maximum,
+                reverb_size=hover.BassHover.reverb_size.spec.maximum,
+                breath=hover.BassHover.breath.spec.maximum,
             ),
             ceiling=PATCH_OUTPUT_CEILING,
         )
@@ -114,8 +114,12 @@ class HoverBassHealthTests(unittest.TestCase):
 class HoverBassControlTests(unittest.TestCase):
     def test_space_sustains_more_tail_energy(self) -> None:
         # well past the envelope's own decay, so what's left is reverb tail
-        tight = _note(_render(reverb_size=SLIDERS["reverb_size"].minimum), 0, 0.2, 0.3)
-        spacious = _note(_render(reverb_size=SLIDERS["reverb_size"].maximum), 0, 0.2, 0.3)
+        tight = _note(
+            _render(reverb_size=hover.BassHover.reverb_size.spec.minimum), 0, 0.2, 0.3
+        )
+        spacious = _note(
+            _render(reverb_size=hover.BassHover.reverb_size.spec.maximum), 0, 0.2, 0.3
+        )
 
         self.assertGreater(_rms(spacious), _rms(tight) * 1.15)
 
@@ -124,8 +128,8 @@ class HoverBassControlTests(unittest.TestCase):
         # `add`, the swell's midpoint), so its peak (`add + mul`) falls a
         # quarter-cycle in and its trough (`add - mul`) three-quarters in
         cycle = BAR * 4
-        flat = _render(seconds=cycle, breath=SLIDERS["breath"].minimum)
-        swelling = _render(seconds=cycle, breath=SLIDERS["breath"].maximum)
+        flat = _render(seconds=cycle, breath=hover.BassHover.breath.spec.minimum)
+        swelling = _render(seconds=cycle, breath=hover.BassHover.breath.spec.maximum)
 
         flat_peak = _rms(_window(flat, cycle * 0.2, cycle * 0.3))
         flat_trough = _rms(_window(flat, cycle * 0.7, cycle * 0.8))
@@ -133,7 +137,9 @@ class HoverBassControlTests(unittest.TestCase):
         swelling_trough = _rms(_window(swelling, cycle * 0.7, cycle * 0.8))
 
         flat_ratio = flat_peak / flat_trough if flat_trough else float("inf")
-        swelling_ratio = swelling_peak / swelling_trough if swelling_trough else float("inf")
+        swelling_ratio = (
+            swelling_peak / swelling_trough if swelling_trough else float("inf")
+        )
 
         self.assertGreater(swelling_ratio, flat_ratio * 1.3)
 

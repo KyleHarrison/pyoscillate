@@ -1,6 +1,6 @@
 """Patch definitions for the free-running psyambient rack."""
 
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.musical.arp.arp import Arp
 from pyoscillate.patches.musical.canon.canon import Canon
 from pyoscillate.patches.musical.generative.generative import Generative
@@ -19,23 +19,19 @@ class PsyambientRack(Rack):
     # this project's own tempo - other projects set their own value instead of
     # sharing one hardcoded in app.py
     bpm = 70
-    needs_clock = True
 
-    soundscapes = GroupController(
-        "soundscapes",
+    soundscapes_group = GroupController(
         "Soundscapes",
-        (SoundscapeFm, SoundscapeFilter, SoundscapeWash),
+        (Slot(SoundscapeFm), Slot(SoundscapeFilter), Slot(SoundscapeWash)),
         "Choose and combine evolving atmospheric beds.",
     )
-    mid = GroupController(
-        "mid",
+    mid_group = GroupController(
         "Mid Voices",
-        (Arp, Generative, Canon),
+        (Slot(Arp), Slot(Generative), Slot(Canon)),
         "Melodic movement in the center of the arrangement.",
     )
-    bass = GroupController(
-        "bass",
+    bass_group = GroupController(
         "Bass",
-        (BassDrone, BassChaos, BassRumble),
+        (Slot(BassDrone), Slot(BassChaos), Slot(BassRumble)),
         "Low-frequency foundations and textures.",
     )

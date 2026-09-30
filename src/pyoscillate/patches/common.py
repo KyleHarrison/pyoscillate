@@ -3,10 +3,9 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any
 
 from pyo import PyoObject
-from pyo.lib.controls import SigTo
 from pyo.lib.filters import Hilbert
 from pyo.lib.generators import Sine
 from pyo.lib.tables import ExpTable
@@ -14,7 +13,6 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.patches.base import Patch, Sequencer
-from pyoscillate.patches.params import Param
 
 
 @dataclass(eq=False)
@@ -49,20 +47,6 @@ class ContinuousVoice(Patch):
         super()._reset()
         self.sequencer = ContinuousSequencer()
 
-    def live(self, name: str, value: float, *, time: float = 0.15) -> SigTo:
-        """A `SigTo` for one named live parameter; auto-registers its
-        `controls[name]` setter and retains it."""
-        control = SigTo(value=value, time=time)
-        self.retain(control)
-        self.controls[name] = lambda v: setattr(control, "value", v)
-        return control
-
-    def live_all(self, *names: str, time: float = 0.15) -> dict[str, SigTo]:
-        """`self.live(...)` for each of `names`, reading each one's current
-        value off `self` - the common case where every parameter just needs
-        a plain live `SigTo` with no extra wiring."""
-        return {name: self.live(name, getattr(self, name), time=time) for name in names}
-
     def finish(self, voice: PyoObject) -> Patch:
         self.voice = voice
         self._bind()
@@ -73,6 +57,17 @@ def semitone_ratio(semitones: float) -> float:
     """Frequency ratio for a pitch shift of `semitones`, for detuning an
     oscillator relative to a body/root frequency."""
     return 2 ** (semitones / 12)
+
+
+@dataclass(frozen=True)
+class Step:
+    """One sequencer step: its `index` within the cycle, whether the pattern
+    has a `hit` there, and the pattern's `value` for it (an accent, a pitch
+    offset, `True` for a set) - meaningless when `hit` is False."""
+
+    index: int
+    hit: bool
+    value: Any
 
 
 class GatedVoice(Patch):
@@ -86,8 +81,11 @@ class GatedVoice(Patch):
     `patches/AGENTS.md`'s resource-ownership rule exists to prevent).
     """
 
-    needs_tempo: ClassVar[bool] = True
-    needs_clock: ClassVar[bool] = True
+    # set by `schedule()`/`schedule_steps()` during `build()`
+    _division: Division
+    _clock: Clock
+    _base_division: NoteDivision
+    _scheduled: bool
 
     def _reset(self) -> None:
         """Call at the top of `build()`: fresh Pyo objects and a fresh
@@ -96,7 +94,7 @@ class GatedVoice(Patch):
         super()._reset()
         self.trigger = Trig().stop()
         self.retain(self.trigger)
-        self._division: Division | None = None
+        self._scheduled = False
 
     def envelope(
         self,
@@ -125,25 +123,35 @@ class GatedVoice(Patch):
         raise NotImplementedError
 
     def schedule(
+        self, base_division: NoteDivision, rate: float, clock: Clock
+    ) -> Division:
+        """Subscribe `self.next_step` on `clock`; the `rate` `Param`'s
+        control later re-spaces it through `reschedule()`."""
+        return self.schedule_with(base_division, rate, clock, self.next_step)
+
+    def schedule_with(
         self,
         base_division: NoteDivision,
         rate: float,
         clock: Clock,
-        callback: Callable[[], None] | None = None,
+        callback: Callable[[], None],
     ) -> Division:
-        """Subscribe `callback` (default: `self.next_step`) on `clock` and
-        pre-register the `rate` live control, so `build()` never has to
-        hand-wire it."""
-        division = clock.subscribe(
-            clock.ticks_for_rate(base_division, rate), callback or self.next_step
-        )
-        self._division = division
-        self._clock = clock
+        """`schedule()` with an explicit per-tick `callback`."""
         self._base_division = base_division
-        # a `rate_param` already carries this control
-        if not isinstance(getattr(type(self), "rate", None), Param):
-            self.controls["rate"] = self.reschedule
-        return division
+        return self.schedule_steps(
+            clock, clock.ticks_for_rate(base_division, rate), callback
+        )
+
+    def schedule_steps(
+        self, clock: Clock, steps: int, callback: Callable[[], None]
+    ) -> Division:
+        """Subscribe `callback` every `steps` raw ticks, for a voice whose
+        timing isn't a `NoteDivision` rate (a bar-synced swell, a
+        step-division count)."""
+        self._division = clock.subscribe(steps, callback)
+        self._clock = clock
+        self._scheduled = True
+        return self._division
 
     def reschedule(self, rate: float) -> None:
         """Live `rate` control: re-space the scheduled division."""
@@ -151,47 +159,40 @@ class GatedVoice(Patch):
 
     def step_pattern(
         self, cycle: int, pattern: dict[int, Any] | set[int]
-    ) -> Callable[[], tuple[int, Any | None]]:
+    ) -> Callable[[], Step]:
         """Zero-arg callable for a `schedule()` callback: derives the current
         step (mod `cycle`) from the shared clock's own tick, not an internal
         counter that starts at 0 whenever this patch is (re)built - the same
-        reasoning as `Clock.tick`'s docstring. Returns `(step, value)`, where
-        `value` is `pattern[step]` for a dict, `True`/`None` for a set. The
-        concrete voice's own callback wraps this to decide what a hit does
-        (trigger, reset, accent, recompute pitch, ...).
+        reasoning as `Clock.tick`'s docstring. Returns a `Step`: `hit` is
+        whether `step` is in the pattern and `value` is `pattern[step]` for a
+        dict (`True` for a set). The concrete voice's own callback wraps this
+        to decide what a hit does (trigger, reset, accent, recompute pitch,
+        ...).
 
         Call only after `self.schedule(...)` has run (`self._division` and
         `self._clock` must exist), which every `build()` already does before
         its callback can fire."""
 
-        def check() -> tuple[int, Any | None]:
-            step = (self._clock.tick // self._division.steps) % cycle
-            value = (
-                pattern.get(step)
-                if isinstance(pattern, dict)
-                else (True if step in pattern else None)
-            )
-            return step, value
+        def check() -> Step:
+            index = (self._clock.tick // self._division.steps) % cycle
+            if isinstance(pattern, dict):
+                return Step(index, index in pattern, pattern.get(index, 0.0))
+            return Step(index, index in pattern, True)
 
         return check
 
-    def finish(
-        self,
-        voice: PyoObject,
-        controls: dict[str, Callable[[Any], None]] | None = None,
-        *,
-        resources: tuple[Any, ...] = (),
-    ) -> Patch:
+    def finish(self, voice: PyoObject, *, resources: tuple[Any, ...] = ()) -> Patch:
         """Terminal step of `build()`: retain any further `resources` build()
         kept only as locals (graph nodes stored on `self` are retained
-        automatically), then wire `sequencer`/`voice`/`controls`, run every
-        `Param` control, and return `self` now that it's built."""
-        if self._division is None:
-            raise RuntimeError(f"{type(self).__name__}.build() never called self.schedule(...)")
+        automatically), then wire `sequencer`/`voice`, run every `Param`
+        control, and return `self` now that it's built."""
+        if not self._scheduled:
+            raise RuntimeError(
+                f"{type(self).__name__}.build() never called self.schedule(...)"
+            )
         self.retain(*resources)
         self.sequencer = self._division
         self.voice = voice
-        self.controls = {**self.controls, **(controls or {})}
         self._bind()
         return self
 

@@ -1,10 +1,7 @@
 """Patch definitions for the clock-locked deep-house rack."""
 
-from functools import partial
-
-from pyoscillate.controller import GroupController
+from pyoscillate.controller import GroupController, SidechainSource, Slot
 from pyoscillate.harmony import A, Harmony
-from pyoscillate.patches.base import SidechainSource
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
 from pyoscillate.patches.drums.hat import groove as hat
@@ -24,43 +21,50 @@ class DeepHouseRack(Rack):
     # their own values instead of sharing a static default from `pyoscillate.clock`
     bpm = 132
     ticks_per_bar = 512
-    needs_clock = True
-    # the rack's shared key and progression: every `needs_harmony` patch (bass,
+    # the rack's shared key and progression: every harmonic patch (bass,
     # chords, tom) re-roots on the same chord on the same bar. i-iv-bVII-v as
     # parallel minor sevenths - the deep-house "chord memory" sound - one chord
     # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
     harmony = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
 
-    kicks = GroupController(
-        "kicks", "Kicks", (kick.KickRound, kick.KickPunch, kick.KickSoft)
+    kicks_group = GroupController(
+        "Kicks",
+        (Slot(kick.KickRound), Slot(kick.KickPunch), Slot(kick.KickSoft)),
     )
-    bass = GroupController(
-        "bass",
+    bass_group = GroupController(
         "Bass",
         (
-            partial(bass.BassRolling, sidechain=SidechainSource("kicks", depth=0.6, release=0.15)),
-            bass.BassDub,
-            bass.BassMuted,
+            # a kick ducking the bass on every hit is a standard deep-house
+            # sidechain move - see drums/kick/AGENTS.md's "Sidechaining" reference.
+            # Ducks off the kicks group's playing style, not a fixed instance,
+            # so switching kick styles doesn't silently un-wire the duck.
+            Slot(
+                bass.BassRolling,
+                sidechains=(SidechainSource(kicks_group, depth=0.6, release=0.15),),
+            ),
+            Slot(bass.BassDub),
+            Slot(bass.BassMuted),
         ),
     )
-    chords = GroupController(
-        "chords",
+    chords_group = GroupController(
         "Chord Stabs",
-        (chord.ChordVelvet, chord.ChordOrgan, chord.ChordShimmer),
+        (Slot(chord.ChordVelvet), Slot(chord.ChordOrgan), Slot(chord.ChordShimmer)),
     )
-    hats = GroupController(
-        "hats",
+    hats_group = GroupController(
         "Hi-hats",
-        (hat.GrooveCrisp, hat.GrooveOpen, hat.GrooveShuffle),
+        (Slot(hat.GrooveCrisp), Slot(hat.GrooveOpen), Slot(hat.GrooveShuffle)),
     )
-    percussion = GroupController(
-        "percussion",
+    percussion_group = GroupController(
         "Percussion",
-        (percussion.PercussionRim, percussion.PercussionConga),
+        (Slot(percussion.PercussionRim), Slot(percussion.PercussionConga)),
     )
-    claps = GroupController("claps", "Claps", (clap.Clap,))
-    drums = GroupController(
-        "drums",
+    claps_group = GroupController("Claps", (Slot(clap.Clap),))
+    drums_group = GroupController(
         "Drums",
-        (snare.Snare, tom.Tom, cymbal.CymbalRide, cymbal.CymbalCrash),
+        (
+            Slot(snare.Snare),
+            Slot(tom.Tom),
+            Slot(cymbal.CymbalRide),
+            Slot(cymbal.CymbalCrash),
+        ),
     )

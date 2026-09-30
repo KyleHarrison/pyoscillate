@@ -27,7 +27,9 @@ def _conversation_from_hits(hits: dict[int, int], surprise_step: int) -> BassPro
     gates = tuple(step in hits for step in range(_CONVERSATION_STEPS))
     # a soft downbeat accent, a touch more on the offbeat re-entry so it
     # registers as a small surprise rather than blending into the pocket
-    accents = tuple(0.9 if step == surprise_step else 0.75 for step in range(_CONVERSATION_STEPS))
+    accents = tuple(
+        0.9 if step == surprise_step else 0.75 for step in range(_CONVERSATION_STEPS)
+    )
     return BassProfile(
         pattern=pattern,
         accents=accents,
@@ -91,6 +93,7 @@ TECHNO = BassProfile(
         0.6,
         0.7,
     ),
+    gates=(True,) * 16,
     envelope_decay=0.9,
     resonance=0.75,
     harmonics=(1, 0, 0.4, 0, 0.2, 0, 0.1),
@@ -100,18 +103,21 @@ GROOVE = {
     "rolling": BassProfile(
         pattern=(0, 0, 7, 0, 0, 12, 7, 0, 0, 0, 3, 7, 0, 10, 7, 0),
         accents=(1.0, 0.72, 0.72, 0.72) * 4,
+        gates=(True,) * 16,
         envelope_decay=0.88,
         resonance=0.55,
     ),
     "dub": BassProfile(
         pattern=(0, 0, 0, 7, 0, 0, 10, 0, 0, 7, 0, 0, 3, 0, 7, 0),
         accents=(1.0, 0.72, 0.72, 0.72) * 4,
+        gates=(True,) * 16,
         envelope_decay=0.95,
         resonance=0.78,
     ),
     "muted": BassProfile(
         pattern=(0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 3, 0, 0, 7, 0, 10),
         accents=(1.0, 0.72, 0.72, 0.72) * 4,
+        gates=(True,) * 16,
         envelope_decay=0.55,
         resonance=0.3,
     ),
@@ -125,6 +131,7 @@ GROOVE = {
 _MUTED_VARIANT_B = BassProfile(
     pattern=(0, 0, 7, 0, 0, 0, 10, 0, 0, 3, 0, 0, 7, 0, 0, 10),
     accents=GROOVE["muted"].accents,
+    gates=GROOVE["muted"].gates,
     envelope_decay=GROOVE["muted"].envelope_decay,
     resonance=GROOVE["muted"].resonance,
 )

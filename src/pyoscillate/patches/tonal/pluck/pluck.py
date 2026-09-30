@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -9,29 +10,29 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
-from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
-from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
-from pyoscillate.tempo import Tempo
 
-REST = -1
-SPARSE_PATTERN = (0, REST, 1, REST, 2, REST, 1, REST)
-FULL_PATTERN = (0, 1, 2, 1, 0, 2, 1, 2)
+# step -> chord-tone index; a step that is absent is a rest
+SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
+FULL_PATTERN = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 2, 6: 1, 7: 2}
 
 
 class Pluck(GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
-    needs_harmony: ClassVar[bool] = True
-    volume_default = 0.4
+    volume = Patch.volume.replace(default=0.4)
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
-    patterns: ClassVar[tuple[tuple[int, ...], ...]] = (SPARSE_PATTERN, FULL_PATTERN)
+    # the steps in one pass of a pattern (an eighth-note grid over one bar)
+    cycle: ClassVar[int] = 8
+    patterns: ClassVar[tuple[dict[int, int], ...]] = (SPARSE_PATTERN, FULL_PATTERN)
     triads: ClassVar[dict[int, tuple[int, int, int]]] = {
         0: (0, 4, 7),
         2: (0, 3, 7),
@@ -47,8 +48,8 @@ class Pluck(GatedVoice):
     brightness_env: PyoObject
     fm_voice: FM
     space: Freeverb
-    harmony: Harmony | None
-    _pattern: tuple[int, ...]
+    harmony: Harmony
+    _step: Callable[[], Step]
 
     root_freq = Param(
         notes.A2,
@@ -99,26 +100,25 @@ class Pluck(GatedVoice):
     )
 
     def _note_frequency(self, tone_index: int, bar_index: int) -> float:
-        if self.harmony is None:
-            root = self.root_freq
-            triad = (0, 4, 7)
-        else:
-            degree = self.harmony.chord_offset(bar_index) % 12
-            root = self.harmony.chord_freq(self.root_freq, bar_index)
-            triad = self.triads.get(degree, (0, 4, 7))
+        degree = self.harmony.chord_offset(bar_index) % 12
+        root = self.harmony.chord_freq(self.root_freq, bar_index)
+        triad = self.triads.get(degree, (0, 4, 7))
         return root * 2 ** ((12 + triad[tone_index]) / 12)
 
     def on_evolve(self, index: int) -> None:
-        self._pattern = self.patterns[index % len(self.patterns)]
+        self._step = self.step_pattern(
+            self.cycle, self.patterns[index % len(self.patterns)]
+        )
 
-    def build(self, tempo: Tempo, clock: Clock, harmony: Harmony | None = None) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.harmony = harmony
-        self._pattern = self.patterns[0]
+        self.harmony = context.harmony
 
-        initial_frequency = self._note_frequency(0, clock.bar_index)
+        initial_frequency = self._note_frequency(0, context.clock.bar_index)
         self.pitch = SigTo(value=initial_frequency, time=0.01)
-        self.amp_env = self.envelope([(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3)
+        self.amp_env = self.envelope(
+            [(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3
+        )
         self.brightness_env = self.envelope(
             [(0, 1), (8191, 0)], dur=self.brightness_decay, mul=0, exp=3
         )
@@ -130,18 +130,18 @@ class Pluck(GatedVoice):
         )
         self.space = Freeverb(self.fm_voice, size=0.35, damp=0.55, bal=0.22)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
+        self._step = self.step_pattern(self.cycle, self.patterns[0])
         return self.finish(self.space)
 
     def next_step(self) -> None:
-        step = (self._clock.tick // self._division.steps) % len(self._pattern)
-        tone_index = self._pattern[step]
-        if tone_index == REST:
+        step = self._step()
+        if not step.hit:
             self.amp_env.stop()
             self.brightness_env.stop()
             return
 
-        self.pitch.value = self._note_frequency(tone_index, self._clock.bar_index)
+        self.pitch.value = self._note_frequency(step.value, self._clock.bar_index)
         self.trigger.play()
 
 

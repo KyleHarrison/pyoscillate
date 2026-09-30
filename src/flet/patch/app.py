@@ -2,17 +2,19 @@
 #      uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
 """Play any single patch module in the rack GUI, without a project rack.
 
-The module's `Patch` subclass is instantiated directly and dropped into a
-`GroupController` of one: `name`/`title`/`summary`/`parameters`/`volume_default`/
-`needs_*` all come from the instance itself, same as a project rack. When a
+The module's `Patch` subclass is declared as a `Slot` in a one-group
+`SinglePatchRack`: `name`/`title`/`summary`/`params` all come from the
+patch itself, same as a project rack. When a
 module defines several style variants (e.g. `kick.py`'s `KickRound` /
 `KickPunch` / `KickSoft`), pass `style=<name fragment>` to pick one by a
 case-insensitive match against its class name; with only one concrete
 `Patch` subclass in the module, `style` is optional.
 
-Any other `key=value` arguments after the module path are fixed into the
-instance's initial parameter values, for the non-slider choices a rack would
-otherwise bake in.
+Any other `key=value` arguments after the module path are converted with
+`float()` and fixed into the instance's initial parameter values, for the
+non-slider choices a rack would otherwise bake in. Selecting the module and
+style from command-line strings is this dev harness's one external boundary;
+the rack itself is fully typed.
 """
 
 import importlib
@@ -22,28 +24,27 @@ from pathlib import Path
 from types import ModuleType
 
 import flet as ft
-from pyoscillate.controller import GroupRuntime
-from pyoscillate.harmony import Harmony
+from pyoscillate.controller import GroupController, Slot
 from pyoscillate.patches.base import Patch
 from pyoscillate.projects.base import Rack
 from src.flet.base import PatchRackApp
 
-BPM = 120
-
 
 class SinglePatchRack(Rack):
-    """Wraps one `Patch` instance, selected at runtime from the CLI args, in
-    the `Rack` interface `PatchRackApp` expects - this dev harness has no
-    project-level `rack.py` of its own to subclass `Rack` from."""
+    """A rack of one patch, whose class and starting values come from the CLI
+    args - this dev harness has no project-level `rack.py` to subclass `Rack`
+    from. `for_patch()` builds the rack class declaratively: one `Slot` in one
+    `GroupController`."""
 
-    def __init__(self, patch: Patch) -> None:
-        self.patch = patch
-        needs_tempo = patch.needs_tempo or patch.needs_clock
-        self.bpm = BPM if needs_tempo else None
-        self.needs_clock = patch.needs_clock
-        self.harmony = Harmony() if patch.needs_harmony else None
-        self._groups = (GroupRuntime(self.patch.name, self.patch.title, (self.patch,)),)
-        self._group_bindings = ()
+    bpm = 120
+
+    @classmethod
+    def for_patch(
+        cls, patch_class: type[Patch], values: dict[str, float]
+    ) -> type[Rack]:
+        slot = Slot(patch_class, **values)
+        group = GroupController(patch_class.title, (slot,), patch_class.summary)
+        return type(cls.__name__, (cls,), {"patch_slot": slot, "patch_group": group})
 
 
 def _patch_classes(module: ModuleType) -> dict[str, type[Patch]]:
@@ -87,14 +88,16 @@ def main(page: ft.Page) -> None:
     module = importlib.import_module(sys.argv[1])
     fixed = dict(arg.split("=", 1) for arg in sys.argv[2:])
     style = fixed.pop("style", None)
-    patch = _select_class(module, style)(**fixed)
+    patch_class = _select_class(module, style)
 
     PatchRackApp(
         page,
-        patch.title,
-        patch.summary,
-        SinglePatchRack(patch),
-        catalog_dir=Path(__file__).parent / "presets" / patch.name,
+        patch_class.title,
+        patch_class.summary,
+        SinglePatchRack.for_patch(
+            patch_class, {key: float(value) for key, value in fixed.items()}
+        )(),
+        catalog_dir=Path(__file__).parent / "presets" / patch_class.name,
     )
 
 

@@ -47,7 +47,7 @@ drums + Rhodes" texture.
 
 `HARMONY` in `rack.py` holds one key and vamp — `Dm9–G13–Cmaj9–Am9`, one
 chord per bar, four bars per loop. `BassConversation`, `Strings`, and
-`LeadMutedKeys` (via `Lead`'s existing `needs_harmony` support) all re-root
+`LeadMutedKeys` (via `Lead`'s existing harmony support) all re-root
 on `clock.bar_index`'s current chord, so they change together regardless of
 their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
 as fixed voicings relative to its own Register slider (see `keys.py`'s

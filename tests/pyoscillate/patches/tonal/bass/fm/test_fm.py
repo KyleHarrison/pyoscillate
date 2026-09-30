@@ -33,7 +33,7 @@ Change:
     first. It halved the offset, but a one-pole filter is too slow for an
     offset that moves within milliseconds, and the test still failed. The
     high-pass's phase shift raises the crest at Register 30 by up to ~25%, so
-    VOLUME_DEFAULT went from 0.5 to 0.42 to keep the loudest corner clean.
+    the `volume` default went from 0.5 to 0.42 to keep the loudest corner clean.
 Status:
     fixed - src/pyoscillate/patches/tonal/bass/fm/fm.py.
 
@@ -60,7 +60,6 @@ BPM = 120
 SIXTEENTH = 60 / BPM / 4
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
-SLIDERS = {spec.name: spec for spec in fm.FmBass.parameters}
 
 
 @cache
@@ -68,7 +67,9 @@ def _render(**params: float | str) -> Render:
     return render(MODULE, params, seconds=1.2, bpm=BPM)
 
 
-def _note(result: Render, step: int, start: float = 0.0, end: float = 0.1) -> np.ndarray:
+def _note(
+    result: Render, step: int, start: float = 0.0, end: float = 0.1
+) -> np.ndarray:
     """Samples `start`..`end` seconds into the note at `step`."""
     onset = step * SIXTEENTH + LATENCY
     rate = result.sample_rate
@@ -104,15 +105,18 @@ class FMBassHealthTests(unittest.TestCase):
 
     def test_loudest_corner_is_clean_at_default_volume(self) -> None:
         for style in fm.STYLES:
-            for root_freq in (SLIDERS["root_freq"].minimum, SLIDERS["root_freq"].maximum):
+            for root_freq in (
+                fm.FmBass.root_freq.spec.minimum,
+                fm.FmBass.root_freq.spec.maximum,
+            ):
                 with self.subTest(style=style, root_freq=root_freq):
                     loudest = features(
                         _render(
                             style=style,
                             root_freq=root_freq,
-                            growl=SLIDERS["growl"].maximum,
-                            edge=SLIDERS["edge"].maximum,
-                            length=SLIDERS["length"].maximum,
+                            growl=fm.FmBass.growl.spec.maximum,
+                            edge=fm.FmBass.edge.spec.maximum,
+                            length=fm.FmBass.length.spec.maximum,
                         ),
                         ceiling=PATCH_OUTPUT_CEILING,
                     )
@@ -139,16 +143,24 @@ class FMBassControlTests(unittest.TestCase):
     def test_settle_keeps_the_bark_later_into_the_note(self) -> None:
         for style in fm.STYLES:
             with self.subTest(style=style):
-                quick = _note(_render(style=style, settle=0.02, edge=0), ACCENTED, 0.05, 0.1)
-                slow = _note(_render(style=style, settle=0.4, edge=0), ACCENTED, 0.05, 0.1)
+                quick = _note(
+                    _render(style=style, settle=0.02, edge=0), ACCENTED, 0.05, 0.1
+                )
+                slow = _note(
+                    _render(style=style, settle=0.4, edge=0), ACCENTED, 0.05, 0.1
+                )
 
                 self.assertGreater(_centroid(slow), _centroid(quick) * 1.3)
 
     def test_edge_brightens_the_settled_tone(self) -> None:
         for style in fm.STYLES:
             with self.subTest(style=style):
-                pure = _note(_render(style=style, settle=0.02, edge=0), ACCENTED, 0.05, 0.1)
-                edged = _note(_render(style=style, settle=0.02, edge=3), ACCENTED, 0.05, 0.1)
+                pure = _note(
+                    _render(style=style, settle=0.02, edge=0), ACCENTED, 0.05, 0.1
+                )
+                edged = _note(
+                    _render(style=style, settle=0.02, edge=3), ACCENTED, 0.05, 0.1
+                )
 
                 self.assertGreater(_centroid(edged), _centroid(pure) * 1.3)
 

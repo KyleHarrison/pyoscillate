@@ -18,7 +18,7 @@ from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.filters import Tone
 from pyo.lib.generators import Rossler, Sine, SuperSaw
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -35,7 +35,7 @@ class SoundscapeWash(ContinuousVoice):
 
     title = "Soundscape - washy detuned pad"
     summary = "Wide, hazy detuned wash that dissolves into echoing space."
-    volume_default = 0.6
+    volume = Patch.volume.replace(default=0.6)
     EVOLUTION_VARIANTS: ClassVar[tuple[tuple[float, float], ...]] = (
         (1.0, 1.0),
         (1.2, 1.1),
@@ -202,21 +202,21 @@ class SoundscapeWash(ContinuousVoice):
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.root_freq_sig = self.live("root_freq", self.root_freq)
-        self.detune_sig = self.live("detune", self.detune)
-        self.detune_bal_sig = self.live("detune_bal", self.detune_bal)
-        self.pitch_drift_sig = self.live("pitch_drift", self.pitch_drift)
-        self.chorus_depth_sig = self.live("chorus_depth", self.chorus_depth)
-        self.chorus_feedback_sig = self.live("chorus_feedback", self.chorus_feedback)
-        self.chorus_bal_sig = self.live("chorus_bal", self.chorus_bal)
-        self.reverb_size_sig = self.live("reverb_size", self.reverb_size)
-        self.reverb_damp_sig = self.live("reverb_damp", self.reverb_damp)
-        self.reverb_bal_sig = self.live("reverb_bal", self.reverb_bal)
-        self.delay_time_sig = self.live("delay_time", self.delay_time)
-        self.delay_feedback_sig = self.live("delay_feedback", self.delay_feedback)
+        self.root_freq_sig = self.live(type(self).root_freq)
+        self.detune_sig = self.live(type(self).detune)
+        self.detune_bal_sig = self.live(type(self).detune_bal)
+        self.pitch_drift_sig = self.live(type(self).pitch_drift)
+        self.chorus_depth_sig = self.live(type(self).chorus_depth)
+        self.chorus_feedback_sig = self.live(type(self).chorus_feedback)
+        self.chorus_bal_sig = self.live(type(self).chorus_bal)
+        self.reverb_size_sig = self.live(type(self).reverb_size)
+        self.reverb_damp_sig = self.live(type(self).reverb_damp)
+        self.reverb_bal_sig = self.live(type(self).reverb_bal)
+        self.delay_time_sig = self.live(type(self).delay_time)
+        self.delay_feedback_sig = self.live(type(self).delay_feedback)
 
         # subtle, slow pitch instability rather than a discrete note pattern -
         # keeps the drone "dreamy" without ever resolving to a new pitch
@@ -225,7 +225,10 @@ class SoundscapeWash(ContinuousVoice):
         )
 
         self.saw_voice = SuperSaw(
-            freq=self.pitch_wander, detune=self.detune_sig, bal=self.detune_bal_sig, mul=0.2
+            freq=self.pitch_wander,
+            detune=self.detune_sig,
+            bal=self.detune_bal_sig,
+            mul=0.2,
         )
         self.softened = Tone(self.saw_voice, freq=self.root_freq_sig * 4)
         self.chorus_motion = Sine(
@@ -253,7 +256,9 @@ class SoundscapeWash(ContinuousVoice):
         return self.finish(self.output)
 
     def on_evolve(self, index: int) -> None:
-        depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[index % len(self.EVOLUTION_VARIANTS)]
+        depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[
+            index % len(self.EVOLUTION_VARIANTS)
+        ]
         self.chorus_depth_sig.value = min(
             type(self).chorus_depth.spec.maximum, self.chorus_depth * depth_scale
         )

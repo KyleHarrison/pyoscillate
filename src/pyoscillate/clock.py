@@ -70,10 +70,7 @@ class Clock:
     ticks for everyone, so patches lock to a common downbeat and stay
     locked across rebuilds.
 
-    `eq=False` keeps equality identity-based - see `Division`'s docstring -
-    and also matters for `PatchRack.toggle()`, which compares previous
-    `build()` arguments (including this `clock`) with `==` to decide
-    whether to treat a rerun as an off/on toggle.
+    `eq=False` keeps equality identity-based - see `Division`'s docstring.
     """
 
     tempo: Tempo

@@ -84,7 +84,8 @@ class WashHealthTests(unittest.TestCase):
                 frequencies = np.fft.rfftfreq(samples.size, 1 / result.sample_rate)
 
                 harmonics = sum(
-                    _energy_near(power, frequencies, root_freq * index) for index in range(1, 11)
+                    _energy_near(power, frequencies, root_freq * index)
+                    for index in range(1, 11)
                 )
                 between = sum(
                     _energy_near(power, frequencies, root_freq * (index + 0.5))

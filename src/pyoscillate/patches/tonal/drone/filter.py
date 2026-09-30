@@ -17,7 +17,7 @@ from pyo.lib.generators import Lorenz
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
-from pyoscillate.patches.base import Patch
+from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
@@ -38,7 +38,7 @@ class SoundscapeFilter(ContinuousVoice):
 
     title = "Soundscape - filter-swept pad"
     summary = "Sustained drone whose brightness sweeps and breathes unpredictably."
-    volume_default = 0.6
+    volume = Patch.volume.replace(default=0.6)
 
     # the graph, assigned by build(); finish() retains every one of them
     root_freq_sig: SigTo
@@ -188,20 +188,20 @@ class SoundscapeFilter(ContinuousVoice):
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value
 
-    def build(self) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.root_freq_sig = self.live("root_freq", self.root_freq)
-        self.cutoff_speed_sig = self.live("cutoff_speed", self.cutoff_speed)
-        self.cutoff_chaos_sig = self.live("cutoff_chaos", self.cutoff_chaos)
-        self.filter_res_sig = self.live("filter_res", self.filter_res)
-        self.filter_base_sig = self.live("filter_base", self.filter_base)
-        self.filter_range_sig = self.live("filter_range", self.filter_range)
-        self.reverb_size_sig = self.live("reverb_size", self.reverb_size)
-        self.reverb_damp_sig = self.live("reverb_damp", self.reverb_damp)
-        self.reverb_bal_sig = self.live("reverb_bal", self.reverb_bal)
-        self.delay_time_sig = self.live("delay_time", self.delay_time)
-        self.delay_feedback_sig = self.live("delay_feedback", self.delay_feedback)
+        self.root_freq_sig = self.live(type(self).root_freq)
+        self.cutoff_speed_sig = self.live(type(self).cutoff_speed)
+        self.cutoff_chaos_sig = self.live(type(self).cutoff_chaos)
+        self.filter_res_sig = self.live(type(self).filter_res)
+        self.filter_base_sig = self.live(type(self).filter_base)
+        self.filter_range_sig = self.live(type(self).filter_range)
+        self.reverb_size_sig = self.live(type(self).reverb_size)
+        self.reverb_damp_sig = self.live(type(self).reverb_damp)
+        self.reverb_bal_sig = self.live(type(self).reverb_bal)
+        self.delay_time_sig = self.live(type(self).delay_time)
+        self.delay_feedback_sig = self.live(type(self).delay_feedback)
 
         self.pad_table = HarmTable(PAD_HARMONICS)
         self.pad_osc = Osc(table=self.pad_table, freq=self.root_freq_sig, mul=0.25)
@@ -212,7 +212,9 @@ class SoundscapeFilter(ContinuousVoice):
             mul=self.filter_range_sig,
             add=self.filter_base_sig,
         )
-        self.filtered = MoogLP(self.pad_osc, freq=self.cutoff_chaos_lfo, res=self.filter_res_sig)
+        self.filtered = MoogLP(
+            self.pad_osc, freq=self.cutoff_chaos_lfo, res=self.filter_res_sig
+        )
 
         self.reverb_voice = Freeverb(
             self.filtered,

@@ -16,11 +16,11 @@ from pyo.lib.generators import Noise
 from pyo.lib.tables import LinTable
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.base import Patch
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.tempo import Tempo
 
 # beats two and four of a 16-step bar - the backbeat this clap accents
 PATTERN = {4, 12}
@@ -34,7 +34,7 @@ class Clap(DrumVoice):
     """
 
     summary = "Sharp, bright clap accent."
-    volume_default = 0.28
+    volume = Patch.volume.replace(default=0.28)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     # short bursts before the tail; the tail's onset acts as the final hand
     bursts: ClassVar[int] = 3
@@ -61,9 +61,16 @@ class Clap(DrumVoice):
     # the step pattern's callable, frozen at build time - fed to
     # `next_step`, which build() can no longer close over now that it's a
     # real method
-    _step: Callable[[], tuple[int, bool | None]]
+    _step: Callable[[], Step]
 
-    @Param(0.02, 0.6, 0.01, 0.18, "Presence", "Sets how loud and upfront the clap accent sits in the mix.")
+    @Param(
+        0.02,
+        0.6,
+        0.01,
+        0.18,
+        "Presence",
+        "Sets how loud and upfront the clap accent sits in the mix.",
+    )
     def level(self, value: float) -> None:
         self.burst_env.mul = value
 
@@ -110,7 +117,9 @@ class Clap(DrumVoice):
         "+1 rises to a 32nd note (double speed).",
     )
 
-    def _envelope_points(self, spread: float, decay: float) -> tuple[list[tuple[int, float]], float]:
+    def _envelope_points(
+        self, spread: float, decay: float
+    ) -> tuple[list[tuple[int, float]], float]:
         """Envelope table points and total duration for one multi-burst clap."""
         total = self.bursts * spread + decay
         scale = (self.table_size - 1) / total
@@ -124,7 +133,11 @@ class Clap(DrumVoice):
         for step in range(1, self.tail_points + 1):
             fraction = step / self.tail_points
             index = tail_start + round(fraction * (self.table_size - 1 - tail_start))
-            value = math.exp(-self.tail_curve * fraction) if step < self.tail_points else 0.0
+            value = (
+                math.exp(-self.tail_curve * fraction)
+                if step < self.tail_points
+                else 0.0
+            )
             points.append((index, value))
         return points, total
 
@@ -144,23 +157,29 @@ class Clap(DrumVoice):
         self.envelope_table.replace(points)
         self.burst_env.dur = duration
 
-    def build(self, tempo: Tempo, clock: Clock) -> Patch:
+    def build(self, context: BuildContext) -> Patch:
         self._reset()
 
         points, duration = self._envelope_points(self.spread, self.decay)
         self.envelope_table = LinTable(points, size=self.table_size)
-        self.burst_env = TrigEnv(self.trigger, self.envelope_table, dur=duration, mul=self.level)
+        self.burst_env = TrigEnv(
+            self.trigger, self.envelope_table, dur=duration, mul=self.level
+        )
         self.noise = Noise()
         self.source = self.noise * self.burst_env
         self.tone_filter = Biquad(
-            self.source, freq=self.tone, q=self.resonance, type=2, mul=self._makeup(self.tone)
+            self.source,
+            freq=self.tone,
+            q=self.resonance,
+            type=2,
+            mul=self._makeup(self.tone),
         )
 
         self._step = self.step_pattern(16, PATTERN)
 
-        self.schedule(self.base_division, self.rate, clock)
+        self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.tone_filter)
 
     def next_step(self) -> None:
-        if self._step()[1] is not None:
+        if self._step().hit:
             self.trigger.play()

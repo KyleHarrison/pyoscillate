@@ -29,13 +29,16 @@ uv run python -m pyoscillate.analysis pyoscillate.patches.drums.clap.clap \
     --set decay=0.3 --seconds 1.2 --ceiling 0.18
 ```
 
-- `render(module, params, seconds=..., bpm=...)` builds the patch, starts it
-  on a real `Clock`, and records the server output in a **fresh subprocess**.
+- `render(module, params, seconds=..., bpm=...)` builds the patch with a full
+  `BuildContext`, starts it on a real `Clock`, and records the server output in a **fresh subprocess**.
   Pyo keeps one native server per process and does not survive repeated
   boot/shutdown reliably, so never boot a real server inside the pytest process.
-- `render()` plays the patch at the module's `VOLUME_DEFAULT` (the level its
+- `render()` plays the patch at its `volume` Param's default (the level its
   volume slider starts at), so the output goes through the patch limiter the way the
-  listener hears it. Pass `volume=` to override that.
+  listener hears it. Put `volume` in `params` to override that. `params` maps
+  `Param` names to values (written by matching `param.name`), plus an optional
+  `style` that selects the subclass - both are CLI-string boundaries; tests
+  themselves iterate `patch.params` and never look a parameter up by string.
 - `render(..., clock_running=False)` starts the patch but never ticks the
   clock. A gated patch must be silent in that state.
 - `features(render, ceiling=...)` returns level and clipping, plus onset,
