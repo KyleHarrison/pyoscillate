@@ -1,5 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove style=crisp
-#   style: crisp | open | shuffle | lofi
+#   style: crisp | open | shuffle | lofi | forest
 """Groove hi-hat voices with closed and open articulations.
 
 The source blends white noise with a cluster of high FM operators at
@@ -213,6 +213,31 @@ class GrooveShuffle(Groove):
         13: CLOSED,
         14: OPEN,
     }
+
+
+class GrooveForest(Groove):
+    """Subtle psytrance hat: quiet open offbeats on each "&" choked by softer
+    closed ghosts on the "a", so the hat stays a background shimmer around
+    the kick/bass pocket instead of an accent."""
+
+    name = "hat_forest"
+    title = "Hat - Forest"
+    summary = (
+        "Quiet open offbeat hats choked by soft closed ghosts; a background shimmer."
+    )
+    pattern: ClassVar[dict[int, tuple[str, float]]] = {
+        2: (OPEN, 0.6),
+        3: (CLOSED, 0.25),
+        6: (OPEN, 0.6),
+        7: (CLOSED, 0.25),
+        10: (OPEN, 0.6),
+        11: (CLOSED, 0.25),
+        14: (OPEN, 0.7),
+        15: (CLOSED, 0.3),
+    }
+    cutoff = Groove.cutoff.replace(default=8000)
+    metal = Groove.metal.replace(default=0.5)
+    length = Groove.length.replace(default=0.7)
 
 
 # 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> (articulation, accent).

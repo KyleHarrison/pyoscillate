@@ -7,6 +7,8 @@ NOTE_NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 # pitch class of C, for a rack whose vamp is easiest to name off a major-key
 # centre (e.g. roman-numeral chords built from scale degrees)
 C = 0
+# pitch class of F, for the dark psytrance racks
+F = 5
 # pitch class of A, the default key for racks that don't choose one
 A = 9
 

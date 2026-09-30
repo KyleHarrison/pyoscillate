@@ -1,0 +1,61 @@
+{
+  "kick_punch": {
+    "enabled": true,
+    "volume": 0.8,
+    "level": 0.7,
+    "drive": 0.15000000000000002,
+    "punch": 1.45,
+    "length": 1.9,
+    "click": 0.1,
+    "rate": 0.0
+  },
+  "bass_forest": {
+    "enabled": true,
+    "volume": 1.3,
+    "octave": 0.0,
+    "cutoff": 900.0,
+    "rate": 0
+  },
+  "hat_forest": {
+    "enabled": true,
+    "volume": 0.7,
+    "level": 0.05,
+    "cutoff": 3500.0,
+    "metal": 0.65,
+    "length": 2.0,
+    "rate": 1.0
+  },
+  "lead_fm_wind": {
+    "enabled": true,
+    "volume": 0.1,
+    "root_freq": 174.61411571650194,
+    "bite": 7.25,
+    "settle": 0.07,
+    "swirl": 1.0999999999999999,
+    "breath": 0.6775,
+    "glide": 0.06,
+    "length": 1.7000000000000002,
+    "echo_level": 0.7,
+    "rate": 2.0
+  },
+  "lead_fm_swirl": {
+    "enabled": true,
+    "volume": 0.2,
+    "root_freq": 349.228,
+    "bite": 4.95,
+    "settle": 0.41000000000000003,
+    "swirl": 0.4,
+    "breath": 0.495,
+    "glide": 0.21,
+    "length": 0.9,
+    "echo_level": 0.5125,
+    "rate": 0
+  },
+  "_rack": {
+    "key": "F",
+    "controls": {
+      "Bass/roll": 1.0,
+      "Leads/energy": 0.65
+    }
+  }
+}

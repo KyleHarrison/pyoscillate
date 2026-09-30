@@ -1,0 +1,369 @@
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.lead.fm style=wind
+#   style: wind | swirl
+"""Windy, psychedelic FM leads.
+
+Two-operator FM (x03/03 `FM`) whose index barks on every note and then
+settles onto a steady edge, with a slow index LFO swirling the spectrum
+between notes. Three things make it "windy" rather than a plain FM tone: a
+band-passed noise layer that tracks the note pitch (breath), a slow
+multiplicative pitch drift, and portamento between notes. A dotted-eighth
+echo smears each phrase into the next.
+
+- `wind` (`LeadFmWind`): integer ratio 2, so the sidebands fold onto the odd
+  harmonics - a hollow, reed-like tone - playing a sparse, floating phrase
+  of long notes.
+- `swirl` (`LeadFmSwirl`): ratio 3.01. The sidebands land about 1% off the
+  harmonics and beat against them, which phases and shimmers the tone
+  instead of locking it. Plays a short, syncopated, sliding groove.
+
+Both play a two-bar phrase in semitones above the rack's current chord root,
+and `on_evolve` alternates between two phrase variants.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import ClassVar
+
+from pyo import PyoObject
+from pyo.lib.controls import SigTo
+from pyo.lib.effects import Delay
+from pyo.lib.filters import ButBP, ButHP
+from pyo.lib.generators import FM, Noise, Sine
+from pyo.lib.tables import CosTable, LinTable
+from pyo.lib.triggers import TrigEnv
+
+from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
+from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.patches.utility.notes import notes
+
+
+class LeadFm(GatedVoice):
+    """FM lead base: every note barks bright and settles, with breath noise,
+    pitch drift, portamento and an echo. Style subclasses supply the
+    operator ratio, the swirl and drift speeds and the phrases; the graph is
+    identical across styles."""
+
+    volume = Patch.volume.replace(default=0.2)
+    base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+
+    # modulator / carrier frequency ratio
+    ratio: ClassVar[float]
+    # the brightness left under the whole note once the bark has settled
+    edge: ClassVar[float]
+    # the index LFO's period and the pitch drift's period, in bars
+    swirl_bars: ClassVar[float]
+    drift_bars: ClassVar[float]
+    # pitch drift excursion as a fraction of the note's frequency (0.006 is
+    # about 10 cents)
+    drift_depth: ClassVar[float] = 0.006
+    # the breath noise band's centre as a multiple of the note, and its Q
+    air_ratio: ClassVar[float] = 2.0
+    air_q: ClassVar[float] = 5.0
+    air_gain: ClassVar[float] = 2.0
+    # fed back into the echo, and the echo delay in 16ths (3 = dotted eighth)
+    echo_feedback: ClassVar[float] = 0.45
+    echo_sixteenths: ClassVar[float] = 3.0
+    # level ceiling for the FM voice (FM keeps a constant amplitude whatever
+    # the index, so this and the accent are all the level depends on)
+    gain: ClassVar[float] = 0.3
+    # under the lowest Register; clears the DC an FM voice carries
+    subsonic: ClassVar[float] = 60.0
+    # the level of a note that lands on a beat; every other note is full, so
+    # the syncopations carry the groove
+    beat_accent: ClassVar[float] = 0.75
+    # amplitude and index shapes: a quick rise then a held body, and a fast
+    # drop to half then a linear fall to nothing
+    amp_points: ClassVar[list[tuple[int, float]]] = [
+        (0, 0.0),
+        (300, 1.0),
+        (2400, 0.6),
+        (8191, 0.0),
+    ]
+    index_points: ClassVar[list[tuple[int, float]]] = [
+        (0, 1.0),
+        (512, 0.5),
+        (8191, 0.0),
+    ]
+
+    # this style's phrases, in semitones above the chord root; a step absent
+    # from the dict is a rest. `phrases[0]` plays first and `on_evolve`
+    # rotates through the rest. A phrase spans `cycle` steps (two bars).
+    phrases: ClassVar[tuple[dict[int, int], ...]]
+    cycle: ClassVar[int] = 32
+
+    # the graph, assigned by build(); finish() retains every one of them
+    pitch: SigTo
+    drift: Sine
+    carrier: PyoObject
+    index_table: LinTable
+    amp_table: CosTable
+    bark: TrigEnv
+    swirl_lfo: Sine
+    index: PyoObject
+    amp: TrigEnv
+    level: PyoObject
+    tone: FM
+    noise: Noise
+    air_level: SigTo
+    air_band: ButBP
+    air_gate: PyoObject
+    air_mix: PyoObject
+    body: PyoObject
+    echo: Delay
+    mixed: PyoObject
+    cleaned: ButHP
+
+    # the rack's harmony, the sixteenth-note length and the current note's
+    # accent, read by `next_step` and the controls
+    harmony: Harmony
+    _sixteenth: float
+    _accent: float
+    _step: Callable[[], Step]
+
+    root_freq = Param(
+        notes.F3,
+        notes.F5,
+        1,
+        notes.F4,
+        "Register",
+        "Moves the lead up or down; low is a warm, reedy mid voice, high is a thin, whistling "
+        "line above the mix. Notes always follow the rack's key and chord.",
+        scale="note",
+    )
+
+    @Param(
+        0,
+        8,
+        0.25,
+        3,
+        "Bite",
+        "How hard each note barks: low is a soft, pure tone, high a bright, buzzing snarl at the "
+        "start of every note.",
+    )
+    def bite(self, value: float) -> None:
+        self.bark.mul = value * self._accent
+
+    @Param(
+        0.02,
+        0.5,
+        0.01,
+        0.15,
+        "Settle",
+        "How long the bark takes to die down, in seconds: short is a quick pluck on the front of "
+        "the note, long a slow, vowel-like close.",
+    )
+    def settle(self, value: float) -> None:
+        self.bark.dur = value
+
+    @Param(
+        0,
+        3,
+        0.1,
+        0.8,
+        "Swirl",
+        "Depth of a slow, bar-scale swell in the tone between notes; low holds the colour steady, "
+        "high keeps the spectrum phasing and shimmering.",
+    )
+    def swirl(self, value: float) -> None:
+        self.swirl_lfo.mul = value
+        self.swirl_lfo.add = value
+
+    # follows `self.air_level`, a `live` signal, so no control body: setting
+    # `.mul` on the gated product would replace the note envelope with a constant
+    breath = Param(
+        0,
+        1,
+        0.05,
+        0.3,
+        "Breath",
+        "Mixes in airy, pitched noise under each note; low is a clean synth tone, high a windy, "
+        "whistling breath.",
+    )
+
+    @Param(
+        0,
+        0.25,
+        0.01,
+        0.05,
+        "Glide",
+        "Slides each note into the next over this many seconds; none is stepped and exact, long "
+        "is a smeared, wandering line.",
+    )
+    def glide(self, value: float) -> None:
+        self.pitch.time = value
+
+    @Param(
+        0.3,
+        4,
+        0.1,
+        1.5,
+        "Length",
+        "How long each note lasts, in 16ths: short is tight and staccato, long runs one note into "
+        "the next.",
+    )
+    def length(self, value: float) -> None:
+        self.amp.dur = self._sixteenth * value
+
+    @Param(
+        0,
+        0.7,
+        0.05,
+        0.35,
+        "Echo",
+        "Level of a dotted-eighth echo that repeats each phrase behind itself; low is dry, high "
+        "fills the gaps with a trailing, psychedelic wash.",
+    )
+    def echo_level(self, value: float) -> None:
+        self.echo.mul = value
+
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the phrase speed for each step away from its 16th-note grid.",
+    )
+
+    def note_root(self) -> float:
+        """The current bar's chord root in the octave nearest `root_freq`."""
+        return self.harmony.chord_freq(self.root_freq, self._clock.bar_index)
+
+    def build(self, context: BuildContext) -> Patch:
+        self._reset()
+        self.harmony = context.harmony
+        tempo = context.tempo
+        self._sixteenth = tempo.sixteenth
+        self._accent = 1.0
+
+        self.pitch = SigTo(value=self.root_freq, time=self.glide, init=self.root_freq)
+        self.drift = Sine(
+            freq=1 / (tempo.bar * self.drift_bars),
+            mul=self.drift_depth,
+            add=1.0,
+        )
+        self.carrier = self.pitch * self.drift
+
+        self.index_table = LinTable(self.index_points)
+        self.amp_table = CosTable(self.amp_points)
+        self.bark = TrigEnv(
+            self.trigger,
+            self.index_table,
+            dur=self.settle,
+            mul=self.bite,
+            add=self.edge,
+        )
+        self.swirl_lfo = Sine(freq=1 / (tempo.bar * self.swirl_bars), mul=0, add=0)
+        self.index = self.bark + self.swirl_lfo
+        self.amp = TrigEnv(self.trigger, self.amp_table, dur=tempo.sixteenth)
+        self.level = self.amp * self.gain
+        self.tone = FM(
+            carrier=self.carrier, ratio=self.ratio, index=self.index, mul=self.level
+        )
+
+        self.noise = Noise()
+        self.air_level = self.live(type(self).breath, time=0.05)
+        self.air_band = ButBP(
+            self.noise,
+            freq=self.carrier * self.air_ratio,
+            q=self.air_q,
+            mul=self.air_gain,
+        )
+        self.air_gate = self.air_band * self.amp
+        self.air_mix = self.air_gate * self.air_level
+        self.body = self.tone + self.air_mix
+
+        self.echo = Delay(
+            self.body,
+            delay=tempo.sixteenth * self.echo_sixteenths,
+            feedback=self.echo_feedback,
+            maxdelay=2.0,
+        )
+        self.mixed = self.body + self.echo
+        self.cleaned = ButHP(self.mixed, freq=self.subsonic)
+
+        self.schedule(self.base_division, self.rate, context.clock)
+        self._step = self.step_pattern(self.cycle, self.phrases[0])
+        return self.finish(self.cleaned)
+
+    def next_step(self) -> None:
+        step = self._step()
+        if step.hit:
+            self._accent = self.beat_accent if step.index % 4 == 0 else 1.0
+            self.pitch.value = self.note_root() * 2 ** (step.value / 12)
+            self.bark.mul = self.bite * self._accent
+            self.amp.mul = self._accent
+            self.trigger.play()
+
+    def on_evolve(self, index: int) -> None:
+        """Rotate which of `phrases` is playing; called rarely (tens of
+        bars) by the rack's `EvolvingGroup`, never by the clock."""
+        self._step = self.step_pattern(
+            self.cycle, self.phrases[index % len(self.phrases)]
+        )
+
+
+class LeadFmWind(LeadFm):
+    """Hollow, reed-like FM lead playing a sparse, floating phrase of long
+    notes."""
+
+    title = "Lead - FM Wind"
+    summary = "Hollow, breathy FM reed drifting through a sparse, floating phrase."
+    ratio = 2.0
+    edge = 0.6
+    swirl_bars = 2.0
+    drift_bars = 3.0
+    length = LeadFm.length.replace(default=3.0)
+    glide = LeadFm.glide.replace(default=0.09)
+    breath = LeadFm.breath.replace(default=0.45)
+    phrases = (
+        {0: 7, 5: 8, 8: 7, 12: 5, 16: 3, 21: 5, 24: 7, 28: 1},
+        {0: 12, 6: 10, 10: 8, 14: 7, 16: 5, 22: 3, 26: 1, 30: 0},
+    )
+
+
+class LeadFmSwirl(LeadFm):
+    """Phasing, shimmering FM lead playing a short, syncopated, sliding
+    groove."""
+
+    title = "Lead - FM Swirl"
+    summary = "Phasing FM lead sliding through a syncopated 16th-note groove."
+    ratio = 3.01
+    edge = 1.0
+    swirl_bars = 1.0
+    drift_bars = 2.0
+    length = LeadFm.length.replace(default=0.9)
+    phrases = (
+        {
+            0: 7,
+            3: 7,
+            6: 8,
+            8: 7,
+            10: 5,
+            12: 3,
+            14: 5,
+            16: 7,
+            19: 10,
+            22: 8,
+            24: 7,
+            27: 5,
+            30: 1,
+        },
+        {
+            0: 12,
+            2: 10,
+            3: 8,
+            6: 7,
+            8: 8,
+            11: 7,
+            14: 5,
+            16: 3,
+            18: 5,
+            19: 7,
+            22: 5,
+            24: 3,
+            27: 1,
+            28: 0,
+            30: 1,
+        },
+    )

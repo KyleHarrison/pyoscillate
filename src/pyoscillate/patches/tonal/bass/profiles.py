@@ -122,6 +122,17 @@ GROOVE = {
         resonance=0.3,
     ),
     "conversation": CONVERSATION_VARIANTS[0],
+    # psytrance's offbeat bass: rests on each beat (where the kick lands) and
+    # rolls the three 16ths between kicks - root, root, then an octave
+    # bounce on the "a", with a minor-second (b2) lean into the next bar
+    "forest": BassProfile(
+        pattern=(0, 0, 0, 12) * 3 + (0, 0, 0, 1),
+        accents=(1.0, 0.8, 0.95, 0.7) * 4,
+        gates=(False, True, True, True) * 4,
+        envelope_decay=0.85,
+        resonance=0.3,
+        harmonics=(1.0, 0.22, 0.1, 0.04),
+    ),
 }
 
 # a second "muted" pattern for `BassMuted.on_evolve` (see rack.py): the

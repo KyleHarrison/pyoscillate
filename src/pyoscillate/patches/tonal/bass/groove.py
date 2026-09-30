@@ -1,5 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
-#   style: rolling | dub | muted
+#   style: rolling | dub | muted | forest
 """16th-note groove bass voices with a fixed low-pass."""
 
 from __future__ import annotations
@@ -73,6 +73,16 @@ class BassMuted(GrooveBass):
         style's envelope/resonance, so swapping `_profile` live is safe:
         `next_step()` only reads `pattern`/`accents`/`gates` per step."""
         self._profile = MUTED_VARIANTS[index % len(MUTED_VARIANTS)]
+
+
+class BassForest(GrooveBass):
+    """Deep, rolling psytrance bass: rests on every kick beat and rolls the
+    three 16ths between kicks, so bass and kick interlock instead of
+    stacking."""
+
+    title = "Bass - Forest"
+    summary = "Deep, rolling offbeat sub bass that fills the gaps between kicks."
+    profile = GROOVE["forest"]
 
 
 class BassConversation(GrooveBass):
