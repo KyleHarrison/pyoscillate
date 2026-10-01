@@ -12,6 +12,7 @@ single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -26,6 +27,7 @@ from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
 from pyoscillate.harmony import NOTE_NAMES
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param
+from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
 
@@ -63,6 +65,185 @@ class PresetStore:
         return path
 
 
+class SweepRow:
+    """The sweep view of one `Param`: a toggle that swaps the plain slider for
+    a low/high range slider. The space between its two limit thumbs is the
+    sweep itself: a dot travels there and back across it as the sweep runs,
+    and dragging sideways on the band sets how many bars one there-and-back
+    cycle takes. Reads and writes the patch's `Sweep`; holds no values of its
+    own."""
+
+    # the range slider's track starts this far in from each edge of its box
+    TRACK_INSET = 20.0
+    # clear space kept either side of the band so a drag there grabs the
+    # thumb, not the cycle length
+    THUMB_CLEARANCE = 12.0
+    HEIGHT = 40.0
+    DOT = 12.0
+    # horizontal pixels of drag per bar of cycle length
+    DRAG_PER_BAR = 8.0
+    # seconds of travel the dot's trail shows: a faster cycle leaves a longer
+    # trail, so the rate of change reads straight off the slider
+    TRAIL_SECONDS = 0.6
+    TRAIL_CLEAR = "#00F4F7F6"
+
+    def __init__(self, sweep: Sweep, plain_slider: ft.Slider) -> None:
+        self.sweep = sweep
+        self.plain_slider = plain_slider
+        self.width = 0.0
+        self._last_position = 0.0
+        spec = sweep.param.spec
+        self.toggle = ft.IconButton(
+            icon=ft.Icons.WAVES,
+            icon_size=18,
+            tooltip="Sweep between a low and a high",
+            on_click=self._handle_toggle,
+        )
+        self.range_text = ft.Text("", color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
+        self.range_slider = ft.RangeSlider(
+            min=spec.minimum,
+            max=spec.maximum,
+            divisions=spec.divisions,
+            start_value=sweep.low,
+            end_value=sweep.high,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_range,
+            left=0,
+            right=0,
+            top=0,
+        )
+        self.dot = ft.Container(
+            width=self.DOT,
+            height=self.DOT,
+            border_radius=self.DOT / 2,
+            bgcolor=TEXT,
+            top=(self.HEIGHT - self.DOT) / 2,
+            left=0,
+            visible=False,
+        )
+        self.trail = ft.Container(
+            width=0,
+            height=self.DOT / 2,
+            border_radius=self.DOT / 4,
+            top=(self.HEIGHT - self.DOT / 2) / 2,
+            left=0,
+            visible=False,
+        )
+        self.bars_text = ft.Text("", color=BACKGROUND, size=11)
+        self.band = ft.GestureDetector(
+            content=ft.Container(
+                content=self.bars_text,
+                alignment=ft.Alignment.CENTER,
+                tooltip="Drag sideways to change the length of one there-and-back cycle",
+            ),
+            on_horizontal_drag_update=self._handle_bars_drag,
+            top=0,
+            height=self.HEIGHT,
+            left=0,
+            width=0,
+            visible=False,
+        )
+        self.track = ft.Stack(
+            controls=[self.range_slider, self.band, self.trail, self.dot],
+            height=self.HEIGHT,
+            on_size_change=self._handle_size,
+        )
+        self.sweep_view = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Text("Sweeps between", color=MUTED, size=12),
+                        self.range_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                self.track,
+            ],
+            spacing=2,
+        )
+        self.show()
+
+    def _x(self, value: float) -> float:
+        """Horizontal pixel of `value` along the range slider's track."""
+        spec = self.sweep.param.spec
+        span = spec.maximum - spec.minimum
+        fraction = (value - spec.minimum) / span if span else 0.0
+        return self.TRACK_INSET + fraction * (self.width - 2 * self.TRACK_INSET)
+
+    def show(self) -> None:
+        """Bring every control in line with the sweep's settings."""
+        sweep, spec = self.sweep, self.sweep.param.spec
+        self.toggle.selected = sweep.enabled
+        self.toggle.icon_color = ACCENT if sweep.enabled else MUTED
+        self.plain_slider.visible = not sweep.enabled
+        self.sweep_view.visible = sweep.enabled
+        self.range_slider.start_value = sweep.low
+        self.range_slider.end_value = sweep.high
+        self.range_text.value = f"{spec.format(sweep.low)} - {spec.format(sweep.high)}"
+        self.bars_text.value = f"{sweep.bars:.0f} bars"
+        self._place()
+
+    def _place(self) -> None:
+        """Fit the cycle band between the limit thumbs and the dot inside it."""
+        sweep = self.sweep
+        band_left = self._x(sweep.low) + self.THUMB_CLEARANCE
+        band_width = self._x(sweep.high) - self._x(sweep.low) - 2 * self.THUMB_CLEARANCE
+        self.band.visible = sweep.enabled and self.width > 0 and band_width > 0
+        if self.band.visible:
+            self.band.left = band_left
+            self.band.width = band_width
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Move the dot to where the running sweep is between the limits, with
+        a trail behind it as long as the distance it covers in
+        `TRAIL_SECONDS`."""
+        sweep = self.sweep
+        shown = sweep.enabled and sweep.running and self.width > 0
+        self.dot.visible = self.trail.visible = shown
+        if not shown:
+            return
+        position = sweep.position
+        rising = position >= self._last_position
+        self._last_position = position
+        x = self._x(sweep.value_at(position))
+        self.dot.left = x - self.DOT / 2
+        span = self._x(sweep.high) - self._x(sweep.low)
+        assert sweep.patch.tempo is not None
+        seconds = sweep.bars * sweep.patch.tempo.bar
+        length = min(span, 2 * span / seconds * self.TRAIL_SECONDS)
+        self.trail.width = length
+        self.trail.left = x - length if rising else x
+        self.trail.gradient = ft.LinearGradient(
+            begin=ft.Alignment.CENTER_LEFT,
+            end=ft.Alignment.CENTER_RIGHT,
+            colors=[self.TRAIL_CLEAR, TEXT] if rising else [TEXT, self.TRAIL_CLEAR],
+        )
+
+    def _handle_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        self.width = e.width
+        self._place()
+
+    def _handle_toggle(self, e: ft.ControlEvent) -> None:
+        self.sweep.set_enabled(not self.sweep.enabled)
+        self.show()
+        e.page.update()
+
+    def _handle_range(self, e: ft.ControlEvent) -> None:
+        self.sweep.configure(
+            float(e.control.start_value), float(e.control.end_value), self.sweep.bars
+        )
+        self.show()
+        e.page.update()
+
+    def _handle_bars_drag(self, e: ft.DragUpdateEvent) -> None:
+        bars = self.sweep.bars + (e.primary_delta or 0.0) / self.DRAG_PER_BAR
+        self.sweep.configure(self.sweep.low, self.sweep.high, bars)
+        self.bars_text.value = f"{self.sweep.bars:.0f} bars"
+        e.page.update()
+
+
 class PatchPanel:
     """One patch's live controls: an enable switch plus one slider per
     `Param` (volume included).
@@ -83,6 +264,7 @@ class PatchPanel:
         self._built_values: dict[Param, float] = {}
         self._value_texts: dict[Param, ft.Text] = {}
         self._sliders: dict[Param, ft.Slider] = {}
+        self.sweep_rows: dict[Param, SweepRow] = {}
 
         self.switch = ft.Switch(
             value=False,
@@ -113,18 +295,29 @@ class PatchPanel:
             on_change=lambda e, param=param: self._handle_slider(param, e),
         )
         self._sliders[param] = slider
+        header = [ft.Text(spec.description, color=TEXT, size=14), value_text]
+        body: list[ft.Control] = [slider]
+        if param.sweep:
+            sweep_row = SweepRow(self.patch.sweep_for(param), slider)
+            self.sweep_rows[param] = sweep_row
+            header = [
+                ft.Text(spec.description, color=TEXT, size=14),
+                ft.Row(
+                    controls=[value_text, sweep_row.toggle],
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ]
+            body.append(sweep_row.sweep_view)
         return ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
-                        controls=[
-                            ft.Text(spec.description, color=TEXT, size=14),
-                            value_text,
-                        ],
+                        controls=header,
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                     ft.Text(spec.help_text, color=MUTED, size=12),
-                    slider,
+                    *body,
                 ],
                 spacing=2,
             ),
@@ -169,6 +362,17 @@ class PatchPanel:
         changed from outside this panel, e.g. a rack macro."""
         for param in self.patch.params:
             self._show(param, param.read(self.patch))
+        for sweep_row in self.sweep_rows.values():
+            sweep_row.show()
+
+    def refresh_sweeps(self) -> bool:
+        """Move every live sweep marker; whether any sweep is running."""
+        running = False
+        for sweep_row in self.sweep_rows.values():
+            if sweep_row.sweep.running:
+                sweep_row.refresh()
+                running = True
+        return running
 
     def _show(self, param: Param, value: float) -> None:
         self._sliders[param].value = param.spec.to_position(value)
@@ -224,7 +428,7 @@ class PatchPanel:
         )
         if rebuild:
             self.patch.build(self.context)
-            self.patch.start()
+            self.patch.start(self.context.tempo)
             self._built_values = {
                 param: param.read(self.patch) for param in self.patch.rebuild_params
             }
@@ -233,7 +437,18 @@ class PatchPanel:
 
     def to_preset(self) -> dict[str, Any]:
         values = {param.name: param.read(self.patch) for param in self.patch.params}
-        return {"enabled": self.enabled, **values}
+        preset: dict[str, Any] = {"enabled": self.enabled, **values}
+        if self.patch.sweeps:
+            preset["sweeps"] = {
+                param.name: {
+                    "enabled": sweep.enabled,
+                    "low": sweep.low,
+                    "high": sweep.high,
+                    "bars": sweep.bars,
+                }
+                for param, sweep in self.patch.sweeps.items()
+            }
+        return preset
 
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
@@ -243,6 +458,14 @@ class PatchPanel:
                 value = param.spec.snap(float(data[param.name]))
                 param.write(self.patch, value)
                 self._show(param, value)
+        for param, sweep in self.patch.sweeps.items():
+            saved = data.get("sweeps", {}).get(param.name)
+            if saved is not None:
+                sweep.configure(
+                    float(saved["low"]), float(saved["high"]), float(saved["bars"])
+                )
+                sweep.set_enabled(bool(saved["enabled"]))
+                self.sweep_rows[param].show()
         self._apply()
 
 
@@ -806,6 +1029,7 @@ class PatchRackApp:
             group.start(self.clock)
         context = BuildContext(tempo, self.clock, self.rack.harmony)
         self.running = True
+        self.page.run_task(self._animate_sweeps)
         for panel in self.panels.values():
             panel.engine_started(context)
         for group in self.groups:
@@ -816,6 +1040,15 @@ class PatchRackApp:
         self.engine_button.text = "Stop engine"
         self.engine_button.icon = ft.Icons.STOP
         self.pause_button.disabled = False
+
+    async def _animate_sweeps(self) -> None:
+        """While the engine runs, move every live sweep marker ~10 times a
+        second; the sweeps themselves run in pyo, this only draws them."""
+        while self.running:
+            moving = [panel.refresh_sweeps() for panel in self.panels.values()]
+            if any(moving):
+                self.page.update()
+            await asyncio.sleep(0.1)
 
     def _stop_engine(self) -> None:
         if not self.running:

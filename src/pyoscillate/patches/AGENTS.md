@@ -217,6 +217,15 @@ def punch(self, value: float) -> None:
 - A parameter that should only glide a graph node needs no control: hand the
   node `self.live(Cls.param, time=...)`, a retained `SigTo` that follows the
   `Param` whenever it is assigned.
+- A parameter a listener could want moving by itself declares `sweep=True`.
+  Each patch instance then owns a `Sweep` (`patches/sweep.py`): a pyo
+  triangle `LFO` that bounces the parameter between a `low` and a `high`, one
+  there-and-back cycle every N bars, pushed through the parameter's own
+  control. The resting value (`self.<param>`) is never overwritten. Only
+  parameters with a live control (or a `live()` signal) can sweep: not
+  `rebuild` parameters, and leave off `scale="note"` and `rate` ones. A rack
+  starts one enabled with `Slot(..., sweeps=(ParamSweep(Cls.param, low, high,
+  bars),))`; the Flet layer adds the toggle and range slider itself.
 - Pitch parameters in Hz take `scale="note"` (design rule 2).
 - `rate_param(base_division, help)` is the clocked rate; its control calls
   `reschedule()`, so don't register a rate control by hand.

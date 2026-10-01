@@ -68,42 +68,18 @@ class ForestPsytranceRack(Rack):
         "Quiet offbeat shimmer behind the groove.",
     )
 
-    lead_wind = Slot(fm.LeadFmWind, root_freq=notes.F4)
-    lead_swirl = Slot(fm.LeadFmSwirl, root_freq=notes.F4)
-    lead_energy = GroupControl(
-        SliderSpec(
-            "energy",
-            0,
-            1,
-            0.05,
-            0,
-            "Energy",
-            "Raises the FM bite, breath and echo for a brighter, more animated lead.",
-        ),
-        (
-            SlotTarget(
-                lead_wind,
-                (
-                    ParamControl(fm.LeadFm.bite, 3, 6),
-                    ParamControl(fm.LeadFm.breath, 0.45, 0.8),
-                    ParamControl(fm.LeadFm.echo_level, 0.35, 0.6),
-                ),
-            ),
-            SlotTarget(
-                lead_swirl,
-                (
-                    ParamControl(fm.LeadFm.bite, 3, 6),
-                    ParamControl(fm.LeadFm.breath, 0.3, 0.6),
-                    ParamControl(fm.LeadFm.echo_level, 0.35, 0.6),
-                ),
-            ),
-        ),
+    lead_wind = Slot(
+        fm.LeadFmWind,
+        root_freq=notes.F4,
+    )
+    lead_swirl = Slot(
+        fm.LeadFmSwirl,
+        root_freq=notes.F4,
     )
     lead_group = EvolvingGroup(
         "Leads",
         (lead_wind, lead_swirl),
         "Windy, psychedelic FM melodies; the phrase changes every 8 bars.",
-        controls=(lead_energy,),
         bars=8,
     )
     layout = (kick_group, bass_group, hat_group, lead_group)

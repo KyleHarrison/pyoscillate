@@ -125,6 +125,7 @@ class Lead(GatedVoice):
         1500.0,
         "Brightness",
         "How far the filter snaps open on each note; low stays dark and covered, high gives a brighter, more cutting attack.",
+        sweep=True,
     )
     def brightness(self, value: float) -> None:
         self.filter_env.mul = value
@@ -136,6 +137,7 @@ class Lead(GatedVoice):
         0.01,
         "Attack",
         "How quickly each note reaches full volume; near zero is a direct, percussive attack, higher softens the front of the note.",
+        sweep=True,
     )
     def attack(self, value: float) -> None:
         self.amp_env.setAttack(value)
@@ -147,6 +149,7 @@ class Lead(GatedVoice):
         1.0,
         "Sustain",
         "The held level of a note once it's past its attack; lower makes long notes fade under a held key.",
+        sweep=True,
     )
     def sustain(self, value: float) -> None:
         self.amp_env.setSustain(value)
@@ -159,6 +162,7 @@ class Lead(GatedVoice):
         0.0,
         "Vibrato",
         "Depth of a slow pitch wobble on the sustained note; 0 holds the pitch steady.",
+        sweep=True,
     )
     def vibrato(self, value: float) -> None:
         self.pitch_vibrato.mul = value * 8.0
@@ -170,6 +174,7 @@ class Lead(GatedVoice):
         0.0,
         "Drive",
         "Adds saturation warmth and edge; higher pushes the lead toward a grittier, more aggressive tone.",
+        sweep=True,
     )
     def drive(self, value: float) -> None:
         self.shaped.drive = self.base_drive + value

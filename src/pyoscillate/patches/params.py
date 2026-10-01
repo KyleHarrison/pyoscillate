@@ -98,6 +98,11 @@ class Param:
     The `Param` object itself is the handle everywhere: racks assign
     `patch.punch = 1.2`, sliders and presets hold the `Param`, and nothing
     looks a parameter up by its string name.
+
+    `sweep=True` lets a patch instance drive the parameter with a bouncing
+    low/high sweep instead of a fixed value (see `patches/sweep.py`); it
+    needs a live control (or a `live()` signal) and is meaningless for a
+    `rebuild` parameter.
     """
 
     def __init__(
@@ -111,6 +116,7 @@ class Param:
         *,
         scale: Literal["linear", "note"] = "linear",
         rebuild: bool = False,
+        sweep: bool = False,
         control: Control = noop_control,
     ) -> None:
         self._fields: dict[str, Any] = {
@@ -122,9 +128,12 @@ class Param:
             "help_text": help_text,
             "scale": scale,
             "rebuild": rebuild,
+            "sweep": sweep,
         }
         self.control = control
         self.rebuild = rebuild
+        # whether each patch instance may sweep this parameter (see `Sweep`)
+        self.sweep = sweep
         self.name = ""
         self.spec: SliderSpec
         # the `Param` this one was `replace`d from (itself if never replaced),
@@ -145,6 +154,7 @@ class Param:
         self.name = name
         fields = dict(self._fields)
         fields.pop("rebuild")
+        fields.pop("sweep")
         self.spec = SliderSpec(name, description=fields.pop("label"), **fields)
 
     @property

@@ -143,6 +143,7 @@ class LeadFm(GatedVoice):
         "Bite",
         "How hard each note barks: low is a soft, pure tone, high a bright, buzzing snarl at the "
         "start of every note.",
+        sweep=True,
     )
     def bite(self, value: float) -> None:
         self.bark.mul = value * self._accent
@@ -155,6 +156,7 @@ class LeadFm(GatedVoice):
         "Settle",
         "How long the bark takes to die down, in seconds: short is a quick pluck on the front of "
         "the note, long a slow, vowel-like close.",
+        sweep=True,
     )
     def settle(self, value: float) -> None:
         self.bark.dur = value
@@ -167,6 +169,7 @@ class LeadFm(GatedVoice):
         "Swirl",
         "Depth of a slow, bar-scale swell in the tone between notes; low holds the colour steady, "
         "high keeps the spectrum phasing and shimmering.",
+        sweep=True,
     )
     def swirl(self, value: float) -> None:
         self.swirl_lfo.mul = value
@@ -182,6 +185,7 @@ class LeadFm(GatedVoice):
         "Breath",
         "Mixes in airy, pitched noise under each note; low is a clean synth tone, high a windy, "
         "whistling breath.",
+        sweep=True,
     )
 
     @Param(
@@ -192,6 +196,7 @@ class LeadFm(GatedVoice):
         "Glide",
         "Slides each note into the next over this many seconds; none is stepped and exact, long "
         "is a smeared, wandering line.",
+        sweep=True,
     )
     def glide(self, value: float) -> None:
         self.pitch.time = value
@@ -204,6 +209,7 @@ class LeadFm(GatedVoice):
         "Length",
         "How long each note lasts, in 16ths: short is tight and staccato, long runs one note into "
         "the next.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.amp.dur = self._sixteenth * value
@@ -216,6 +222,7 @@ class LeadFm(GatedVoice):
         "Echo",
         "Level of a dotted-eighth echo that repeats each phrase behind itself; low is dry, high "
         "fills the gaps with a trailing, psychedelic wash.",
+        sweep=True,
     )
     def echo_level(self, value: float) -> None:
         self.echo.mul = value

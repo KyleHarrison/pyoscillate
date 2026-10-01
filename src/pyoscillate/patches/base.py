@@ -14,6 +14,7 @@ from pyo.lib.server import Server
 from pyoscillate.clock import Clock
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.params import Param
+from pyoscillate.patches.sweep import ParamSweep, Sweep
 from pyoscillate.tempo import Tempo
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
@@ -183,6 +184,11 @@ class Patch(ABC):
         self.resources: list[Any] = []
         self.live_signals: dict[Param, SigTo] = {}
         self.sidechains: tuple[Sidechain, ...] = ()
+        self.sweeps: dict[Param, Sweep] = {
+            param: Sweep(self, param) for param in self.params if param.sweep
+        }
+        # the rack tempo the patch was last started with; sweeps sync to it
+        self.tempo: Tempo | None = None
         self._built = False
         self._playing = False
         self._retired: tuple[Any, ...] = ()
@@ -213,6 +219,19 @@ class Patch(ABC):
         self.retain(signal)
         self.live_signals[param] = signal
         return signal
+
+    def sweep_for(self, param: Param) -> Sweep:
+        """This patch's `Sweep` for `param`, recognised across style
+        overrides (see `Param.origin`)."""
+        for own, sweep in self.sweeps.items():
+            if own.origin is param.origin:
+                return sweep
+        raise LookupError(f"{type(self).__name__}: {param.name} has no sweep")
+
+    def declare_sweeps(self, sweeps: tuple[ParamSweep, ...]) -> None:
+        """Start the given sweeps enabled, before the patch is built."""
+        for declared in sweeps:
+            self.sweep_for(declared.param).declare(declared)
 
     def apply_param(self, param: Param, value: float) -> None:
         """Push one changed parameter into the built graph."""
@@ -275,7 +294,10 @@ class Patch(ABC):
                 self.voice = self.voice * duck
                 self.retain(follower, duck)
 
-    def start(self) -> Patch:
+    def start(self, tempo: Tempo | None = None) -> Patch:
+        """Play the built graph. Given the rack `tempo`, enabled sweeps run
+        too, one cycle per their bars."""
+        self.tempo = tempo
         self._duck()
         # `volume` boosts *before* Compress, not after: Compress's own mul
         # multiplies its already-compressed output, so gain reduction would
@@ -306,12 +328,16 @@ class Patch(ABC):
         self._output_resources = (boosted, compressed, limited, faded, mixed)
         self.sequencer.play()
         self._playing = True
+        for sweep in self.sweeps.values():
+            sweep.run()
         return self
 
     def stop(self) -> Patch:
         if not self._playing:
             return self
         self._playing = False
+        for sweep in self.sweeps.values():
+            sweep.halt()
         self.sequencer.stop()
         self._fade.value = 0.0
         # delay the hard stop until the fade above has finished ramping to

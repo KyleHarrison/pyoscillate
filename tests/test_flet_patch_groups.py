@@ -75,7 +75,7 @@ class PatchGroupTests(unittest.TestCase):
         self.group._handle_enabled(event)
 
         self.voice.build.assert_called_once_with(self.context)
-        self.voice.start.assert_called_once_with()
+        self.voice.start.assert_called_once_with(self.context.tempo)
         self.assertFalse(self.panel.switch.disabled)
 
     def test_group_collapses_around_full_width_patch_controls(self) -> None:

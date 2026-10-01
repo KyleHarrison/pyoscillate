@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, overload
 from pyoscillate.clock import Clock, Division
 from pyoscillate.patches.base import Patch, Sidechain
 from pyoscillate.patches.params import Param, SliderSpec
+from pyoscillate.patches.sweep import ParamSweep
 
 if TYPE_CHECKING:
     from pyoscillate.projects.base import Rack
@@ -34,22 +35,27 @@ class SidechainSource:
 
 class Slot[P: Patch]:
     """Declares one patch in a rack: its class, starting `Param` values, and
-    sidechains. `Rack` binds a fresh instance per rack; on a rack instance the
-    slot reads as that instance, typed as `patch_class`."""
+    sidechains, and any `sweeps` that start enabled. `Rack` binds a fresh
+    instance per rack; on a rack instance the slot reads as that instance,
+    typed as `patch_class`."""
 
     def __init__(
         self,
         patch_class: type[P],
         *,
         sidechains: tuple[SidechainSource, ...] = (),
+        sweeps: tuple[ParamSweep, ...] = (),
         **values: float,
     ) -> None:
         self.patch_class = patch_class
         self.sidechains = sidechains
+        self.sweeps = sweeps
         self.values = values
 
     def bind(self) -> P:
-        return self.patch_class(**self.values)
+        patch = self.patch_class(**self.values)
+        patch.declare_sweeps(self.sweeps)
+        return patch
 
     def link(self, patch: P, groups: dict[GroupController, GroupRuntime]) -> None:
         """Point `patch` at this rack's runtime groups for each sidechain."""
