@@ -1,0 +1,24 @@
+version: 3
+
+silent: true
+
+tasks:
+  release:bump:
+    desc: >-
+      Bump the pyoscillate version (PART: patch|minor|major, default patch) via
+      `uv version --bump`, which also refreshes uv.lock, then commit and tag
+      v{version} locally. Does not push — run it via the Release GitHub Action
+      (.github/workflows/release.yml), which pushes the commit and tag, creates
+      the GitHub release and attaches the Windows executables.
+    vars:
+      PART: '{{default "patch" .PART}}'
+    cmds:
+      - |
+        set -euo pipefail
+        CURRENT_VERSION=$(uv version --short)
+        uv version --bump {{.PART}} --no-sync
+        NEW_VERSION=$(uv version --short)
+        git add pyproject.toml uv.lock
+        git commit -m "Bump pyoscillate version: ${CURRENT_VERSION} → ${NEW_VERSION}"
+        git tag "v${NEW_VERSION}"
+        echo "✅ Bumped ${CURRENT_VERSION} → ${NEW_VERSION} ({{.PART}}) — committed and tagged locally, not pushed."

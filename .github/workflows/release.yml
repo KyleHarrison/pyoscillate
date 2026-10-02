@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Version part to bump'
+        required: true
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write  # push bump commit + tag, create release, upload assets
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Bump and Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        env:
+          PART: ${{ inputs.part }}
+        run: |
+          PREVIOUS=$(uv version --short)
+          task release:bump PART="$PART"
+          NEW=$(uv version --short)
+          echo "previous=v${PREVIOUS}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Push commit and tag
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: git push --atomic origin HEAD:main "$TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ steps.bump.outputs.previous }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          START_ARGS=()
+          if git rev-parse -q --verify "refs/tags/${PREVIOUS}" >/dev/null; then
+            START_ARGS=(--notes-start-tag "$PREVIOUS")
+          fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            "${START_ARGS[@]}" \
+            --verify-tag
+
+  build-windows:
+    name: Build ${{ matrix.app }} (Windows)
+    needs: release
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - deep_house
+          - forest_psytrance
+          - lofi
+          - psyambient
+          - rack_demo
+          - slowed_reverb
+          - soundscape_fm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Build executable
+        run: >-
+          uv run flet pack src/flet/${{ matrix.app }}/app.py
+          --name ${{ matrix.app }}
+          --pyinstaller-build-args "--paths=." "--collect-all=pyo"
+          --yes
+
+      - name: Attach to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          mv "dist/${{ matrix.app }}.exe" "dist/${{ matrix.app }}-${TAG}-windows.exe"
+          gh release upload "$TAG" "dist/${{ matrix.app }}-${TAG}-windows.exe"
