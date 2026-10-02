@@ -18,12 +18,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Bump and Release
+  bump:
+    name: Bump version
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
       tag: ${{ steps.bump.outputs.tag }}
+      previous: ${{ steps.bump.outputs.previous }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,30 +53,16 @@ jobs:
           echo "previous=v${PREVIOUS}" >> "$GITHUB_OUTPUT"
           echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
 
-      - name: Push commit and tag
+      # Only the tag is pushed here so the builds can check out the bumped
+      # commit; main is not updated until every build has succeeded.
+      - name: Push tag
         env:
           TAG: ${{ steps.bump.outputs.tag }}
-        run: git push --atomic origin HEAD:main "$TAG"
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PREVIOUS: ${{ steps.bump.outputs.previous }}
-          TAG: ${{ steps.bump.outputs.tag }}
-        run: |
-          START_ARGS=()
-          if git rev-parse -q --verify "refs/tags/${PREVIOUS}" >/dev/null; then
-            START_ARGS=(--notes-start-tag "$PREVIOUS")
-          fi
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            "${START_ARGS[@]}" \
-            --verify-tag
+        run: git push origin "$TAG"
 
   build-windows:
     name: Build ${{ matrix.app }} (Windows)
-    needs: release
+    needs: bump
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -91,25 +78,75 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.bump.outputs.tag }}
 
       - uses: astral-sh/setup-uv@v6
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11
 
       - name: Build executable
         run: >-
-          uv run flet pack src/flet/${{ matrix.app }}/app.py
+          uv run --python 3.11 flet pack src/flet/${{ matrix.app }}/app.py
           --name ${{ matrix.app }}
           --pyinstaller-build-args "--paths=." "--collect-all=pyo"
           --yes
 
-      - name: Attach to release
-        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}
+          path: dist/${{ matrix.app }}.exe
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [bump, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: exes
+
+      - name: Push bump commit to main
+        env:
+          TAG: ${{ needs.bump.outputs.tag }}
+        run: git push origin "HEAD:main"
+
+      - name: Create GitHub release with executables
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
+          PREVIOUS: ${{ needs.bump.outputs.previous }}
+          TAG: ${{ needs.bump.outputs.tag }}
         run: |
-          mv "dist/${{ matrix.app }}.exe" "dist/${{ matrix.app }}-${TAG}-windows.exe"
-          gh release upload "$TAG" "dist/${{ matrix.app }}-${TAG}-windows.exe"
+          START_ARGS=()
+          if git rev-parse -q --verify "refs/tags/${PREVIOUS}" >/dev/null; then
+            START_ARGS=(--notes-start-tag "$PREVIOUS")
+          fi
+          FILES=()
+          for exe in exes/*/*.exe; do
+            name=$(basename "$exe" .exe)
+            mv "$exe" "exes/${name}-${TAG}-windows.exe"
+            FILES+=("exes/${name}-${TAG}-windows.exe")
+          done
+          gh release create "$TAG" "${FILES[@]}" \
+            --title "$TAG" \
+            --generate-notes \
+            "${START_ARGS[@]}" \
+            --verify-tag
+
+  cleanup:
+    name: Remove tag on failure
+    needs: [bump, build-windows, publish]
+    if: ${{ always() && needs.bump.result == 'success' && (needs.build-windows.result != 'success' || needs.publish.result != 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete unreleased tag
+        env:
+          TAG: ${{ needs.bump.outputs.tag }}
+        run: git push origin ":refs/tags/$TAG"

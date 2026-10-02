@@ -4,13 +4,13 @@ version = "0.2.0"
 description = "Agentic Pyo DSP patches played live as a modular synthesizer through a Flet GUI"
 readme = "README.md"
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "demucs>=4.0.1",
     "flet>=1.0.0",
     "flet-mcp>=1.0.0",
     "ipykernel>=7.3.0",
-    "librosa>=1.0.0",
+    "librosa>=0.11.0",
     "pyo>=1.0.5",
     "wxpython>=4.3.1",
 ]
@@ -24,7 +24,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "numpy>=2.5.3",
+    "numpy>=2.0",
     "pyinstaller>=6.22.3",
     "pytest>=9.1.1",
     "ruff>=0.16.8",

@@ -12,7 +12,7 @@ no rack shares mutable state and nothing is looked up by name.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
 from pyoscillate.clock import Clock, Division
 from pyoscillate.patches.base import Patch, Sidechain
@@ -33,7 +33,10 @@ class SidechainSource:
     release: float = 0.15
 
 
-class Slot[P: Patch]:
+P = TypeVar("P", bound=Patch)
+
+
+class Slot(Generic[P]):
     """Declares one patch in a rack: its class, starting `Param` values, and
     sidechains, and any `sweeps` that start enabled. `Rack` binds a fresh
     instance per rack; on a rack instance the slot reads as that instance,
