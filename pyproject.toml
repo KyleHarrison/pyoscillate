@@ -1,6 +1,6 @@
 [project]
 name = "pyoscillate"
-version = "0.2.0"
+version = "0.2.1"
 description = "Agentic Pyo DSP patches played live as a modular synthesizer through a Flet GUI"
 readme = "README.md"
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
