@@ -92,9 +92,48 @@ jobs:
           path: dist/${{ matrix.app }}.exe
           if-no-files-found: error
 
+  build-macos:
+    name: Build apps (macOS)
+    needs: bump
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.tag }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install audio backend libraries
+        run: brew install flac ffmpeg liblo libsndfile portaudio portmidi
+
+      - name: Install dependencies
+        run: uv sync --locked --python 3.11
+
+      - name: Build apps
+        run: |
+          for app in deep_house forest_psytrance lofi psyambient slowed_reverb; do
+            uv run --python 3.11 python scripts/build_exe.py "$app"
+          done
+
+      # ditto keeps the symlinks and permissions inside each .app bundle
+      - name: Zip apps
+        env:
+          TAG: ${{ needs.bump.outputs.tag }}
+        run: |
+          ls dist
+          mkdir bundle
+          cp -R dist/*.app bundle/
+          ditto -c -k --keepParent bundle "pyoscillate-${TAG}-macos.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-apps
+          path: pyoscillate-*-macos.zip
+          if-no-files-found: error
+
   publish:
     name: Publish release
-    needs: [bump, build-windows]
+    needs: [bump, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,6 +166,7 @@ jobs:
             mv "$exe" "exes/${name}-${TAG}-windows.exe"
             FILES+=("exes/${name}-${TAG}-windows.exe")
           done
+          FILES+=(exes/macos-apps/*.zip)
           gh release create "$TAG" "${FILES[@]}" \
             --title "$TAG" \
             --generate-notes \
@@ -135,8 +175,8 @@ jobs:
 
   cleanup:
     name: Remove tag on failure
-    needs: [bump, build-windows, publish]
-    if: ${{ always() && needs.bump.result == 'success' && (needs.build-windows.result != 'success' || needs.publish.result != 'success') }}
+    needs: [bump, build-windows, build-macos, publish]
+    if: ${{ always() && needs.bump.result == 'success' && (needs.build-windows.result != 'success' || needs.build-macos.result != 'success' || needs.publish.result != 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
