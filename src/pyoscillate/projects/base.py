@@ -34,8 +34,8 @@ class Rack(ABC):
     layout: ClassVar[tuple[GroupController, ...]] = ()
     nchnls: ClassVar[int] = 2
     # the master output's starting level and safety ceiling
-    master_output_default: ClassVar[float] = 0.1
-    master_output_max: ClassVar[float] = 0.2
+    master_output_default: ClassVar[float] = 0.8
+    master_output_max: ClassVar[float] = 1.0
     # the declared key and progression; every rack gets its own copy in
     # `__init__`, since the Flet key control mutates it
     harmony: Harmony = Harmony()

@@ -886,7 +886,7 @@ class PatchRackApp:
                         ),
                         self.master_output_slider,
                         ft.Text(
-                            f"Safety-capped at {self.rack.master_output_max:.2f}; starts at a low level.",
+                            f"Safety-capped at {self.rack.master_output_max:.2f}; starts at {self.rack.master_output_default:.2f}.",
                             color=MUTED,
                             size=11,
                         ),
