@@ -97,6 +97,7 @@ class Groove(DrumVoice):
         9000,
         "Brightness",
         "Moves the hat from fuller and closer to a hiss (lower) to thinner and airier (higher).",
+        sweep=True,
     )
     def cutoff(self, value: float) -> None:
         self.filtered.freq = value
@@ -108,6 +109,7 @@ class Groove(DrumVoice):
         0.35,
         "Metal",
         "Blends from a soft, breathy noise hat toward a clangy, metallic drum-machine hat.",
+        sweep=True,
     )
     def metal(self, value: float) -> None:
         self.source.voice = value
@@ -120,6 +122,7 @@ class Groove(DrumVoice):
         "Length",
         "Stretches or shortens both closed and open tails together; shorter leaves more space between "
         "subdivisions, longer gives more sustained top-end lift.",
+        sweep=True,
     )
 
     rate = rate_param(

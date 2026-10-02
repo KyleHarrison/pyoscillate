@@ -118,6 +118,7 @@ class Riser(GatedVoice):
         2,
         "Climb",
         "How far the riser travels, in octaves: low is a short lift, high is a full sweep from the floor to the top.",
+        sweep=True,
     )
     def climb(self, value: float) -> None:
         self.climb_control.value = value
@@ -129,6 +130,7 @@ class Riser(GatedVoice):
         2,
         "Surge",
         "Where the build puts its energy: low swells early and levels off, high holds back and surges in the last beats.",
+        sweep=True,
     )
     def surge(self, value: float) -> None:
         self.surge_control.value = value
@@ -140,6 +142,7 @@ class Riser(GatedVoice):
         8000,
         "Brightness",
         "How open the riser is at its peak; low keeps it behind the mix, high makes it the brightest thing before the drop.",
+        sweep=True,
     )
     def brightness(self, value: float) -> None:
         self.brightness_control.value = value

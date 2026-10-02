@@ -83,6 +83,7 @@ class SoundscapeWash(ContinuousVoice):
         "Thickness",
         "Spreads the oscillators apart in pitch; higher makes the wash thicker and hazier, lower keeps it "
         "cleaner and more focused.",
+        sweep=True,
     )
     def detune(self, value: float) -> None:
         self.detune_sig.value = value
@@ -95,6 +96,7 @@ class SoundscapeWash(ContinuousVoice):
         "Detune blend",
         "Balances how much of the detuned layers come through versus the centered tone; higher leans "
         "further into the thick, chorused character.",
+        sweep=True,
     )
     def detune_bal(self, value: float) -> None:
         self.detune_bal_sig.value = value
@@ -106,6 +108,7 @@ class SoundscapeWash(ContinuousVoice):
         0.03,
         "Instability",
         "Adds slow pitch wobble; higher makes the wash feel more alive and unstable, lower keeps it steadier.",
+        sweep=True,
     )
     def pitch_drift(self, value: float) -> None:
         self.pitch_drift_sig.value = value
@@ -118,6 +121,7 @@ class SoundscapeWash(ContinuousVoice):
         "Shimmer",
         "Deepens the chorus modulation for a wider, more shimmering movement; lower keeps it subtler and "
         "more static.",
+        sweep=True,
     )
     def chorus_depth(self, value: float) -> None:
         self.chorus_depth_sig.value = value
@@ -129,6 +133,7 @@ class SoundscapeWash(ContinuousVoice):
         0.35,
         "Chorus density",
         "Adds more layered repeats to the chorus effect for a denser, more swirling texture.",
+        sweep=True,
     )
     def chorus_feedback(self, value: float) -> None:
         self.chorus_feedback_sig.value = value
@@ -141,6 +146,7 @@ class SoundscapeWash(ContinuousVoice):
         "Chorus blend",
         "Blends how much of the chorused signal is heard versus the dry tone; higher leans further into "
         "the wide, shimmering effect.",
+        sweep=True,
     )
     def chorus_bal(self, value: float) -> None:
         self.chorus_bal_sig.value = value
@@ -152,6 +158,7 @@ class SoundscapeWash(ContinuousVoice):
         0.9,
         "Space",
         "Sets how large and distant the wash's room feels, from a tight presence to a huge, cavernous decay.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb_size_sig.value = value
@@ -164,6 +171,7 @@ class SoundscapeWash(ContinuousVoice):
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
         "settings stay bright and shimmering.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb_damp_sig.value = value
@@ -176,6 +184,7 @@ class SoundscapeWash(ContinuousVoice):
         "Distance",
         "Blends how much of the wash is heard through the reverb versus dry; higher dissolves it into the "
         "atmosphere, lower keeps it present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb_bal_sig.value = value
@@ -187,6 +196,7 @@ class SoundscapeWash(ContinuousVoice):
         0.8,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the wash across time.",
+        sweep=True,
     )
     def delay_time(self, value: float) -> None:
         self.delay_time_sig.value = value
@@ -198,6 +208,7 @@ class SoundscapeWash(ContinuousVoice):
         0.25,
         "Echo density",
         "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
+        sweep=True,
     )
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value

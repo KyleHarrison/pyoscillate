@@ -81,6 +81,7 @@ class Clap(DrumVoice):
         1100,
         "Brightness",
         "Moves the clap from fuller and softer to thinner and sharper.",
+        sweep=True,
     )
     def tone(self, value: float) -> None:
         self.tone_filter.freq = value
@@ -94,6 +95,7 @@ class Clap(DrumVoice):
         "Width",
         "Spacing between the hands arriving; wider sounds fuzzier and more human, tighter moves toward a "
         "single direct noise hit.",
+        sweep=True,
     )
     def spread(self, value: float) -> None:
         self._reshape()
@@ -106,6 +108,7 @@ class Clap(DrumVoice):
         "Tail",
         "Length of the noisy tail after the burst; short is dry and crisp, long reads like a small room "
         "around the clap.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self._reshape()

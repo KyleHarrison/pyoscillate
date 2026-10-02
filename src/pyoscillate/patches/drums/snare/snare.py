@@ -111,6 +111,7 @@ class Snare(DrumVoice):
         "Snap",
         "Amount of noisy wire rattle against the drum body; more is wider and crisper, less leaves a "
         "rounder, more tonal hit.",
+        sweep=True,
     )
     def snap(self, value: float) -> None:
         self.apply_gains()
@@ -122,6 +123,7 @@ class Snare(DrumVoice):
         2000,
         "Brightness",
         "Moves the rattle from fuller and thicker (lower) to thinner and more sizzling (higher).",
+        sweep=True,
     )
     def tone(self, value: float) -> None:
         self.rattle.freq = value
@@ -133,6 +135,7 @@ class Snare(DrumVoice):
         0.16,
         "Tail",
         "Length of the rattle after the hit; short is a dry crack, long reads like a small room around the snare.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self.rattle_env.dur = value

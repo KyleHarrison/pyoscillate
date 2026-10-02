@@ -243,7 +243,8 @@ class PatchGroupTests(unittest.TestCase):
         self.assertEqual(app.pause_button.text, "Pause")
 
     def test_psyambient_declares_conceptual_groups(self) -> None:
-        groups = PsyambientRack().groups
+        (atmosphere,) = PsyambientRack().groups
+        groups = atmosphere.children
         self.assertEqual(
             [group.title for group in groups],
             ["Soundscapes", "Mid Voices", "Bass"],
@@ -295,9 +296,10 @@ class PatchGroupTests(unittest.TestCase):
         self.assertEqual(panel._value_texts[SoundscapeWash.volume].value, "0.6")
 
     def test_deep_house_drums_group_holds_snare_tom_and_cymbals(self) -> None:
-        drums = next(
-            group for group in DeepHouseRack().groups if group.title == "Drums"
+        rhythm = next(
+            group for group in DeepHouseRack().groups if group.title == "Rhythm"
         )
+        drums = next(group for group in rhythm.children if group.title == "Drums")
 
         self.assertEqual(
             [patch.name for patch in drums.patches],

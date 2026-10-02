@@ -100,6 +100,7 @@ class Kick(DrumVoice):
         0.12,
         "Grit",
         "Adds soft saturation warmth and edge; higher pushes the kick toward a grittier, more aggressive thump.",
+        sweep=True,
     )
     def drive(self, value: float) -> None:
         self.shaper.drive = value
@@ -112,6 +113,7 @@ class Kick(DrumVoice):
         "Punch",
         "Depth of the downward pitch drop at the start of each hit; more gives a sharper, more pronounced "
         "attack, too much starts to sound like a tom or zap, none leaves a pure low thud.",
+        sweep=True,
     )
     def punch(self, value: float) -> None:
         self.pitch_env.mul = self.sweep_depth * value
@@ -124,6 +126,7 @@ class Kick(DrumVoice):
         "Length",
         "Stretches or shortens the body; shorter is tight and dry and leaves room for the bass, longer is "
         "boomier and more 808-like but can mask the bassline.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.body_env.dur = self.decay * value
@@ -136,6 +139,7 @@ class Kick(DrumVoice):
         "Click",
         "Level of the short noise transient on the attack; more adds snap and definition, less sounds "
         "rounder and softer.",
+        sweep=True,
     )
     def click(self, value: float) -> None:
         self.apply_gains()

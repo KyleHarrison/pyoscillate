@@ -72,9 +72,7 @@ jobs:
           - forest_psytrance
           - lofi
           - psyambient
-          - rack_demo
           - slowed_reverb
-          - soundscape_fm
     steps:
       - uses: actions/checkout@v4
         with:

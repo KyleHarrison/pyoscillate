@@ -152,6 +152,7 @@ class FunkBass(Bass):
         "Brightness",
         "How open the filter sits between notes and where every sweep starts from; low is a dark "
         "thud that only the quack brightens, high keeps a buzzy edge on the whole line.",
+        sweep=True,
     )
     def cutoff(self, value: float) -> None:
         self.cutoff_freq.mul = value
@@ -177,6 +178,7 @@ class FunkBass(Bass):
         "Swell",
         "How slowly the filter opens, in seconds; short is a snappy pluck on the front of each "
         "note, long a lazy auto-wah that only the held notes reach the top of.",
+        sweep=True,
     )
     def swell(self, value: float) -> None:
         self.sweep.attack = value
@@ -189,6 +191,7 @@ class FunkBass(Bass):
         "Growl",
         "Adds a resonant peak that rides the sweep; higher makes the quack more nasal and "
         "rubbery, lower keeps it smooth.",
+        sweep=True,
     )
     def resonance(self, value: float) -> None:
         self.filtered.res = value

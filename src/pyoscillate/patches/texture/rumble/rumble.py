@@ -47,6 +47,7 @@ class BassRumble(ContinuousVoice):
         "Pitched weight",
         "Blends in a sense of pitch and grounding; higher makes the rumble feel more tonal, lower (or "
         "off) keeps it as pure unpitched texture.",
+        sweep=True,
     )
     noise_level = Param(
         0,
@@ -56,6 +57,7 @@ class BassRumble(ContinuousVoice):
         "Rumble amount",
         "Sets how much of the filtered noise texture comes through - the main earthquake-like content "
         "of this patch.",
+        sweep=True,
     )
     noise_cutoff = Param(
         40,
@@ -65,6 +67,7 @@ class BassRumble(ContinuousVoice):
         "Rumble depth",
         "Sets how deep and dark the noise rumble sits; lower keeps only the deepest content, higher "
         "lets more mid-low texture through.",
+        sweep=True,
     )
     tone_cutoff = Param(
         100,
@@ -73,6 +76,7 @@ class BassRumble(ContinuousVoice):
         300,
         "Sine warmth",
         "Darkens or brightens the faint sine layer sitting under the noise.",
+        sweep=True,
     )
 
     def build(self, context: BuildContext) -> Patch:

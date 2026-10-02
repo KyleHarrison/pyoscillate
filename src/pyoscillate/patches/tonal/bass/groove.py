@@ -33,6 +33,7 @@ class GrooveBass(Bass):
         "Brightness",
         "Opens or closes the bass's low-pass filter; higher lets more upper harmonics through for "
         "a brighter tone, lower keeps it rounder and darker.",
+        sweep=True,
     )
     def cutoff(self, value: float) -> None:
         self.filtered.freq = value

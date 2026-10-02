@@ -68,6 +68,7 @@ class Pluck(GatedVoice):
         2.4,
         "Brightness",
         "Sets the initial harmonic bite; the modulation naturally fades on each pluck.",
+        sweep=True,
     )
     def brightness(self, value: float) -> None:
         self.brightness_env.mul = value
@@ -79,6 +80,7 @@ class Pluck(GatedVoice):
         0.45,
         "Decay",
         "Sets how long each plucked note rings before it falls away.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self.amp_env.dur = value
@@ -90,6 +92,7 @@ class Pluck(GatedVoice):
         0.2,
         "Brightness decay",
         "Shortens or lengthens the bright attack; a shorter value makes each note softer sooner.",
+        sweep=True,
     )
     def brightness_decay(self, value: float) -> None:
         self.brightness_env.dur = value

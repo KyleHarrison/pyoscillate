@@ -100,6 +100,7 @@ class Generative(Patch):
         "Tone character",
         "Detunes the melodic overtones; near a simple ratio sounds clean and bell-like, drifting away "
         "adds a warmer, more unstable shimmer.",
+        sweep=True,
     )
     def fm_ratio(self, value: float) -> None:
         self.fm_voice.ratio = value
@@ -112,6 +113,7 @@ class Generative(Patch):
         "Brightness",
         "Moves the melody from a plain, mellow tone to a brighter, buzzier, more harmonically complex "
         "one.",
+        sweep=True,
     )
     def fm_index(self, value: float) -> None:
         self.fm_voice.index = value
@@ -124,6 +126,7 @@ class Generative(Patch):
         "Space",
         "Sets how large and distant the melody's room feels, from a tight presence to a huge, cavernous "
         "decay.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb.size = value
@@ -136,6 +139,7 @@ class Generative(Patch):
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
         "settings stay bright and shimmering.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb.damp = value
@@ -148,6 +152,7 @@ class Generative(Patch):
         "Distance",
         "Blends how much of the melody is heard through the reverb versus dry; higher dissolves it into "
         "the atmosphere, lower keeps it present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb.bal = value

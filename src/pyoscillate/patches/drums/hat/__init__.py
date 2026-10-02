@@ -53,6 +53,7 @@ class Tick(DrumVoice):
         "Brightness",
         "Moves the tick from fuller and more present (lower) to thinner, airier, and more distant-sounding "
         "(higher).",
+        sweep=True,
     )
     def cutoff_freq(self, value: float) -> None:
         self.filtered.freq = value
@@ -75,6 +76,7 @@ class Tick(DrumVoice):
         DECAY,
         "Tightness",
         "Shapes the tick's tail; shorter feels tight and click-like, longer blurs into more of a hiss.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self.hat_env.dur = value

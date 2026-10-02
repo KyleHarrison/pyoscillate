@@ -107,6 +107,7 @@ class FmBass(Bass):
         "Growl",
         "How hard each note barks: low is a soft, round thump, high a bright, buzzing snarl at the "
         "start of every note.",
+        sweep=True,
     )
     def growl(self, value: float) -> None:
         self.bark.mul = value * self._accent
@@ -119,6 +120,7 @@ class FmBass(Bass):
         "Settle",
         "How long the bark takes to die down, in seconds: short is a quick pluck on the front of "
         "the note, long a slow, wah-like close.",
+        sweep=True,
     )
     def settle(self, value: float) -> None:
         self.bark.dur = value
@@ -131,6 +133,7 @@ class FmBass(Bass):
         "Edge",
         "The brightness left once the bark has settled: at 0 the note settles to a pure sub, "
         "higher keeps a buzzing edge under the whole note.",
+        sweep=True,
     )
     def edge(self, value: float) -> None:
         self.floor.value = value
@@ -143,6 +146,7 @@ class FmBass(Bass):
         "Length",
         "How long each note lasts, in 16ths: short is tight and staccato, long runs one note into "
         "the next.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.amp.dur = self._sixteenth * value

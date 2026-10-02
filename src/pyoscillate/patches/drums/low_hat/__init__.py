@@ -62,6 +62,7 @@ class LowHat(DrumVoice):
         "Darkness",
         "Sets how dark and low this accent sits against the main hat; lower is closer to a thud, higher "
         "brightens it toward the main hat's character.",
+        sweep=True,
     )
     def cutoff_freq(self, value: float) -> None:
         self.low_edge.value = value
@@ -84,6 +85,7 @@ class LowHat(DrumVoice):
         DECAY,
         "Tail length",
         "Shapes the accent's decay; shorter feels tight and clipped, longer trails into a dubbier tock.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self.hat_env.dur = value

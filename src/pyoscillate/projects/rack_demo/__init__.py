@@ -1,1 +1,0 @@
-"""Rack-demo project rack."""

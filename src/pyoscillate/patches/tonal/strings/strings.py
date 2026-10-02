@@ -95,6 +95,7 @@ class Strings(GatedVoice):
         2200,
         "Brightness",
         "How much top end the ensemble keeps; low is muffled and distant, high is airier and closer.",
+        sweep=True,
     )
     def brightness(self, value: float) -> None:
         self.filtered.freq = value
@@ -106,6 +107,7 @@ class Strings(GatedVoice):
         1.2,
         "Attack",
         "How gradually the chord swells in each bar; short is a soft entrance, long is barely perceptible.",
+        sweep=True,
     )
     def attack(self, value: float) -> None:
         self.amp_env.setAttack(value)
@@ -118,6 +120,7 @@ class Strings(GatedVoice):
         "Release",
         "How long the chord lingers once the bar turns over; short changes cleanly, long blurs into the "
         "next chord.",
+        sweep=True,
     )
     def release(self, value: float) -> None:
         self.amp_env.setRelease(value)
@@ -130,6 +133,7 @@ class Strings(GatedVoice):
         "Spread",
         "How far the ensemble's inner voices drift from the centre pitch; low is a tight, almost single "
         "string, high is a wide, shimmering section.",
+        sweep=True,
     )
     def spread(self, value: float) -> None:
         for saw in (*self.chord_saws, self.colour_saw):
@@ -143,6 +147,7 @@ class Strings(GatedVoice):
         "Shimmer",
         "How strongly the ensemble chorus wobbles the sound; low stays still, high adds a lush, wavering "
         "chorus.",
+        sweep=True,
     )
     def shimmer(self, value: float) -> None:
         self.chorus.depth = value
@@ -156,6 +161,7 @@ class Strings(GatedVoice):
         "Colour",
         "Blends in a bright upper tone above the chord root (a 9th or, after it evolves, a 13th); zero "
         "is a plain open fifth, full brings out a jazz-tinged upper colour.",
+        sweep=True,
     )
     def colour(self, value: float) -> None:
         self.colour_saw.mul = GAIN * value

@@ -105,6 +105,7 @@ class Noise(ContinuousVoice):
         1,
         "Colour",
         "Moves the noise from bright white hiss (0) through softer pink (1) to dark, rumbling brown (2).",
+        sweep=True,
     )
     brightness = Param(
         300,
@@ -113,6 +114,7 @@ class Noise(ContinuousVoice):
         5000,
         "Brightness",
         "How much high-end hiss is let through; lower is muffled and distant, higher is airy and close.",
+        sweep=True,
     )
     motion = Param(
         0.25,
@@ -121,6 +123,7 @@ class Noise(ContinuousVoice):
         1,
         "Motion",
         "How fast the bed moves; low is a slow tide, high is a restless flutter.",
+        sweep=True,
     )
     depth = Param(
         0,
@@ -129,6 +132,7 @@ class Noise(ContinuousVoice):
         0.6,
         "Depth",
         "How far the movement swings; zero is a still, steady bed, full is a wide swell or swirl.",
+        sweep=True,
     )
     level = Param(
         0,

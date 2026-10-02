@@ -6,8 +6,8 @@ per `PatchPanel`, rendering an enable switch, parameter sliders, and a volume
 slider. `PatchRackApp` composes any number
 of `PatchPanel`s into a single scrollable page with an audio-engine
 start/stop control and JSON preset save/load, so the same code drives a
-single-patch app (`soundscape_fm`) or a whole rack of patches (`deep_house`,
-`psyambient`, `rack_demo`).
+single patch (`patch`) or a whole rack of patches (`deep_house`,
+`psyambient`).
 """
 
 from __future__ import annotations
@@ -736,7 +736,7 @@ class PatchGroup:
 class PatchRackApp:
     """A scrollable page of `PatchPanel`s for one `Rack`, sharing one Pyo
     `Server`, one clock, and one JSON preset catalog - the generic shape
-    behind both the single-patch `soundscape_fm` app and the multi-patch rack
+    behind both the single-patch `patch` app and the multi-patch rack
     apps."""
 
     def __init__(

@@ -50,6 +50,7 @@ class TechnoBass(Bass):
         "Growl",
         "Adds resonant emphasis around the filter cutoff; higher makes the bass squelchier and "
         "more vocal, lower keeps it smoother and rounder.",
+        sweep=True,
     )
     def filter_res(self, value: float) -> None:
         self.filtered.res = value
@@ -62,6 +63,7 @@ class TechnoBass(Bass):
         "Brightness",
         "Sets the average tone of the bass filter sweep; higher opens it up and brightens it, "
         "lower keeps it duller and more closed.",
+        sweep=True,
     )
     def filter_base(self, value: float) -> None:
         self.cutoff_lfo.add = value
@@ -74,6 +76,7 @@ class TechnoBass(Bass):
         "Sweep depth",
         "Controls how far the filter sweeps each cycle; wider ranges create a more dramatic "
         "wah-like motion, narrower keeps the tone more static.",
+        sweep=True,
     )
     def filter_range(self, value: float) -> None:
         self.cutoff_lfo.mul = value

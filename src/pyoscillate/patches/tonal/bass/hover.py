@@ -60,6 +60,7 @@ class BassHover(Bass):
         "Brightness",
         "Opens or closes the bass's low-pass filter; kept dark and rounded by default so it stays "
         "clean and sine-like rather than buzzy.",
+        sweep=True,
     )
     def cutoff(self, value: float) -> None:
         self.filtered.freq = value
@@ -72,6 +73,7 @@ class BassHover(Bass):
         "Space",
         "Sets how large and distant the reverb tail feels, from a close presence to a huge, "
         "cavernous decay.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb_voice.size = value
@@ -84,6 +86,7 @@ class BassHover(Bass):
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
         "settings stay brighter.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb_voice.damp = value
@@ -96,6 +99,7 @@ class BassHover(Bass):
         "Distance",
         "Blends how much of the bass is heard through the reverb versus dry; higher dissolves it "
         "into the wash, lower keeps the pulse present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb_voice.bal = value
@@ -108,6 +112,7 @@ class BassHover(Bass):
         "Breath",
         "Depth of a slow, multi-bar amplitude swell; higher makes the bass visibly breathe in "
         "and out, lower keeps its level steadier.",
+        sweep=True,
     )
     def breath(self, value: float) -> None:
         self.breath_lfo.mul = value * 0.5

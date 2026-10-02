@@ -116,6 +116,7 @@ class Bell(Patch):
         0.6,
         "Strike",
         "How hard the bell is hit: soft is a round, mellow tone, hard adds a bright, clanging edge to the start of each note.",
+        sweep=True,
     )
     def strike(self, value: float) -> None:
         self.set_strike(value)
@@ -127,6 +128,7 @@ class Bell(Patch):
         2.5,
         "Ring",
         "How long each note rings, in seconds, before it fades out; long rings overlap into a shimmering wash.",
+        sweep=True,
     )
     def ring(self, value: float) -> None:
         self.set_ring(value)

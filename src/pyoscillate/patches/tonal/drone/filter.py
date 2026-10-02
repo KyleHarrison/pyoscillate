@@ -79,6 +79,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Sweep speed",
         "How quickly the filter's cutoff wanders; slower feels like a slow-breathing wah, faster feels "
         "more agitated.",
+        sweep=True,
     )
     def cutoff_speed(self, value: float) -> None:
         self.cutoff_speed_sig.value = value
@@ -91,6 +92,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Sweep instability",
         "How unpredictable the cutoff sweep is; higher feels more restless and alive, lower stays closer "
         "to a steady, cyclical wah.",
+        sweep=True,
     )
     def cutoff_chaos(self, value: float) -> None:
         self.cutoff_chaos_sig.value = value
@@ -103,6 +105,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Resonance",
         "Adds emphasis around the cutoff as it sweeps; higher makes the motion more vocal and whistling, "
         "lower keeps it smoother.",
+        sweep=True,
     )
     def filter_res(self, value: float) -> None:
         self.filter_res_sig.value = value
@@ -115,6 +118,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Brightness",
         "Sets the average brightness the filter sweeps around; higher opens the drone up, lower keeps it "
         "duller and more closed.",
+        sweep=True,
     )
     def filter_base(self, value: float) -> None:
         self.filter_base_sig.value = value
@@ -127,6 +131,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Sweep depth",
         "Controls how far the filter sweeps each cycle; wider ranges create more dramatic movement, "
         "narrower keeps the tone closer to static.",
+        sweep=True,
     )
     def filter_range(self, value: float) -> None:
         self.filter_range_sig.value = value
@@ -138,6 +143,7 @@ class SoundscapeFilter(ContinuousVoice):
         0.8,
         "Space",
         "Sets how large and distant the drone's room feels, from a tight presence to a huge, cavernous decay.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb_size_sig.value = value
@@ -150,6 +156,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
         "settings stay bright and shimmering.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb_damp_sig.value = value
@@ -162,6 +169,7 @@ class SoundscapeFilter(ContinuousVoice):
         "Distance",
         "Blends how much of the drone is heard through the reverb versus dry; higher dissolves it into "
         "the atmosphere, lower keeps it present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb_bal_sig.value = value
@@ -173,6 +181,7 @@ class SoundscapeFilter(ContinuousVoice):
         0.45,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the timbral drift across time.",
+        sweep=True,
     )
     def delay_time(self, value: float) -> None:
         self.delay_time_sig.value = value
@@ -184,6 +193,7 @@ class SoundscapeFilter(ContinuousVoice):
         0.3,
         "Echo density",
         "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
+        sweep=True,
     )
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value

@@ -68,6 +68,7 @@ class BassChaos(ContinuousVoice):
         "Drift speed",
         "How quickly the pitch wanders; slower feels like a slow-breathing organism, faster feels more "
         "agitated and unstable.",
+        sweep=True,
     )
     def chaos_speed(self, value: float) -> None:
         self.chaos_speed_sig.value = value
@@ -80,6 +81,7 @@ class BassChaos(ContinuousVoice):
         "Instability",
         "How unpredictable the pitch wander is; higher feels more restless and alive, lower stays closer "
         "to a steady drone.",
+        sweep=True,
     )
     def chaos_amount(self, value: float) -> None:
         self.chaos_amount_sig.value = value
@@ -92,6 +94,7 @@ class BassChaos(ContinuousVoice):
         "Wander range",
         "How far the pitch strays from center; wider feels more organic and unsettled, narrower keeps it "
         "closer to a fixed note.",
+        sweep=True,
     )
     def drift_range(self, value: float) -> None:
         self.drift_range_sig.value = value
@@ -104,6 +107,7 @@ class BassChaos(ContinuousVoice):
         "Brightness",
         "Darkens or brightens the low end; lower keeps it duller and rounder, higher lets a bit more "
         "presence through.",
+        sweep=True,
     )
     def filter_base(self, value: float) -> None:
         self.filter_base_sig.value = value
@@ -116,6 +120,7 @@ class BassChaos(ContinuousVoice):
         "Resonance",
         "Adds emphasis around the cutoff for a more colored, slightly whistling low end; kept low here "
         "for a smooth, uncolored rumble.",
+        sweep=True,
     )
     def filter_res(self, value: float) -> None:
         self.filter_res_sig.value = value

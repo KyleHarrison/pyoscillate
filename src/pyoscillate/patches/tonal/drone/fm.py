@@ -64,6 +64,7 @@ class SoundscapeFm(ContinuousVoice):
         0.04,
         "Drift speed",
         "How fast the pad's timbre wanders; lower is slower and more hypnotic, higher feels more restless.",
+        sweep=True,
     )
     def chaos_speed(self, value: float) -> None:
         self.chaos_speed_sig.value = value
@@ -76,6 +77,7 @@ class SoundscapeFm(ContinuousVoice):
         "Instability",
         "How unpredictable the wander is; higher feels more psychedelic and alive, lower stays closer to "
         "a steady tone.",
+        sweep=True,
     )
     def chaos_amount(self, value: float) -> None:
         self.chaos_amount_sig.value = value
@@ -87,6 +89,7 @@ class SoundscapeFm(ContinuousVoice):
         0.85,
         "Space",
         "Sets how enveloping the pad's room feels; larger is more immersive and distant.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb_size_sig.value = value
@@ -99,6 +102,7 @@ class SoundscapeFm(ContinuousVoice):
         "Tail darkness",
         "Darkens the reverb tail as it decays; higher is warmer and more muffled, lower stays brighter and "
         "shimmering.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb_damp_sig.value = value
@@ -111,6 +115,7 @@ class SoundscapeFm(ContinuousVoice):
         "Distance",
         "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into the "
         "space, lower keeps it present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb_bal_sig.value = value
@@ -122,6 +127,7 @@ class SoundscapeFm(ContinuousVoice):
         0.6,
         "Echo spacing",
         "Sets the time between echo repeats, smearing the timbral drift across time.",
+        sweep=True,
     )
     def delay_time(self, value: float) -> None:
         self.delay_time_sig.value = value
@@ -133,6 +139,7 @@ class SoundscapeFm(ContinuousVoice):
         0.35,
         "Echo density",
         "Sets how many times each echo repeats before decaying; higher creates a denser, more layered wash.",
+        sweep=True,
     )
     def delay_feedback(self, value: float) -> None:
         self.delay_feedback_sig.value = value

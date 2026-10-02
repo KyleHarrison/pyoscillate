@@ -119,6 +119,7 @@ class Tom(DrumVoice):
         "Sweep",
         "Depth of the downward pitch bend on each hit; more gives a bigger impact gesture, too much "
         "starts to sound like a zap, none leaves a static pitched ping.",
+        sweep=True,
     )
     def sweep(self, value: float) -> None:
         self.bend.mul = self.bend_depth * value
@@ -130,6 +131,7 @@ class Tom(DrumVoice):
         1.0,
         "Length",
         "Shortens the tom toward a dry, damped hit or lets it ring out with a longer resonant tail.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.body_env.dur = self.decay * value
@@ -143,6 +145,7 @@ class Tom(DrumVoice):
         "Brightness",
         "Adds the upper membrane overtone and stick attack; low is a round, deep tom, high a brighter, "
         "more articulate one.",
+        sweep=True,
     )
     def tone(self, value: float) -> None:
         self.overtone_env.mul = self.level * value * self.overtone_level

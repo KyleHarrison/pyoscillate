@@ -166,6 +166,7 @@ class Keys(GatedVoice):
         2.5,
         "Bark",
         "How much each strike pings: low is a soft, round touch, high a bright, glassy bark on hard notes that fades as the chord rings.",
+        sweep=True,
     )
     def bark(self, value: float) -> None:
         self.apply_touch()
@@ -177,6 +178,7 @@ class Keys(GatedVoice):
         0.8,
         "Bite",
         "The edge on the sustained tone: low is a pure, mellow Rhodes-like body, high a reedy, nasal Wurlitzer-like growl.",
+        sweep=True,
     )
     def bite(self, value: float) -> None:
         self.apply_touch()
@@ -188,6 +190,7 @@ class Keys(GatedVoice):
         1.8,
         "Decay",
         "How long each chord rings, in seconds, before it dies away; short is a tight stab, long lets the chords overlap.",
+        sweep=True,
     )
     def decay(self, value: float) -> None:
         self.amp.dur = value
@@ -200,6 +203,7 @@ class Keys(GatedVoice):
         0.3,
         "Tremolo",
         "How strongly the level throbs in 8th notes, like an electric piano through a tremolo amp; 0 holds it steady.",
+        sweep=True,
     )
     def tremolo(self, value: float) -> None:
         self.depth.value = value / 2
@@ -212,6 +216,7 @@ class Keys(GatedVoice):
         "Wobble",
         "Slow, unsteady pitch drift like tape wow-and-flutter - distinct from Tremolo, which throbs the "
         "level in a fixed rhythm; 0 keeps the pitch rock steady, higher adds a slow, wavering detune.",
+        sweep=True,
     )
     def wobble(self, value: float) -> None:
         self.wobble_depth.value = value * self.wobble_depth_max

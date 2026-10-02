@@ -103,6 +103,7 @@ class Percussion(DrumVoice):
         1.0,
         "Length",
         "Shortens the accent toward a dry, clipped tick or lets it ring out into a rounder, more resonant tone.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.body_env.dur = self.decay * value
@@ -115,6 +116,7 @@ class Percussion(DrumVoice):
         "Attack",
         "Level of the woody transient on each hit; more gives a sharper, clickier strike, less leaves a "
         "softer, purely tonal hit.",
+        sweep=True,
     )
     def click(self, value: float) -> None:
         self.click_env.mul = self.click_level * value * self.level

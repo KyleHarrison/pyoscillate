@@ -80,7 +80,7 @@ uv run flet run --web --port 8551 src/flet/deep_house/app.py
 
 Open http://127.0.0.1:8551 (for example in the VS Code browser), start the audio engine, and switch patches on.
 
-Other racks live alongside it under `src/flet/` (`forest_psytrance`, `psyambient`, `rack_demo`, `soundscape_fm`). Drop `--web --port ...` to open a rack as a desktop window instead.
+Other racks live alongside it under `src/flet/` (`forest_psytrance`, `lofi`, `slowed_reverb`, `psyambient`). Drop `--web --port ...` to open a rack as a desktop window instead.
 
 ## Build macOS dist
 

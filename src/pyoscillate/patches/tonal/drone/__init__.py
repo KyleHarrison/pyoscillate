@@ -62,6 +62,7 @@ class Drone(ContinuousVoice):
         0.7,
         "Space",
         "Sets how vast the drone's reverb tail feels, from a tighter presence to a huge, cavernous wash.",
+        sweep=True,
     )
     def reverb_size(self, value: float) -> None:
         self.reverb.size = value
@@ -74,6 +75,7 @@ class Drone(ContinuousVoice):
         "Tail darkness",
         "Controls how bright or muffled the reverb tail sounds as it decays; lower keeps it shimmering, "
         "higher makes it warmer and duller.",
+        sweep=True,
     )
     def reverb_damp(self, value: float) -> None:
         self.reverb.damp = value
@@ -86,6 +88,7 @@ class Drone(ContinuousVoice):
         "Distance",
         "Blends dry tone against reverb; higher dissolves the drone into a diffuse atmospheric bed, lower "
         "keeps the raw pitch more present.",
+        sweep=True,
     )
     def reverb_bal(self, value: float) -> None:
         self.reverb.bal = value

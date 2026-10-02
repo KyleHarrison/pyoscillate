@@ -93,6 +93,7 @@ class Cymbal(DrumVoice):
         7000,
         "Brightness",
         "Moves the cymbal from a darker, washier body (lower) to a thinner, more glassy shimmer (higher).",
+        sweep=True,
     )
     def tone(self, value: float) -> None:
         self.centre.value = value
@@ -105,6 +106,7 @@ class Cymbal(DrumVoice):
         1.0,
         "Length",
         "Shortens the cymbal toward a tighter, controlled hit or lets the tail hang and dissolve for longer.",
+        sweep=True,
     )
     def length(self, value: float) -> None:
         self.amp_env.dur = self.decay * value
@@ -117,6 +119,7 @@ class Cymbal(DrumVoice):
         "Movement",
         "How much the cymbal's colour drifts from strike to strike; none is static and repetitive, more "
         "keeps a repeated pattern alive.",
+        sweep=True,
     )
     def movement(self, value: float) -> None:
         self.drift.mul = value

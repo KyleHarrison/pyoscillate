@@ -78,6 +78,7 @@ class Chord(GatedVoice):
         "Brightness",
         "Opens or closes the stab's tone, from a dark, rounded voicing to a brighter, more cutting "
         "one.",
+        sweep=True,
     )
     def brightness(self, value: float) -> None:
         self.filter_voice.freq = value

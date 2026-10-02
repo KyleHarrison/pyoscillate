@@ -64,6 +64,7 @@ class BassDrone(ContinuousVoice):
         "Breathing rate",
         "How long one swell cycle takes; longer feels like a slow tide, shorter reads as a more rhythmic "
         "pulse.",
+        sweep=True,
     )
     def swell_period(self, value: float) -> None:
         self.swell_period_sig.value = value
@@ -76,6 +77,7 @@ class BassDrone(ContinuousVoice):
         "Swell depth",
         "How dramatic the level swell is; higher makes the breathing more audible, lower keeps the drone "
         "closer to constant.",
+        sweep=True,
     )
     def swell_depth(self, value: float) -> None:
         self.swell_depth_sig.value = value
@@ -88,6 +90,7 @@ class BassDrone(ContinuousVoice):
         "Brightness",
         "Darkens or brightens the low end; lower keeps it duller and softer, higher lets more harmonic "
         "content through.",
+        sweep=True,
     )
     def filter_base(self, value: float) -> None:
         self.filter_base_sig.value = value
@@ -99,6 +102,7 @@ class BassDrone(ContinuousVoice):
         0.2,
         "Resonance",
         "Adds emphasis around the cutoff; kept low here so the drone stays smooth rather than whistly.",
+        sweep=True,
     )
     def filter_res(self, value: float) -> None:
         self.filter_res_sig.value = value
