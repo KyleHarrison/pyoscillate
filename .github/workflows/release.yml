@@ -109,21 +109,22 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --python 3.11
 
+      # flet pack clears dist/ on every run, so each bundle is moved out
+      # before the next app is built
       - name: Build apps
         run: |
+          mkdir bundle
           for app in deep_house forest_psytrance lofi psyambient slowed_reverb; do
             uv run --python 3.11 python scripts/build_exe.py "$app"
+            ls dist
+            mv "dist/${app}.app" bundle/
           done
 
       # ditto keeps the symlinks and permissions inside each .app bundle
       - name: Zip apps
         env:
           TAG: ${{ needs.bump.outputs.tag }}
-        run: |
-          ls dist
-          mkdir bundle
-          cp -R dist/*.app bundle/
-          ditto -c -k --keepParent bundle "pyoscillate-${TAG}-macos.zip"
+        run: ditto -c -k --keepParent bundle "pyoscillate-${TAG}-macos.zip"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -150,7 +151,7 @@ jobs:
           TAG: ${{ needs.bump.outputs.tag }}
         run: git push origin "HEAD:main"
 
-      - name: Create GitHub release with executables
+      - name: Create GitHub release with app bundles
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS: ${{ needs.bump.outputs.previous }}
@@ -160,13 +161,12 @@ jobs:
           if git rev-parse -q --verify "refs/tags/${PREVIOUS}" >/dev/null; then
             START_ARGS=(--notes-start-tag "$PREVIOUS")
           fi
-          FILES=()
+          mkdir windows
           for exe in exes/*/*.exe; do
-            name=$(basename "$exe" .exe)
-            mv "$exe" "exes/${name}-${TAG}-windows.exe"
-            FILES+=("exes/${name}-${TAG}-windows.exe")
+            mv "$exe" windows/
           done
-          FILES+=(exes/macos-apps/*.zip)
+          zip -r "pyoscillate-${TAG}-windows.zip" windows
+          FILES=("pyoscillate-${TAG}-windows.zip" exes/macos-apps/*.zip)
           gh release create "$TAG" "${FILES[@]}" \
             --title "$TAG" \
             --generate-notes \
