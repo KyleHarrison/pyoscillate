@@ -113,4 +113,6 @@ Pyoscillate is for building musical systems with a procedural, agentic mindset: 
 
 ## License
 
+Released under the [MIT License](LICENSE). Pyoscillate depends on [Pyo](https://github.com/belangeo/pyo), which is LGPL-3.0; if you bundle Pyo in a distributed build, include its licence notice.
+
 This project is under active development and is intended as a creative coding environment for experimentation with Pyo, DSP, and live modular sound design through a Flet GUI.

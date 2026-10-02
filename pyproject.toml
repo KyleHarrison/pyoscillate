@@ -3,6 +3,8 @@ name = "pyoscillate"
 version = "0.3.0"
 description = "Agentic Pyo DSP patches played live as a modular synthesizer through a Flet GUI"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "KyleHarrison", email = "kyleharrison94@hotmail.com" }]
 requires-python = ">=3.11,<3.13"
 dependencies = [
