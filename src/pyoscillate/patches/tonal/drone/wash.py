@@ -19,12 +19,12 @@ from pyo.lib.filters import Tone
 from pyo.lib.generators import Rossler, Sine, SuperSaw
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 
-class SoundscapeWash(ContinuousVoice):
+class SoundscapeWash(Gate, ContinuousVoice):
     """Washy detuned pad: a SuperSaw voice smeared with chorus, reverb, and delay for a shoegaze-style dream-pop ambience.
 
     Unlike `SoundscapeFm`/`SoundscapeFilter`, the "evolving" quality here
@@ -264,7 +264,7 @@ class SoundscapeWash(ContinuousVoice):
             maxdelay=2,
         )
         self.output = self.reverb_voice + self.echo * 0.3
-        return self.finish(self.output)
+        return self.finish(self.add_gate(self.output, context))
 
     def on_evolve(self, index: int) -> None:
         depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[

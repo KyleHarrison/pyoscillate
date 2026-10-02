@@ -138,7 +138,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         Each patch's step is derived live from `clock.tick` (see
         `GatedVoice.step_pattern`), not from a counter that advances once per
         call - so a step is fired by moving the clock to that step's tick and
-        calling the sequencer's callback once, rather than calling it
+        calling the voice's own division callback once (its `sequencer` may also hold a gate), rather than calling it
         repeatedly with the clock held still."""
         context = BuildContext(self.tempo, self.clock, harmony)
         chord_patch = chord.ChordVelvet().build(context)
@@ -147,8 +147,8 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         bar_start = self.clock._tick
 
         def fire(patch: Patch, step_index: int) -> None:
-            self.clock._tick = bar_start + step_index * patch.sequencer.steps
-            patch.sequencer.callback()
+            self.clock._tick = bar_start + step_index * patch._division.steps
+            patch._division.callback()
 
         # the chord stabs on the third 16th, the bass on the first, the tom's
         # first fill note (a fifth up) on the eleventh

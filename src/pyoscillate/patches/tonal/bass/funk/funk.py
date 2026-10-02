@@ -124,8 +124,8 @@ class FunkBass(Bass):
     pulse: PyoObject
     mix: PyoObject
     trimmed: PyoObject
-    gate_table: LinTable
-    gate: TrigEnv
+    note_gate_table: LinTable
+    note_gate: TrigEnv
     amp: Adsr
     level: PyoObject
     sweep: Adsr
@@ -245,8 +245,10 @@ class FunkBass(Bass):
         # the gate: held open for the note's length, then its end trigger
         # releases both envelopes. A new note restarts it, so a long note's
         # release never lands on the note after it.
-        self.gate_table = LinTable([(0, 1), (8191, 1)])
-        self.gate = TrigEnv(self.trigger, self.gate_table, dur=context.tempo.sixteenth)
+        self.note_gate_table = LinTable([(0, 1), (8191, 1)])
+        self.note_gate = TrigEnv(
+            self.trigger, self.note_gate_table, dur=context.tempo.sixteenth
+        )
         self.amp = Adsr(**AMP_ENVELOPE)
         self.level = self.amp * GAIN
         self.sweep = Adsr(
@@ -262,10 +264,10 @@ class FunkBass(Bass):
         self.filtered = MoogLP(self.trimmed, freq=self.safe_cutoff, res=self.resonance)
         self.body = self.filtered * self.level
 
-        self.gate_end = TrigFunc(self.gate["trig"], self.note_off)
+        self.gate_end = TrigFunc(self.note_gate["trig"], self.note_off)
 
         self.schedule(BASE_DIVISION, self.rate, context.clock)
-        return self.finish(self.body)
+        return self.finish(self.add_gate(self.body, context))
 
     def note_off(self) -> None:
         self.amp.stop()
@@ -279,7 +281,7 @@ class FunkBass(Bass):
             return
         root = self.current_root()
         self.pitch.value = root * 2 ** (step.semitones / 12)
-        self.gate.dur = self._sixteenth * step.length * self.length
+        self.note_gate.dur = self._sixteenth * step.length * self.length
         self.amp.mul = step.accent
         self.sweep.mul = self.quack * step.accent
         self.amp.play()

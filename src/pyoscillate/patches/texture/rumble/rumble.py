@@ -11,14 +11,14 @@ from pyo.lib.filters import MoogLP, Tone
 from pyo.lib.generators import BrownNoise, Sine
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 SUB_FREQ = notes.E1  # current default
 
 
-class BassRumble(ContinuousVoice):
+class BassRumble(Gate, ContinuousVoice):
     """Textural noise rumble: `BrownNoise` through a very low lowpass, blended with a sub sine, for an unpitched "earthquake" low end rather than a tonal bass."""
 
     title = "Bass - textural noise rumble"
@@ -88,4 +88,4 @@ class BassRumble(ContinuousVoice):
         self.sub = Sine(freq=self.live(cls.sub_freq), mul=self.live(cls.sub_level))
         self.sub_voice = Tone(self.sub, freq=self.live(cls.tone_cutoff))
         self.mixed = self.noise_voice + self.sub_voice
-        return self.finish(self.mixed)
+        return self.finish(self.add_gate(self.mixed, context))

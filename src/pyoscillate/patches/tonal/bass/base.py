@@ -30,7 +30,7 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -59,7 +59,7 @@ class BassProfile:
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
 
 
-class Bass(GatedVoice):
+class Bass(Gate, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
     clock step. See `current_root` for the root-pitch policy every concrete
     voice supplies, and `build` for the shared graph the groove, hover and
@@ -160,7 +160,7 @@ class Bass(GatedVoice):
         )
 
         self.schedule(BASE_DIVISION, self.rate, context.clock)
-        return self.finish(self.voice_output())
+        return self.finish(self.add_gate(self.voice_output(), context))
 
     def voice_output(self) -> PyoObject:
         """Hook: the final output node after `self.filtered`. The default is

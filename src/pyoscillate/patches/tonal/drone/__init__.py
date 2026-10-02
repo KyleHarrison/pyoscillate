@@ -18,7 +18,7 @@ from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -27,7 +27,7 @@ DRONE_INTERVALS = [0, -5, -3, 2, 0, -7, -5, 3]
 ### One pre-existing latent bug was surfaced but deliberately left alone (out of scope, no sonic-behavior changes were part of this task): tonal/drone's base Drone.next_step snapshots root_freq at build time rather than reading it live, so a live Register-slider move doesn't affect future note steps. Worth a separate follow-up if you want it fixed.
 
 
-class Drone(ContinuousVoice):
+class Drone(Gate, ContinuousVoice):
     """Slow-winding FM drone: note changes once every 8 bars, with a continuously drifting timbre."""
 
     summary = "Slow-winding sustained drone that rarely changes note."
@@ -135,4 +135,4 @@ class Drone(ContinuousVoice):
         self.sequencer = context.clock.subscribe(
             context.clock.bar * self.step_bars, next_step
         )
-        return self.finish(self.reverb)
+        return self.finish(self.add_gate(self.reverb, context))

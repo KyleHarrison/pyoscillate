@@ -27,7 +27,7 @@ from pyo.lib.generators import SuperSaw
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
@@ -42,7 +42,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(GatedVoice):
+class Strings(Gate, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -198,7 +198,9 @@ class Strings(GatedVoice):
         self.voice_signal = self.chorus * self.amp_env
 
         self.schedule(self.base_division, self.rate, context.clock)
-        return self.finish(self.voice_signal, resources=(*self.chord_saws,))
+        return self.finish(
+            self.add_gate(self.voice_signal, context), resources=(*self.chord_saws,)
+        )
 
     def current_root(self, clock: Clock) -> float:
         return self.harmony.chord_freq(self.root_freq, clock.bar_index)

@@ -195,7 +195,7 @@ class FmBass(Bass):
         self.body = ButHP(self.tone_signal, freq=SUBSONIC)
 
         self.schedule(BASE_DIVISION, self.rate, context.clock)
-        return self.finish(self.body)
+        return self.finish(self.add_gate(self.body, context))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick - see `Clock.tick`'s

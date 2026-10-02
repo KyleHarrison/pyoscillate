@@ -43,7 +43,7 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import Noise, SuperSaw
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, frequency_shift
+from pyoscillate.patches.common import Gate, GatedVoice, frequency_shift
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
@@ -65,7 +65,7 @@ def _ramp_points(
     return [(0, 0), (duration - cut_seconds, 1), (duration, 0)]
 
 
-class Riser(GatedVoice):
+class Riser(Gate, GatedVoice):
     """Tempo-locked riser: one ramp lifts pitch, brightness and level into a
     downbeat. Style variants subclass this and override `rising_source()`;
     the ramp, curve, filter opening and level stage are identical. See the
@@ -198,7 +198,7 @@ class Riser(GatedVoice):
 
         # one tick per bar, not a `NoteDivision` rate
         self.schedule_steps(context.clock, context.clock.bar, self.next_bar)
-        return self.finish(self.voice_signal)
+        return self.finish(self.add_gate(self.voice_signal, context))
 
     def next_bar(self) -> None:
         length = round(self.length)

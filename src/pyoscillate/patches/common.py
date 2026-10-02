@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from pyo import PyoObject
+from pyo.lib.controls import SigTo
 from pyo.lib.filters import Hilbert
 from pyo.lib.generators import Sine
-from pyo.lib.tables import ExpTable
+from pyo.lib.tables import ExpTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
-from pyoscillate.patches.base import Patch, Sequencer
+from pyoscillate.patches.base import BuildContext, Patch, Sequencer
+from pyoscillate.patches.params import Param
+from pyoscillate.tempo import Tempo
 
 
 @dataclass(eq=False)
@@ -70,6 +74,46 @@ class Step:
     value: Any
 
 
+class Pulse:
+    """One clocked step source: calls `callback` every `steps` clock ticks
+    and knows which step of a cycle it is on. `GatedVoice` owns one as its
+    main pulse and `Gate` owns another, so a patch can run two independent
+    rhythms (a per-bar chord change and a 16th-note chop) off the same shared
+    `Clock`. Playing and stopping it joins or leaves the clock's grid.
+
+    The step index comes from `Clock.tick`, never an internal counter, so it
+    is the same whenever the owner was built or restarted (see `Division`).
+    """
+
+    def __init__(self, clock: Clock, steps: int, callback: Callable[[], None]) -> None:
+        self.clock = clock
+        self.division = clock.subscribe(steps, callback)
+
+    @property
+    def steps(self) -> int:
+        return self.division.steps
+
+    @steps.setter
+    def steps(self, steps: int) -> None:
+        self.division.steps = steps
+
+    @staticmethod
+    def step_at(tick: int, steps: int, cycle: int) -> int:
+        """The step within a cycle of `cycle` steps at clock `tick`, for a
+        pulse firing every `steps` ticks: the one place this is computed."""
+        return (tick // steps) % cycle
+
+    def index(self, cycle: int) -> int:
+        """The current step within a cycle of `cycle` steps."""
+        return self.step_at(self.clock.tick, self.division.steps, cycle)
+
+    def play(self) -> None:
+        self.division.play()
+
+    def stop(self) -> None:
+        self.division.stop()
+
+
 class GatedVoice(Patch):
     """Base for a voice articulated by clocked events - a trigger or gate
     opens an envelope on each hit, note, or step (the drums archetype, but
@@ -82,6 +126,7 @@ class GatedVoice(Patch):
     """
 
     # set by `schedule()`/`schedule_steps()` during `build()`
+    _pulse: Pulse
     _division: Division
     _clock: Clock
     _base_division: NoteDivision
@@ -148,7 +193,8 @@ class GatedVoice(Patch):
         """Subscribe `callback` every `steps` raw ticks, for a voice whose
         timing isn't a `NoteDivision` rate (a bar-synced swell, a
         step-division count)."""
-        self._division = clock.subscribe(steps, callback)
+        self._pulse = Pulse(clock, steps, callback)
+        self._division = self._pulse.division
         self._clock = clock
         self._scheduled = True
         return self._division
@@ -174,7 +220,7 @@ class GatedVoice(Patch):
         its callback can fire."""
 
         def check() -> Step:
-            index = (self._clock.tick // self._division.steps) % cycle
+            index = Pulse.step_at(self._clock.tick, self._division.steps, cycle)
             if isinstance(pattern, dict):
                 return Step(index, index in pattern, pattern.get(index, 0.0))
             return Step(index, index in pattern, True)
@@ -212,6 +258,155 @@ class SequencerGroup:
     def stop(self) -> None:
         for sequencer in self.sequencers:
             sequencer.stop()
+
+
+class Gate(Patch):
+    """Opt-in add-on that chops a voice's output into clocked pulses (see
+    `patches/AGENTS.md`, "Gate add-on"). Mix it in ahead of the voice base -
+    `class Strings(Gate, GatedVoice)` - and call `self.add_gate(source,
+    context)` in `build()`, then pass the result to `finish()`.
+
+    It owns its `Param`s and its own clock subscription, merged into the
+    voice's sequencer by `finish()`. The gate is always built: `gate` is the
+    depth of the chop, and 0 leaves the sound untouched without a rebuild.
+    """
+
+    # pulse slots per cycle: one bar at the default 16th-note rate
+    GATE_STEPS: ClassVar[int] = 16
+    # fraction of one pulse spent ramping up and down, so edges never click
+    GATE_ATTACK: ClassVar[float] = 0.05
+    GATE_RELEASE: ClassVar[float] = 0.15
+
+    # the gate's graph, assigned by add_gate(); finish() retains each one
+    gate_trigger: Trig
+    gate_table: LinTable
+    gate_env: TrigEnv
+    gate_amount_sig: SigTo
+    gate_closed: PyoObject
+    gate_cut: PyoObject
+    gate_gain: PyoObject
+    gate_output: PyoObject
+    _gate_pulse: Pulse
+    _gate_tempo: Tempo
+    _gated: bool
+
+    gate = Param(
+        0.0,
+        1.0,
+        0.05,
+        0.0,
+        "Gate",
+        "How hard the sound is chopped into rhythmic pulses; zero leaves it smooth, full cuts it "
+        "completely silent between pulses.",
+        sweep=True,
+    )
+
+    @Param(
+        0.1,
+        1.0,
+        0.05,
+        0.7,
+        "Pulse length",
+        "How much of each step the sound stays open; short is clipped and staccato, long is nearly "
+        "held.",
+    )
+    def gate_length(self, value: float) -> None:
+        self.retime_gate()
+
+    gate_density = Param(
+        0.0,
+        1.0,
+        0.05,
+        1.0,
+        "Pulse density",
+        "How many of the steps play; full pulses on every step, lower drops steps at random (the same "
+        "ones for a given Pattern).",
+    )
+    gate_seed = Param(
+        0,
+        99,
+        1,
+        0,
+        "Pattern",
+        "Picks which steps drop out when Pulse density is below full; each number is a different "
+        "rhythm.",
+    )
+
+    @Param(
+        *Clock.rate_limits(NoteDivision.SIXTEENTH),
+        1,
+        0,
+        "Pulse rate",
+        "Speeds the pulses up or slows them down in whole note divisions from sixteenth notes.",
+    )
+    def gate_rate(self, value: float) -> None:
+        self._gate_pulse.steps = self._gate_pulse.clock.ticks_for_rate(
+            NoteDivision.SIXTEENTH, value
+        )
+        self.retime_gate()
+
+    def _reset(self) -> None:
+        super()._reset()
+        self._gated = False
+
+    def add_gate(self, source: PyoObject, context: BuildContext) -> PyoObject:
+        """Chop `source` with the gate and return the result. Call before
+        `finish()`; every gate node lives on `self`."""
+        self._gate_tempo = context.tempo
+        self.gate_trigger = Trig().stop()
+        # unity from a short ramp up, held, then a ramp down to silence
+        self.gate_table = LinTable(
+            [
+                (0, 0.0),
+                (round(TABLE_SIZE * self.GATE_ATTACK), 1.0),
+                (round(TABLE_SIZE * (1 - self.GATE_RELEASE)), 1.0),
+                (TABLE_SIZE - 1, 0.0),
+            ]
+        )
+        self.gate_env = TrigEnv(self.gate_trigger, self.gate_table, dur=0.1)
+        self.gate_amount_sig = self.live(type(self).gate, time=0.05)
+        self.gate_closed = 1 - self.gate_env
+        self.gate_cut = self.gate_amount_sig * self.gate_closed
+        self.gate_gain = 1 - self.gate_cut
+        self.gate_output = source * self.gate_gain
+        self._gate_pulse = Pulse(
+            context.clock,
+            context.clock.ticks_for_rate(NoteDivision.SIXTEENTH, self.gate_rate),
+            self.next_gate_step,
+        )
+        self._gated = True
+        return self.gate_output
+
+    def retime_gate(self) -> None:
+        """Set the pulse duration from its length, rate and the tempo."""
+        step_seconds = (
+            self._gate_tempo.bar
+            * self._gate_pulse.steps
+            / self._gate_pulse.clock.ticks_per_bar
+        )
+        self.gate_env.dur = step_seconds * self.gate_length
+
+    def gate_hit(self, index: int) -> bool:
+        """Whether pulse `index` plays: the same answer for a given Pattern
+        and density, so the rhythm repeats every cycle."""
+        draw = random.Random(self.gate_seed * self.GATE_STEPS + index).random()
+        return draw < self.gate_density
+
+    def next_gate_step(self) -> None:
+        index = self._gate_pulse.index(self.GATE_STEPS)
+        if self.gate_hit(index):
+            self.gate_trigger.play()
+
+    def finish(self, voice: PyoObject, **kwargs: Any) -> Patch:
+        """The voice base's `finish()`, then the gate's clock subscription
+        joins the voice's own sequencer so both start and stop together."""
+        if not self._gated:
+            raise RuntimeError(
+                f"{type(self).__name__}.build() never called self.add_gate(...)"
+            )
+        patch = super().finish(voice, **kwargs)  # type: ignore[misc]
+        self.sequencer = SequencerGroup((self.sequencer, self._gate_pulse))
+        return patch
 
 
 @dataclass(eq=False)

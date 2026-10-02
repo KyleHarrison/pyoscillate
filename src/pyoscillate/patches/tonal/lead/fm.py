@@ -36,12 +36,12 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
 
-class LeadFm(GatedVoice):
+class LeadFm(Gate, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -291,7 +291,7 @@ class LeadFm(GatedVoice):
 
         self.schedule(self.base_division, self.rate, context.clock)
         self._step = self.step_pattern(self.cycle, self.phrases[0])
-        return self.finish(self.cleaned)
+        return self.finish(self.add_gate(self.cleaned, context))
 
     def next_step(self) -> None:
         step = self._step()

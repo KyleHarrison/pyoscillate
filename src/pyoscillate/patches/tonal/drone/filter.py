@@ -18,7 +18,7 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -27,7 +27,7 @@ from pyoscillate.patches.utility.notes import notes
 PAD_HARMONICS = [1, 0.6, 0.4, 0.25, 0.15, 0.08, 0.04]
 
 
-class SoundscapeFilter(ContinuousVoice):
+class SoundscapeFilter(Gate, ContinuousVoice):
     """Static harmonic-rich drone carved by a chaotically-swept resonant lowpass filter.
 
     Unlike `SoundscapeFm`'s smooth FM timbre drift, all the movement here
@@ -238,4 +238,4 @@ class SoundscapeFilter(ContinuousVoice):
             feedback=self.delay_feedback_sig,
             maxdelay=2,
         )
-        return self.finish(self.output)
+        return self.finish(self.add_gate(self.output, context))

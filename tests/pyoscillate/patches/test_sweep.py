@@ -108,6 +108,8 @@ class SweepTests(unittest.TestCase):
                         "glide",
                         "length",
                         "echo_level",
+                        # the Gate add-on's depth is sweepable on every voice
+                        "gate",
                     },
                 )
 

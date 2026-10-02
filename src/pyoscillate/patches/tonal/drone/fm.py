@@ -17,12 +17,12 @@ from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.generators import FM, Lorenz, Rossler
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 
-class SoundscapeFm(ContinuousVoice):
+class SoundscapeFm(Gate, ContinuousVoice):
     """Free-running FM pad whose timbre is driven entirely by chaotic attractors, with no clocked note pattern at all."""
 
     title = "Soundscape - chaotic FM pad"
@@ -182,4 +182,4 @@ class SoundscapeFm(ContinuousVoice):
             feedback=self.delay_feedback_sig,
             maxdelay=2,
         )
-        return self.finish(self.output)
+        return self.finish(self.add_gate(self.output, context))

@@ -15,13 +15,13 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 
 INTERVALS = (0, 3, 7, 10)
 
 
-class Chord(GatedVoice):
+class Chord(Gate, GatedVoice):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
     chord. Style variants subclass this and override `table()` for their
     own oscillator table, plus the profile attributes below; the rest of
@@ -124,7 +124,7 @@ class Chord(GatedVoice):
         self._step = self.step_pattern(16, {2, 6, 10, 14})
 
         self.schedule(self.base_division, self.rate, context.clock)
-        return self.finish(self.reverb)
+        return self.finish(self.add_gate(self.reverb, context))
 
     def next_step(self) -> None:
         if self._step().hit:

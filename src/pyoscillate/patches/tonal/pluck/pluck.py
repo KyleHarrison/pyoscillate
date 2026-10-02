@@ -13,7 +13,7 @@ from pyo.lib.generators import FM
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
@@ -22,7 +22,7 @@ SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
 FULL_PATTERN = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 2, 6: 1, 7: 2}
 
 
-class Pluck(GatedVoice):
+class Pluck(Gate, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
@@ -135,7 +135,7 @@ class Pluck(GatedVoice):
 
         self.schedule(self.base_division, self.rate, context.clock)
         self._step = self.step_pattern(self.cycle, self.patterns[0])
-        return self.finish(self.space)
+        return self.finish(self.add_gate(self.space, context))
 
     def next_step(self) -> None:
         step = self._step()

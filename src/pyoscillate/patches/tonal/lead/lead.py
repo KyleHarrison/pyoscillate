@@ -32,7 +32,7 @@ from pyo.lib.generators import LFO
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
@@ -44,7 +44,7 @@ BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
-class Lead(GatedVoice):
+class Lead(Gate, GatedVoice):
     """Monophonic lead: two detuned pulse oscillators into a resonant
     low-pass with its own ADSR, then an amplitude ADSR and light saturation.
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
@@ -239,7 +239,7 @@ class Lead(GatedVoice):
 
         self.schedule(self.base_division, self.rate, context.clock)
         self._step = self.step_pattern(self.cycle, self.pattern)
-        return self.finish(self.voice_signal)
+        return self.finish(self.add_gate(self.voice_signal, context))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter

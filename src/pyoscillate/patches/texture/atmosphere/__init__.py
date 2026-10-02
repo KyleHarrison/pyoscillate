@@ -20,7 +20,7 @@ from pyo.lib.tables import CosTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -32,7 +32,7 @@ ARP_ROOT = notes.Gs3  # current default
 ENVELOPE_POINTS = [(0, 0), (2000, 1), (5000, 0.4), (8191, 0)]
 
 
-class Atmosphere(GatedVoice):
+class Atmosphere(Gate, GatedVoice):
     """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
     `step_division` is a `rebuild` parameter: the swell period and
@@ -166,7 +166,7 @@ class Atmosphere(GatedVoice):
         # step_division is a rebuild-only raw tick count, not a live rate
         # offset from a base division
         self.schedule_steps(context.clock, self.step_division, self.next_step)
-        return self.finish(self.reverb)
+        return self.finish(self.add_gate(self.reverb, context))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter

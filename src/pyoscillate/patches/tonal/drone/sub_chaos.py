@@ -16,7 +16,7 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice
+from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -24,7 +24,7 @@ from pyoscillate.patches.utility.notes import notes
 SUB_HARMONICS = [1, 0.15, 0.05]
 
 
-class BassChaos(ContinuousVoice):
+class BassChaos(Gate, ContinuousVoice):
     """Chaotic sub drift: a near-static low fundamental whose pitch wanders unpredictably within a narrow range, for an organic, unstable rumble.
 
     Unlike `BassDrone`'s level-only swell, the movement here is in the
@@ -147,4 +147,4 @@ class BassChaos(ContinuousVoice):
         self.output = MoogLP(
             self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
         )
-        return self.finish(self.output)
+        return self.finish(self.add_gate(self.output, context))

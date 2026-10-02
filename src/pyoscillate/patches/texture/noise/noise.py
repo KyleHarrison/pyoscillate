@@ -43,7 +43,7 @@ from pyo.lib.tables import ExpTable
 from pyo.lib.triggers import Change, TrigEnv
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice, frequency_shift
+from pyoscillate.patches.common import ContinuousVoice, Gate, frequency_shift
 from pyoscillate.patches.params import Param
 
 STYLES = ("air", "surf", "barber", "dust")
@@ -162,6 +162,11 @@ class Noise(ContinuousVoice):
         style."""
         raise NotImplementedError
 
+    def output_stage(self, signal: PyoObject, context: BuildContext) -> PyoObject:
+        """The bed's last step before `finish()`; a style that takes the gate
+        overrides it (see `GatedNoise`)."""
+        return signal
+
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         cls = type(self)
@@ -180,10 +185,19 @@ class Noise(ContinuousVoice):
 
         self.moved_signal(self.source)
         self.leveled = self.moved * self.level_sig
-        return self.finish(self.leveled)
+        return self.finish(self.output_stage(self.leveled, context))
 
 
-class NoiseAir(Noise):
+class GatedNoise(Gate, Noise):
+    """A noise style the gate suits: a steady bed that rhythmic chopping turns
+    into a pulse. `NoiseDust` stays outside it, since its clicks are already
+    discrete events."""
+
+    def output_stage(self, signal: PyoObject, context: BuildContext) -> PyoObject:
+        return self.add_gate(signal, context)
+
+
+class NoiseAir(GatedNoise):
     """Cutoff breathes on two slow, unrelated LFOs, one per channel, so the
     bed opens and closes without ever repeating in step."""
 
@@ -202,7 +216,7 @@ class NoiseAir(Noise):
         self.moved = Biquad(source, freq=self.cutoff, q=FILTER_Q, type=0)
 
 
-class NoiseSurf(Noise):
+class NoiseSurf(GatedNoise):
     """A 20-stage `Phaser` whose notch position, spacing and sharpness each
     ride their own slow LFO per channel, summed with the dry bed so the
     notches actually form."""
@@ -257,7 +271,7 @@ class NoiseSurf(Noise):
         self.moved = self.notched * SURF_GAIN
 
 
-class NoiseBarber(Noise):
+class NoiseBarber(GatedNoise):
     """Single-sideband frequency shift of the bed, mixed with the dry
     sound. A few Hz of shift makes a slow, endless phasing swirl."""
 

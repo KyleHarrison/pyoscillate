@@ -295,6 +295,49 @@ controller's own fire count; an override reads it into its own musical data
 (e.g. `index % len(self.SOMETHING)`) and owns its own wraparound — there's
 no shared numeric range to clamp against.
 
+### Gate add-on
+
+A gate chops a voice's output with a clocked step pattern (for example 16
+steps per bar, each open for about 70% of the step). It is an opt-in mixin,
+not a family, and it never changes which family a voice belongs to: a gated
+drone is still `tonal/drone`.
+
+Gated and ungated are two ends of one mechanism. The gate's depth is how far
+the output closes between pulses: at full depth a voice is silent until
+triggered (a gated voice), at zero it is always open (an ungated one). A
+voice's default depth is 0, so adding the gate changes nothing until a rack
+or listener raises it.
+
+Any voice may take the gate. Leave it off where it cannot work:
+
+- a sidechain source (the kick), since the gate would shape the duck signal;
+- a free-running voice (generative, canon, clock_tick) whose timing is its
+  own, where a clock-locked gate would add a second, unrelated rhythm;
+- a voice whose ring is the point (bell, drums), where it would only cut it.
+
+Bass, lead, pluck, keys and chord already choose which steps play; the gate
+sits on top of that as a second, independent chop.
+
+- The mixin owns its `Param`s (`gate` depth, `gate_length`, `gate_density`,
+  `gate_seed`, `gate_rate`), all live. The gate is always built; toggling it
+  never rebuilds the patch. A rack enables it by constructor override
+  (`Strings(gate=1.0)`), and `ParamSweep` can sweep its depth.
+- `self.add_gate(source, context)` builds the `Trig`, table and `TrigEnv`,
+  subscribes on the clock, and returns the gated signal. Call it in
+  `build()` before `finish()`; `finish()` merges the gate's pulse with the
+  voice's own sequencer in a `SequencerGroup`. A patch's `sequencer` can
+  therefore be a group: read the voice's own division as `self._division`.
+- Timing comes from `Pulse` (`common.py`): one clocked step source, shared
+  with `GatedVoice`, whose step index comes from `(clock.tick // steps) %
+  cycle`, never an internal counter, so phase survives rebuilds. A voice with
+  its own pulse (per-bar chords, per-16th notes) and the gate each own one.
+- Edges ramp over a few milliseconds so near-sine voices do not click. Seeded
+  density keeps its pattern on the seed and step, so it repeats each cycle.
+- The gate sits before the duck and volume stages, so sidechain still works
+  on top and a reverb tail is chopped.
+- Do not name a node `gate` or `gate_*` on a gated voice (a funk bass's note
+  gate is `note_gate`); those names belong to the mixin.
+
 ## Design rules
 
 ### 1. Extend existing families before creating new files

@@ -15,7 +15,7 @@ from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
@@ -25,7 +25,7 @@ MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
 MID_ROOT = notes.E4  # current default
 
 
-class Arp(GatedVoice):
+class Arp(Gate, GatedVoice):
     """Calm, consonant melodic line locked to the groove.
 
     `step_bars` is a `rebuild` parameter: it sets the `SigTo` glide
@@ -164,7 +164,7 @@ class Arp(GatedVoice):
         self.schedule_steps(
             context.clock, context.clock.bar * self.step_bars, self.next_step
         )
-        return self.finish(self.reverb)
+        return self.finish(self.add_gate(self.reverb, context))
 
     def next_step(self) -> None:
         step = self._step()

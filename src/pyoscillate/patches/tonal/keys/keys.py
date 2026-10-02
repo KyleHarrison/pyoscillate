@@ -42,7 +42,13 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import RING_CURVE, GatedVoice, Step, decay_points
+from pyoscillate.patches.common import (
+    RING_CURVE,
+    Gate,
+    GatedVoice,
+    Step,
+    decay_points,
+)
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
@@ -61,7 +67,7 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(GatedVoice):
+class Keys(Gate, GatedVoice):
     """FM electric piano comping `PROGRESSIONS` in the Charleston rhythm.
     See the module docstring for the sonic detail."""
 
@@ -313,7 +319,7 @@ class Keys(GatedVoice):
         self.schedule(self.base_division, self.rate, context.clock)
         self._step = self.step_pattern(BAR_STEPS, HITS)
         return self.finish(
-            self.voice_signal,
+            self.add_gate(self.voice_signal, context),
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
         )
 
