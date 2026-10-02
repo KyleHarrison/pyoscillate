@@ -89,7 +89,8 @@ jobs:
         run: >-
           uv run --python 3.11 flet pack src/flet/${{ matrix.app }}/app.py
           --name ${{ matrix.app }}
-          --pyinstaller-build-args "--paths=." "--collect-all=pyo"
+          --pyinstaller-build-args=--paths=.
+          --pyinstaller-build-args=--collect-all=pyo
           --yes
 
       - uses: actions/upload-artifact@v4
