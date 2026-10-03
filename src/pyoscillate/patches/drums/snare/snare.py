@@ -115,6 +115,7 @@ class Snare(RhythmDrum):
         "Tail",
         "Length of the rattle after the hit; short is a dry crack, long reads like a small room around the snare.",
         sweep=True,
+        advanced=True,
     )
     def decay(self, value: float) -> None:
         self.rattle_env.dur = value

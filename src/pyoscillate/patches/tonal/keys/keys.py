@@ -169,6 +169,7 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
         "Bark",
         "How much each strike pings: low is a soft, round touch, high a bright, glassy bark on hard notes that fades as the chord rings.",
         sweep=True,
+        advanced=True,
     )
     def bark(self, value: float) -> None:
         self.apply_touch()
@@ -206,6 +207,7 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
         "Tremolo",
         "How strongly the level throbs in 8th notes, like an electric piano through a tremolo amp; 0 holds it steady.",
         sweep=True,
+        advanced=True,
     )
     def tremolo(self, value: float) -> None:
         self.depth.value = value / 2
@@ -219,6 +221,7 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
         "Slow, unsteady pitch drift like tape wow-and-flutter - distinct from Tremolo, which throbs the "
         "level in a fixed rhythm; 0 keeps the pitch rock steady, higher adds a slow, wavering detune.",
         sweep=True,
+        advanced=True,
     )
     def wobble(self, value: float) -> None:
         self.wobble_depth.value = value * self.wobble_depth_max

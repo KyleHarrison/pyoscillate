@@ -65,6 +65,7 @@ class SoundscapeFilter(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "How quickly the filter's cutoff wanders; slower feels like a slow-breathing wah, faster feels "
         "more agitated.",
         sweep=True,
+        advanced=True,
     )
     def cutoff_speed(self, value: float) -> None:
         self.cutoff_speed_sig.value = value
@@ -78,6 +79,7 @@ class SoundscapeFilter(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "How unpredictable the cutoff sweep is; higher feels more restless and alive, lower stays closer "
         "to a steady, cyclical wah.",
         sweep=True,
+        advanced=True,
     )
     def cutoff_chaos(self, value: float) -> None:
         self.cutoff_chaos_sig.value = value

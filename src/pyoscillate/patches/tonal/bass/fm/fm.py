@@ -128,6 +128,7 @@ class FmBass(RootPitch, Bass):
         "How long the bark takes to die down, in seconds: short is a quick pluck on the front of "
         "the note, long a slow, wah-like close.",
         sweep=True,
+        advanced=True,
     )
     def settle(self, value: float) -> None:
         self.bark.dur = value
@@ -141,6 +142,7 @@ class FmBass(RootPitch, Bass):
         "The brightness left once the bark has settled: at 0 the note settles to a pure sub, "
         "higher keeps a buzzing edge under the whole note.",
         sweep=True,
+        advanced=True,
     )
     def edge(self, value: float) -> None:
         self.floor.value = value

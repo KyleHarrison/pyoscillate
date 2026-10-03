@@ -165,6 +165,7 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         "How long the bark takes to die down, in seconds: short is a quick pluck on the front of "
         "the note, long a slow, vowel-like close.",
         sweep=True,
+        advanced=True,
     )
     def settle(self, value: float) -> None:
         self.bark.dur = value
@@ -178,6 +179,7 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         "Depth of a slow, bar-scale swell in the tone between notes; low holds the colour steady, "
         "high keeps the spectrum phasing and shimmering.",
         sweep=True,
+        advanced=True,
     )
     def swirl(self, value: float) -> None:
         self.swirl_lfo.mul = value
@@ -205,6 +207,7 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         "Slides each note into the next over this many seconds; none is stepped and exact, long "
         "is a smeared, wandering line.",
         sweep=True,
+        advanced=True,
     )
     def glide(self, value: float) -> None:
         self.pitch.time = value
@@ -231,6 +234,7 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         "Level of a dotted-eighth echo that repeats each phrase behind itself; low is dry, high "
         "fills the gaps with a trailing, psychedelic wash.",
         sweep=True,
+        advanced=True,
     )
     def echo_level(self, value: float) -> None:
         self.echo.mul = value

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import flet as ft
 from pyoscillate.controller import GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.params import Param, choice_param
+from pyoscillate.patches.params import Param, SliderSpec, choice_param
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
@@ -15,7 +15,7 @@ from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
 from pyoscillate.theory.phrase import Hooks, Rhythms
 from pyoscillate.theory.progression import Progressions
-from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
+from src.flet.base import PatchGroup, PatchPanel, PatchRackApp, slider_ticks
 
 
 class _StubPatch(Patch):
@@ -174,23 +174,47 @@ class PatchGroupTests(unittest.TestCase):
 
         patch_content = self.panel.control.content
         self.assertIsInstance(patch_content, ft.Column)
-        self.assertIsInstance(patch_content.controls[-1], ft.ResponsiveRow)
+        body = patch_content.controls[-1]
+        self.assertIs(body, self.panel.body)
+        self.assertIsInstance(body.controls[-1], ft.ResponsiveRow)
         self.assertFalse(
-            any(
-                isinstance(control, ft.ExpansionTile)
-                for control in patch_content.controls
-            )
+            any(isinstance(control, ft.ExpansionTile) for control in body.controls)
         )
 
-    def test_slider_help_text_is_above_track_and_larger(self) -> None:
+    def test_slider_row_is_one_line_with_help_hidden_below(self) -> None:
         param = _StubPatch.test_value
 
         row = self.panel._slider_row(param)
-        controls = row.content.controls
+        line, help_text = row.content.controls
 
-        self.assertEqual(controls[1].value, param.spec.help_text)
-        self.assertEqual(controls[1].size, 12)
-        self.assertIs(controls[2], self.panel._sliders[param])
+        self.assertIs(line.controls[1], self.panel._sliders[param])
+        self.assertEqual(line.controls[0].content.tooltip, param.spec.help_text)
+        self.assertEqual(help_text.value, param.spec.help_text)
+        self.assertFalse(help_text.visible)
+
+    def test_descriptions_toggle_shows_every_help_text(self) -> None:
+        row = self.panel._slider_row(_StubPatch.test_value)
+        help_text = row.content.controls[1]
+
+        self.panel.help.show(True)
+
+        self.assertTrue(help_text.visible)
+
+    def test_coarse_sliders_keep_ticks_and_fine_ones_drop_them(self) -> None:
+        coarse = self.panel._sliders[_StubPatch.test_value]
+        self.assertEqual(coarse.divisions, 10)
+        fine = SliderSpec("x", 0, 10, 0.01, 5, "X", "x")
+        self.assertIsNone(slider_ticks(fine))
+
+    def test_a_single_panel_group_opens_its_tile_and_several_fold(self) -> None:
+        self.assertTrue(self.panel.expanded)
+        self.assertTrue(self.panel.body.visible)
+        self.assertFalse(self.panel.summary.visible)
+
+        self.panel.set_expanded(False)
+
+        self.assertFalse(self.panel.body.visible)
+        self.assertIn("Test value 0.5", self.panel.summary.value)
 
     def test_rack_wide_controls_are_in_header_right_column(self) -> None:
         with TemporaryDirectory() as catalog_dir:
@@ -214,7 +238,6 @@ class PatchGroupTests(unittest.TestCase):
             app.engine_button,
             app.pause_button,
             app.preset_dropdown,
-            app.preset_name_field,
             app.key_dropdown,
             app.master_output_slider,
         ):

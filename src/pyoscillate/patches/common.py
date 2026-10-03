@@ -671,6 +671,7 @@ class Reverb(Patch):
         "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
         "settings stay bright and shimmering.",
         sweep=True,
+        advanced=True,
     )
     reverb_bal = Param(
         0,
@@ -718,6 +719,7 @@ class Echo(Patch):
         "Echo spacing",
         "Sets the time between echo repeats, smearing the sound across time.",
         sweep=True,
+        advanced=True,
     )
     delay_feedback = Param(
         0,
@@ -728,6 +730,7 @@ class Echo(Patch):
         "Sets how many times each echo repeats before fading; higher creates a denser, more layered "
         "wash.",
         sweep=True,
+        advanced=True,
     )
 
     def add_echo(self, source: PyoObject) -> Delay:

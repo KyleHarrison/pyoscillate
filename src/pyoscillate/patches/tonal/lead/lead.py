@@ -98,6 +98,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "Slides each note into the next over this many seconds; none is stepped and exact, long "
         "is a smeared, sliding line.",
         sweep=True,
+        advanced=True,
     )
     def glide(self, value: float) -> None:
         self.pitch1.time = value
@@ -112,6 +113,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "Pulls the two oscillators apart in pitch; none keeps the style's own tuning, higher beats "
         "into a thick, chorused, supersaw-like lead.",
         sweep=True,
+        advanced=True,
     )
     def detune(self, value: float) -> None:
         # semitones, split symmetrically on top of the style's own offsets
@@ -130,6 +132,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         options=("Style phrase", *Chords.labels()),
         option_ids=("style_phrase", *Chords.ids()),
         option_categories=("Style", *Chords.categories()),
+        advanced=True,
     )
 
     arp_order = Param(
@@ -142,6 +145,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "restarts. Only used when a chord arpeggio is chosen.",
         rebuild=True,
         catalog=ArpOrders,
+        advanced=True,
     )
 
     # the graph, assigned by build(); finish() retains every one of them
@@ -207,6 +211,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "Sustain",
         "The held level of a note once it's past its attack; lower makes long notes fade under a held key.",
         sweep=True,
+        advanced=True,
     )
     def sustain(self, value: float) -> None:
         self.amp_env.setSustain(value)
@@ -220,6 +225,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "Vibrato",
         "Depth of a slow pitch wobble on the sustained note; 0 holds the pitch steady.",
         sweep=True,
+        advanced=True,
     )
     def vibrato(self, value: float) -> None:
         self.pitch_vibrato.mul = value * 8.0

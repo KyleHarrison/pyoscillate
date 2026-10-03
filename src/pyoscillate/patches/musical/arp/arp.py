@@ -83,6 +83,7 @@ class Arp(Gate, Reverb, GatedVoice):
         "Notes come from a calm major pentatonic, so every contour stays consonant.",
         rebuild=True,
         catalog=ArpOrders,
+        advanced=True,
     )
 
     @Param(

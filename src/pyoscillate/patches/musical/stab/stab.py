@@ -123,6 +123,7 @@ class Stab(Gate, Progressive, Phrased, GatedVoice):
         "cinematic clusters; more notes sound fuller.",
         rebuild=True,
         catalog=Chords,
+        advanced=True,
     )
 
     strum = Param(
@@ -133,6 +134,7 @@ class Stab(Gate, Progressive, Phrased, GatedVoice):
         "Strum",
         "Spreads the chord's notes in time, low to high, like a hand rolling across strings; zero "
         "plays them as one block.",
+        advanced=True,
     )
 
     feel = Param(
@@ -143,6 +145,7 @@ class Stab(Gate, Progressive, Phrased, GatedVoice):
         "Human feel",
         "Loosens each stab: notes land a touch early or late and at slightly different strengths, "
         "so repeats stop sounding machine-exact.",
+        advanced=True,
     )
 
     rate = rate_param(

@@ -131,6 +131,7 @@ class FunkBass(Bass):
         "Quack",
         "How far the filter sweeps open on each note; low is a quiet, muted thump, high a wide, "
         "vocal 'wow' on every accented note. Ghost notes always stay darker.",
+        advanced=True,
     )
 
     @Param(
@@ -142,6 +143,7 @@ class FunkBass(Bass):
         "How slowly the filter opens, in seconds; short is a snappy pluck on the front of each "
         "note, long a lazy auto-wah that only the held notes reach the top of.",
         sweep=True,
+        advanced=True,
     )
     def swell(self, value: float) -> None:
         self.sweep.attack = value

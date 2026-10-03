@@ -60,6 +60,7 @@ class BassDrone(Gate, RootPitch, ContinuousVoice):
         "How long one swell cycle takes; longer feels like a slow tide, shorter reads as a more rhythmic "
         "pulse.",
         sweep=True,
+        advanced=True,
     )
     def swell_period(self, value: float) -> None:
         self.swell_period_sig.value = value
@@ -73,6 +74,7 @@ class BassDrone(Gate, RootPitch, ContinuousVoice):
         "How dramatic the level swell is; higher makes the breathing more audible, lower keeps the drone "
         "closer to constant.",
         sweep=True,
+        advanced=True,
     )
     def swell_depth(self, value: float) -> None:
         self.swell_depth_sig.value = value

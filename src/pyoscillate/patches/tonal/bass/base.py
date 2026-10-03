@@ -103,6 +103,7 @@ class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
         "Slides each note into the next over this many seconds; none is stepped and exact, long "
         "is a smeared, sliding line.",
         sweep=True,
+        advanced=True,
     )
     def glide(self, value: float) -> None:
         self.pitch.time = value
@@ -237,6 +238,7 @@ class AccentBass(Bass):
         "Accent",
         "Makes the strong notes of the pattern speak: louder against the soft ones, shorter and "
         "snappier, with more squelch in the filter. At zero they differ only in level.",
+        advanced=True,
     )
 
     def apply_accent(self, accent: float) -> None:
