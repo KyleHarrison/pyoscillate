@@ -2,13 +2,10 @@ import unittest
 
 from pyoscillate.analysis.features import features
 from pyoscillate.analysis.render import render
-from pyoscillate.patches.tonal.pluck.pluck import (
-    FULL_PATTERN,
-    SPARSE_PATTERN,
-    PluckHook,
-)
+from pyoscillate.patches.tonal.pluck.pluck import PluckHook
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import C, Harmony
+from pyoscillate.theory.intervals import ChordTones
 from pyoscillate.theory.notes import freq_to_midi
 
 
@@ -26,7 +23,7 @@ class PluckHookTests(unittest.TestCase):
     @staticmethod
     def hit_steps(patch: PluckHook) -> set[int]:
         hits: set[int] = set()
-        for tick in range(PluckHook.cycle):
+        for tick in range(patch.selected_figure.cycle):
             patch._clock = FixedClock(tick)
             patch._division = FixedClock(tick)
             if patch._step().hit:
@@ -35,11 +32,15 @@ class PluckHookTests(unittest.TestCase):
 
     def test_pattern_evolution_alternates_sparse_and_full_phrases(self) -> None:
         patch = PluckHook()
+        patch._base_division = PluckHook.base_division
 
+        # the patch isn't built, so apply the dropdown's control by hand
         patch.on_evolve(0)
-        self.assertEqual(self.hit_steps(patch), set(SPARSE_PATTERN))
+        patch.use_figure(patch.selected_figure)
+        self.assertEqual(self.hit_steps(patch), set(ChordTones.SPARSE_HOOK.steps))
         patch.on_evolve(1)
-        self.assertEqual(self.hit_steps(patch), set(FULL_PATTERN))
+        patch.use_figure(patch.selected_figure)
+        self.assertEqual(self.hit_steps(patch), set(ChordTones.FULL_HOOK.steps))
 
     def test_hook_tracks_diatonic_chord_triads_in_upper_register(self) -> None:
         patch = PluckHook()
@@ -54,8 +55,8 @@ class PluckHookTests(unittest.TestCase):
                 )
 
     def test_sparse_phrase_leaves_rests(self) -> None:
-        self.assertLess(len(SPARSE_PATTERN), PluckHook.cycle)
-        self.assertEqual(len(FULL_PATTERN), PluckHook.cycle)
+        self.assertLess(len(ChordTones.SPARSE_HOOK.steps), ChordTones.SPARSE_HOOK.cycle)
+        self.assertEqual(len(ChordTones.FULL_HOOK.steps), ChordTones.FULL_HOOK.cycle)
 
     def test_render_is_silent_until_the_shared_clock_ticks(self) -> None:
         result = features(

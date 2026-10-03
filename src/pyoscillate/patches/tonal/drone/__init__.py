@@ -18,6 +18,7 @@ from pyo.lib.generators import FM, Sine
 
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate, Reverb, RootPitch
+from pyoscillate.patches.params import choice_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.intervals import Walk
@@ -45,6 +46,14 @@ class Drone(Gate, Reverb, RootPitch, ContinuousVoice):
         maximum=notes.A3,
         default=notes.Fs3,
         help_text="Moves the drone's register; higher brings it closer to the arp and reads as more melodic, lower pushes it toward a sustained sub layer.",
+    )
+
+    # read at each note step, so it needs no live control
+    walk = choice_param(
+        Walk,
+        Walk.DRONE_WANDER,
+        "Picks the line of pitches the drone wanders through, a note every few bars; every pitched "
+        "voice draws on the same shared walks.",
     )
 
     reverb_size = Reverb.reverb_size.replace(default=0.7)
@@ -88,9 +97,9 @@ class Drone(Gate, Reverb, RootPitch, ContinuousVoice):
         step = {"i": 0}
 
         def next_step() -> None:
-            i = step["i"] % len(Walk.DRONE_WANDER.value)
+            walk = Walk.by_index(int(self.walk)).value
             self.drone_freq_sig.value = root_freq * pow(
-                2, Walk.DRONE_WANDER.value[i] / 12
+                2, walk[step["i"] % len(walk)] / 12
             )
             step["i"] += 1
 

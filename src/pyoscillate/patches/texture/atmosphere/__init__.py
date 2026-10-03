@@ -20,7 +20,7 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Reverb
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.intervals import Walk
@@ -100,6 +100,14 @@ class Atmosphere(Gate, Reverb, GatedVoice):
     def fm_index(self, value: float) -> None:
         self.fm_voice.index = value
 
+    # read at each step, so it needs no live control
+    walk = choice_param(
+        Walk,
+        Walk.MINOR_7_ARCH,
+        "Picks the line of pitches the pad steps through; every pitched voice draws on the same "
+        "shared walks.",
+    )
+
     reverb_size = Reverb.reverb_size.replace(default=0.25)
     reverb_damp = Reverb.reverb_damp.replace(default=0.15)
     reverb_bal = Reverb.reverb_bal.replace(default=0.1)
@@ -142,6 +150,7 @@ class Atmosphere(Gate, Reverb, GatedVoice):
         # derived from the shared clock's own tick, not a local counter
         # that starts at 0 whenever this patch is built or restarted -
         # see `Clock.tick`'s docstring
-        i = (self._clock.tick // self.step_division) % len(Walk.MINOR_7_ARCH.value)
-        self.fm_voice.carrier = self.arp_root * pow(2, Walk.MINOR_7_ARCH.value[i] / 12)
+        walk = Walk.by_index(int(self.walk)).value
+        i = (self._clock.tick // self.step_division) % len(walk)
+        self.fm_voice.carrier = self.arp_root * pow(2, walk[i] / 12)
         self.trigger.play()

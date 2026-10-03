@@ -18,12 +18,13 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
+from pyoscillate.patches.drums.base import RhythmDrum, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Rhythm
 
 
-class Percussion(DrumVoice):
+class Percussion(RhythmDrum):
     """Rim-click or conga-like accent from a bent sine body and a
     band-passed noise transient. Style variants share this graph and
     override the profile attributes below."""
@@ -34,11 +35,10 @@ class Percussion(DrumVoice):
     bend_curve: ClassVar[float] = 6
     click_duration: ClassVar[float] = 0.008
 
-    # step-in-16 pattern; body pitch (Hz), pitch bend (fraction above body
+    # body pitch (Hz), pitch bend (fraction above body
     # at the strike), bend time (s), body decay (s), transient level,
     # transient pitch (ratio to body), transient resonance - overridden per
     # style
-    pattern: ClassVar[set[int]]
     base_freq: ClassVar[float]
     bend_depth: ClassVar[float]
     bend_time: ClassVar[float]
@@ -140,7 +140,7 @@ class Percussion(DrumVoice):
 class PercussionRim(Percussion):
     """Tight, woody rim-click accent."""
 
-    pattern: ClassVar[set[int]] = {3, 7, 11, 15}
+    rhythm = Percussion.rhythm.replace(default=Rhythm.RIM_OFFBEATS.index)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         1100.0,
         0.12,
@@ -155,7 +155,7 @@ class PercussionRim(Percussion):
 class PercussionConga(Percussion):
     """Warm, resonant conga-like rhythmic color."""
 
-    pattern: ClassVar[set[int]] = {3, 6, 9, 11, 14}
+    rhythm = Percussion.rhythm.replace(default=Rhythm.CONGA_SYNCOPATED.index)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         notes.A3,
         0.2,

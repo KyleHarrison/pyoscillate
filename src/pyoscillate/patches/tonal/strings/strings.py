@@ -26,12 +26,12 @@ from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, RootPitch
+from pyoscillate.patches.common import Gate, GatedVoice, Rhythmic, RootPitch
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ChordShape
+from pyoscillate.theory.intervals import ChordShape, Rhythm
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
@@ -43,7 +43,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(Gate, Flood, Disperse, Comb, RootPitch, GatedVoice):
+class Strings(Gate, Flood, Disperse, Comb, RootPitch, Rhythmic, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -51,6 +51,8 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, GatedVoice):
     summary = "Supersaw string ensemble sustaining the rack's chord, with a blendable 9th colour tone."
     volume = Patch.volume.replace(default=0.5)
     base_division: ClassVar[NoteDivision] = NoteDivision.WHOLE
+    # the ensemble re-articulates once a bar, on the chord change
+    rhythm = Rhythmic.rhythm.replace(default=Rhythm.BAR_PULSE.index)
 
     # candidate intervals (semitones above the root) for the colour voice: a
     # major 9th (default) and a major 13th, an octave-and-a-6th up - both
@@ -194,7 +196,7 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, GatedVoice):
         )
         self.voice_signal = self.chorus * self.amp_env
 
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         self.combed = self.add_comb(self.voice_signal)
         self.dispersed = self.add_disperse(self.combed)
         self.flooded = self.add_flood(self.dispersed)
@@ -216,6 +218,8 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, GatedVoice):
         ]
 
     def next_step(self) -> None:
+        if not self._step().hit:
+            return
         new_root = self.current_root(self._clock)
         for saw, interval in zip(
             self.chord_saws, ChordShape.OPEN_FIFTH.value, strict=True

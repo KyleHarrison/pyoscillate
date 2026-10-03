@@ -10,6 +10,7 @@ from pyoscillate.patches.common import RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass, BassProfile
 from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Melody
 
 from .profiles import TECHNO
 
@@ -24,6 +25,7 @@ class TechnoBass(RootPitch, AccentBass):
     summary = "Rolling, resonant bassline that sweeps in tone across the groove."
     volume = Patch.volume.replace(default=1.0)
     profile = TECHNO
+    melody = AccentBass.melody.replace(default=Melody.BASS_TECHNO.index)
 
     # the sweeping cutoff's own modulator, assigned by `cutoff_source()`
     cutoff_lfo: LFO

@@ -16,10 +16,11 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import ChordTones, Melody, Rhythm
 from pyoscillate.theory.notes import semitone_ratio
 
 
@@ -129,6 +130,8 @@ class GatedVoice(Patch):
     _clock: Clock
     _base_division: NoteDivision
     _scheduled: bool
+    # the clocked `rate` `Param` every scheduled voice declares
+    rate: float
 
     def _reset(self) -> None:
         """Call at the top of `build()`: fresh Pyo objects and a fresh
@@ -198,8 +201,24 @@ class GatedVoice(Patch):
         return self._division
 
     def reschedule(self, rate: float) -> None:
-        """Live `rate` control: re-space the scheduled division."""
-        self._division.steps = self._clock.ticks_for_rate(self._base_division, rate)
+        """Live `rate` control: re-space the scheduled division. The offset is
+        held inside the range `_base_division` allows, since a pattern on a
+        finer grid than the slider was built for narrows it."""
+        minimum, maximum = self._clock.rate_limits(self._base_division)
+        offset = min(max(round(rate), minimum), maximum)
+        self._division.steps = self._clock.ticks_for_rate(self._base_division, offset)
+
+    def play_pattern(
+        self, division: NoteDivision, cycle: int, steps: dict[int, Any] | set[int]
+    ) -> None:
+        """Make `steps` the live step pattern, `cycle` steps long on a
+        `division` grid: they are read through `step_pattern`, and the
+        schedule moves to the grid when it differs from the one already
+        running. Called by a pattern `Param`'s control, never from the clock."""
+        if division != self._base_division:
+            self._base_division = division
+            self.reschedule(self.rate)
+        self._step = self.step_pattern(cycle, steps)
 
     def step_pattern(
         self, cycle: int, pattern: dict[int, Any] | set[int]
@@ -239,6 +258,106 @@ class GatedVoice(Patch):
         self.voice = voice
         self._bind()
         return self
+
+
+class Rhythmic(GatedVoice):
+    """Opt-in add-on for a voice that plays a `Rhythm`: the `rhythm` dropdown
+    picks it from the shared catalog in `theory/intervals.py`, so a pattern is
+    written there once and any voice can play it. The pattern lives on the
+    `Param` alone; `selected_rhythm` reads it back. A voice names its starting
+    rhythm with `rhythm = Rhythmic.rhythm.replace(default=Rhythm.X.index)` and
+    calls `self.schedule_pattern(context)` from `build()`; `finish()` then runs
+    the control, which reads the steps off the shared clock. Mix it in ahead of
+    the voice base: `class Stab(Gate, Rhythmic, GatedVoice)`."""
+
+    def _select_rhythm(self, value: float) -> None:
+        self.use_rhythm(Rhythm.by_index(int(value)))
+
+    rhythm = choice_param(
+        Rhythm,
+        Rhythm.QUARTER_PULSE,
+        "Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
+        "ghost-noted pocket; every voice draws on the same shared patterns.",
+        control=_select_rhythm,
+    )
+
+    @property
+    def selected_rhythm(self) -> Rhythm:
+        """The `Rhythm` the `rhythm` dropdown currently names."""
+        return Rhythm.by_index(int(self.rhythm))
+
+    def schedule_pattern(self, context: BuildContext) -> Division:
+        """Fire `next_step` on the chosen rhythm's grid and the voice's `rate`."""
+        return self.schedule(self.selected_rhythm.division, self.rate, context.clock)
+
+    def use_rhythm(self, rhythm: Rhythm) -> None:
+        """Play `rhythm` from the shared clock's position, moving to its grid
+        if it needs a different one."""
+        self.play_pattern(rhythm.division, rhythm.cycle, rhythm.hits)
+
+
+class Melodic(GatedVoice):
+    """Opt-in add-on for a voice that plays a `Melody`: the `melody` dropdown
+    picks a line of semitone offsets above the chord root from the shared
+    catalog in `theory/intervals.py`. Used like `Rhythmic`:
+    `melody = Melodic.melody.replace(default=Melody.X.index)`, then
+    `self.schedule_pattern(context)` in `build()`. Read a step's pitch off
+    `step.value` and its level off `selected_melody.accents[step.index]`."""
+
+    def _select_melody(self, value: float) -> None:
+        self.use_melody(Melody.by_index(int(value)))
+
+    melody = choice_param(
+        Melody,
+        Melody.LEAD_ARCH,
+        "Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+        control=_select_melody,
+    )
+
+    @property
+    def selected_melody(self) -> Melody:
+        """The `Melody` the `melody` dropdown currently names."""
+        return Melody.by_index(int(self.melody))
+
+    def schedule_pattern(self, context: BuildContext) -> Division:
+        """Fire `next_step` on the chosen melody's grid and the voice's `rate`."""
+        return self.schedule(self.selected_melody.division, self.rate, context.clock)
+
+    def use_melody(self, melody: Melody) -> None:
+        """Play `melody` from the shared clock's position, moving to its grid
+        if it needs a different one."""
+        self.play_pattern(melody.division, melody.cycle, melody.steps)
+
+
+class Figured(GatedVoice):
+    """Opt-in add-on for a voice that plays a `ChordTones` figure: the `figure`
+    dropdown picks which chord tones sound on which steps, so the figure takes
+    each chord's own colour. Used like `Rhythmic`."""
+
+    def _select_figure(self, value: float) -> None:
+        self.use_figure(ChordTones.by_index(int(value)))
+
+    figure = choice_param(
+        ChordTones,
+        ChordTones.SPARSE_HOOK,
+        "Picks which chord tones are played and when, from a sparse hook to one that fills every step.",
+        control=_select_figure,
+    )
+
+    @property
+    def selected_figure(self) -> ChordTones:
+        """The `ChordTones` figure the `figure` dropdown currently names."""
+        return ChordTones.by_index(int(self.figure))
+
+    def schedule_pattern(self, context: BuildContext) -> Division:
+        """Fire `next_step` on the chosen figure's grid and the voice's `rate`."""
+        return self.schedule(self.selected_figure.division, self.rate, context.clock)
+
+    def use_figure(self, figure: ChordTones) -> None:
+        """Play `figure` from the shared clock's position, moving to its grid
+        if it needs a different one."""
+        self.play_pattern(figure.division, figure.cycle, figure.steps)
 
 
 @dataclass(eq=False)

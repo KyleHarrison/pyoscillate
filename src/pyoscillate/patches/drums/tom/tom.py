@@ -17,13 +17,15 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import Melodic
 from pyoscillate.patches.drums.base import DROP, DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import Melody
 
 
-class Tom(DrumVoice):
+class Tom(Melodic, DrumVoice):
     """Pitched tom playing a sparse two-bar fill on the current chord.
 
     The fill follows the chord rather than only the key: the rack's chords
@@ -34,11 +36,6 @@ class Tom(DrumVoice):
     summary = "Sparse two-bar tom fill on the current chord's minor pentatonic."
     volume = Patch.volume.replace(default=0.3)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    # step in the two-bar (32-step) cycle -> semitones above the chord root;
-    # fifth, fifth, minor third, root walks down the minor pentatonic, and all
-    # four are tones of the rack's minor-seventh chords (E, E, C, A over Am7)
-    pattern: ClassVar[dict[int, float]] = {10: 7, 26: 7, 29: 3, 31: 0}
-    pattern_cycle: ClassVar[int] = 32
 
     # settled body pitch (Hz); pitch-bend depth/time; body decay; membrane
     # overtone ratio/level/decay; transient level/tuning/resonance/duration;
@@ -72,9 +69,7 @@ class Tom(DrumVoice):
     partials: PyoObject
     voice_signal: PyoObject
 
-    # this bar's chord source and the fill's step pattern, frozen at build
-    # time - fed to `next_step`, which build() can no longer close over now
-    # that it's a real method
+    # this bar's chord source, frozen at build time - read by `next_step`
     harmony: Harmony
 
     @Param(
@@ -89,6 +84,12 @@ class Tom(DrumVoice):
         self.body_env.mul = value
         self.overtone_env.mul = value * self.tone * self.overtone_level
         self.click_env.mul = value * self.tone * self.click_level
+
+    # the fill: semitones above the chord root, so the pattern's steps are
+    # pitches rather than levels. It walks down the minor pentatonic (fifth,
+    # fifth, minor third, root), all tones of the rack's minor-seventh chords
+    # (E, E, C, A over Am7)
+    melody = Melodic.melody.replace(default=Melody.TOM_FILL.index)
 
     tune = Param(
         -12,

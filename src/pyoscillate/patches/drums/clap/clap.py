@@ -17,11 +17,12 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.intervals import Rhythm
 
 
-class Clap(DrumVoice):
+class Clap(RhythmDrum):
     """Multi-burst, band-passed noise clap on beats two and four.
 
     Doesn't use `self.envelope()`: the burst/tail shape needs a `LinTable`
@@ -31,9 +32,8 @@ class Clap(DrumVoice):
     summary = "Sharp, bright clap accent."
     volume = Patch.volume.replace(default=0.28)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    # beats two and four of a 16-step bar - the backbeat this clap accents
-    pattern: ClassVar[set[int]] = {4, 12}
-    pattern_cycle: ClassVar[int] = 16
+    # beats two and four - the backbeat this clap accents
+    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.BACKBEAT.index)
     # short bursts before the tail; the tail's onset acts as the final hand
     bursts: ClassVar[int] = 3
     # level each burst decays to before the next hand arrives

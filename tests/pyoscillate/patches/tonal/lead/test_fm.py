@@ -105,15 +105,17 @@ def _rms_db(samples: np.ndarray) -> float:
 class FmLeadDataTests(unittest.TestCase):
     def test_phrases_stay_in_the_scale_and_inside_the_cycle(self) -> None:
         for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
-            for phrase in lead.phrases:
+            for melody in lead.variants:
                 with self.subTest(lead=lead.__name__):
-                    self.assertTrue(set(phrase.values()) <= PHRYGIAN)
-                    self.assertTrue(all(0 <= step < lead.cycle for step in phrase))
+                    self.assertTrue(set(melody.steps.values()) <= PHRYGIAN)
+                    self.assertTrue(
+                        all(0 <= step < melody.cycle for step in melody.steps)
+                    )
 
     def test_every_style_has_a_phrase_to_evolve_to(self) -> None:
         for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
             with self.subTest(lead=lead.__name__):
-                self.assertGreaterEqual(len(lead.phrases), 2)
+                self.assertGreaterEqual(len(lead.variants), 2)
 
 
 class FmLeadHealthTests(unittest.TestCase):

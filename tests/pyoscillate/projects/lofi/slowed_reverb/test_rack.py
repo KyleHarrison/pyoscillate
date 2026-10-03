@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from pyoscillate.patches.drums.hat.groove import CLOSED, GrooveLofi
+from pyoscillate.patches.drums.hat.groove import GrooveLofi
 from pyoscillate.patches.drums.kick.kick import KickLofi
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
@@ -139,18 +139,26 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         kick_patch = KickLofi()
         kick_patch._clock = SimpleNamespace(tick=8)
         kick_patch._division = SimpleNamespace(steps=1)
+        kick_patch._base_division = KickLofi.base_division
+        # the patch isn't built, so apply the dropdown's control by hand
         kick_patch.on_evolve(0)
+        kick_patch.use_rhythm(kick_patch.selected_rhythm)
         self.assertFalse(kick_patch._step().hit)
         kick_patch.on_evolve(1)
+        kick_patch.use_rhythm(kick_patch.selected_rhythm)
         self.assertEqual(kick_patch._step().value, 0.45)
 
         hat_patch = GrooveLofi()
         hat_patch._clock = SimpleNamespace(tick=2)
         hat_patch._division = SimpleNamespace(steps=1)
+        hat_patch._base_division = GrooveLofi.base_division
         hat_patch.on_evolve(0)
+        hat_patch.use_rhythm(hat_patch.selected_rhythm)
         self.assertFalse(hat_patch._step().hit)
         hat_patch.on_evolve(1)
-        self.assertEqual(hat_patch._step().value, (CLOSED, 0.25))
+        hat_patch.use_rhythm(hat_patch.selected_rhythm)
+        self.assertEqual(hat_patch._step().value, 0.25)
+        self.assertNotIn(2, hat_patch.selected_rhythm.open_steps)
 
 
 if __name__ == "__main__":

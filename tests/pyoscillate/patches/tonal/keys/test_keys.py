@@ -77,7 +77,7 @@ from pyoscillate.theory.intervals import Progression
 MODULE = "pyoscillate.patches.tonal.keys.keys"
 BPM = 120
 SIXTEENTH = 60 / BPM / 4
-BAR = SIXTEENTH * keys.BAR_STEPS
+BAR = SIXTEENTH * 16
 # the clock fires one audio buffer after the tick
 LATENCY = 0.006
 ONSET_TOLERANCE = 0.02

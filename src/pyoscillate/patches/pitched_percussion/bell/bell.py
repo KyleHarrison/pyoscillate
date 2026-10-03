@@ -33,15 +33,13 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import RING_CURVE, RootPitch, decay_points
-from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.patches.params import Param, choice_param, rate_param
 from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Melody
 
 STYLES = ("chime", "fm")
 BASE_DIVISION = NoteDivision.SIXTEENTH
 
-# step on the 16th grid -> semitones above Register: two bars of minor pentatonic
-PATTERN = {0: 12, 6: 7, 12: 10, 16: 3, 22: 5, 28: 0}
-PATTERN_STEPS = 32
 VOICES = 3
 # `chime`: church-bell partials relative to the prime (the pitch the ear
 # names): hum, prime, tierce, quint, nominal, then the upper partials
@@ -84,7 +82,7 @@ def _peak_index(strike: float) -> float:
 
 
 class Bell(RootPitch, Patch):
-    """Struck bell playing `PATTERN` across `VOICES` rotating voices, so a
+    """Struck bell playing its `melody` across `VOICES` rotating voices, so a
     long ring overlaps the next strike instead of being cut or retuned
     mid-ring. Style variants subclass this and override `voice_graph()`,
     `set_strike()` and `set_ring()`; the pattern stepping and voice rotation
@@ -98,6 +96,8 @@ class Bell(RootPitch, Patch):
     _clock: Clock
     _pattern_step: int
     _voice_slot: int
+    # the grid the bell is currently stepping on: its melody's own
+    _grid: NoteDivision
 
     root_freq = RootPitch.root_freq.replace(
         minimum=notes.A3,
@@ -129,6 +129,25 @@ class Bell(RootPitch, Patch):
     )
     def ring(self, value: float) -> None:
         self.set_ring(value)
+
+    def _select_melody(self, value: float) -> None:
+        self._grid = Melody.by_index(int(value)).division
+        self.reschedule(self.rate)
+
+    # the figure, as semitones above Register; the bell steps through its own
+    # counter, so any `Melody` on any grid plays from the top when chosen
+    melody = choice_param(
+        Melody,
+        Melody.BELL_FIGURE,
+        "Picks the figure the bell rings, as pitches above its register; every pitched voice draws on "
+        "the same shared lines.",
+        control=_select_melody,
+    )
+
+    @property
+    def selected_melody(self) -> Melody:
+        """The `Melody` the `melody` dropdown currently names."""
+        return Melody.by_index(int(self.melody))
 
     rate = rate_param(
         base_division,
@@ -164,26 +183,31 @@ class Bell(RootPitch, Patch):
         self._clock = context.clock
         self._pattern_step = 0
         self._voice_slot = 0
+        self._grid = self.selected_melody.division
 
         self.voice_signal = self.voice_graph()
 
         self.sequencer = context.clock.subscribe(
-            context.clock.ticks_for_rate(self.base_division, self.rate), self.next_step
+            context.clock.ticks_for_rate(self._grid, self.rate), self.next_step
         )
         return self.finish(self.voice_signal)
 
     def next_step(self) -> None:
-        index = self._pattern_step % PATTERN_STEPS
-        if index in PATTERN:
+        melody = self.selected_melody
+        index = self._pattern_step % melody.cycle
+        steps = melody.steps
+        if index in steps:
             slot = self._voice_slot
-            self.tune(slot, notes.transpose(self.root_freq, PATTERN[index]))
+            self.tune(slot, notes.transpose(self.root_freq, steps[index]))
             self.triggers[slot].play()
             self._voice_slot = (slot + 1) % VOICES
         self._pattern_step += 1
 
     def reschedule(self, rate: float) -> None:
         """Live `rate` control: re-space the scheduled division."""
-        self.sequencer.steps = self._clock.ticks_for_rate(self.base_division, rate)
+        minimum, maximum = self._clock.rate_limits(self._grid)
+        offset = min(max(round(rate), minimum), maximum)
+        self.sequencer.steps = self._clock.ticks_for_rate(self._grid, offset)
 
     def finish(self, voice: PyoObject) -> Patch:
         self.voice = voice

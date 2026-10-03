@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, overload
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.theory.intervals import Choice
 from pyoscillate.theory.notes import (
     freq_to_midi,
     midi_to_freq,
@@ -235,3 +236,29 @@ class RateParam(Param):
 def rate_param(base_division: NoteDivision, help_text: str) -> Param:
     """The standard "rate" `Param` shared by every clocked patch."""
     return RateParam(base_division, help_text)
+
+
+def choice_param(
+    catalog: type[Choice],
+    default: Choice,
+    help_text: str,
+    *,
+    label: str = "Pattern",
+    rebuild: bool = False,
+    control: Control = noop_control,
+) -> Param:
+    """A dropdown `Param` over every member of `catalog` (a `Rhythm`,
+    `Melody`, ...), stored as the member's index. A style picks its own
+    starting member with `Voice.pattern.replace(default=Member.index)`."""
+    options = catalog.labels()
+    return Param(
+        0,
+        len(options) - 1,
+        1,
+        default.index,
+        label,
+        help_text,
+        rebuild=rebuild,
+        options=options,
+        control=control,
+    )

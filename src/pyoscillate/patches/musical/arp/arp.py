@@ -81,6 +81,7 @@ class Arp(Gate, Reverb, GatedVoice):
         "with four down, 5 rises and falls then stutters, 6 rises and snaps back to the root. "
         "Notes come from a calm major pentatonic, so every contour stays consonant.",
         rebuild=True,
+        options=ArpOrder.labels(),
     )
 
     @Param(

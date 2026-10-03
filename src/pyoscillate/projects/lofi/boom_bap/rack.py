@@ -196,9 +196,8 @@ class LofiRack(Rack):
         "Strings", (pad_strings,), controls=(strings_energy,), bars=16
     )
     # bass: sparse, thumpy, four-bar phrase with an occasional offbeat
-    # re-entry (see tonal/bass/profiles.py's `_conversation`), or the
-    # original one-bar muted groove. `bars=8` rotates each style's own
-    # pattern variant (see profiles.py's `CONVERSATION_VARIANTS`/`MUTED_VARIANTS`)
+    # re-entry (`Melody.BASS_CONVERSATION`), or the original one-bar muted
+    # groove. `bars=8` rotates each style's own `variants` melodies
     bass_group = EvolvingGroup(
         "Bass",
         (bass_conversation, bass_muted),

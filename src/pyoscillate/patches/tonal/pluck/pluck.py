@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -12,17 +11,14 @@ from pyo.lib.generators import FM
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
+from pyoscillate.patches.common import Figured, Gate, GatedVoice, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
-
-# step -> chord-tone index; a step that is absent is a rest
-SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
-FULL_PATTERN = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 2, 6: 1, 7: 2}
+from pyoscillate.theory.intervals import ChordTones
 
 
-class Pluck(Gate, RootPitch, GatedVoice):
+class Pluck(Gate, RootPitch, Figured, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
@@ -30,9 +26,11 @@ class Pluck(Gate, RootPitch, GatedVoice):
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
-    # the steps in one pass of a pattern (an eighth-note grid over one bar)
-    cycle: ClassVar[int] = 8
-    patterns: ClassVar[tuple[dict[int, int], ...]] = (SPARSE_PATTERN, FULL_PATTERN)
+    # the figures `on_evolve` rotates through, sparsest first
+    variants: ClassVar[tuple[ChordTones, ...]] = (
+        ChordTones.SPARSE_HOOK,
+        ChordTones.FULL_HOOK,
+    )
     triads: ClassVar[dict[int, tuple[int, int, int]]] = {
         0: (0, 4, 7),
         2: (0, 3, 7),
@@ -49,7 +47,6 @@ class Pluck(Gate, RootPitch, GatedVoice):
     fm_voice: FM
     space: Freeverb
     harmony: Harmony
-    _step: Callable[[], Step]
 
     root_freq = RootPitch.root_freq.replace(
         default=notes.E3,
@@ -104,9 +101,7 @@ class Pluck(Gate, RootPitch, GatedVoice):
         return notes.transpose(root, 12 + triad[tone_index])
 
     def on_evolve(self, index: int) -> None:
-        self._step = self.step_pattern(
-            self.cycle, self.patterns[index % len(self.patterns)]
-        )
+        self.figure = self.variants[index % len(self.variants)].index
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
@@ -128,8 +123,7 @@ class Pluck(Gate, RootPitch, GatedVoice):
         )
         self.space = Freeverb(self.fm_voice, size=0.35, damp=0.55, bal=0.22)
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(self.cycle, self.patterns[0])
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.space, context))
 
     def next_step(self) -> None:

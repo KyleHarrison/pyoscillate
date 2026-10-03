@@ -160,9 +160,25 @@ sidechains are bound by the rack - there are no `name=`/
   `self.schedule(base_division, rate, clock)` (subscribes `self.next_step`;
   `schedule_with(..., callback)` takes an explicit callback), `self.reschedule()`,
   and `self.step_pattern(cycle, pattern)`, which returns a callable giving a
-  `Step(index, hit, value)`.
+  `Step(index, hit, value)`. What a voice plays is chosen from the shared
+  pattern catalogs (see "Patterns" below), never declared inline.
 - `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
   a no-op `ContinuousSequencer`.
+
+**Patterns.** Every step pattern lives once in `theory/intervals.py`, as a
+member of `Rhythm` (hit velocities), `Melody` (semitone offsets above the
+chord root, with optional accents and lengths) or `ChordTones` (chord-tone
+indexes); a member is `(division, cycle, entries, label)`. A patch never
+defines its own: it mixes in `Rhythmic`, `Melodic` or `Figured` (`common.py`),
+which add a dropdown `Param` (`rhythm`/`melody`/`figure`) over the whole
+catalog, schedule on the chosen pattern's own grid and swap it live. A style
+names its starting pattern with `rhythm = Rhythmic.rhythm.replace(default=
+Rhythm.X.index)` and, for `on_evolve`, rotates by assigning the `Param`
+(`self.rhythm = variant.index`), so the dropdown stays the single source. A
+pattern a patch needs that the catalog lacks is added there (append only: a
+saved dropdown index must keep meaning the same pattern), so every other patch
+can play it too. `base_division` stays on the class only to set the range of
+the `rate` slider.
 
 **`Step.hit` vs `Step.value`.** `hit` says whether the pattern has an event at
 the step (structure); `value` says what the event carries (an accent, a pitch

@@ -7,12 +7,11 @@ rattle whose exponential tail runs from a dry crack to a small-room wash. It
 sits on the backbeat under the clap, with a ghost note that swings into the
 next bar.
 
-The default voice's `pattern` reads its accents off a 16-step bar
-(`pattern_cycle` = 16); `SnareLofi` instead reads a 32-step bar (32nd-note
-resolution) so its backbeat can swing behind the straight grid and its ghost
-notes can sit at 32nd-note positions a plain 16-step pattern can't express -
-`step_pattern()` already supports any cycle length, so this is the same
-mechanism at a finer grid, not a new one.
+The default voice starts on the 16-step `Rhythm.BACKBEAT_GHOST`; `SnareLofi`
+starts on the 32-step (32nd-note) `Rhythm.SNARE_LOFI`, so its backbeat can
+swing behind the straight grid and its ghost notes can sit at positions a
+plain 16-step pattern can't express. Either can play any `Rhythm` from its
+Pattern dropdown.
 """
 
 from typing import ClassVar
@@ -25,12 +24,13 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
+from pyoscillate.patches.drums.base import RhythmDrum, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Rhythm
 
 
-class Snare(DrumVoice):
+class Snare(RhythmDrum):
     """Tone-plus-rattle snare on the backbeat with a ghost note."""
 
     summary = "Tone-and-rattle backbeat snare with a swung ghost note, layered under the clap."
@@ -39,10 +39,8 @@ class Snare(DrumVoice):
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6
 
-    # step in a `pattern_cycle`-step bar -> accent; the quiet final hit is a
-    # ghost note
-    pattern: ClassVar[dict[int, float]] = {4: 1.0, 12: 1.0, 15: 0.3}
-    pattern_cycle: ClassVar[int] = 16
+    # the backbeat with a quiet final ghost note
+    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.BACKBEAT_GHOST.index)
     base_freq: ClassVar[float] = notes.Fs3
     # pitch bend at the strike, as a fraction above the body - kept well
     # below a kick's so the snare never turns into a zap or tom
@@ -164,14 +162,6 @@ class Snare(DrumVoice):
         return self.finish(self.voice_output())
 
 
-# 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> accent. The backbeat
-# on beats 2 and 4 (straight would be 8 and 24) lands one 32nd late, at 9 and
-# 25, for a laid-back, behind-the-beat pocket; a soft pickup ghost sits
-# before beat 2 (6) and a quieter one swings into the loop before beat 1 (30)
-# - see groove-and-feel.md's "Ghost notes" and "Behind the beat" sections.
-SNARE_LOFI_PATTERN = {9: 1.0, 25: 1.0, 6: 0.25, 30: 0.3}
-
-
 class SnareLofi(Snare):
     """Soft, closed-low-pass boom-bap snare: the backbeat sits behind the
     grid with ghost notes either side, filtered down and lightly saturated
@@ -181,8 +171,7 @@ class SnareLofi(Snare):
         "Soft, filtered boom-bap snare with a behind-the-beat backbeat and ghost notes."
     )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
-    pattern: ClassVar[dict[int, float]] = SNARE_LOFI_PATTERN
-    pattern_cycle: ClassVar[int] = 32
+    rhythm = Snare.rhythm.replace(default=Rhythm.SNARE_LOFI.index)
     # closes the rattle's high-passed edge down into a duller, muffled crack
     lowpass_cutoff: ClassVar[float] = 2600.0
     # light saturation warms the body/rattle mix without turning it harsh

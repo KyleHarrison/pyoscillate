@@ -1,7 +1,7 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.hover
 """Dark, reverb-soaked bass that hovers on a fixed tonic rather than
-following the rack's chord - see `profiles.HOVER` for the four-bar
-E/F/G/A neighbour-tone phrase this reads. Unlike `groove.GrooveBass`
+following the rack's chord - see `Melody.BASS_HOVER` for the four-bar
+E/F/G/A neighbour-tone phrase it starts on. Unlike `groove.GrooveBass`
 (16th-note, chord-following, dry), this style is built for a slowed,
 "tape-warped" ambience: a near-sine tone, a steady 8th-note pulse, and its
 own long reverb tail with a slow breathing swell, rather than a dry voice
@@ -19,6 +19,7 @@ from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass
 from pyoscillate.patches.tonal.bass.profiles import HOVER
 from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Melody
 
 
 class BassHover(Reverb, RootPitch, AccentBass):
@@ -34,6 +35,7 @@ class BassHover(Reverb, RootPitch, AccentBass):
     # clears the patch limiter, checked offline
     volume = Patch.volume.replace(default=0.22)
     profile = HOVER
+    melody = AccentBass.melody.replace(default=Melody.BASS_HOVER.index)
 
     breath_lfo: Sine
     breathed: PyoObject

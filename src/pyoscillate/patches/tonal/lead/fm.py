@@ -22,7 +22,6 @@ and `on_evolve` alternates between two phrase variants.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -35,14 +34,15 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Melodic, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import Melody
 
 
-class LeadFm(Gate, RootPitch, GatedVoice):
+class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -88,11 +88,9 @@ class LeadFm(Gate, RootPitch, GatedVoice):
         (8191, 0.0),
     ]
 
-    # this style's phrases, in semitones above the chord root; a step absent
-    # from the dict is a rest. `phrases[0]` plays first and `on_evolve`
-    # rotates through the rest. A phrase spans `cycle` steps (two bars).
-    phrases: ClassVar[tuple[dict[int, int], ...]]
-    cycle: ClassVar[int] = 32
+    # the `Melody` lines `on_evolve` rotates through, the first playing
+    # first; each style supplies its own
+    variants: ClassVar[tuple[Melody, ...]]
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -121,7 +119,6 @@ class LeadFm(Gate, RootPitch, GatedVoice):
     harmony: Harmony
     _tempo: Tempo
     _accent: float
-    _step: Callable[[], Step]
 
     root_freq = RootPitch.root_freq.replace(
         minimum=notes.F3,
@@ -299,8 +296,7 @@ class LeadFm(Gate, RootPitch, GatedVoice):
         self.mixed = self.body + self.echo
         self.cleaned = ButHP(self.mixed, freq=self.subsonic)
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(self.cycle, self.phrases[0])
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.cleaned, context))
 
     def next_step(self) -> None:
@@ -313,11 +309,9 @@ class LeadFm(Gate, RootPitch, GatedVoice):
             self.trigger.play()
 
     def on_evolve(self, index: int) -> None:
-        """Rotate which of `phrases` is playing; called rarely (tens of
+        """Rotate which of `variants` is playing; called rarely (tens of
         bars) by the rack's `EvolvingGroup`, never by the clock."""
-        self._step = self.step_pattern(
-            self.cycle, self.phrases[index % len(self.phrases)]
-        )
+        self.melody = self.variants[index % len(self.variants)].index
 
 
 class LeadFmWind(LeadFm):
@@ -333,10 +327,8 @@ class LeadFmWind(LeadFm):
     length = LeadFm.length.replace(default=3.0)
     glide = LeadFm.glide.replace(default=0.09)
     breath = LeadFm.breath.replace(default=0.45)
-    phrases = (
-        {0: 7, 5: 8, 8: 7, 12: 5, 16: 3, 21: 5, 24: 7, 28: 1},
-        {0: 12, 6: 10, 10: 8, 14: 7, 16: 5, 22: 3, 26: 1, 30: 0},
-    )
+    variants = (Melody.WIND_DRIFT, Melody.WIND_DRIFT_B)
+    melody = LeadFm.melody.replace(default=Melody.WIND_DRIFT.index)
 
 
 class LeadFmSwirl(LeadFm):
@@ -350,37 +342,5 @@ class LeadFmSwirl(LeadFm):
     swirl_bars = 1.0
     drift_bars = 2.0
     length = LeadFm.length.replace(default=0.9)
-    phrases = (
-        {
-            0: 7,
-            3: 7,
-            6: 8,
-            8: 7,
-            10: 5,
-            12: 3,
-            14: 5,
-            16: 7,
-            19: 10,
-            22: 8,
-            24: 7,
-            27: 5,
-            30: 1,
-        },
-        {
-            0: 12,
-            2: 10,
-            3: 8,
-            6: 7,
-            8: 8,
-            11: 7,
-            14: 5,
-            16: 3,
-            18: 5,
-            19: 7,
-            22: 5,
-            24: 3,
-            27: 1,
-            28: 0,
-            30: 1,
-        },
-    )
+    variants = (Melody.SWIRL_GROOVE, Melody.SWIRL_GROOVE_B)
+    melody = LeadFm.melody.replace(default=Melody.SWIRL_GROOVE.index)

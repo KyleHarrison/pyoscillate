@@ -3,7 +3,6 @@
 """Offbeat chord-stab voices."""
 
 import random
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject, PyoTableObject
@@ -15,14 +14,14 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Rhythmic
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Scale, Voicing
+from pyoscillate.theory.intervals import Rhythm, Scale, Voicing
 
 
-class Stab(Gate, GatedVoice):
+class Stab(Gate, Rhythmic, GatedVoice):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
     chord. Style variants subclass this and override `table()` for their
     own oscillator table, plus the profile attributes below; the rest of
@@ -30,6 +29,8 @@ class Stab(Gate, GatedVoice):
 
     volume = Patch.volume.replace(default=0.4)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    # a stab on every offbeat 16th of the bar
+    rhythm = Rhythmic.rhythm.replace(default=Rhythm.OFFBEAT_HOUSE.index)
 
     # every chord root snaps to the octave nearest this, around D3
     register_centre: ClassVar[float] = 146
@@ -73,7 +74,6 @@ class Stab(Gate, GatedVoice):
     # this bar's chord source, frozen at build time - fed to `next_step`,
     # which build() can no longer close over now that it's a real method
     harmony: Harmony
-    _step: Callable[[], Step]
     # the human-feel jitter's own source, so it never touches the global one
     _feel: random.Random
     # the server's rate, so a delay can be whole samples (see `whole_samples`)
@@ -195,11 +195,7 @@ class Stab(Gate, GatedVoice):
             pre_reverb = self.chorus_voice
         self.reverb = Freeverb(pre_reverb, size=0.72, damp=0.45, bal=self.wet)
 
-        # fires on the third 16th of every 4-step group, i.e. every offbeat
-        # 16th-note pair within the bar
-        self._step = self.step_pattern(16, {2, 6, 10, 14})
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.reverb, context))
 
     def whole_samples(self, seconds: float) -> float:

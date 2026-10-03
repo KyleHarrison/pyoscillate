@@ -20,7 +20,6 @@ note per 8th note, with a rest that lets each phrase's Release breathe.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -31,21 +30,23 @@ from pyo.lib.generators import LFO
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, PitchBend, RootPitch, Step
+from pyoscillate.patches.common import (
+    Gate,
+    GatedVoice,
+    Melodic,
+    PitchBend,
+    RootPitch,
+)
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ArpOrder, Phrase, Voicing
+from pyoscillate.theory.intervals import ArpOrder, Melody, Voicing
 
-# an absent step (6) is a rest, giving the phrase somewhere for its Release
-# tail to be heard. The default phrase for styles that don't override
-# `Lead.phrase`.
-PATTERN = Phrase(8, {0: 0, 1: 4, 2: 7, 3: 12, 4: 7, 5: 4, 7: 0})
 BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
-class Lead(PitchBend, Gate, RootPitch, GatedVoice):
+class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
     """Monophonic lead: two detuned pulse oscillators into a resonant
     low-pass with its own ADSR, then an amplitude ADSR and light saturation.
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
@@ -53,9 +54,10 @@ class Lead(PitchBend, Gate, RootPitch, GatedVoice):
 
     volume = Patch.volume.replace(default=0.7)
     base_division: ClassVar[NoteDivision] = BASE_DIVISION
-    # this style's own melodic phrase; a style with a sparser or differently-
-    # phrased line overrides it (different profile data, same graph)
-    phrase: ClassVar[Phrase] = PATTERN
+    # the arch has a rest at its last-but-one step, giving the phrase
+    # somewhere for its Release tail to be heard; a style with a sparser or
+    # differently-phrased line starts on another `Melody`
+    melody = Melodic.melody.replace(default=Melody.LEAD_ARCH.index)
 
     # osc1/osc2 detune in semitones (osc2's can exceed an octave, e.g. +12.1)
     osc1_detune: ClassVar[float]
@@ -157,7 +159,6 @@ class Lead(PitchBend, Gate, RootPitch, GatedVoice):
     # the rack's harmony, frozen at build time - fed to `next_step`, which
     # build() can no longer close over now that it's a real method
     harmony: Harmony
-    _step: Callable[[], Step]
 
     # anchor register for the melody; re-rooted on the rack's current chord
     # each note, in the octave nearest this note (see `note_root`)
@@ -291,18 +292,18 @@ class Lead(PitchBend, Gate, RootPitch, GatedVoice):
         )
         self.voice_signal = self.shaped
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(*self.played_phrase(context.harmony))
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.voice_signal, context))
 
-    def played_phrase(self, harmony: Harmony) -> Phrase:
-        """The style's own phrase, or - when a chord arpeggio is chosen - that
-        chord shape's notes walked in the chosen order."""
+    def use_melody(self, melody: Melody) -> None:
+        """Play `melody`, or - when a chord arpeggio is chosen - that chord
+        shape's notes walked in the chosen order, on the melody's grid."""
         if not self.voicing:
-            return self.phrase
+            super().use_melody(melody)
+            return
         order = ArpOrder.by_index(int(self.arp_order))
-        pool = harmony.voice(Voicing.by_index(int(self.voicing) - 1))
-        return Phrase(order.cycle, order.steps(pool))
+        pool = self.harmony.voice(Voicing.by_index(int(self.voicing) - 1))
+        self.play_pattern(melody.division, order.cycle, order.steps(pool))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter
@@ -350,24 +351,16 @@ class LeadMellow70s(Lead):
     base_drive = 0.0
 
 
-# 16th-note steps (one bar) -> semitones above the chord root, mostly rests
-# (absent steps): a minor-pentatonic-ish phrase (root, minor 3rd, 5th, minor
-# 7th) that leaves space after each two- or three-note idea, rather than
-# filling every subdivision - see lofi/README.md, "The melody should often
-# leave space after a phrase."
-MUTED_KEYS_PATTERN = Phrase(16, {0: 0, 3: 3, 6: 7, 8: 10, 11: 7, 13: 3})
-
-
 class LeadMutedKeys(Lead):
     """Near-unison dual-pulse pair, no PWM, dark and narrow filter sweep, no
     drive: a soft, covered pluck rather than a synth lead - the rack's
     lofi lead-melody voice. Plays a sparse, rest-heavy pentatonic motif
-    instead of the family's default arpeggio (see `MUTED_KEYS_PATTERN`)."""
+    instead of the family's default arpeggio (`Melody.MUTED_KEYS`)."""
 
     title = "Lead - Muted Keys"
     summary = "Soft, dark dual-pulse pluck playing a sparse, rest-heavy minor-pentatonic motif."
     base_division = NoteDivision.SIXTEENTH
-    phrase = MUTED_KEYS_PATTERN
+    melody = Lead.melody.replace(default=Melody.MUTED_KEYS.index)
     osc1_detune, osc2_detune = -0.05, 0.05
     osc1_duty, osc2_duty = 0.5, 0.45
     pwm_rate, pwm_depth = 0.0, 0.0

@@ -45,7 +45,7 @@ class ProgressionTests(unittest.TestCase):
             with self.subTest(rhythm=rhythm):
                 self.assertTrue(rhythm.hits)
                 for step, velocity in rhythm.hits.items():
-                    self.assertTrue(0 <= step < 16)
+                    self.assertTrue(0 <= step < rhythm.cycle)
                     self.assertTrue(0 < velocity <= 1)
 
 

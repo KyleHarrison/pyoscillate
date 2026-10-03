@@ -15,8 +15,9 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.intervals import Rhythm
 
 # the tick's own default decay (s); read directly at construction (as well as
 # from its own `@Param`) since there's no separate style constant behind it
@@ -24,13 +25,14 @@ DECAY = 0.15
 CUTOFF_FREQ = 10300
 
 
-class Tick(DrumVoice):
+class Tick(RhythmDrum):
     """Subtle high-passed noise tick, once per 8th note, for top-end texture."""
 
     name = "hat"
     title = "Hi-hat"
     summary = "Subtle, airy top-end pulse."
     volume = Patch.volume.replace(default=0.2)
+    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.EIGHTH_PULSE.index)
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     # exponent of the decay curve - a sharp, strongly exponential drop keeps
     # the hat ticking rather than hissing
@@ -64,7 +66,7 @@ class Tick(DrumVoice):
         "Sets how upfront the tick sits in the mix, from a subtle texture to a louder, more foregrounded pulse.",
     )
     def level(self, value: float) -> None:
-        self.hat_env.mul = value
+        self.apply_gains()
 
     @Param(
         0.03,
@@ -83,6 +85,9 @@ class Tick(DrumVoice):
         "Halves or doubles the tick pattern speed for each step away from its 8th-note grid.",
     )
 
+    def apply_gains(self) -> None:
+        self.hat_env.mul = self.level * self.accent
+
     def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
@@ -97,7 +102,5 @@ class Tick(DrumVoice):
         # high-pass to keep it thin and airy, out of the kick and bass range
         self.filtered = ButHP(self.hat_burst, mul=self.hat_swell)
 
-        self.schedule_with(
-            self.base_division, self.rate, context.clock, self.trigger.play
-        )
+        self.schedule_pattern(context)
         return self.finish(self.filtered)

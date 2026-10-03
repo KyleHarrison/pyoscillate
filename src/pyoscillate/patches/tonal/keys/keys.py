@@ -29,7 +29,6 @@ voice continuously between triggers, not just at the strike.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -46,8 +45,8 @@ from pyoscillate.patches.common import (
     RING_CURVE,
     Gate,
     GatedVoice,
+    Rhythmic,
     RootPitch,
-    Step,
     decay_points,
 )
 from pyoscillate.patches.params import Param, rate_param
@@ -55,7 +54,6 @@ from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
 from pyoscillate.theory.intervals import Rhythm, Voicing
 
-BAR_STEPS = 16
 NOTES = 4
 SLOTS = 4
 
@@ -65,7 +63,7 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, RootPitch, GatedVoice):
+class Keys(Gate, RootPitch, Rhythmic, GatedVoice):
     """FM electric piano comping the rack's chord changes in a `Rhythm`.
     See the module docstring for the sonic detail."""
 
@@ -119,12 +117,9 @@ class Keys(Gate, RootPitch, GatedVoice):
     velocities: list[float]
     _inversion: int
     _harmony: Harmony
-    # the active rhythm's step -> velocity, and its steps in order: used to
-    # number each bar's hits (0, 1, ...) so the slot rotation stays
-    # deterministic from the shared clock
-    _hits: dict[int, float]
+    # the active rhythm's steps in order: used to number each bar's hits
+    # (0, 1, ...) so the slot rotation stays deterministic from the shared clock
     _hit_steps: tuple[int, ...]
-    _step: Callable[[], Step]
     amp_table: LinTable
     body_table: LinTable
     tine_table: LinTable
@@ -147,17 +142,15 @@ class Keys(Gate, RootPitch, GatedVoice):
     throb: PyoObject
     voice_signal: PyoObject
 
-    rhythm = Param(
-        0,
-        4,
-        1,
-        0,
-        "Rhythm",
-        "Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
+    rhythm = Rhythmic.rhythm.replace(
+        default=Rhythm.CHARLESTON.index,
+        help_text="Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
         "or one chord left to ring.",
-        rebuild=True,
-        options=Rhythm.labels(),
     )
+
+    def use_rhythm(self, rhythm: Rhythm) -> None:
+        super().use_rhythm(rhythm)
+        self._hit_steps = tuple(sorted(rhythm.hits))
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
@@ -263,8 +256,6 @@ class Keys(Gate, RootPitch, GatedVoice):
         # `@Param`: only `on_evolve` and `next_step()` read/write it
         self._inversion = 0
         self._harmony = context.harmony
-        self._hits = Rhythm.by_index(int(self.rhythm)).hits
-        self._hit_steps = tuple(sorted(self._hits))
         self.velocities = [0.0] * SLOTS
         self.freqs = [self.root_freq] * (SLOTS * NOTES)
         self.triggers = [Trig().stop() for _ in range(SLOTS)]
@@ -322,8 +313,7 @@ class Keys(Gate, RootPitch, GatedVoice):
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(BAR_STEPS, self._hits)
+        self.schedule_pattern(context)
         return self.finish(
             self.add_gate(self.voice_signal, context),
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
