@@ -19,8 +19,9 @@ from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.lead import fm
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.phrase import Leads, Progressions
+from pyoscillate.theory.phrase import Leads
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class ForestPsytranceRack(Rack):

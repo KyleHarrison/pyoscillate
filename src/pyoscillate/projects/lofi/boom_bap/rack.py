@@ -24,8 +24,9 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.phrase import BassLines, Progressions
+from pyoscillate.theory.phrase import BassLines
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class LofiRack(Rack):

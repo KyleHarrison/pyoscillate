@@ -4,8 +4,8 @@ import math
 from dataclasses import dataclass
 
 from pyoscillate.theory.chord import Chord
-from pyoscillate.theory.phrase.base import Phrase
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import ChordChanges
 from pyoscillate.theory.scale import Scale, Scales
 
 
@@ -19,7 +19,7 @@ class Harmony:
     `BuildContext.harmony`; a patch that has no use for harmony ignores it.
 
     The chord changes are not here: each chord-following patch holds its own
-    progression (a `Phrase`, see `Progressive`) and passes it to the lookups
+    progression (`ChordChanges`, see `Progressive`) and passes it to the lookups
     below, so a patch can evolve through progressions on its own timer. Racks
     seed every such patch with the same one to keep them on the same chord.
     The current chord is looked up from a bar number - pass
@@ -62,13 +62,13 @@ class Harmony:
         return (scale or self.scale or Scales.MAJOR).voice(shape, root_degree)
 
     @staticmethod
-    def chord_offset(bar: int, progression: Phrase) -> int:
+    def chord_offset(bar: int, progression: ChordChanges) -> int:
         """Semitones above the key of the chord root `progression` has
         sounding in `bar`."""
         return progression.chord_root(bar)
 
     def chord_tones(
-        self, bar: int, shape: Chord, progression: Phrase
+        self, bar: int, shape: Chord, progression: ChordChanges
     ) -> tuple[int, ...]:
         """`shape` stacked on the chord `progression` has sounding in `bar`, as
         semitones above the key. The stack is read from the scale (the rack's,
@@ -82,7 +82,7 @@ class Harmony:
         """The tonic nearest `centre` Hz."""
         return self.nearest(self.key, centre)
 
-    def chord_freq(self, centre: float, bar: int, progression: Phrase) -> float:
+    def chord_freq(self, centre: float, bar: int, progression: ChordChanges) -> float:
         """The root of `progression`'s chord in `bar`, in the octave nearest
         `centre` Hz.
 

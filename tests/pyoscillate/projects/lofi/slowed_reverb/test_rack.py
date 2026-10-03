@@ -124,7 +124,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
     def test_section_evolution_is_wired_to_live_pad_and_groove_groups(self) -> None:
         rack = SlowedReverbRack()
         bars = {
-            name: patch.evolution.bars
+            name: next(e for e in patch.evolutions if e.enabled).bars
             for name, patch in {
                 "strings": rack.lead_strings,
                 "keys": rack.lead_keys,
@@ -133,7 +133,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "kick": rack.kick_lofi,
                 "hat": rack.hat_lofi,
             }.items()
-            if patch.evolution.enabled
+            if any(e.enabled for e in patch.evolutions)
         }
 
         self.assertEqual(
@@ -156,7 +156,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         # the patch isn't built, so apply the dropdown's control by hand
         kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertFalse(kick_patch._step().hit)
-        kick_patch.on_evolve(0)
+        kick_patch.phrase_evolution.advance()
         self.assertIs(kick_patch.selected_phrase, Rhythms.KICK_LOFI_FULL)
         kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertEqual(kick_patch._step().value, 0.45)
@@ -167,7 +167,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         hat_patch._base_division = GrooveLofi.base_division
         hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertFalse(hat_patch._step().hit)
-        hat_patch.on_evolve(0)
+        hat_patch.phrase_evolution.advance()
         self.assertIs(hat_patch.selected_phrase, Rhythms.HAT_LOFI_FULL)
         hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertEqual(hat_patch._step().value, 0.25)

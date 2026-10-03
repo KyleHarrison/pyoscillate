@@ -204,7 +204,12 @@ class Patch(ABC):
             raise TypeError(
                 f"{type(self).__name__} has no parameter(s) {sorted(values)}"
             )
+        # the patch's own `on_evolve` timer, then one per dropdown it can
+        # rotate (see `evolution_axes`)
         self.evolution = Evolution(self)
+        self.axis_evolutions: dict[Param, Evolution] = {
+            axis: Evolution(self, axis) for axis in self.evolution_axes()
+        }
 
     @property
     def built(self) -> bool:
@@ -321,28 +326,57 @@ class Patch(ABC):
         `evolvable`."""
 
     @property
-    def evolvable(self) -> bool:
-        """Whether this patch has anything to evolve: it overrides
-        `on_evolve`."""
+    def has_evolve_hook(self) -> bool:
+        """Whether this patch overrides `on_evolve` with a slow change of its
+        own."""
         return type(self).on_evolve is not Patch.on_evolve
 
-    def evolution_choices(self) -> tuple[Any, ...]:
-        """Everything the listener can tick to take part in evolution (a
-        phrased patch's phrases); empty when the patch's evolution has no
-        choices to tick."""
+    @classmethod
+    def evolution_axes(cls) -> tuple[Param, ...]:
+        """The dropdown `Param`s this patch can rotate on their own timers,
+        phrase first; a mixin adds its own."""
         return ()
 
-    def evolution_seed(self) -> tuple[Any, ...]:
-        """The choices ticked before a rack or listener says otherwise."""
-        return ()
+    @property
+    def evolutions(self) -> tuple[Evolution, ...]:
+        """Every evolution this patch has something to change for: one per
+        rotating dropdown, then the `on_evolve` hook's if it overrides it."""
+        return (
+            *self.axis_evolutions.values(),
+            *((self.evolution,) if self.has_evolve_hook else ()),
+        )
 
-    def evolution_order(self, chosen: tuple[Any, ...]) -> tuple[Any, ...]:
-        """`chosen` in the order `evolution_choices()` lists them."""
-        return tuple(item for item in self.evolution_choices() if item in chosen)
+    @property
+    def evolvable(self) -> bool:
+        """Whether this patch has anything to evolve."""
+        return bool(self.evolutions)
+
+    def evolution_of(self, axis: Param) -> Evolution:
+        """The evolution that rotates `axis`, recognised across style
+        overrides (see `Param.origin`)."""
+        for own, evolution in self.axis_evolutions.items():
+            if own.origin is axis.origin:
+                return evolution
+        raise LookupError(f"{type(self).__name__}: {axis.name} does not evolve")
 
     def declare_evolution(self, evolve: Evolve) -> None:
-        """Start the given evolution enabled, before the patch is built."""
-        self.evolution.declare(evolve)
+        """Start the given evolution enabled, before the patch is built. Each
+        axis takes the choices its dropdown offers. With no choices named,
+        the `on_evolve` hook starts (or, for a patch without one, every
+        axis); with choices, only the axes they belong to start, and the hook
+        too if there is one."""
+        named = [
+            evolution
+            for evolution in self.axis_evolutions.values()
+            if evolution.order(evolve.choices)
+        ]
+        if self.has_evolve_hook:
+            named.append(self.evolution)
+        for evolution in named or self.axis_evolutions.values():
+            evolution.declare(evolve)
+
+    def _every_evolution(self) -> tuple[Evolution, ...]:
+        return (self.evolution, *self.axis_evolutions.values())
 
     def _duck(self) -> None:
         """Duck this patch's voice off each declared sidechain group's
@@ -391,7 +425,8 @@ class Patch(ABC):
         self._playing = True
         for sweep in self.sweeps.values():
             sweep.run()
-        self.evolution.run(clock)
+        for evolution in self._every_evolution():
+            evolution.run(clock)
         return self
 
     def stop(self) -> Patch:
@@ -400,7 +435,8 @@ class Patch(ABC):
         self._playing = False
         for sweep in self.sweeps.values():
             sweep.halt()
-        self.evolution.halt()
+        for evolution in self._every_evolution():
+            evolution.halt()
         self.sequencer.stop()
         self._fade.value = 0.0
         # delay the hard stop until the fade above has finished ramping to

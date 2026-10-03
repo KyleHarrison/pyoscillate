@@ -13,7 +13,8 @@ from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
-from pyoscillate.theory.phrase import Hooks, Progressions, Rhythms
+from pyoscillate.theory.phrase import Hooks, Rhythms
+from pyoscillate.theory.progression import Progressions
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
 

@@ -34,9 +34,9 @@ class ForestPsytranceRackTests(unittest.TestCase):
         rack = ForestPsytranceRack()
 
         for lead in (rack.lead_wind, rack.lead_swirl):
-            self.assertTrue(lead.evolution.enabled)
-            self.assertEqual(lead.evolution.bars, 8)
-            self.assertEqual(len(lead.evolution.choices), 2)
+            self.assertTrue(lead.phrase_evolution.enabled)
+            self.assertEqual(lead.phrase_evolution.bars, 8)
+            self.assertEqual(len(lead.phrase_evolution.choices), 2)
 
     def test_harmony_stays_on_f_and_leans_on_the_flat_second(self) -> None:
         rack = ForestPsytranceRack()

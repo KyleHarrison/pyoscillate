@@ -6,9 +6,8 @@ from pyoscillate.clock import Clock
 from pyoscillate.harmony import Harmony
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Progressions
-from pyoscillate.theory.phrase.progression import chord_changes
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import ChordChanges, Progressions
 from pyoscillate.theory.scale import Scales
 
 
@@ -32,8 +31,8 @@ class HarmonyTests(unittest.TestCase):
 
     def test_progression_advances_on_bars_and_wraps(self) -> None:
         harmony = Harmony(key=Note.KEY_A)
-        progression = chord_changes(
-            (0, 5, 10, 7), label="Test", category="Test", bars_per_chord=2
+        progression = ChordChanges(
+            roots=(0, 5, 10, 7), bars_per_chord=2, label="Test", category="Test"
         )
 
         self.assertEqual(

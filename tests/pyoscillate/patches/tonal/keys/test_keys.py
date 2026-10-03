@@ -72,7 +72,7 @@ from pyoscillate.analysis.features import (
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.keys import keys
-from pyoscillate.theory.phrase import Progressions
+from pyoscillate.theory.progression import Progressions
 
 MODULE = "pyoscillate.patches.tonal.keys.keys"
 BPM = 120

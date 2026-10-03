@@ -17,6 +17,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
+from pyoscillate.patches.evolve import Evolution
 from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.chord import Chord
@@ -25,10 +26,10 @@ from pyoscillate.theory.phrase import (
     PhraseMode,
     PhraseRole,
     Phrases,
-    Progressions,
     Rhythms,
 )
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import ChordChanges, Progressions
 
 
 @dataclass(eq=False)
@@ -321,31 +322,15 @@ class Phrased(GatedVoice):
         """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
         return self.schedule(self.selected_phrase.division, self.rate, context.clock)
 
-    def evolution_choices(self) -> tuple[Any, ...]:
-        """Every phrase the dropdown offers, for the listener to tick."""
-        catalog = type(self).phrase.catalog
-        assert catalog is not None
-        return (*super().evolution_choices(), *catalog.members())
+    @classmethod
+    def evolution_axes(cls) -> tuple[Param, ...]:
+        """The `phrase` dropdown rotates on its own timer."""
+        return (cls.phrase, *super().evolution_axes())
 
-    def evolution_seed(self) -> tuple[Any, ...]:
-        """Only the starting phrase is ticked until a rack or listener ticks
-        more."""
-        return (*super().evolution_seed(), self.selected_phrase)
-
-    def on_evolve(self, index: int) -> None:
-        """Move the `phrase` dropdown to the next ticked phrase after the one
-        playing (the first when it isn't ticked); a no-op with fewer than two
-        ticked."""
-        super().on_evolve(index)
-        catalog = type(self).phrase.catalog
-        assert catalog is not None
-        own = set(catalog.members())
-        chosen = tuple(choice for choice in self.evolution.choices if choice in own)
-        if len(chosen) < 2:
-            return
-        current = self.selected_phrase
-        position = chosen.index(current) if current in chosen else -1
-        self.phrase = chosen[(position + 1) % len(chosen)]
+    @property
+    def phrase_evolution(self) -> Evolution:
+        """The timer that rotates the ticked phrases."""
+        return self.evolution_of(type(self).phrase)
 
     def use_phrase(self, phrase: Phrase) -> None:
         """Play `phrase` from the shared clock's position, moving to its grid
@@ -354,7 +339,6 @@ class Phrased(GatedVoice):
             raise ValueError(
                 f"{phrase.id} needs a note pool; play it with play_pattern"
             )
-        if phrase.mode is PhraseMode.CHORD_ROOT:
             raise ValueError(
                 f"{phrase.id} is a progression; select it with `progression`"
             )
@@ -364,8 +348,9 @@ class Phrased(GatedVoice):
 class Progressive(Patch):
     """Opt-in add-on for a voice whose pitch follows the chords: the
     `progression` dropdown picks which chord changes it plays against, from
-    the same shared phrase catalogs as `Phrased` (a progression is a phrase
-    whose steps are bars). The progression lives on this patch, not on the
+    the `Progressions` catalog. A phrase says when to play and which interval
+    above the chord root; this says which chord root that is in each bar. The
+    progression lives on this patch, not on the
     rack, so the patch can evolve through progressions on its own timer; a
     rack keeps its chord-following patches on the same chords by seeding each
     with the same one and, if they evolve, the same bars and choices. Read it
@@ -374,7 +359,7 @@ class Progressive(Patch):
     Progressive, Phrased, GatedVoice)`."""
 
     progression = choice_param(
-        Phrases.for_roles(PhraseRole.PROGRESSION),
+        Progressions,
         Progressions.STATIC,
         "Picks the chord changes the voice follows, one chord root per bar or run of "
         "bars; chord-following voices on the same progression change chord together.",
@@ -382,8 +367,8 @@ class Progressive(Patch):
     )
 
     @property
-    def selected_progression(self) -> Phrase:
-        """The `Phrase` the `progression` dropdown currently names."""
+    def selected_progression(self) -> ChordChanges:
+        """The `ChordChanges` the `progression` dropdown currently names."""
         catalog = type(self).progression.catalog
         assert catalog is not None
         return catalog.by_index(int(self.progression))
@@ -400,33 +385,17 @@ class Progressive(Patch):
         """`shape` stacked on `bar`'s chord, as semitones above the key."""
         return harmony.chord_tones(bar, shape, self.selected_progression)
 
-    def evolution_choices(self) -> tuple[Any, ...]:
-        """Every progression the dropdown offers, for the listener to tick."""
-        catalog = type(self).progression.catalog
-        assert catalog is not None
-        return (*super().evolution_choices(), *catalog.members())
+    @classmethod
+    def evolution_axes(cls) -> tuple[Param, ...]:
+        """The `progression` dropdown rotates on its own timer, so a patch
+        with a phrase too changes its chords on a separate clock. Patches
+        with the same bars and choices change chord together."""
+        return (*super().evolution_axes(), cls.progression)
 
-    def evolution_seed(self) -> tuple[Any, ...]:
-        """Only the starting progression is ticked until a rack or listener
-        ticks more."""
-        return (*super().evolution_seed(), self.selected_progression)
-
-    def on_evolve(self, index: int) -> None:
-        """Move the `progression` dropdown to the next ticked progression
-        after the one playing (the first when it isn't ticked); a no-op with
-        fewer than two ticked. It lands on the bar line the evolve timer
-        shares with the clock, so patches with the same bars and choices
-        change chord together."""
-        super().on_evolve(index)
-        catalog = type(self).progression.catalog
-        assert catalog is not None
-        own = set(catalog.members())
-        chosen = tuple(choice for choice in self.evolution.choices if choice in own)
-        if len(chosen) < 2:
-            return
-        current = self.selected_progression
-        position = chosen.index(current) if current in chosen else -1
-        self.progression = chosen[(position + 1) % len(chosen)]
+    @property
+    def progression_evolution(self) -> Evolution:
+        """The timer that rotates the ticked progressions."""
+        return self.evolution_of(type(self).progression)
 
 
 @dataclass(eq=False)

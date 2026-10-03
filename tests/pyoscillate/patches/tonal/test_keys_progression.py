@@ -3,14 +3,15 @@ import unittest
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.tonal.keys.keys import Keys
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Phrase, Progressions, Rhythms
+from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.progression import ChordChanges, Progressions
 from pyoscillate.theory.scale import Scales
 
 C = 0
 D = 2
 
 
-def _keys(key: int, progression: Phrase, inversion: int = 0) -> Keys:
+def _keys(key: int, progression: ChordChanges, inversion: int = 0) -> Keys:
     """A `Keys` with only the state `voicing` reads: no graph, no server."""
     keys = Keys.__new__(Keys)
     keys._harmony = Harmony(key=key)

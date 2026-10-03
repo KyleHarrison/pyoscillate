@@ -22,8 +22,9 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.phrase import Hooks, Progressions, Rhythms
+from pyoscillate.theory.phrase import Hooks, Rhythms
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class SlowedReverbRack(Rack):

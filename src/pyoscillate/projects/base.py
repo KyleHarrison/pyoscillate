@@ -14,7 +14,7 @@ from pyoscillate.controller import GroupController, GroupRuntime, Slot
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import Progressive
-from pyoscillate.theory.phrase import Phrase, Progressions
+from pyoscillate.theory.progression import ChordChanges, Progressions
 
 
 class Rack(ABC):
@@ -44,7 +44,7 @@ class Rack(ABC):
     # the chord changes every chord-following patch (a `Progressive`) starts on,
     # so bass, chords and the like change chord together; a `Slot` that sets its
     # own `progression` keeps it, and each patch can evolve from here
-    progression: ClassVar[Phrase] = Progressions.STATIC
+    progression: ClassVar[ChordChanges] = Progressions.STATIC
 
     def __init__(self) -> None:
         self.harmony = replace(self.harmony)

@@ -22,9 +22,6 @@ class PhraseMode(Enum):
     # an index into a pool of notes the patch supplies (an arpeggio's chord,
     # a scale); it wraps, so one order serves a triad or a whole scale
     POOL_INDEX = "pool_index"
-    # a chord root, in semitones above the key, held from its step: the steps
-    # are bars (a chord progression), not notes
-    CHORD_ROOT = "chord_root"
 
 
 class PhraseRole(Enum):
@@ -46,9 +43,6 @@ class PhraseRole(Enum):
     CHORD_HIT = "chord_hit"
     ARP = "arp"
     DRONE = "drone"
-    # chord changes, one root per bar or run of bars, that a pitched patch
-    # follows
-    PROGRESSION = "progression"
 
 
 @dataclass(frozen=True)
@@ -123,13 +117,3 @@ class Phrase(CatalogItem):
         """A `POOL_INDEX` phrase's pitch at each step, drawn from `pool`:
         step -> `pool[offset % len(pool)]`."""
         return {step.at: pool[step.offset % len(pool)] for step in self.steps}
-
-    def chord_root(self, bar: int) -> int:
-        """A `CHORD_ROOT` phrase's chord root sounding in `bar`, in semitones
-        above the key: the latest step at or before `bar`'s place in the
-        cycle holds until the next one."""
-        if self.mode is not PhraseMode.CHORD_ROOT:
-            raise ValueError(f"{self.id} is not a chord progression")
-        position = bar % self.cycle
-        held = [step for step in self.steps if step.at <= position]
-        return max(held, key=Step.position).offset

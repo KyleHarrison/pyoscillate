@@ -1,12 +1,18 @@
-"""A patch's own evolution: every N bars its `on_evolve(index)` is called.
+"""A patch's own evolution: slow change on its own timers, every N bars.
 
-Each patch owns one `Evolution`. While enabled and playing it holds a clock
-`Division` that fires every `bars` bars, and each fire calls the patch's
-`on_evolve`. A patch that plays a `Phrase` advances to the next phrase the
-listener has ticked (`Phrased.on_evolve`); any other patch overrides
-`on_evolve` with its own slow change. The settings (`enabled`, `bars`, the
-ticked `choices`) survive rebuilds and stops; the `Division` exists only from
-`run()` to `halt()`.
+A patch owns one `Evolution` per thing that changes, each with its own
+interval:
+
+- an *axis* evolution moves one dropdown `Param` (the `phrase` of a `Phrased`
+  patch, the `progression` of a `Progressive` one) to the next choice the
+  listener has ticked, so a patch with both changes its rhythm and its chords
+  on separate clocks;
+- the patch's own `evolution` calls its `on_evolve(index)` hook for any other
+  slow change (an inversion, a colour tone). It has no choices to tick.
+
+While enabled and playing, each holds a clock `Division` that fires every
+`bars` bars. The settings (`enabled`, `bars`, the ticked `choices`) survive
+rebuilds and stops; the `Division` exists only from `run()` to `halt()`.
 
 Timing comes from the shared `Clock`, never an internal counter, so a change
 always lands on a bar line shared with the rest of the rack and `progress`
@@ -22,32 +28,36 @@ from pyoscillate.clock import Clock, Division
 
 if TYPE_CHECKING:
     from pyoscillate.patches.base import Patch
+    from pyoscillate.patches.params import Param
 
 
 @dataclass(frozen=True, eq=False)
 class Evolve:
     """A rack's declaration of a starting evolution on a patch: change every
-    `bars` bars, cycling through `choices` (for a phrased patch, the phrases
-    to rotate; empty keeps the patch's current choice only). A `Slot` turns it
-    on for the patch it binds."""
+    `bars` bars, cycling through `choices` (phrases and progressions mixed are
+    split by the dropdown each belongs to; empty keeps each patch's current
+    choice only). A `Slot` turns it on for the patch it binds."""
 
     bars: int = 8
     choices: tuple[Any, ...] = ()
 
 
 class Evolution:
-    """One patch's evolution timer and the choices it rotates through."""
+    """One evolution timer of a patch and the choices it rotates through:
+    those of `axis`, or none for the patch's own `on_evolve` hook."""
 
     DEFAULT_BARS: ClassVar[int] = 8
     MIN_BARS: ClassVar[int] = 1
     MAX_BARS: ClassVar[int] = 64
 
-    def __init__(self, patch: Patch) -> None:
+    def __init__(self, patch: Patch, axis: Param | None = None) -> None:
         self.patch = patch
+        self.axis = axis
         self.enabled = False
         self.bars = self.DEFAULT_BARS
-        # the choices ticked to take part, in the patch's own order
-        self.choices: tuple[Any, ...] = patch.evolution_seed()
+        # the choices ticked to take part, in the axis's own order; only the
+        # starting one until a rack or listener ticks more
+        self.choices: tuple[Any, ...] = (self.current,) if axis else ()
         self._clock: Clock | None = None
         self._division: Division | None = None
         self._fires = 0
@@ -56,12 +66,38 @@ class Evolution:
     def running(self) -> bool:
         return self._division is not None
 
+    @property
+    def label(self) -> str:
+        """What the listener calls this evolution: its dropdown's label, or
+        "Evolve" for the patch's own hook."""
+        return self.axis.spec.description if self.axis else "Evolve"
+
+    @property
+    def options(self) -> tuple[Any, ...]:
+        """Everything the listener can tick, in the dropdown's order; empty
+        for the patch's own hook."""
+        if self.axis is None or self.axis.catalog is None:
+            return ()
+        return self.axis.catalog.members()
+
+    @property
+    def current(self) -> Any:
+        """The choice the axis's dropdown is on now."""
+        assert self.axis is not None and self.axis.catalog is not None
+        return self.axis.catalog.by_index(int(self.axis.read(self.patch)))
+
+    def order(self, chosen: tuple[Any, ...]) -> tuple[Any, ...]:
+        """`chosen` in the dropdown's order, dropping what it doesn't offer."""
+        return tuple(item for item in self.options if item in chosen)
+
     def declare(self, evolve: Evolve) -> None:
-        """Adopt a rack's declared evolution and switch it on."""
+        """Adopt a rack's declared evolution and switch it on; only the
+        `choices` this evolution's dropdown offers are taken."""
         self.enabled = True
         self.configure(evolve.bars)
-        if evolve.choices:
-            self.choices = self.patch.evolution_order(evolve.choices)
+        ticked = self.order(evolve.choices)
+        if ticked:
+            self.choices = ticked
 
     def configure(self, bars: float) -> None:
         """Set the interval in bars; a running timer retunes immediately."""
@@ -72,7 +108,7 @@ class Evolution:
     def set_choice(self, choice: Any, ticked: bool) -> None:
         """Tick or untick one choice, keeping the patch's own order."""
         chosen = {*self.choices, choice} if ticked else set(self.choices) - {choice}
-        self.choices = self.patch.evolution_order(tuple(chosen))
+        self.choices = self.order(tuple(chosen))
 
     def set_enabled(self, enabled: bool) -> None:
         self.enabled = enabled
@@ -113,5 +149,19 @@ class Evolution:
         return self.bars * (1 - self.progress)
 
     def _fire(self) -> None:
-        self.patch.on_evolve(self._fires)
+        if self.axis is None:
+            self.patch.on_evolve(self._fires)
+        else:
+            self.advance()
         self._fires += 1
+
+    def advance(self) -> None:
+        """Move the axis's dropdown to the next ticked choice after the one
+        playing (the first when it isn't ticked), wrapping; a no-op with
+        fewer than two ticked. The dropdown stays the single source, so a
+        choice picked by hand continues from there."""
+        if self.axis is None or len(self.choices) < 2:
+            return
+        current = self.current
+        position = self.choices.index(current) if current in self.choices else -1
+        self.axis.write(self.patch, self.choices[(position + 1) % len(self.choices)])

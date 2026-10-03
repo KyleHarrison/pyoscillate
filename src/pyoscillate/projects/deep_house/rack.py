@@ -22,8 +22,8 @@ from pyoscillate.patches.musical.stab import stab
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.phrase import Progressions
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class DeepHouseRack(Rack):

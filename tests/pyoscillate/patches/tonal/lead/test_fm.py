@@ -119,7 +119,7 @@ class FmLeadDataTests(unittest.TestCase):
     def test_every_style_offers_a_phrase_to_evolve_to(self) -> None:
         for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
             with self.subTest(lead=lead.__name__):
-                self.assertGreaterEqual(len(lead().evolution_choices()), 2)
+                self.assertGreaterEqual(len(lead().phrase_evolution.options), 2)
 
 
 class FmLeadHealthTests(unittest.TestCase):

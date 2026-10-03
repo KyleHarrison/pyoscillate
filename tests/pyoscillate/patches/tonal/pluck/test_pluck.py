@@ -4,8 +4,9 @@ from pyoscillate.analysis.features import features
 from pyoscillate.analysis.render import render
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.tonal.pluck.pluck import PluckHook
-from pyoscillate.theory.phrase import Hooks, Progressions
+from pyoscillate.theory.phrase import Hooks
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class FixedClock:
@@ -34,13 +35,13 @@ class PluckHookTests(unittest.TestCase):
         patch._base_division = PluckHook.base_division
 
         # the patch isn't built, so apply the dropdown's control by hand
-        patch.evolution.set_choice(Hooks.FULL_HOOK, True)
+        patch.phrase_evolution.set_choice(Hooks.FULL_HOOK, True)
         patch.use_phrase(patch.selected_phrase)
         self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
-        patch.on_evolve(0)
+        patch.phrase_evolution.advance()
         patch.use_phrase(patch.selected_phrase)
         self.assertEqual(self.hit_steps(patch), set(Hooks.FULL_HOOK.values))
-        patch.on_evolve(1)
+        patch.phrase_evolution.advance()
         patch.use_phrase(patch.selected_phrase)
         self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
 

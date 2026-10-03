@@ -16,8 +16,8 @@ from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Progressions
 from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class ServerStartupTests(unittest.TestCase):
