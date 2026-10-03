@@ -8,10 +8,11 @@ under a lock; the UI copies it out with `snapshot()` on its own schedule.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import partial
 from threading import Lock
 
-from pyo import PyoObject
+from pyo import Mix, PyoObject
 from pyo.lib.analysis import Scope, Spectrum
 
 Points = list[tuple[float, float]]
@@ -43,20 +44,35 @@ class LiveAnalyser:
         self._generation = 0
         self._wave: Points = []
         self._spectrum: Points = []
+        self._inputs: tuple[PyoObject, ...] = ()
         self._source: PyoObject | None = None
         self._left: PyoObject | None = None
         self._scope: Scope | None = None
         self._fft: Spectrum | None = None
         self._retired: list[tuple[object, ...]] = []
 
-    @property
-    def source(self) -> PyoObject | None:
-        """The signal currently monitored (None when detached)."""
-        return self._source
+    def monitors(self, signals: Sequence[PyoObject]) -> bool:
+        """Whether exactly these signals (by identity - pyo overloads `==`)
+        are what is attached now; an empty sequence means "detached"."""
+        return len(signals) == len(self._inputs) and all(
+            a is b for a, b in zip(signals, self._inputs)
+        )
 
-    def attach(self, signal: PyoObject) -> None:
-        """Monitor `signal`'s left stream, replacing any previous attachment."""
+    def attach_sum(self, signals: Sequence[PyoObject]) -> None:
+        """Monitor the sum of `signals` (stereo, so left sums with left)."""
+        self.attach(Mix(list(signals), voices=2), inputs=tuple(signals))
+
+    def attach(
+        self,
+        signal: PyoObject,
+        *,
+        inputs: tuple[PyoObject, ...] | None = None,
+    ) -> None:
+        """Monitor `signal`'s left stream, replacing any previous attachment.
+        `inputs` names what `signal` was built from (default: itself) for
+        `monitors()`."""
         self.detach()
+        self._inputs = (signal,) if inputs is None else inputs
         self._source = signal
         self._left = signal[0]
         generation = self._generation
@@ -93,6 +109,7 @@ class LiveAnalyser:
             self._retired.append((self._scope, self._fft, self._left, self._source))
             del self._retired[: -self.RETIRED_KEPT]
         self._scope = self._fft = self._left = self._source = None
+        self._inputs = ()
 
     def snapshot(self) -> tuple[Points, Points]:
         """Copies of the newest waveform and spectrum frames (empty if none)."""

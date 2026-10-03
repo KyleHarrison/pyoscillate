@@ -580,8 +580,17 @@ class PatchPanel:
     rebuild (a `rebuild` parameter changed since the last build).
     """
 
-    def __init__(self, patch: Patch, *, help: HelpTexts | None = None) -> None:
+    def __init__(
+        self,
+        patch: Patch,
+        *,
+        help: HelpTexts | None = None,
+        analysis: bool = False,
+    ) -> None:
         self.patch = patch
+        # opt-in; allocated only while the tile is expanded and playing
+        self.analyser = LiveAnalyser() if analysis else None
+        self.analysis_view = AnalysisView() if analysis else None
         self.help = help or HelpTexts()
         self.expanded = False
         self.enabled = False
@@ -730,6 +739,7 @@ class PatchPanel:
             advanced = []
         main = [self._slider_row(param) for param in shown if param not in advanced]
         body: list[ft.Control] = [
+            *([self.analysis_view.control] if self.analysis_view else []),
             *[section.control for section in self.evolve_rows],
             ft.ResponsiveRow(controls=main, spacing=12, run_spacing=4),
         ]
@@ -846,6 +856,23 @@ class PatchPanel:
                 running = True
         return running
 
+    def refresh_analysis(self) -> bool:
+        """Keep this patch's scope on its current output while the tile is
+        open and the patch plays, otherwise release it; whether it redrew."""
+        if self.analyser is None or self.analysis_view is None:
+            return False
+        output = self.patch.output if self.expanded else None
+        signals = () if output is None else (output,)
+        if not self.analyser.monitors(signals):
+            self.analyser.detach()
+            if output is not None:
+                self.analyser.attach(output)
+        if output is None and not self.analysis_view.live:
+            return False
+        wave, spectrum = self.analyser.snapshot()
+        self.analysis_view.show(wave, spectrum, live=output is not None)
+        return True
+
     def _show(self, param: Param, value: float) -> None:
         self._show_value(param, value)
         self._refresh_summary()
@@ -882,6 +909,8 @@ class PatchPanel:
         self.switch.disabled = True
         self.enabled = False
         self.switch.value = False
+        if self.analyser is not None:
+            self.analyser.detach()
         self.patch.stop()
 
     def set_group_enabled(self, enabled: bool) -> None:
@@ -1281,13 +1310,18 @@ class PatchRackApp:
         catalog_dir: Path,
         variants: dict[str, Callable[[], tuple[Rack, Path]]] | None = None,
         variant: str | None = None,
-        analysis: bool = False,
+        analysis: bool = True,
     ) -> None:
         self.page = page
-        # opt-in: one analyser pair on the first patch, only for single-patch
-        # apps; rack apps allocate neither analysers nor a view
+        self.analysis = analysis
+        # a master scope over the sum of the playing patches; each panel adds
+        # its own while open (see `PatchPanel.refresh_analysis`)
         self.analyser = LiveAnalyser() if analysis else None
-        self.analysis_view = AnalysisView() if analysis else None
+        self.analysis_view = (
+            AnalysisView("Sum of playing patches, left channel, before master gain")
+            if analysis
+            else None
+        )
         self.title = title
         self.subtitle = subtitle
         self.rack = rack
@@ -1403,7 +1437,13 @@ class PatchRackApp:
         patches = [patch for group in rack.groups for patch in group.patches]
         self.help = HelpTexts(getattr(self, "help", HelpTexts()).shown)
         self.panels = {
-            patch.name: PatchPanel(patch, help=self.help) for patch in patches
+            patch.name: PatchPanel(
+                patch,
+                help=self.help,
+                # one patch: the master scope is already that patch's
+                analysis=self.analysis and len(patches) > 1,
+            )
+            for patch in patches
         }
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
@@ -1700,6 +1740,7 @@ class PatchRackApp:
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
             moving = [panel.refresh_live() for panel in self.panels.values()]
+            moving += [panel.refresh_analysis() for panel in self.panels.values()]
             # an evolving patch can move off the shared progression
             self.progression_dropdown.value = self._progression_value()
             if self._refresh_analysis() or any(moving):
@@ -1707,21 +1748,24 @@ class PatchRackApp:
             await asyncio.sleep(0.1)
 
     def _refresh_analysis(self) -> bool:
-        """Reconcile the analyser with the monitored patch's current output
-        (it changes on every rebuild, stop or style swap) and redraw; whether
-        the view changed. Attaching only after a successful start and
-        detaching as soon as the output is gone keeps one live pair."""
+        """Reconcile the master scope with the patches playing now (the set
+        changes on every enable, rebuild, stop or style swap) and redraw;
+        whether the view changed."""
         if self.analyser is None or self.analysis_view is None:
             return False
-        patch = next(iter(self.panels.values())).patch
-        output = patch.output
-        if output is not self.analyser.source:
-            if output is None:
-                self.analyser.detach()
-            else:
-                self.analyser.attach(output)
+        outputs = [
+            output
+            for panel in self.panels.values()
+            if (output := panel.patch.output) is not None
+        ]
+        if not self.analyser.monitors(outputs):
+            self.analyser.detach()
+            if outputs:
+                self.analyser.attach_sum(outputs)
+        if not outputs and not self.analysis_view.live:
+            return False
         wave, spectrum = self.analyser.snapshot()
-        self.analysis_view.show(wave, spectrum, live=output is not None)
+        self.analysis_view.show(wave, spectrum, live=bool(outputs))
         return True
 
     def _stop_engine(self) -> None:

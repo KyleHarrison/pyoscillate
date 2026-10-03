@@ -86,7 +86,9 @@ class AnalysisView:
     IDLE_NOTE = "Idle: enable the patch to see its output"
     LIVE_NOTE = "Pre-master output, left channel"
 
-    def __init__(self) -> None:
+    def __init__(self, live_note: str = LIVE_NOTE) -> None:
+        self.live_note = live_note
+        self.live = False
         self.wave = AnalysisPlot("Waveform (50 ms)")
         self.spectrum = AnalysisPlot(
             "Spectrum (20 Hz - 20 kHz, log)", log_freq_axis=True
@@ -103,6 +105,7 @@ class AnalysisView:
         )
 
     def show(self, wave: Points, spectrum: Points, live: bool) -> None:
+        self.live = live
         self.wave.draw(wave if live else [])
         self.spectrum.draw(spectrum if live else [])
-        self.note.value = self.LIVE_NOTE if live else self.IDLE_NOTE
+        self.note.value = self.live_note if live else self.IDLE_NOTE
