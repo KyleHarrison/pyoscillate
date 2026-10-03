@@ -29,6 +29,7 @@ from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.intervals import Progression
 from pyoscillate.theory.notes import NOTE_NAMES
 
 ACCENT = "#00A896"
@@ -903,6 +904,17 @@ class PatchRackApp:
             on_select=self._handle_key,
         )
 
+        self.progression_dropdown = ft.Dropdown(
+            label="Progression",
+            options=[
+                ft.dropdown.Option(key=str(i), text=name)
+                for i, name in enumerate(Progression.labels())
+            ],
+            value=self._progression_value(),
+            width=180,
+            on_select=self._handle_progression,
+        )
+
         self.variant_dropdown = ft.Dropdown(
             label="Style",
             options=[ft.dropdown.Option(name) for name in self.variants],
@@ -963,6 +975,7 @@ class PatchRackApp:
                     self.engine_button,
                     self.pause_button,
                     self.key_dropdown,
+                    self.progression_dropdown,
                 ],
                 alignment=ft.MainAxisAlignment.END,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1121,6 +1134,30 @@ class PatchRackApp:
         self._set_key(int(e.control.value))
         e.page.update()
 
+    def _progression_value(self) -> str | None:
+        """The dropdown value for the rack's chord roots; None (blank) when
+        the rack's own progression isn't one of the named presets."""
+        progression = self.rack.harmony.progression
+        if isinstance(progression, Progression):
+            return str(progression.index)
+        return None
+
+    def _progression_preset(self) -> dict[str, str]:
+        """The preset entry for a named progression; empty for a rack's own."""
+        progression = self.rack.harmony.progression
+        if isinstance(progression, Progression):
+            return {"progression": Progression.labels()[progression.index]}
+        return {}
+
+    def _handle_progression(self, e: ft.ControlEvent) -> None:
+        # patches read the progression on each note, so no rebuild is needed
+        self._set_progression(int(e.control.value))
+        e.page.update()
+
+    def _set_progression(self, index: int) -> None:
+        self.rack.harmony.progression = Progression.by_index(index)
+        self.progression_dropdown.value = str(index)
+
     def _set_key(self, pitch_class: int) -> None:
         # patches read the key on each note, so no rebuild is needed
         self.rack.harmony.key = pitch_class
@@ -1214,6 +1251,7 @@ class PatchRackApp:
         ]
         self.preset_dropdown.value = None
         self._bind_rack(rack)
+        self.progression_dropdown.value = self._progression_value()
         self.paused = False
         self.pause_button.text = "Pause"
         self.pause_button.icon = ft.Icons.PAUSE
@@ -1252,6 +1290,10 @@ class PatchRackApp:
         rack_values = preset.get(RACK_PRESET_KEY, {})
         if rack_values.get("key") in NOTE_NAMES:
             self._set_key(NOTE_NAMES.index(rack_values["key"]))
+        if rack_values.get("progression") in Progression.labels():
+            self._set_progression(
+                Progression.labels().index(rack_values["progression"])
+            )
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
             if control.path in control_values:
@@ -1273,6 +1315,7 @@ class PatchRackApp:
         }
         values[RACK_PRESET_KEY] = {
             "key": NOTE_NAMES[self.rack.harmony.key],
+            **self._progression_preset(),
             "controls": {
                 control.path: control.group.values[control.control]
                 for control in self.control_sliders

@@ -72,6 +72,7 @@ from pyoscillate.analysis.features import (
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.keys import keys
+from pyoscillate.theory.intervals import Progression
 
 MODULE = "pyoscillate.patches.tonal.keys.keys"
 BPM = 120
@@ -87,7 +88,16 @@ SOFT = BAR + 6 * SIXTEENTH
 
 @cache
 def _render(seconds: float = 3.2, **params: float) -> Render:
-    return render(MODULE, params, seconds=seconds, bpm=BPM)
+    # the boom-bap rack's chords: Keys follows the rack's harmony, and a ring
+    # time measured on one chord is not the same on another
+    return render(
+        MODULE,
+        params,
+        seconds=seconds,
+        bpm=BPM,
+        key=0,
+        progression=Progression.JAZZ_TURNAROUND.roots,
+    )
 
 
 def _span(result: Render, onset: float, start: float, end: float) -> np.ndarray:

@@ -56,8 +56,8 @@ class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
     # major 9th (default) and a major 13th, an octave-and-a-6th up - both
     # stay consonant against the rack's Dm9-G13-Cmaj9-Am9 vamp the way the
     # 9th does. A rack-level `GroupController` rotates which one is blended
-    # in via `on_evolve`, tens of bars apart - see `KeysProgression` for
-    # the same pattern.
+    # in via `on_evolve`, tens of bars apart - `Keys` alternates its
+    # inversion the same way.
     COLOUR_TONE_VARIANTS: ClassVar[tuple[int, ...]] = (14, 21)
 
     # the graph, assigned by build(); finish() retains every one of them

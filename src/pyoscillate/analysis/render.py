@@ -51,12 +51,18 @@ def render(
     seconds: float = 1.0,
     bpm: float = DEFAULT_BPM,
     clock_running: bool = True,
+    key: int | None = None,
+    progression: tuple[int, ...] | None = None,
 ) -> Render:
     """Build `module`'s patch with `params`, start it, and render `seconds`
     of its output offline in a fresh subprocess.
 
     With `clock_running=False` the patch is started but never receives a
     tick, so anything audible was not scheduled by its sequencer.
+
+    `key` and `progression` set the rack's harmony (a pitch class, and chord
+    roots in semitones above it, one per bar); left out, the patch hears
+    `Harmony`'s defaults.
 
     The patch plays at its `volume` Param's default unless `params` sets
     `volume`, so the render passes through the output limiter the way the
@@ -72,6 +78,11 @@ def render(
             "seconds": seconds,
             "bpm": bpm,
             "clock_running": clock_running,
+            "harmony": {
+                name: value
+                for name, value in (("key", key), ("progression", progression))
+                if value is not None
+            },
             "path": str(path),
         }
         result = subprocess.run(
@@ -168,7 +179,7 @@ def _render_in_process(request: dict[str, Any]) -> None:
 
     # keep the patch and clock referenced for the whole render so their
     # pyo graph (including `resources`) cannot be collected mid-render
-    patch.build(BuildContext(tempo, clock, Harmony()))
+    patch.build(BuildContext(tempo, clock, Harmony(**request["harmony"])))
     patch.start()
     if request["clock_running"]:
         clock.start()

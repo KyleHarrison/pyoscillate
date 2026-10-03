@@ -25,6 +25,7 @@ from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import C, Harmony
+from pyoscillate.theory.intervals import Progression
 
 
 class LofiRack(Rack):
@@ -41,9 +42,9 @@ class LofiRack(Rack):
     # major (D=ii, G=V, C=I, A=vi), rather than a developing song form. Every
     # harmonic patch (bass, strings, lead) re-roots on this on the same
     # bar from the shared clock, so they change chord together regardless of
-    # their own Rate sliders; `keys.Keys` isn't harmonic and instead
-    # writes out the same progression by hand as fixed voicings (see keys.py)
-    harmony = Harmony(key=C, progression=(2, 7, 0, 9), bars_per_chord=1)
+    # their own Rate sliders; `keys.Keys` stacks a rootless ninth on the
+    # same chord each bar (see keys.py)
+    harmony = Harmony(key=C, progression=Progression.JAZZ_TURNAROUND, bars_per_chord=1)
 
     # the kick group is declared first so strings and bass can duck off it;
     # `layout` below sets the display order
@@ -71,7 +72,7 @@ class LofiRack(Rack):
     # lead melody: the rack's foreground - either the family's own sparse,
     # rest-heavy pentatonic motif (a "muted pluck") or the existing FM
     # electric piano's close-voiced comping, reused unmodified.
-    # `bars=32` rotates which voicing set `keys.Keys` is comping, live-
+    # `bars=32` alternates which inversion `keys.Keys` is voicing, live-
     # adjustable from this group's own UI sliders (see flet/base.py's
     # `PatchGroup`) - see docs/todos/rack-linking-next.md
     # "Energy" sliders - the manual counterpart to the clock-triggered

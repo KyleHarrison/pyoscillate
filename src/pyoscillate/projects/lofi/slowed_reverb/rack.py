@@ -23,6 +23,7 @@ from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import C, Harmony
+from pyoscillate.theory.intervals import Progression
 
 
 class SlowedReverbRack(Rack):
@@ -33,10 +34,10 @@ class SlowedReverbRack(Rack):
 
     # felt tempo from the reference track's half-time drag (see README.md)
     bpm = 61
-    # The lofi strings follow this vamp; Keys encodes the same voicings.
+    # The lofi strings follow this vamp; Keys stacks its voicings on the same chords.
     # Its white-note pitch collection also preserves the rack's E-Phrygian
     # colour, while E remains a common tone for the wash underneath it.
-    harmony = Harmony(key=C, progression=(2, 7, 0, 9), bars_per_chord=1)
+    harmony = Harmony(key=C, progression=Progression.JAZZ_TURNAROUND, bars_per_chord=1)
 
     # The kick is declared first so the pad can duck off it; `layout` below
     # sets the display order.

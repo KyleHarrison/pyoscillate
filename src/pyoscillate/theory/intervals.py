@@ -63,6 +63,14 @@ class Scale(Enum):
             semitones.append(self.value[step] + 12 * octave)
         return tuple(semitones)
 
+    def degree(self, offset: int) -> int:
+        """Index of the scale tone nearest `offset` semitones above the key
+        (a chord root's scale degree); equidistant tones resolve downward."""
+        return min(
+            range(len(self.value)),
+            key=lambda i: (abs(self.value[i] - offset % 12), i),
+        )
+
     def snap(self, note: float, key: int) -> float:
         """MIDI `note` moved to the nearest tone of this scale in `key`
         (a pitch class); equidistant tones resolve downward."""
@@ -190,6 +198,14 @@ class Voicing(Choice):
     POLY_CLUSTER = (0, 2, 6, 7, 11)
     BRIGHT_MODERN_EXTENSION = (0, 4, 8, 11, 14)
 
+    # Comping
+    # third, fifth, seventh and ninth with the root left to the bass: a close
+    # four-note stack, minor 9th on a ii and major 9th on a I in a major key
+    ROOTLESS_NINTH = (2, 4, 6, 8)
+    # third, seventh, ninth and thirteenth: the fuller colour a dominant
+    # chord takes in place of the plain ninth
+    ROOTLESS_THIRTEENTH = (2, 6, 8, 12)
+
 
 class ArpOrder(Choice):
     """The order an arpeggio visits its note pool, as one index per step.
@@ -231,75 +247,76 @@ class ArpOrder(Choice):
         return dict(enumerate(self.intervals(pool)))
 
 
-class KeysProgression(Choice):
-    """Four-bar electric-piano vamps for `Keys`, in the key of C.
-
-    A member's value is `(roots, voicing_sets)`. `roots` are the chord roots
-    as semitones above the key, one per bar: pass them as
-    `Harmony(key=C, progression=KeysProgression.X.roots)` so the bass and
-    chords follow the same changes, because `Keys` writes its voicings out by
-    hand and never reads the rack's harmony. Each entry of `voicing_sets` is
-    one full four-bar set of close, rootless four-note voicings, as semitones
-    above `Keys`' Register (A): set 0 is the home voicing and set 1 lifts each
-    chord's lowest note an octave, so `on_evolve` can change the inversion
-    while the chords stay put. Voicings keep the top voices moving by step.
+class Progression(Choice):
+    """Chord changes as roots, one per bar, in semitones above the key of a
+    major scale. Give one to `Harmony.progression` and every pitched patch that
+    reads the rack's harmony follows the same changes; the chord
+    quality (minor, major, dominant) comes from the scale degree each root
+    sits on, not from this table. Members are named for what the progression
+    is known as; `labels` add the roman numerals (lowercase for a minor chord).
     """
 
-    # Dm9 - G13 - Cmaj9 - Am9, the boom-bap rack's vamp
-    II_V_I_VI = (
-        (2, 7, 0, 9),
-        (
-            ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (3, 7, 10, 14)),
-            ((0, 3, 7, 8), (0, 2, 7, 8), (-2, 2, 5, 7), (7, 10, 14, 15)),
-        ),
-    )
-    # Cmaj9 - Am9 - Fmaj9 - G13
-    I_VI_IV_V = (
-        (0, 9, 5, 7),
-        (
-            ((-5, -2, 2, 5), (-5, -2, 2, 3), (-5, -2, 0, 3), (-5, -4, 0, 2)),
-            ((-2, 2, 5, 7), (-2, 2, 3, 7), (-2, 0, 3, 7), (-4, 0, 2, 7)),
-        ),
-    )
-    # Am9 - Fmaj9 - Cmaj9 - G13
-    VI_IV_I_V = (
-        (9, 5, 0, 7),
-        (
-            ((-2, 2, 3, 7), (-2, 0, 3, 7), (-2, 2, 5, 7), (0, 2, 7, 8)),
-            ((2, 3, 7, 10), (0, 3, 7, 10), (2, 5, 7, 10), (2, 7, 8, 12)),
-        ),
-    )
-    # Dm9 - G13 - Cmaj9 - Fmaj9
-    II_V_I_IV = (
-        (2, 7, 0, 5),
-        (
-            ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (-5, -2, 0, 3)),
-            ((0, 3, 7, 8), (0, 2, 7, 8), (-2, 2, 5, 7), (-2, 0, 3, 7)),
-        ),
-    )
-    # Cmaj9 - Em9 - Am9 - Dm9
-    I_III_VI_II = (
-        (0, 4, 9, 2),
-        (
-            ((-5, -2, 2, 5), (-3, -2, 2, 5), (-5, -2, 2, 3), (-5, -4, 0, 3)),
-            ((-2, 2, 5, 7), (-2, 2, 5, 9), (-2, 2, 3, 7), (-4, 0, 3, 7)),
-        ),
-    )
-    # Em9 - Am9 - Dm9 - G13
-    III_VI_II_V = (
-        (4, 9, 2, 7),
-        (
-            ((-3, -2, 2, 5), (-5, -2, 2, 3), (-5, -4, 0, 3), (-5, -4, 0, 2)),
-            ((-2, 2, 5, 9), (-2, 2, 3, 7), (-4, 0, 3, 7), (-4, 0, 2, 7)),
-        ),
-    )
+    FOUR_CHORD = (0, 7, 9, 5)
+    DOO_WOP = (0, 9, 5, 7)
+    MINOR_POP = (9, 5, 0, 7)
+    JAZZ_TURNAROUND = (2, 7, 0, 9)
+    JAZZ_II_V_I_IV = (2, 7, 0, 5)
+    CIRCLE_OF_FIFTHS = (0, 4, 9, 2)
+    CIRCLE_RUN = (4, 9, 2, 7)
 
     @property
     def roots(self) -> tuple[int, ...]:
         """Chord roots, semitones above the key, one per bar."""
-        return self.value[0]
+        return self.value
+
+    @classmethod
+    def labels(cls) -> tuple[str, ...]:
+        """Display names with the roman numerals, in index order."""
+        return (
+            "Four chords (I-V-vi-IV)",
+            "Doo-wop (I-vi-IV-V)",
+            "Minor pop (vi-IV-I-V)",
+            "Jazz turnaround (ii-V-I-vi)",
+            "Jazz ii-V-I-IV",
+            "Circle of fifths (I-iii-vi-ii)",
+            "Circle run (iii-vi-ii-V)",
+        )
 
     @property
-    def voicing_sets(self) -> tuple[tuple[tuple[int, ...], ...], ...]:
-        """Alternative four-bar voicing sets for these chords."""
-        return self.value[1]
+    def index(self) -> int:
+        """This preset's position in the dropdown, the index `by_index`
+        takes."""
+        return tuple(type(self).__members__.values()).index(self)
+
+
+class Rhythm(Choice):
+    """Hit patterns for any gated patch, as `((step, velocity), ...)` on a 16-step
+    bar of 16ths. A patch reads `hits` into its `step_pattern`; where a voice
+    maps velocity to brightness (see `Keys`), the accents shape the timbre as
+    well as the level."""
+
+    # beat one, then the "and" of two
+    CHARLESTON = ((0, 1.0), (6, 0.55))
+    # a stab on every beat, the downbeats strongest
+    FOUR_ON_THE_FLOOR = ((0, 1.0), (4, 0.7), (8, 0.85), (12, 0.7))
+    # the "and" of every beat, the house offbeat
+    OFFBEAT_HOUSE = ((2, 0.9), (6, 0.8), (10, 0.9), (14, 0.8))
+    # one chord a bar, left to ring
+    WHOLE_BAR = ((0, 1.0),)
+    # pushes ahead of beats two and four
+    SYNCOPATED_PUSH = ((0, 1.0), (5, 0.6), (8, 0.8), (11, 0.55))
+
+    @property
+    def hits(self) -> dict[int, float]:
+        """Step -> velocity, the form `step_pattern` reads."""
+        return dict(self.value)
+
+    @classmethod
+    def labels(cls) -> tuple[str, ...]:
+        return (
+            "Charleston: beat 1 and the 'and' of 2",
+            "Four on the floor: every beat",
+            "Offbeat house: every 'and'",
+            "Whole bar: one chord a bar",
+            "Syncopated push: ahead of the beat",
+        )

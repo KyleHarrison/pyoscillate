@@ -49,12 +49,10 @@ drums + Rhodes" texture.
 chord per bar, four bars per loop. `BassConversation`, `Strings`, and
 `LeadMutedKeys` (via `Lead`'s existing harmony support) all re-root
 on `clock.bar_index`'s current chord, so they change together regardless of
-their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
-as fixed voicings relative to its own Register slider (see `keys.py`'s
-module docstring) — it doesn't read `HARMONY` directly, so its
-its `vamp` param (default `KeysProgression.II_V_I_VI`) is kept in sync with this
-progression by hand: if `rack.py`'s progression changes, pick the matching
-`KeysProgression` (its `.roots` give the `Harmony` progression).
+their own Rate sliders. `keys.Keys` reads the same `Harmony` and stacks a
+rootless ninth on each bar's root (see `keys.py`), so changing the rack's key
+or progression - including from the Progression dropdown, whose presets are
+`Progression`'s `.roots` - changes what it plays with no hand-syncing.
 
 The "Lead Melody" `GroupController` (in `rack.py`, `bars=32`) rotates which
 voicing set `Keys` is comping (voicing set 1, then back to set 0, ...) via

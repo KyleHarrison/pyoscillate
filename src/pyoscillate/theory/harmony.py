@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from pyoscillate.theory.intervals import Scale, Voicing
+from pyoscillate.theory.intervals import Progression, Scale, Voicing
 from pyoscillate.theory.notes import freq_to_midi, midi_to_freq
 
 # pitch class of C, for a rack whose vamp is easiest to name off a major-key
@@ -36,8 +36,10 @@ class Harmony:
 
     # pitch class of the tonic, 0 = C ... 11 = B
     key: int = A
-    # chord roots, as semitones above the key
-    progression: tuple[int, ...] = (0,)
+    # the chord changes: a named `Progression`, or chord roots (semitones
+    # above the key, one per bar) for changes the table doesn't name. Read
+    # the roots through `roots`.
+    progression: Progression | tuple[int, ...] = (0,)
     bars_per_chord: int = 1
     # the scale `quantise` snaps to and `voice` reads by default; None means
     # no scale is set and `quantise` leaves pitches alone
@@ -62,10 +64,26 @@ class Harmony:
         rack's, else major - as semitones above the chord root."""
         return (scale or self.scale or Scale.MAJOR).voice(shape, root_degree)
 
+    @property
+    def roots(self) -> tuple[int, ...]:
+        """The progression's chord roots, semitones above the key, one per
+        bar."""
+        if isinstance(self.progression, Progression):
+            return self.progression.roots
+        return self.progression
+
     def chord_offset(self, bar: int) -> int:
         """Semitones above the key of the chord root sounding in `bar`."""
-        index = (bar // self.bars_per_chord) % len(self.progression)
-        return self.progression[index]
+        index = (bar // self.bars_per_chord) % len(self.roots)
+        return self.roots[index]
+
+    def chord_tones(self, bar: int, shape: Voicing) -> tuple[int, ...]:
+        """`shape` stacked on the chord sounding in `bar`, as semitones above
+        the key. The stack is read from the scale (the rack's, else major) at
+        the chord root's degree, so the same shape comes out minor on a ii and
+        major on a I without the progression naming chord qualities."""
+        scale = self.scale or Scale.MAJOR
+        return scale.voice(shape, scale.degree(self.chord_offset(bar)))
 
     def key_freq(self, centre: float) -> float:
         """The tonic nearest `centre` Hz."""

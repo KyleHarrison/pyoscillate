@@ -269,7 +269,7 @@ class PatchGroupTests(unittest.TestCase):
 
         (sidechain,) = rack.pad_wash.sidechains
         self.assertIs(sidechain.group, rack.kick_group)
-        self.assertEqual(SlowedReverbRack.harmony.progression, (2, 7, 0, 9))
+        self.assertEqual(SlowedReverbRack.harmony.roots, (2, 7, 0, 9))
 
     def test_lift_updates_the_visible_output_level(self) -> None:
         rack = SlowedReverbRack()
