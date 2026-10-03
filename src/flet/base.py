@@ -29,8 +29,8 @@ from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.intervals import Progression
-from pyoscillate.theory.notes import NOTE_NAMES
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progression, Progressions
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -475,7 +475,7 @@ class PatchPanel:
     # -- presets -------------------------------------------------------------
 
     def to_preset(self) -> dict[str, Any]:
-        values = {param.name: param.read(self.patch) for param in self.patch.params}
+        values = {param.name: self._preset_value(param) for param in self.patch.params}
         preset: dict[str, Any] = {"enabled": self.enabled, **values}
         if self.patch.sweeps:
             preset["sweeps"] = {
@@ -489,12 +489,32 @@ class PatchPanel:
             }
         return preset
 
+    def _preset_value(self, param: Param) -> Any:
+        """What a preset stores for `param`: a dropdown's option id (stable
+        across reordering), any other parameter's number."""
+        value = param.read(self.patch)
+        if param.spec.option_ids:
+            return param.spec.option_ids[int(value)]
+        return value
+
+    @staticmethod
+    def _from_preset(param: Param, saved: Any) -> float | None:
+        """The parameter value a preset's `saved` entry stands for; None when
+        a dropdown's saved id is no longer one of its options."""
+        if param.spec.option_ids:
+            if saved not in param.spec.option_ids:
+                return None
+            return float(param.spec.option_ids.index(saved))
+        return param.spec.snap(float(saved))
+
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
         self.switch.value = self.enabled
         for param in self.patch.params:
             if param.name in data:
-                value = param.spec.snap(float(data[param.name]))
+                value = self._from_preset(param, data[param.name])
+                if value is None:
+                    continue
                 param.write(self.patch, value)
                 self._show(param, value)
         for param, sweep in self.patch.sweeps.items():
@@ -912,7 +932,7 @@ class PatchRackApp:
             label="Key",
             options=[
                 ft.dropdown.Option(key=str(pitch_class), text=name)
-                for pitch_class, name in enumerate(NOTE_NAMES)
+                for pitch_class, name in enumerate(Note.NAMES)
             ],
             value=str(rack.harmony.key),
             width=140,
@@ -923,7 +943,7 @@ class PatchRackApp:
             label="Progression",
             options=[
                 ft.dropdown.Option(key=str(i), text=name)
-                for i, name in enumerate(Progression.labels())
+                for i, name in enumerate(Progressions.labels())
             ],
             value=self._progression_value(),
             width=180,
@@ -1183,14 +1203,14 @@ class PatchRackApp:
         the rack's own progression isn't one of the named presets."""
         progression = self.rack.harmony.progression
         if isinstance(progression, Progression):
-            return str(progression.index)
+            return str(Progressions.index_of(progression))
         return None
 
     def _progression_preset(self) -> dict[str, str]:
         """The preset entry for a named progression; empty for a rack's own."""
         progression = self.rack.harmony.progression
         if isinstance(progression, Progression):
-            return {"progression": Progression.labels()[progression.index]}
+            return {"progression": progression.id}
         return {}
 
     def _handle_progression(self, e: ft.ControlEvent) -> None:
@@ -1199,7 +1219,7 @@ class PatchRackApp:
         e.page.update()
 
     def _set_progression(self, index: int) -> None:
-        self.rack.harmony.progression = Progression.by_index(index)
+        self.rack.harmony.progression = Progressions.by_index(index)
         self.progression_dropdown.value = str(index)
 
     def _set_key(self, pitch_class: int) -> None:
@@ -1335,11 +1355,11 @@ class PatchRackApp:
             self.page.update()
             return
         rack_values = preset.get(RACK_PRESET_KEY, {})
-        if rack_values.get("key") in NOTE_NAMES:
-            self._set_key(NOTE_NAMES.index(rack_values["key"]))
-        if rack_values.get("progression") in Progression.labels():
+        if rack_values.get("key") in Note.NAMES:
+            self._set_key(Note.NAMES.index(rack_values["key"]))
+        if rack_values.get("progression") in Progressions.ids():
             self._set_progression(
-                Progression.labels().index(rack_values["progression"])
+                Progressions.ids().index(rack_values["progression"])
             )
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
@@ -1361,7 +1381,7 @@ class PatchRackApp:
             patch_name: panel.to_preset() for patch_name, panel in self.panels.items()
         }
         values[RACK_PRESET_KEY] = {
-            "key": NOTE_NAMES[self.rack.harmony.key],
+            "key": Note.NAMES[self.rack.harmony.key],
             **self._progression_preset(),
             "controls": {
                 control.path: control.group.values[control.control]

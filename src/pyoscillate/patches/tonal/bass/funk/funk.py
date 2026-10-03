@@ -22,7 +22,7 @@ analogue filter), so the note quacks bright and then settles dark instead of
 staying bright for the whole sustain. The cookbook's "envelope 85%" is a
 synth knob position; `QUACK` octaves is its reading here, tuned by ear.
 
-The line is `Melody.BASS_FUNK` by default, a one-bar funk figure on chord
+The line is `BassLines.BASS_FUNK` by default, a one-bar funk figure on chord
 tones, re-rooted on each bar's chord from the rack's `Harmony` (see
 `Bass.chord_root`). Its pitches are tones of a minor-seventh chord, like the
 other bass lines. Accents scale
@@ -45,8 +45,8 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import BassLines
+from pyoscillate.theory.pitch import Note
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
 # the cookbook recipe; every time is in seconds, every level 0..1
@@ -79,7 +79,7 @@ class FunkBass(Bass):
     volume = Patch.volume.replace(default=0.5)
     # the recipe's 20 ms glide on every note change
     glide = Bass.glide.replace(default=0.02)
-    melody = Bass.melody.replace(default=Melody.BASS_FUNK.index)
+    phrase = Bass.phrase.replace(default=BassLines.BASS_FUNK)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -240,10 +240,10 @@ class FunkBass(Bass):
         step = self._step()
         if not step.hit:
             return
-        melody = self.selected_melody
+        melody = self.selected_phrase
         accent = melody.accents[step.index]
         root = self.current_root()
-        self.pitch.value = notes.transpose(root, step.value)
+        self.pitch.value = Note.transpose(root, step.value)
         self.note_gate.dur = (
             self._tempo.sixteenth * melody.lengths[step.index] * self.length
         )

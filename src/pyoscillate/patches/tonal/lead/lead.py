@@ -29,24 +29,26 @@ from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     Gate,
     GatedVoice,
-    Melodic,
+    Phrased,
     PitchBend,
     RootPitch,
 )
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ArpOrder, Melody, Voicing
+from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.phrase import Leads, Melodies, Phrase
+from pyoscillate.theory.phrase.arp import ArpOrders
+from pyoscillate.theory.pitch import Note
 
 BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
-class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
+class Lead(PitchBend, Gate, RootPitch, Phrased, GatedVoice):
     """Monophonic lead: two detuned pulse oscillators into a resonant
     low-pass with its own ADSR, then an amplitude ADSR and light saturation.
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
@@ -56,8 +58,13 @@ class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
     base_division: ClassVar[NoteDivision] = BASE_DIVISION
     # the arch has a rest at its last-but-one step, giving the phrase
     # somewhere for its Release tail to be heard; a style with a sparser or
-    # differently-phrased line starts on another `Melody`
-    melody = Melodic.melody.replace(default=Melody.LEAD_ARCH.index)
+    # differently-phrased line starts on another phrase
+    phrase = Phrased.phrase.replace(
+        catalog=Melodies,
+        default=Leads.LEAD_ARCH,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     # osc1/osc2 detune in semitones (osc2's can exceed an octave, e.g. +12.1)
     osc1_detune: ClassVar[float]
@@ -108,31 +115,32 @@ class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
     )
     def detune(self, value: float) -> None:
         # semitones, split symmetrically on top of the style's own offsets
-        self.detune_up.value = notes.semitone_ratio(value)
-        self.detune_down.value = notes.semitone_ratio(-value)
+        self.detune_up.value = Note.semitone_ratio(value)
+        self.detune_down.value = Note.semitone_ratio(-value)
 
     voicing = Param(
         0,
-        len(Voicing.__members__),
+        len(Chords.members()),
         1,
         0,
         "Chord arpeggio",
         "Plays the notes of a chord shape in turn instead of the style's own phrase; the first "
         "choice keeps the style's phrase.",
         rebuild=True,
-        options=("Style phrase", *Voicing.labels()),
+        options=("Style phrase", *Chords.labels()),
+        option_ids=("style_phrase", *Chords.ids()),
     )
 
     arp_order = Param(
         0,
-        len(ArpOrder.__members__) - 1,
-        1,
         0,
+        1,
+        ArpOrders.ARCH,
         "Arpeggio order",
         "The order the chord shape's notes are visited, from climbing and falling to stuttering "
         "restarts. Only used when a chord arpeggio is chosen.",
         rebuild=True,
-        options=ArpOrder.labels(),
+        catalog=ArpOrders,
     )
 
     # the graph, assigned by build(); finish() retains every one of them
@@ -243,10 +251,10 @@ class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
 
         initial_root = self.note_root(context.clock)
         self.pitch1 = SigTo(
-            value=notes.transpose(initial_root, self.osc1_detune), time=self.glide
+            value=Note.transpose(initial_root, self.osc1_detune), time=self.glide
         )
         self.pitch2 = SigTo(
-            value=notes.transpose(initial_root, self.osc2_detune), time=self.glide
+            value=Note.transpose(initial_root, self.osc2_detune), time=self.glide
         )
 
         self.detune_up = SigTo(value=1.0, time=0.05)
@@ -295,15 +303,15 @@ class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
         self.schedule_pattern(context)
         return self.finish(self.add_gate(self.voice_signal, context))
 
-    def use_melody(self, melody: Melody) -> None:
-        """Play `melody`, or - when a chord arpeggio is chosen - that chord
-        shape's notes walked in the chosen order, on the melody's grid."""
+    def use_phrase(self, phrase: Phrase) -> None:
+        """Play `phrase`, or - when a chord arpeggio is chosen - that chord
+        shape's notes walked in the chosen order, on the phrase's grid."""
         if not self.voicing:
-            super().use_melody(melody)
+            super().use_phrase(phrase)
             return
-        order = ArpOrder.by_index(int(self.arp_order))
-        pool = self.harmony.voice(Voicing.by_index(int(self.voicing) - 1))
-        self.play_pattern(melody.division, order.cycle, order.steps(pool))
+        order = ArpOrders.by_index(int(self.arp_order))
+        pool = self.harmony.voice(Chords.by_index(int(self.voicing) - 1))
+        self.play_pattern(phrase.division, order.cycle, order.resolve(pool))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter
@@ -314,9 +322,9 @@ class Lead(PitchBend, Gate, RootPitch, Melodic, GatedVoice):
             self.amp_env.stop()
             self.filter_env.stop()
         else:
-            target = notes.transpose(self.note_root(self._clock), step.value)
-            self.pitch1.value = notes.transpose(target, self.osc1_detune)
-            self.pitch2.value = notes.transpose(target, self.osc2_detune)
+            target = Note.transpose(self.note_root(self._clock), step.value)
+            self.pitch1.value = Note.transpose(target, self.osc1_detune)
+            self.pitch2.value = Note.transpose(target, self.osc2_detune)
             self.amp_env.play()
             self.filter_env.play()
             self.trigger.play()
@@ -355,12 +363,12 @@ class LeadMutedKeys(Lead):
     """Near-unison dual-pulse pair, no PWM, dark and narrow filter sweep, no
     drive: a soft, covered pluck rather than a synth lead - the rack's
     lofi lead-melody voice. Plays a sparse, rest-heavy pentatonic motif
-    instead of the family's default arpeggio (`Melody.MUTED_KEYS`)."""
+    instead of the family's default arpeggio (`Leads.MUTED_KEYS`)."""
 
     title = "Lead - Muted Keys"
     summary = "Soft, dark dual-pulse pluck playing a sparse, rest-heavy minor-pentatonic motif."
     base_division = NoteDivision.SIXTEENTH
-    melody = Lead.melody.replace(default=Melody.MUTED_KEYS.index)
+    phrase = Lead.phrase.replace(default=Leads.MUTED_KEYS)
     osc1_detune, osc2_detune = -0.05, 0.05
     osc1_duty, osc2_duty = 0.5, 0.45
     pwm_rate, pwm_depth = 0.0, 0.0

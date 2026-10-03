@@ -107,9 +107,9 @@ class FmLeadDataTests(unittest.TestCase):
         for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
             for melody in lead.variants:
                 with self.subTest(lead=lead.__name__):
-                    self.assertTrue(set(melody.steps.values()) <= PHRYGIAN)
+                    self.assertTrue(set(melody.values.values()) <= PHRYGIAN)
                     self.assertTrue(
-                        all(0 <= step < melody.cycle for step in melody.steps)
+                        all(0 <= step < melody.cycle for step in melody.values)
                     )
 
     def test_every_style_has_a_phrase_to_evolve_to(self) -> None:

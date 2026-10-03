@@ -100,7 +100,7 @@ class PsyambientRack(Rack):
     mid_group = GroupController(
         "Mid Voices",
         (mid_arp, mid_generative, mid_canon),
-        "Melodic movement in the center of the arrangement.",
+        "Phrased movement in the center of the arrangement.",
         controls=(mid_shimmer,),
     )
 

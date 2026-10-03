@@ -37,7 +37,7 @@ from pyoscillate.patches.common import RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 STYLES = ("bark", "grit")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -86,9 +86,9 @@ class FmBass(RootPitch, Bass):
     # control body needed, see `patches/AGENTS.md`'s note on a parameter
     # only read by a sequencer callback
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.B0,
-        maximum=notes.A2,
-        default=notes.A1,
+        minimum=Note.B0,
+        maximum=Note.A2,
+        default=Note.A1,
         help_text="Moves the bassline up or down; low sits under the kick as weight, high brings the bark forward as a melodic line.",
     )
 
@@ -215,8 +215,8 @@ class FmBass(RootPitch, Bass):
         step = self._step()
         if not step.hit:
             return
-        self._accent = self.selected_melody.accents[step.index]
-        self.pitch.value = notes.transpose(self.root_freq, step.value)
+        self._accent = self.selected_phrase.accents[step.index]
+        self.pitch.value = Note.transpose(self.root_freq, step.value)
         self.bark.mul = self.growl * self._accent
         self.amp.mul = self._accent
         self.trigger.play()

@@ -5,7 +5,7 @@ from pyoscillate.patches.drums.hat.groove import GrooveLofi
 from pyoscillate.patches.drums.kick.kick import KickLofi
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 
 class SlowedReverbRackDefaultsTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
 
         expected = {
             "strings": {
-                "root_freq": notes.F3,
+                "root_freq": Note.F3,
                 "brightness": 3900,
                 "attack": 2.15,
                 "release": 2.9,
@@ -28,7 +28,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 0.7,
             },
             "keys": {
-                "root_freq": notes.E3,
+                "root_freq": Note.E3,
                 "bark": 5.0,
                 "bite": 0.3,
                 "decay": 3.1,
@@ -47,7 +47,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 1.6,
             },
             "soundscape_wash": {
-                "root_freq": notes.E2,
+                "root_freq": Note.E2,
                 "detune": 0.45,
                 "detune_bal": 0.1,
                 "pitch_drift": 0.8,
@@ -70,7 +70,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
                 "volume": 0.3,
             },
             "pluck_hook": {
-                "root_freq": notes.E3,
+                "root_freq": Note.E3,
                 "brightness": 2.4,
                 "decay": 0.45,
                 "brightness_decay": 0.2,
@@ -142,10 +142,10 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         kick_patch._base_division = KickLofi.base_division
         # the patch isn't built, so apply the dropdown's control by hand
         kick_patch.on_evolve(0)
-        kick_patch.use_rhythm(kick_patch.selected_rhythm)
+        kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertFalse(kick_patch._step().hit)
         kick_patch.on_evolve(1)
-        kick_patch.use_rhythm(kick_patch.selected_rhythm)
+        kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertEqual(kick_patch._step().value, 0.45)
 
         hat_patch = GrooveLofi()
@@ -153,12 +153,12 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         hat_patch._division = SimpleNamespace(steps=1)
         hat_patch._base_division = GrooveLofi.base_division
         hat_patch.on_evolve(0)
-        hat_patch.use_rhythm(hat_patch.selected_rhythm)
+        hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertFalse(hat_patch._step().hit)
         hat_patch.on_evolve(1)
-        hat_patch.use_rhythm(hat_patch.selected_rhythm)
+        hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertEqual(hat_patch._step().value, 0.25)
-        self.assertNotIn(2, hat_patch.selected_rhythm.open_steps)
+        self.assertNotIn(2, hat_patch.selected_phrase.open_steps)
 
 
 if __name__ == "__main__":

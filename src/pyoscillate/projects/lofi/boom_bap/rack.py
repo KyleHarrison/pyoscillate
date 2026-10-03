@@ -11,6 +11,7 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -23,9 +24,8 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import C, Harmony
-from pyoscillate.theory.intervals import Progression
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class LofiRack(Rack):
@@ -44,7 +44,7 @@ class LofiRack(Rack):
     # bar from the shared clock, so they change chord together regardless of
     # their own Rate sliders; `keys.Keys` stacks a rootless ninth on the
     # same chord each bar (see keys.py)
-    harmony = Harmony(key=C, progression=Progression.JAZZ_TURNAROUND, bars_per_chord=1)
+    harmony = Harmony(key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1)
 
     # the kick group is declared first so strings and bass can duck off it;
     # `layout` below sets the display order
@@ -196,7 +196,7 @@ class LofiRack(Rack):
         "Strings", (pad_strings,), controls=(strings_energy,), bars=16
     )
     # bass: sparse, thumpy, four-bar phrase with an occasional offbeat
-    # re-entry (`Melody.BASS_CONVERSATION`), or the original one-bar muted
+    # re-entry (`BassLines.BASS_CONVERSATION`), or the original one-bar muted
     # groove. `bars=8` rotates each style's own `variants` melodies
     bass_group = EvolvingGroup(
         "Bass",
@@ -212,7 +212,7 @@ class LofiRack(Rack):
     # lofi/README.md's "Concept-to-patch mapping")
     high_group = GroupController(
         "High Response",
-        (Slot(bell.BellFm, root_freq=notes.A5, strike=0.3, ring=1.1, rate=-1),),
+        (Slot(bell.BellFm, root_freq=Note.A5, strike=0.3, ring=1.1, rate=-1),),
     )
     # atmosphere: continuous vinyl dust / tape crackle, felt more than heard
     noise_group = GroupController("Vinyl Dust", (Slot(noise.NoiseDust),))

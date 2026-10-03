@@ -13,16 +13,16 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Reverb, SeededDraws
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Scale
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.scale import Scales
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 
-MID_ROOT = notes.E4  # current default
+MID_ROOT = Note.E4  # current default
 
 
 class Generative(SeededDraws, Reverb, Patch):
@@ -60,8 +60,8 @@ class Generative(SeededDraws, Reverb, Patch):
     harmony: Harmony
 
     @Param(
-        notes.A2,
-        notes.E5,
+        Note.A2,
+        Note.E5,
         1,
         MID_ROOT,
         "Register",
@@ -151,7 +151,7 @@ class Generative(SeededDraws, Reverb, Patch):
         return self.finish(self.reverb)
 
     def next_note(self) -> None:
-        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        interval = self.draws.choice(Scales.MAJOR_PENTATONIC_OCTAVE.offsets)
         self.fm_voice.carrier = self.harmony.quantise(
             self.root_freq * pow(2, interval / 12)
         )

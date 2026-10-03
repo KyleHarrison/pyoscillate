@@ -20,10 +20,10 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.patches.common import GatedVoice, Rhythmic, Step
-from pyoscillate.theory.notes import semitone_ratio
+from pyoscillate.patches.common import GatedVoice, Phrased, Step
+from pyoscillate.theory.phrase import Rhythms
 
-__all__ = ["DROP", "DrumVoice", "RhythmDrum", "semitone_ratio"]
+__all__ = ["DROP", "DrumVoice", "RhythmDrum"]
 
 # full-to-zero break-points shared by every drum envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]
@@ -35,7 +35,7 @@ class DrumVoice(GatedVoice):
     contract every concrete voice builds on.
 
     A voice that plays a step pattern selects it with a dropdown `Param`
-    (`RhythmDrum` for a `Rhythm`) and calls `self.schedule_pattern(context)`
+    (`RhythmDrum` for a rhythm) and calls `self.schedule_pattern(context)`
     from `build()`. It overrides `apply_gains()` when its level depends on the
     current step's `accent`, and `strike()` for anything extra a hit does.
     `base_division` only sets the range of the rate slider: the grid a hit
@@ -111,11 +111,19 @@ class DrumVoice(GatedVoice):
         self.trigger.play()
 
 
-class RhythmDrum(Rhythmic, DrumVoice):
-    """A drum that plays a `Rhythm` chosen by its `rhythm` dropdown: each hit
+class RhythmDrum(Phrased, DrumVoice):
+    """A drum that plays a rhythm chosen by its `phrase` dropdown: each hit
     carries its step's velocity as `accent`. A voice names its starting
-    rhythm with `rhythm = Voice.rhythm.replace(default=Rhythm.X.index)` and
+    rhythm with `phrase = Voice.phrase.replace(default=Rhythms.X)` and
     gets `next_step` for free."""
+
+    phrase = Phrased.phrase.replace(
+        catalog=Rhythms,
+        default=Rhythms.QUARTER_PULSE,
+        label="Pattern",
+        help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
+        "ghost-noted pocket; every voice draws on the same shared patterns.",
+    )
 
     def next_step(self) -> None:
         step = self._step()

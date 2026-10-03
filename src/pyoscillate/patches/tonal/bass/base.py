@@ -1,6 +1,6 @@
 """Bass-archetype name for the shared gated-voice base.
 
-Every voice in this family strikes one note per clock step of a `Melody`
+Every voice in this family strikes one note per clock step of a phrase
 chosen from its Pattern dropdown, either on a live `root_freq` or re-rooted on
 the rack's current chord each bar - see `current_root` for that shared policy.
 That's the shape `GatedVoice` (`pyoscillate.patches.common`) doesn't already
@@ -9,7 +9,7 @@ this is its name for the bass family.
 
 `build` additionally covers the shared Osc+HarmTable+MoogLP graph the
 groove, hover and techno voices build from a `BassProfile` (a fixed or
-LFO-swept low-pass, struck by the chosen `Melody`'s semitones and accents). A voice
+LFO-swept low-pass, struck by the chosen phrase's semitones and accents). A voice
 with a genuinely different graph (`fm`, `funk`) still subclasses `Bass` for
 `chord_root`/`schedule`/`finish`, but builds its own oscillator and filter
 chain directly in its own `build()` - see `patches/AGENTS.md`'s design
@@ -31,11 +31,11 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Melodic, PitchBend
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, PitchBend
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import BassLines, Melodies
+from pyoscillate.theory.pitch import Note
 
 __all__ = ["AccentBass", "Bass", "BassProfile"]
 
@@ -46,14 +46,14 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 class BassProfile:
     """Timbre policy for one bass voice: how long a note rings, how resonant
     the filter is and which harmonics the oscillator carries. What it plays
-    is the voice's `melody`, not part of the profile."""
+    is the voice's `phrase`, not part of the profile."""
 
     envelope_decay: float
     resonance: float
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
 
 
-class Bass(PitchBend, Gate, Melodic, GatedVoice):
+class Bass(PitchBend, Gate, Phrased, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
     clock step. See `current_root` for the root-pitch policy every concrete
     voice supplies, and `build` for the shared graph the groove, hover and
@@ -62,11 +62,16 @@ class Bass(PitchBend, Gate, Melodic, GatedVoice):
 
     # the centre a chord-following voice's `chord_root` snaps every chord
     # root to the octave nearest
-    register_centre: ClassVar[float] = notes.A1
+    register_centre: ClassVar[float] = Note.A1
     # the style's timbre; supplied by each style subclass
     profile: ClassVar[BassProfile]
-    # the line a style starts on; any `Melody` can be chosen from the dropdown
-    melody = Melodic.melody.replace(default=Melody.BASS_ROLLING.index)
+    # the line a style starts on; any melodic phrase can be chosen from the dropdown
+    phrase = Phrased.phrase.replace(
+        catalog=Melodies,
+        default=BassLines.BASS_ROLLING,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     # shared "Register" control for the harmony-following voices (`chord_root`
     # re-roots on the current chord in the octave nearest `register_centre`);
@@ -197,8 +202,8 @@ class Bass(PitchBend, Gate, Melodic, GatedVoice):
         # note's envelope tail is what's heard.
         step = self._step()
         if step.hit:
-            self.pitch.value = notes.transpose(self.current_root(), step.value)
-            self.apply_accent(self.selected_melody.accents[step.index])
+            self.pitch.value = Note.transpose(self.current_root(), step.value)
+            self.apply_accent(self.selected_phrase.accents[step.index])
             self.trigger.play()
 
     def apply_accent(self, accent: float) -> None:

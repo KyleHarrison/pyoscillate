@@ -10,6 +10,7 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -21,9 +22,8 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import C, Harmony
-from pyoscillate.theory.intervals import Progression
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class SlowedReverbRack(Rack):
@@ -37,7 +37,7 @@ class SlowedReverbRack(Rack):
     # The lofi strings follow this vamp; Keys stacks its voicings on the same chords.
     # Its white-note pitch collection also preserves the rack's E-Phrygian
     # colour, while E remains a common tone for the wash underneath it.
-    harmony = Harmony(key=C, progression=Progression.JAZZ_TURNAROUND, bars_per_chord=1)
+    harmony = Harmony(key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1)
 
     # The kick is declared first so the pad can duck off it; `layout` below
     # sets the display order.
@@ -55,7 +55,7 @@ class SlowedReverbRack(Rack):
 
     lead_strings = Slot(
         strings.Strings,
-        root_freq=notes.F3,
+        root_freq=Note.F3,
         brightness=3900,
         attack=2.15,
         release=2.9,
@@ -66,7 +66,7 @@ class SlowedReverbRack(Rack):
     )
     lead_keys = Slot(
         keys.Keys,
-        root_freq=notes.E3,
+        root_freq=Note.E3,
         bark=5.0,
         bite=0.3,
         decay=3.1,
@@ -78,7 +78,7 @@ class SlowedReverbRack(Rack):
     # follows the rack's chord progression (see README.md's shared-harmony note)
     bass_hover = Slot(
         bass.BassHover,
-        root_freq=notes.E1,
+        root_freq=Note.E1,
         cutoff=770,
         reverb_size=0.85,
         reverb_damp=0.85,
@@ -90,7 +90,7 @@ class SlowedReverbRack(Rack):
     pad_wash = Slot(
         wash.SoundscapeWash,
         sidechains=(SidechainSource(kick_group, depth=0.15, release=0.3),),
-        root_freq=notes.E2,
+        root_freq=Note.E2,
         detune=0.45,
         detune_bal=0.1,
         pitch_drift=0.8,
@@ -104,7 +104,7 @@ class SlowedReverbRack(Rack):
         delay_feedback=0.7,
         volume=0.5,
     )
-    hook_pluck = Slot(pluck.PluckHook, root_freq=notes.E3, rate=-1, volume=0.4)
+    hook_pluck = Slot(pluck.PluckHook, root_freq=Note.E3, rate=-1, volume=0.4)
     texture_dust = Slot(
         noise.NoiseDust,
         brightness=1200,

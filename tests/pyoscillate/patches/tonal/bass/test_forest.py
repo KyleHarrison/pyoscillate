@@ -12,7 +12,7 @@ import numpy as np
 
 from pyoscillate.analysis.features import to_db
 from pyoscillate.analysis.render import Render, render
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import BassLines
 
 MODULE = "pyoscillate.patches.tonal.bass.groove"
 BPM = 160
@@ -34,7 +34,7 @@ def _step_rms_db(result: Render, step: int) -> float:
 
 class ForestBassTests(unittest.TestCase):
     def test_gates_rest_on_every_beat(self) -> None:
-        steps = Melody.BASS_FOREST.steps
+        steps = BassLines.BASS_FOREST.values
 
         self.assertEqual(
             [step for step in range(16) if step not in steps], [0, 4, 8, 12]

@@ -5,7 +5,7 @@ from pyoscillate.patches.drums.kick.kick import KickPunch
 from pyoscillate.patches.tonal.bass.groove import BassForest
 from pyoscillate.patches.tonal.lead.fm import LeadFmSwirl, LeadFmWind
 from pyoscillate.projects.forest_psytrance.rack import ForestPsytranceRack
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 
 class ForestPsytranceRackTests(unittest.TestCase):
@@ -38,9 +38,9 @@ class ForestPsytranceRackTests(unittest.TestCase):
     def test_harmony_stays_on_f_and_leans_on_the_flat_second(self) -> None:
         harmony = ForestPsytranceRack().harmony
 
-        roots = [harmony.chord_freq(notes.F1, bar) for bar in range(8)]
+        roots = [harmony.chord_freq(Note.F1, bar) for bar in range(8)]
 
-        for root, expected in zip(roots, [notes.F1] * 6 + [notes.Fs1] * 2):
+        for root, expected in zip(roots, [Note.F1] * 6 + [Note.Fs1] * 2):
             self.assertAlmostEqual(root, expected, delta=0.01)
 
 

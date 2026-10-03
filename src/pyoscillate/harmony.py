@@ -3,22 +3,20 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from pyoscillate.theory.intervals import Progression, Scale, Voicing
-from pyoscillate.theory.notes import freq_to_midi, midi_to_freq
-
-# pitch class of C, for a rack whose vamp is easiest to name off a major-key
-# centre (e.g. roman-numeral chords built from scale degrees)
-C = 0
-# pitch class of F, for the dark psytrance racks
-F = 5
-# pitch class of A, the default key for racks that don't choose one
-A = 9
+from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progression
+from pyoscillate.theory.scale import Scale, Scales
 
 
 @dataclass(eq=False)
 class Harmony:
-    """Rack-level key and chord progression that every pitched patch reads
-    from, so the bass, chords and pitched percussion change chord together.
+    """A rack's key and chord progression, which its pitched patches read so
+    the bass, chords and pitched percussion change chord together.
+
+    Each `Rack` owns one (a fresh copy per rack instance, since the Flet key
+    and progression controls mutate it) and hands it to every patch through
+    `BuildContext.harmony`; a patch that has no use for harmony ignores it.
 
     The current chord is looked up from a bar number - pass
     `clock.bar_index` - never from a patch's own step counter. A patch's
@@ -31,11 +29,11 @@ class Harmony:
     rebuilt patch is correct on its first note with nothing to re-apply.
 
     Plain Python data only - no Pyo objects - so it has no graph-ownership
-    duties and can live as a module-level value in a project's rack.
+    duties.
     """
 
     # pitch class of the tonic, 0 = C ... 11 = B
-    key: int = A
+    key: int = Note.KEY_A
     # the chord changes: a named `Progression`, or chord roots (semitones
     # above the key, one per bar) for changes the table doesn't name. Read
     # the roots through `roots`.
@@ -55,14 +53,14 @@ class Harmony:
         """
         if not self.scale:
             return freq
-        return midi_to_freq(self.scale.snap(freq_to_midi(freq), self.key))
+        return Note.midi_to_freq(self.scale.snap(Note.freq_to_midi(freq), self.key))
 
     def voice(
-        self, shape: Voicing, root_degree: int = 0, scale: Scale | None = None
+        self, shape: Chord, root_degree: int = 0, scale: Scale | None = None
     ) -> tuple[int, ...]:
         """`shape` resolved through `scale` - the one passed in, else the
         rack's, else major - as semitones above the chord root."""
-        return (scale or self.scale or Scale.MAJOR).voice(shape, root_degree)
+        return (scale or self.scale or Scales.MAJOR).voice(shape, root_degree)
 
     @property
     def roots(self) -> tuple[int, ...]:
@@ -77,17 +75,17 @@ class Harmony:
         index = (bar // self.bars_per_chord) % len(self.roots)
         return self.roots[index]
 
-    def chord_tones(self, bar: int, shape: Voicing) -> tuple[int, ...]:
+    def chord_tones(self, bar: int, shape: Chord) -> tuple[int, ...]:
         """`shape` stacked on the chord sounding in `bar`, as semitones above
         the key. The stack is read from the scale (the rack's, else major) at
         the chord root's degree, so the same shape comes out minor on a ii and
         major on a I without the progression naming chord qualities."""
-        scale = self.scale or Scale.MAJOR
+        scale = self.scale or Scales.MAJOR
         return scale.voice(shape, scale.degree(self.chord_offset(bar)))
 
     def key_freq(self, centre: float) -> float:
         """The tonic nearest `centre` Hz."""
-        return _nearest(self.key, centre)
+        return self.nearest(self.key, centre)
 
     def chord_freq(self, centre: float, bar: int) -> float:
         """The root of `bar`'s chord, in the octave nearest `centre` Hz.
@@ -97,12 +95,14 @@ class Harmony:
         whatever the key: every root lands within a tritone of `centre`, so
         a progression like A-D-G-E never climbs out of the part's range.
         """
-        return _nearest(self.key + self.chord_offset(bar), centre)
+        return self.nearest(self.key + self.chord_offset(bar), centre)
 
-
-def _nearest(pitch_class: int, centre: float) -> float:
-    """Frequency of `pitch_class` in the octave nearest `centre` Hz, with a
-    tritone tie resolved downward."""
-    centre_note = freq_to_midi(centre)
-    note = pitch_class % 12 + 12 * math.ceil((centre_note - 6 - pitch_class % 12) / 12)
-    return midi_to_freq(note)
+    @staticmethod
+    def nearest(pitch_class: int, centre: float) -> float:
+        """Frequency of `pitch_class` in the octave nearest `centre` Hz, with a
+        tritone tie resolved downward."""
+        centre_note = Note.freq_to_midi(centre)
+        note = pitch_class % 12 + 12 * math.ceil(
+            (centre_note - 6 - pitch_class % 12) / 12
+        )
+        return Note.midi_to_freq(note)

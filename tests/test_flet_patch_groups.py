@@ -7,12 +7,13 @@ from unittest.mock import MagicMock
 import flet as ft
 from pyoscillate.controller import GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
+from pyoscillate.theory.phrase import Rhythms
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
 
@@ -25,9 +26,40 @@ class _StubPatch(Patch):
     summary = "Test voice."
 
     test_value = Param(0.0, 1.0, 0.1, 0.5, "Test value", "Helpful detail")
+    test_phrase = choice_param(Rhythms, Rhythms.BACKBEAT, "Picks a rhythm.")
 
     def build(self, context: BuildContext) -> Patch:
         return self
+
+
+class PresetIdTests(unittest.TestCase):
+    """A dropdown is saved as its option's id, not its position."""
+
+    def setUp(self) -> None:
+        self.voice = _StubPatch()
+        self.panel = PatchPanel(self.voice)
+
+    def test_a_dropdown_is_saved_as_its_id(self) -> None:
+        self.voice.test_phrase = Rhythms.FOUR_ON_THE_FLOOR
+
+        saved = self.panel.to_preset()
+
+        self.assertEqual(saved["test_phrase"], "four_on_the_floor")
+        self.assertEqual(saved["test_value"], 0.5)
+
+    def test_a_saved_id_selects_its_member_even_after_a_reorder(self) -> None:
+        self.panel.apply_preset({"test_phrase": "offbeat_house"})
+
+        self.assertEqual(
+            self.voice.test_phrase, Rhythms.index_of(Rhythms.OFFBEAT_HOUSE)
+        )
+
+    def test_an_unknown_id_leaves_the_dropdown_alone(self) -> None:
+        before = self.voice.test_phrase
+
+        self.panel.apply_preset({"test_phrase": "no_such_rhythm"})
+
+        self.assertEqual(self.voice.test_phrase, before)
 
 
 class PatchGroupTests(unittest.TestCase):

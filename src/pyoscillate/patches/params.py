@@ -5,12 +5,8 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, overload
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.theory.intervals import Choice
-from pyoscillate.theory.notes import (
-    freq_to_midi,
-    midi_to_freq,
-    note_name,
-)
+from pyoscillate.theory.catalog import Catalog, CatalogItem
+from pyoscillate.theory.pitch import Note
 
 
 def decimal_places(step: float) -> int:
@@ -48,11 +44,14 @@ class SliderSpec:
     # named choices for a stepped parameter: the value is an index into
     # these, and a UI shows a dropdown instead of a slider
     options: tuple[str, ...] = ()
+    # a stable id for each option, in the same order: what a preset stores,
+    # so a saved choice survives the catalog being reordered
+    option_ids: tuple[str, ...] = ()
 
     def to_position(self, value: float) -> float:
         """Where `value` sits on the slider's track."""
         if self.scale == "note":
-            return round(freq_to_midi(value) / self.step) * self.step
+            return round(Note.freq_to_midi(value) / self.step) * self.step
         if self.scale == "cutoff":
             span = self.maximum - self.minimum
             fraction = min(max((value - self.minimum) / span, 0.0), 1.0)
@@ -62,7 +61,7 @@ class SliderSpec:
     def from_position(self, position: float) -> float:
         """The parameter value for a track position, snapped to a tick."""
         if self.scale == "note":
-            return midi_to_freq(round(position / self.step) * self.step)
+            return Note.midi_to_freq(round(position / self.step) * self.step)
         if self.scale == "cutoff":
             ticked = min(max(round(position / self.step) * self.step, 0.0), 1.0)
             return (
@@ -91,7 +90,7 @@ class SliderSpec:
         if self.options:
             return self.options[min(max(int(value), 0), len(self.options) - 1)]
         if self.scale == "note":
-            return note_name(value)
+            return Note.name(value)
         if self.scale == "cutoff":
             return f"{value:.0f}"
         return f"{value:.{decimal_places(self.step)}f}"
@@ -147,8 +146,16 @@ class Param:
         rebuild: bool = False,
         sweep: bool = False,
         options: tuple[str, ...] = (),
+        option_ids: tuple[str, ...] = (),
+        catalog: type[Catalog] | None = None,
         control: Control = noop_control,
     ) -> None:
+        raw_default = default
+        if catalog is not None:
+            options, option_ids = catalog.labels(), catalog.ids()
+            minimum, maximum, step = 0, len(options) - 1, 1
+            if isinstance(default, CatalogItem):
+                default = catalog.index_of(default)
         self._fields: dict[str, Any] = {
             "minimum": minimum,
             "maximum": maximum,
@@ -160,8 +167,27 @@ class Param:
             "rebuild": rebuild,
             "sweep": sweep,
             "options": options,
+            "option_ids": option_ids,
+        }
+        # what `replace` starts from: the arguments as given, so a catalog
+        # member default is re-resolved if the catalog is swapped
+        self._given: dict[str, Any] = {
+            "minimum": minimum,
+            "maximum": maximum,
+            "step": step,
+            "default": raw_default,
+            "label": label,
+            "help_text": help_text,
+            "scale": scale,
+            "rebuild": rebuild,
+            "sweep": sweep,
+            "options": options,
+            "option_ids": option_ids,
+            "catalog": catalog,
         }
         self.control = control
+        # the catalog a choice parameter's options come from, if any
+        self.catalog = catalog
         self.rebuild = rebuild
         # whether each patch instance may sweep this parameter (see `Sweep`)
         self.sweep = sweep
@@ -177,7 +203,7 @@ class Param:
 
     def replace(self, **changes: Any) -> Param:
         """A copy with some slider fields changed and the same control."""
-        copy = Param(**{**self._fields, **changes}, control=self.control)
+        copy = Param(**{**self._given, **changes}, control=self.control)
         copy.origin = self.origin
         return copy
 
@@ -211,7 +237,9 @@ class Param:
             return self
         return obj.__dict__[self.name]
 
-    def __set__(self, obj: Any, value: float) -> None:
+    def __set__(self, obj: Any, value: float | CatalogItem) -> None:
+        if isinstance(value, CatalogItem):
+            value = self.spec.option_ids.index(value.id)
         obj.__dict__[self.name] = value
         if obj.built:
             obj.apply_param(self, value)
@@ -239,26 +267,26 @@ def rate_param(base_division: NoteDivision, help_text: str) -> Param:
 
 
 def choice_param(
-    catalog: type[Choice],
-    default: Choice,
+    catalog: type[Catalog],
+    default: CatalogItem,
     help_text: str,
     *,
     label: str = "Pattern",
     rebuild: bool = False,
     control: Control = noop_control,
 ) -> Param:
-    """A dropdown `Param` over every member of `catalog` (a `Rhythm`,
-    `Melody`, ...), stored as the member's index. A style picks its own
-    starting member with `Voice.pattern.replace(default=Member.index)`."""
-    options = catalog.labels()
+    """A dropdown `Param` over every member of `catalog`, stored as the
+    member's position and persisted as its id. A style picks its own starting
+    member with `Voice.phrase.replace(default=Member)`, and assigning a member
+    (`self.phrase = Member`) selects it."""
     return Param(
         0,
-        len(options) - 1,
+        0,
         1,
-        default.index,
+        default,
         label,
         help_text,
         rebuild=rebuild,
-        options=options,
+        catalog=catalog,
         control=control,
     )

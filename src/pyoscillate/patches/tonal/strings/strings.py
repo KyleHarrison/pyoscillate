@@ -25,13 +25,14 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Rhythmic, RootPitch
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ChordShape, Rhythm
+from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.pitch import Note
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
@@ -43,7 +44,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(Gate, Flood, Disperse, Comb, RootPitch, Rhythmic, GatedVoice):
+class Strings(Gate, Flood, Disperse, Comb, RootPitch, Phrased, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -52,7 +53,12 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Rhythmic, GatedVoice):
     volume = Patch.volume.replace(default=0.5)
     base_division: ClassVar[NoteDivision] = NoteDivision.WHOLE
     # the ensemble re-articulates once a bar, on the chord change
-    rhythm = Rhythmic.rhythm.replace(default=Rhythm.BAR_PULSE.index)
+    phrase = Phrased.phrase.replace(
+        catalog=Rhythms,
+        default=Rhythms.BAR_PULSE,
+        help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
+        "ghost-noted pocket; every voice draws on the same shared patterns.",
+    )
 
     # candidate intervals (semitones above the root) for the colour voice: a
     # major 9th (default) and a major 13th, an octave-and-a-6th up - both
@@ -181,11 +187,11 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Rhythmic, GatedVoice):
         # finish() below) apply the live values, per patches/AGENTS.md's
         # rule against repeating a parameter's mapping in build()
         self.chord_saws = [
-            SuperSaw(freq=notes.transpose(root, interval), detune=0, bal=0.7, mul=GAIN)
-            for interval in ChordShape.OPEN_FIFTH.value
+            SuperSaw(freq=Note.transpose(root, interval), detune=0, bal=0.7, mul=GAIN)
+            for interval in Chords.OPEN_FIFTH.offsets
         ]
         self.colour_saw = SuperSaw(
-            freq=notes.transpose(root, self._colour_interval), detune=0, bal=0.7, mul=0
+            freq=Note.transpose(root, self._colour_interval), detune=0, bal=0.7, mul=0
         )
         self.mixed = Mix([*self.chord_saws, self.colour_saw], voices=1)
         self.filtered = Biquad(self.mixed, freq=self.brightness, q=FILTER_Q, type=0)
@@ -222,8 +228,8 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Rhythmic, GatedVoice):
             return
         new_root = self.current_root(self._clock)
         for saw, interval in zip(
-            self.chord_saws, ChordShape.OPEN_FIFTH.value, strict=True
+            self.chord_saws, Chords.OPEN_FIFTH.offsets, strict=True
         ):
-            saw.freq = notes.transpose(new_root, interval)
-        self.colour_saw.freq = notes.transpose(new_root, self._colour_interval)
+            saw.freq = Note.transpose(new_root, interval)
+        self.colour_saw.freq = Note.transpose(new_root, self._colour_interval)
         self.amp_env.play()

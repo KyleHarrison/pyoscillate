@@ -7,19 +7,18 @@ import unittest
 from unittest.mock import MagicMock
 
 import pyoscillate.patches
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param, SliderSpec
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.notes import freq_to_midi, midi_to_freq
+from pyoscillate.theory.pitch import Note
 
 REGISTER = SliderSpec(
-    "root_freq", notes.B0, notes.A2, 1, notes.A1, "Register", "", scale="note"
+    "root_freq", Note.B0, Note.A2, 1, Note.A1, "Register", "", scale="note"
 )
 
 
 def _is_note(freq: float) -> bool:
-    midi = freq_to_midi(freq)
+    midi = Note.freq_to_midi(freq)
     return abs(midi - round(midi)) < 1e-3
 
 
@@ -44,19 +43,27 @@ def _patch_parameters() -> dict[str, tuple[SliderSpec, ...]]:
 
 class NoteHelperTests(unittest.TestCase):
     def test_midi_and_freq_round_trip(self):
-        self.assertAlmostEqual(midi_to_freq(69), 440)
-        self.assertAlmostEqual(freq_to_midi(notes.A1), 33, places=4)
+        self.assertAlmostEqual(Note.midi_to_freq(69), 440)
+        self.assertAlmostEqual(Note.freq_to_midi(Note.A1), 33, places=4)
 
     def test_note_names_match_the_rack_key_spelling(self):
-        self.assertEqual(notes.note_name(notes.A1), "A1")
-        self.assertEqual(notes.note_name(notes.Fs2), "F#2")
-        self.assertEqual(notes.note_name(notes.Ds2), "Eb2")
-        self.assertEqual(notes.note_name(notes.C0), "C0")
+        self.assertEqual(Note.name(Note.A1), "A1")
+        self.assertEqual(Note.name(Note.Fs2), "F#2")
+        self.assertEqual(Note.name(Note.Ds2), "Eb2")
+        self.assertEqual(Note.name(Note.C0), "C0")
 
-    def test_short_aliases_match_their_members(self):
-        for member in notes.Note:
-            with self.subTest(note=member.name):
-                self.assertEqual(getattr(notes, member.name), member.value)
+    def test_every_note_is_a_plain_float_in_tune(self):
+        # pyo type-checks arguments exactly, so a note must be a bare float
+        pitch_classes = ("C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B")
+        for octave in range(11):
+            for index, pitch_class in enumerate(pitch_classes):
+                name = f"{pitch_class}{octave}"
+                with self.subTest(note=name):
+                    freq = getattr(Note, name)
+                    self.assertIs(type(freq), float)
+                    self.assertAlmostEqual(
+                        Note.freq_to_midi(freq), 12 * (octave + 1) + index, places=2
+                    )
 
 
 class NoteSliderTests(unittest.TestCase):
@@ -70,16 +77,16 @@ class NoteSliderTests(unittest.TestCase):
                 self.assertTrue(_is_note(freq), freq)
 
     def test_positions_between_ticks_snap_to_a_note(self):
-        position = REGISTER.to_position(notes.A1) + 0.4
-        self.assertAlmostEqual(REGISTER.from_position(position), notes.A1, places=2)
+        position = REGISTER.to_position(Note.A1) + 0.4
+        self.assertAlmostEqual(REGISTER.from_position(position), Note.A1, places=2)
 
     def test_stored_values_snap_to_the_nearest_note_in_range(self):
-        self.assertAlmostEqual(REGISTER.snap(92), notes.Fs2, places=2)
-        self.assertAlmostEqual(REGISTER.snap(10), notes.B0, places=2)
-        self.assertAlmostEqual(REGISTER.snap(500), notes.A2, places=2)
+        self.assertAlmostEqual(REGISTER.snap(92), Note.Fs2, places=2)
+        self.assertAlmostEqual(REGISTER.snap(10), Note.B0, places=2)
+        self.assertAlmostEqual(REGISTER.snap(500), Note.A2, places=2)
 
     def test_label_is_the_note_name(self):
-        self.assertEqual(REGISTER.format(notes.A1), "A1")
+        self.assertEqual(REGISTER.format(Note.A1), "A1")
 
     def test_linear_sliders_are_unchanged(self):
         spec = SliderSpec("decay", 0.05, 2, 0.05, 0.3, "Decay", "")

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
@@ -14,8 +15,8 @@ from pyoscillate.patches.params import RateParam
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.harmony import A, Harmony
-from pyoscillate.theory.intervals import Voicing
+from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.pitch import Note
 
 
 class ServerStartupTests(unittest.TestCase):
@@ -58,10 +59,11 @@ class KickNativeCrashTests(unittest.TestCase):
     def test_two_kicks_survive_live_updates(self) -> None:
         code = """
 from pyoscillate.clock import Clock
-from pyoscillate.theory.harmony import Harmony
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, start_server
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.chord import Chords
 
 server = start_server(audio="manual")
 tempo = Tempo(bpm=122)
@@ -130,7 +132,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
 
         self.assertIn("Trig", resource_types)
         self.assertIn("TrigEnv", resource_types)
-        self.assertEqual(resource_types.count("Osc"), len(Voicing.SEVENTH_CHORD.value))
+        self.assertEqual(resource_types.count("Osc"), len(Chords.SEVENTH_CHORD.offsets))
 
     def test_arp_glide_and_gate_follow_tempo(self) -> None:
         patch = arp.Arp()
@@ -155,7 +157,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
                 resource_types = [type(r).__name__ for r in patch.resources]
                 self.assertEqual(
                     resource_types.count("Osc"),
-                    len(Voicing.by_index(index).value),
+                    len(Chords.by_index(index).offsets),
                 )
                 loudness = sum(env.mul for env in patch.note_envs)
                 self.assertAlmostEqual(loudness, 4 * stab.Stab.NOTE_LEVEL)
@@ -202,7 +204,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
                 self.assertEqual(pitch_class, expected)
 
     def test_bass_chord_and_tom_change_chord_on_the_same_bar(self) -> None:
-        harmony = Harmony(key=A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
         saved_tick = self.clock._tick
         try:
             for bar, pitch_class in enumerate((9, 2, 7, 4)):  # A, D, G, E
@@ -215,7 +217,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             self.clock._tick = saved_tick
 
     def test_changing_the_key_moves_every_part_together(self) -> None:
-        harmony = Harmony(key=A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
         saved_tick = self.clock._tick
         try:
             self.clock._tick = 0

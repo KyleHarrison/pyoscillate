@@ -22,12 +22,12 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Reverb
 from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Walk
+from pyoscillate.theory.phrase.walk import Walks
+from pyoscillate.theory.pitch import Note
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 
-ARP_ROOT = notes.Gs3  # current default
+ARP_ROOT = Note.Gs3  # current default
 # dur is longer than the step time so envelopes overlap into a sustained pad
 ENVELOPE_POINTS = [(0, 0), (2000, 1), (5000, 0.4), (8191, 0)]
 
@@ -102,8 +102,8 @@ class Atmosphere(Gate, Reverb, GatedVoice):
 
     # read at each step, so it needs no live control
     walk = choice_param(
-        Walk,
-        Walk.MINOR_7_ARCH,
+        Walks,
+        Walks.MINOR_7_ARCH,
         "Picks the line of pitches the pad steps through; every pitched voice draws on the same "
         "shared walks.",
     )
@@ -150,7 +150,7 @@ class Atmosphere(Gate, Reverb, GatedVoice):
         # derived from the shared clock's own tick, not a local counter
         # that starts at 0 whenever this patch is built or restarted -
         # see `Clock.tick`'s docstring
-        walk = Walk.by_index(int(self.walk)).value
+        walk = Walks.by_index(int(self.walk)).offsets
         i = (self._clock.tick // self.step_division) % len(walk)
         self.fm_voice.carrier = self.arp_root * pow(2, walk[i] / 12)
         self.trigger.play()

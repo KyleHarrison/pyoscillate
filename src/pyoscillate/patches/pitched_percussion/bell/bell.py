@@ -34,8 +34,8 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import RING_CURVE, RootPitch, decay_points
 from pyoscillate.patches.params import Param, choice_param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import Fills, Melodies, Phrase
+from pyoscillate.theory.pitch import Note
 
 STYLES = ("chime", "fm")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -82,7 +82,7 @@ def _peak_index(strike: float) -> float:
 
 
 class Bell(RootPitch, Patch):
-    """Struck bell playing its `melody` across `VOICES` rotating voices, so a
+    """Struck bell playing its `phrase` across `VOICES` rotating voices, so a
     long ring overlaps the next strike instead of being cut or retuned
     mid-ring. Style variants subclass this and override `voice_graph()`,
     `set_strike()` and `set_ring()`; the pattern stepping and voice rotation
@@ -100,9 +100,9 @@ class Bell(RootPitch, Patch):
     _grid: NoteDivision
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.A3,
-        maximum=notes.A5,
-        default=notes.A4,
+        minimum=Note.A3,
+        maximum=Note.A5,
+        default=Note.A4,
         help_text="Moves the bell figure up or down; low reads as a church bell or gong, high as a glockenspiel or chime.",
     )
 
@@ -130,24 +130,24 @@ class Bell(RootPitch, Patch):
     def ring(self, value: float) -> None:
         self.set_ring(value)
 
-    def _select_melody(self, value: float) -> None:
-        self._grid = Melody.by_index(int(value)).division
+    def _select_phrase(self, value: float) -> None:
+        self._grid = Melodies.by_index(int(value)).division
         self.reschedule(self.rate)
 
     # the figure, as semitones above Register; the bell steps through its own
-    # counter, so any `Melody` on any grid plays from the top when chosen
-    melody = choice_param(
-        Melody,
-        Melody.BELL_FIGURE,
+    # counter, so any melodic phrase on any grid plays from the top when chosen
+    phrase = choice_param(
+        Melodies,
+        Fills.BELL_FIGURE,
         "Picks the figure the bell rings, as pitches above its register; every pitched voice draws on "
         "the same shared lines.",
-        control=_select_melody,
+        control=_select_phrase,
     )
 
     @property
-    def selected_melody(self) -> Melody:
-        """The `Melody` the `melody` dropdown currently names."""
-        return Melody.by_index(int(self.melody))
+    def selected_phrase(self) -> Phrase:
+        """The phrase the `phrase` dropdown currently names."""
+        return Melodies.by_index(int(self.phrase))
 
     rate = rate_param(
         base_division,
@@ -183,7 +183,7 @@ class Bell(RootPitch, Patch):
         self._clock = context.clock
         self._pattern_step = 0
         self._voice_slot = 0
-        self._grid = self.selected_melody.division
+        self._grid = self.selected_phrase.division
 
         self.voice_signal = self.voice_graph()
 
@@ -193,12 +193,12 @@ class Bell(RootPitch, Patch):
         return self.finish(self.voice_signal)
 
     def next_step(self) -> None:
-        melody = self.selected_melody
-        index = self._pattern_step % melody.cycle
-        steps = melody.steps
+        phrase = self.selected_phrase
+        index = self._pattern_step % phrase.cycle
+        steps = phrase.values
         if index in steps:
             slot = self._voice_slot
-            self.tune(slot, notes.transpose(self.root_freq, steps[index]))
+            self.tune(slot, Note.transpose(self.root_freq, steps[index]))
             self.triggers[slot].play()
             self._voice_slot = (slot + 1) % VOICES
         self._pattern_step += 1

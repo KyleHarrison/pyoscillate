@@ -7,10 +7,10 @@ rattle whose exponential tail runs from a dry crack to a small-room wash. It
 sits on the backbeat under the clap, with a ghost note that swings into the
 next bar.
 
-The default voice starts on the 16-step `Rhythm.BACKBEAT_GHOST`; `SnareLofi`
-starts on the 32-step (32nd-note) `Rhythm.SNARE_LOFI`, so its backbeat can
+The default voice starts on the 16-step `Rhythms.BACKBEAT_GHOST`; `SnareLofi`
+starts on the 32-step (32nd-note) `Rhythms.SNARE_LOFI`, so its backbeat can
 swing behind the straight grid and its ghost notes can sit at positions a
-plain 16-step pattern can't express. Either can play any `Rhythm` from its
+plain 16-step pattern can't express. Either can play any rhythm from its
 Pattern dropdown.
 """
 
@@ -24,10 +24,10 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import RhythmDrum, semitone_ratio
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.pitch import Note
 
 
 class Snare(RhythmDrum):
@@ -40,8 +40,8 @@ class Snare(RhythmDrum):
     bend_curve: ClassVar[float] = 6
 
     # the backbeat with a quiet final ghost note
-    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.BACKBEAT_GHOST.index)
-    base_freq: ClassVar[float] = notes.Fs3
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.BACKBEAT_GHOST)
+    base_freq: ClassVar[float] = Note.Fs3
     # pitch bend at the strike, as a fraction above the body - kept well
     # below a kick's so the snare never turns into a zap or tom
     bend_depth: ClassVar[float] = 0.35
@@ -79,7 +79,7 @@ class Snare(RhythmDrum):
         "Retunes the drum body in semitones; lower is fatter and heavier, higher is tighter and more ringing.",
     )
     def tune(self, value: float) -> None:
-        self.tuning.value = semitone_ratio(value)
+        self.tuning.value = Note.semitone_ratio(value)
 
     @Param(
         0.0,
@@ -139,7 +139,7 @@ class Snare(RhythmDrum):
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.tuning = Sig(semitone_ratio(self.tune))
+        self.tuning = Sig(Note.semitone_ratio(self.tune))
         self.body_freq = self.tuning * self.base_freq
 
         self.pitched_body(
@@ -171,7 +171,7 @@ class SnareLofi(Snare):
         "Soft, filtered boom-bap snare with a behind-the-beat backbeat and ghost notes."
     )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
-    rhythm = Snare.rhythm.replace(default=Rhythm.SNARE_LOFI.index)
+    phrase = Snare.phrase.replace(default=Rhythms.SNARE_LOFI)
     # closes the rattle's high-passed edge down into a duller, muffled crack
     lowpass_cutoff: ClassVar[float] = 2600.0
     # light saturation warms the body/rattle mix without turning it harsh

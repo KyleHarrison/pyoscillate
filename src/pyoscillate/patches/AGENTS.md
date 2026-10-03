@@ -165,20 +165,26 @@ sidechains are bound by the rack - there are no `name=`/
 - `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
   a no-op `ContinuousSequencer`.
 
-**Patterns.** Every step pattern lives once in `theory/intervals.py`, as a
-member of `Rhythm` (hit velocities), `Melody` (semitone offsets above the
-chord root, with optional accents and lengths) or `ChordTones` (chord-tone
-indexes); a member is `(division, cycle, entries, label)`. A patch never
-defines its own: it mixes in `Rhythmic`, `Melodic` or `Figured` (`common.py`),
-which add a dropdown `Param` (`rhythm`/`melody`/`figure`) over the whole
-catalog, schedule on the chosen pattern's own grid and swap it live. A style
-names its starting pattern with `rhythm = Rhythmic.rhythm.replace(default=
-Rhythm.X.index)` and, for `on_evolve`, rotates by assigning the `Param`
-(`self.rhythm = variant.index`), so the dropdown stays the single source. A
-pattern a patch needs that the catalog lacks is added there (append only: a
-saved dropdown index must keep meaning the same pattern), so every other patch
-can play it too. `base_division` stays on the class only to set the range of
-the `rate` slider.
+**Phrases.** Every step pattern lives once under `theory/phrase/`, as a
+`Phrase` member of a role catalog (`Rhythms`, `BassLines`, `Leads`, `Fills`,
+`Hooks`; `ArpOrders` and `Walks` for the patches that need a note pool or a
+pace of their own). A `Phrase` is `division`, `cycle`, a tuple of named-field
+`Step(at, offset, accent, length, open)`s, and a `mode` (`PhraseMode`) saying
+what `offset` means: nothing for a drum rhythm (`NONE`), semitones above the
+chord root (`SEMITONES`), an index into the chord's triad (`CHORD_TONE`) or
+into a note pool the patch supplies (`POOL_INDEX`). A patch never defines its
+own: it mixes in `Phrased` (`common.py`), which adds a dropdown `Param`
+(`phrase`), schedules on the chosen phrase's own grid and swaps it live. A
+voice family names the catalog it offers and its starting phrase with
+`phrase = Phrased.phrase.replace(catalog=Rhythms, default=Rhythms.X)`; a style
+changes only the default (`phrase = Voice.phrase.replace(default=Rhythms.Y)`)
+and, for `on_evolve`, rotates by assigning the member to the `Param`
+(`self.phrase = variant`), so the dropdown stays the single source. The
+`Param` stores the member's position but a preset stores its stable `id`
+(the lowercase attribute name), so members can be added or reordered. A phrase
+a patch needs that the catalogs lack is added there, so every other patch can
+play it too. `base_division` stays on the class only to set the range of the
+`rate` slider.
 
 **`Step.hit` vs `Step.value`.** `hit` says whether the pattern has an event at
 the step (structure); `value` says what the event carries (an accent, a pitch
@@ -429,7 +435,7 @@ A slider that sets a pitch in Hz (Register, `root_freq`) takes
 `scale="note"`: its ticks are equal-tempered semitones and its label shows
 the note name, so it can only land on in-tune notes. Keep the parameter in
 Hz and give its `minimum`, `maximum` and `default` as notes from
-`theory/notes` (`notes.A1`, not `55`). Continuous detune belongs in its own
+`Note` in `theory/pitch.py` (`Note.A1`, not `55`). Continuous detune belongs in its own
 control, not in a Register slider with Hz steps.
 
 ### 3. Parameter changes should usually be live

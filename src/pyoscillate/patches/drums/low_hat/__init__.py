@@ -19,7 +19,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Rhythms
 
 # the tick's own default decay (s); read directly at construction (as well as
 # from its own `@Param`) since there's no separate style constant behind it
@@ -34,7 +34,7 @@ class LowHat(RhythmDrum):
     title = "Low hat"
     summary = "Darker, rarer accent beneath the main hat."
     volume = Patch.volume.replace(default=0.2)
-    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.QUARTER_PULSE.index)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.QUARTER_PULSE)
     base_division: ClassVar[NoteDivision] = NoteDivision.QUARTER
     # exponent of the decay curve - a sharp, strongly exponential drop keeps
     # the accent percussive even with a darker spectrum

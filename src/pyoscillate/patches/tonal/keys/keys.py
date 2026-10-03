@@ -40,19 +40,20 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     RING_CURVE,
     Gate,
     GatedVoice,
-    Rhythmic,
+    Phrased,
     RootPitch,
     decay_points,
 )
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Rhythm, Voicing
+from pyoscillate.theory.chord import Chord, Chords
+from pyoscillate.theory.phrase import Phrase, Rhythms
+from pyoscillate.theory.pitch import Note
 
 NOTES = 4
 SLOTS = 4
@@ -63,8 +64,8 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, RootPitch, Rhythmic, GatedVoice):
-    """FM electric piano comping the rack's chord changes in a `Rhythm`.
+class Keys(Gate, RootPitch, Phrased, GatedVoice):
+    """FM electric piano comping the rack's chord changes in a rhythm.
     See the module docstring for the sonic detail."""
 
     title = "Keys (FM electric piano)"
@@ -142,20 +143,21 @@ class Keys(Gate, RootPitch, Rhythmic, GatedVoice):
     throb: PyoObject
     voice_signal: PyoObject
 
-    rhythm = Rhythmic.rhythm.replace(
-        default=Rhythm.CHARLESTON.index,
+    phrase = Phrased.phrase.replace(
+        catalog=Rhythms,
+        default=Rhythms.CHARLESTON,
         help_text="Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
         "or one chord left to ring.",
     )
 
-    def use_rhythm(self, rhythm: Rhythm) -> None:
-        super().use_rhythm(rhythm)
-        self._hit_steps = tuple(sorted(rhythm.hits))
+    def use_phrase(self, phrase: Phrase) -> None:
+        super().use_phrase(phrase)
+        self._hit_steps = tuple(sorted(phrase.accents))
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
     root_freq = RootPitch.root_freq.replace(
-        maximum=notes.E4,
+        maximum=Note.E4,
         help_text="Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
     )
 
@@ -319,13 +321,13 @@ class Keys(Gate, RootPitch, Rhythmic, GatedVoice):
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
         )
 
-    def shape(self, bar: int) -> Voicing:
+    def shape(self, bar: int) -> Chord:
         """The stack for `bar`'s chord: a thirteenth on a dominant chord (a
         major third and a minor seventh over the root), a ninth on any other."""
-        root, third, _, seventh = self._harmony.chord_tones(bar, Voicing.SEVENTH_CHORD)
+        root, third, _, seventh = self._harmony.chord_tones(bar, Chords.SEVENTH_CHORD)
         if (third - root, seventh - root) == (4, 10):
-            return Voicing.ROOTLESS_THIRTEENTH
-        return Voicing.ROOTLESS_NINTH
+            return Chords.ROOTLESS_THIRTEENTH
+        return Chords.ROOTLESS_NINTH
 
     def voicing(self, bar: int) -> tuple[int, ...]:
         """`bar`'s chord as semitones above Register: the rack's chord in the
@@ -371,7 +373,7 @@ class Keys(Gate, RootPitch, Rhythmic, GatedVoice):
             chord_notes = self.voicing(bar)
             start = slot * NOTES
             new_freqs = [
-                notes.transpose(self.root_freq, semitones) for semitones in chord_notes
+                Note.transpose(self.root_freq, semitones) for semitones in chord_notes
             ]
             self.freqs[start : start + NOTES] = new_freqs
             for offset, freq in enumerate(new_freqs):

@@ -10,26 +10,31 @@ from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Figured, Gate, GatedVoice, RootPitch
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ChordTones
+from pyoscillate.theory.phrase import Hooks, Phrase
+from pyoscillate.theory.pitch import Note
 
 
-class Pluck(Gate, RootPitch, Figured, GatedVoice):
+class Pluck(Gate, RootPitch, Phrased, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
     volume = Patch.volume.replace(default=0.4)
+    phrase = Phrased.phrase.replace(
+        catalog=Hooks,
+        default=Hooks.SPARSE_HOOK,
+        help_text="Picks which chord tones are played and when, from a sparse hook to one that fills every step.",
+    )
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
     # the figures `on_evolve` rotates through, sparsest first
-    variants: ClassVar[tuple[ChordTones, ...]] = (
-        ChordTones.SPARSE_HOOK,
-        ChordTones.FULL_HOOK,
+    variants: ClassVar[tuple[Phrase, ...]] = (
+        Hooks.SPARSE_HOOK,
+        Hooks.FULL_HOOK,
     )
     triads: ClassVar[dict[int, tuple[int, int, int]]] = {
         0: (0, 4, 7),
@@ -49,7 +54,7 @@ class Pluck(Gate, RootPitch, Figured, GatedVoice):
     harmony: Harmony
 
     root_freq = RootPitch.root_freq.replace(
-        default=notes.E3,
+        default=Note.E3,
         help_text="Sets the chord-root register; the plucked chord tones sound an octave above it.",
     )
 
@@ -98,10 +103,10 @@ class Pluck(Gate, RootPitch, Figured, GatedVoice):
         degree = self.harmony.chord_offset(bar_index) % 12
         root = self.root_at(bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
-        return notes.transpose(root, 12 + triad[tone_index])
+        return Note.transpose(root, 12 + triad[tone_index])
 
     def on_evolve(self, index: int) -> None:
-        self.figure = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()

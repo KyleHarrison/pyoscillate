@@ -21,7 +21,7 @@ from pyo.lib.generators import Rossler, Sine, SuperSaw
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Echo, Gate, Reverb, RootPitch
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 
 class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
@@ -57,8 +57,8 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
     output: PyoObject
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.A1,
-        default=notes.E3,
+        minimum=Note.A1,
+        default=Note.E3,
         help_text="Sets the wash's base pitch.",
     )
 

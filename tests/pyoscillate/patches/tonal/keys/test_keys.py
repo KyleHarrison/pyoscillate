@@ -72,7 +72,7 @@ from pyoscillate.analysis.features import (
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.keys import keys
-from pyoscillate.theory.intervals import Progression
+from pyoscillate.theory.progression import Progressions
 
 MODULE = "pyoscillate.patches.tonal.keys.keys"
 BPM = 120
@@ -96,7 +96,7 @@ def _render(seconds: float = 3.2, **params: float) -> Render:
         seconds=seconds,
         bpm=BPM,
         key=0,
-        progression=Progression.JAZZ_TURNAROUND.roots,
+        progression=Progressions.JAZZ_TURNAROUND.roots,
     )
 
 

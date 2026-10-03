@@ -19,7 +19,7 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Echo, Gate, Reverb, RootPitch
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 # harmonic-rich static tone for the filter to carve movement into - the drone's
 # "color" comes entirely from the cutoff sweep below, not from this waveform changing
@@ -52,7 +52,7 @@ class SoundscapeFilter(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
     filtered: MoogLP
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.A1,
+        minimum=Note.A1,
         help_text="Sets the drone's fundamental pitch.",
     )
 

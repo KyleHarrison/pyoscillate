@@ -18,7 +18,7 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate, RootPitch
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 # mostly fundamental with a touch of 2nd/3rd harmonic - rounded, sub-heavy tone
 SUB_HARMONICS = [1, 0.15, 0.05]
@@ -45,9 +45,9 @@ class BassDrone(Gate, RootPitch, ContinuousVoice):
     output: MoogLP
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.E0,
-        maximum=notes.E2,
-        default=notes.E1,
+        minimum=Note.E0,
+        maximum=Note.E2,
+        default=Note.E1,
         help_text="Sets the fixed pitch of the sub drone.",
     )
 

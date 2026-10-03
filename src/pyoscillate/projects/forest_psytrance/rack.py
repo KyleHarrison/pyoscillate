@@ -11,6 +11,7 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -18,8 +19,7 @@ from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.lead import fm
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import F, Harmony
+from pyoscillate.theory.pitch import Note
 
 
 class ForestPsytranceRack(Rack):
@@ -31,7 +31,7 @@ class ForestPsytranceRack(Rack):
     ticks_per_bar = 512
     # F Phrygian: a static F vamp that leans on the b2 (Gb) for the last two
     # bars of every eight-bar cycle
-    harmony = Harmony(key=F, progression=(0, 0, 0, 1), bars_per_chord=2)
+    harmony = Harmony(key=Note.KEY_F, progression=(0, 0, 0, 1), bars_per_chord=2)
 
     kick_punch = Slot(kick.KickPunch, punch=0.9, length=0.8, click=0.6)
     kick_group = GroupController(
@@ -104,11 +104,11 @@ class ForestPsytranceRack(Rack):
 
     lead_wind = Slot(
         fm.LeadFmWind,
-        root_freq=notes.F4,
+        root_freq=Note.F4,
     )
     lead_swirl = Slot(
         fm.LeadFmSwirl,
-        root_freq=notes.F4,
+        root_freq=Note.F4,
     )
     lead_group = EvolvingGroup(
         "Leads",

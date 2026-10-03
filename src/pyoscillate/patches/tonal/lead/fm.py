@@ -33,16 +33,16 @@ from pyo.lib.tables import CosTable, LinTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Melodic, RootPitch
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import Leads, Melodies, Phrase
+from pyoscillate.theory.pitch import Note
 
 
-class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
+class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -88,9 +88,16 @@ class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
         (8191, 0.0),
     ]
 
-    # the `Melody` lines `on_evolve` rotates through, the first playing
+    phrase = Phrased.phrase.replace(
+        catalog=Melodies,
+        default=Leads.LEAD_ARCH,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
+
+    # the lines `on_evolve` rotates through, the first playing
     # first; each style supplies its own
-    variants: ClassVar[tuple[Melody, ...]]
+    variants: ClassVar[tuple[Phrase, ...]]
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -121,9 +128,9 @@ class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
     _accent: float
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.F3,
-        maximum=notes.F5,
-        default=notes.F4,
+        minimum=Note.F3,
+        maximum=Note.F5,
+        default=Note.F4,
         help_text="Moves the lead up or down; low is a warm, reedy mid voice, high is a thin, whistling line above the mix. Notes always follow the rack's key and chord.",
     )
 
@@ -303,7 +310,7 @@ class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
         step = self._step()
         if step.hit:
             self._accent = self.beat_accent if step.index % 4 == 0 else 1.0
-            self.pitch.value = notes.transpose(self.note_root(), step.value)
+            self.pitch.value = Note.transpose(self.note_root(), step.value)
             self.bark.mul = self.bite * self._accent
             self.amp.mul = self._accent
             self.trigger.play()
@@ -311,7 +318,7 @@ class LeadFm(Gate, RootPitch, Melodic, GatedVoice):
     def on_evolve(self, index: int) -> None:
         """Rotate which of `variants` is playing; called rarely (tens of
         bars) by the rack's `EvolvingGroup`, never by the clock."""
-        self.melody = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]
 
 
 class LeadFmWind(LeadFm):
@@ -327,8 +334,8 @@ class LeadFmWind(LeadFm):
     length = LeadFm.length.replace(default=3.0)
     glide = LeadFm.glide.replace(default=0.09)
     breath = LeadFm.breath.replace(default=0.45)
-    variants = (Melody.WIND_DRIFT, Melody.WIND_DRIFT_B)
-    melody = LeadFm.melody.replace(default=Melody.WIND_DRIFT.index)
+    variants = (Leads.WIND_DRIFT, Leads.WIND_DRIFT_B)
+    phrase = LeadFm.phrase.replace(default=Leads.WIND_DRIFT)
 
 
 class LeadFmSwirl(LeadFm):
@@ -342,5 +349,5 @@ class LeadFmSwirl(LeadFm):
     swirl_bars = 1.0
     drift_bars = 2.0
     length = LeadFm.length.replace(default=0.9)
-    variants = (Melody.SWIRL_GROOVE, Melody.SWIRL_GROOVE_B)
-    melody = LeadFm.melody.replace(default=Melody.SWIRL_GROOVE.index)
+    variants = (Leads.SWIRL_GROOVE, Leads.SWIRL_GROOVE_B)
+    phrase = LeadFm.phrase.replace(default=Leads.SWIRL_GROOVE)

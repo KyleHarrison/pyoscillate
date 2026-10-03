@@ -10,7 +10,7 @@ from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import BassLines, Phrase
 
 
 class GrooveBass(AccentBass):
@@ -51,7 +51,7 @@ class BassRolling(GrooveBass):
 
     title = "Bass - Rolling"
     profile = GROOVE["rolling"]
-    melody = GrooveBass.melody.replace(default=Melody.BASS_ROLLING.index)
+    phrase = GrooveBass.phrase.replace(default=BassLines.BASS_ROLLING)
 
 
 class BassDub(GrooveBass):
@@ -59,7 +59,7 @@ class BassDub(GrooveBass):
 
     title = "Bass - Dub"
     profile = GROOVE["dub"]
-    melody = GrooveBass.melody.replace(default=Melody.BASS_DUB.index)
+    phrase = GrooveBass.phrase.replace(default=BassLines.BASS_DUB)
 
 
 class BassMuted(GrooveBass):
@@ -67,16 +67,16 @@ class BassMuted(GrooveBass):
 
     title = "Bass - Muted"
     profile = GROOVE["muted"]
-    melody = GrooveBass.melody.replace(default=Melody.BASS_MUTED.index)
+    phrase = GrooveBass.phrase.replace(default=BassLines.BASS_MUTED)
     # the lines `on_evolve` rotates through
-    variants: ClassVar[tuple[Melody, ...]] = (Melody.BASS_MUTED, Melody.BASS_MUTED_B)
+    variants: ClassVar[tuple[Phrase, ...]] = (BassLines.BASS_MUTED, BassLines.BASS_MUTED_B)
 
     def on_evolve(self, index: int) -> None:
         """Rotate which of `variants` is stabbing; called rarely (tens of
         bars) by a rack-level `GroupController`, never by the clock directly
         - see `Keys.on_evolve`. The variants share this style's
         envelope/resonance, so only the notes change."""
-        self.melody = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]
 
 
 class BassForest(GrooveBass):
@@ -87,25 +87,25 @@ class BassForest(GrooveBass):
     title = "Bass - Forest"
     summary = "Deep, rolling offbeat sub bass that fills the gaps between kicks."
     profile = GROOVE["forest"]
-    melody = GrooveBass.melody.replace(default=Melody.BASS_FOREST.index)
+    phrase = GrooveBass.phrase.replace(default=BassLines.BASS_FOREST)
 
 
 class BassConversation(GrooveBass):
     """Sparse, four-bar phrase of held root/fifth notes with a rare
     syncopated re-entry, rather than a bassline that plays every step - see
-    `Melody.BASS_CONVERSATION`."""
+    `BassLines.BASS_CONVERSATION`."""
 
     title = "Bass - Conversation"
     summary = "Sparse, held root/fifth notes over a four-bar phrase, with an occasional offbeat re-entry."
     profile = GROOVE["conversation"]
-    melody = GrooveBass.melody.replace(default=Melody.BASS_CONVERSATION.index)
+    phrase = GrooveBass.phrase.replace(default=BassLines.BASS_CONVERSATION)
     # the lines `on_evolve` rotates through
-    variants: ClassVar[tuple[Melody, ...]] = (
-        Melody.BASS_CONVERSATION,
-        Melody.BASS_CONVERSATION_B,
+    variants: ClassVar[tuple[Phrase, ...]] = (
+        BassLines.BASS_CONVERSATION,
+        BassLines.BASS_CONVERSATION_B,
     )
 
     def on_evolve(self, index: int) -> None:
         """Rotate which of `variants` is phrasing; same rationale as
         `BassMuted.on_evolve`."""
-        self.melody = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]

@@ -22,7 +22,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Rhythms
 
 # carrier (Hz), modulator ratio, index
 METAL_OPERATORS = (
@@ -162,12 +162,12 @@ class Cymbal(RhythmDrum):
 class CymbalRide(Cymbal):
     """Quarter-note ride with slowly drifting metallic colour."""
 
-    rhythm = Cymbal.rhythm.replace(default=Rhythm.RIDE_QUARTERS.index)
+    phrase = Cymbal.phrase.replace(default=Rhythms.RIDE_QUARTERS)
     decay, resonance = 1.0, 3.0
 
 
 class CymbalCrash(Cymbal):
     """Long crash wash marking the start of every eight-bar phrase."""
 
-    rhythm = Cymbal.rhythm.replace(default=Rhythm.CRASH_PHRASE.index)
+    phrase = Cymbal.phrase.replace(default=Rhythms.CRASH_PHRASE)
     decay, resonance = 2.6, 1.2

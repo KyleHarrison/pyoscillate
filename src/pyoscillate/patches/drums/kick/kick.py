@@ -8,9 +8,9 @@ its gesture, an exponential amplitude decay sets the body length, a short
 noise burst clarifies the transient, and gentle saturation adds density.
 
 `round`/`punch`/`soft` play the quarter-note pulse (the classic
-four-on-the-floor); `lofi` starts on a swung 32nd-note `Rhythm` instead, so it
+four-on-the-floor); `lofi` starts on a swung 32nd-note rhythm instead, so it
 can place hits off the straight 16th grid for an MPC-style swing pocket and
-quiet ghost hits. Every kick can play any `Rhythm` from its Pattern dropdown.
+quiet ghost hits. Every kick can play any rhythm from its Pattern dropdown.
 """
 
 from typing import ClassVar
@@ -25,7 +25,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Phrase, Rhythms
 
 
 class Kick(RhythmDrum):
@@ -52,9 +52,9 @@ class Kick(RhythmDrum):
     click_level: ClassVar[float]
 
     # the kick plays a full-level hit on every beat unless a style picks
-    # another `Rhythm` to place hits off the straight grid (swing) and/or vary
+    # another rhythm to place hits off the straight grid (swing) and/or vary
     # their level (ghost notes)
-    rhythm = RhythmDrum.rhythm.replace(default=Rhythm.QUARTER_PULSE.index)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.QUARTER_PULSE)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch_env: TrigEnv
@@ -220,9 +220,9 @@ class KickLofi(Kick):
         0.04,
     )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
-    rhythm = Kick.rhythm.replace(default=Rhythm.KICK_LOFI.index)
+    phrase = Kick.phrase.replace(default=Rhythms.KICK_LOFI)
     # the rhythms `on_evolve` rotates through
-    variants: ClassVar[tuple[Rhythm, ...]] = (Rhythm.KICK_LOFI, Rhythm.KICK_LOFI_FULL)
+    variants: ClassVar[tuple[Phrase, ...]] = (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL)
     # closes the kick down from the shaper's grittier top end into a muffled,
     # cushioned thump
     lowpass_cutoff: ClassVar[float] = 1100.0
@@ -243,4 +243,4 @@ class KickLofi(Kick):
         return self.lowpassed
 
     def on_evolve(self, index: int) -> None:
-        self.rhythm = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]

@@ -158,9 +158,9 @@ def _render_in_process(request: dict[str, Any]) -> None:
     from pyo.lib.server import Server
 
     from pyoscillate.clock import Clock
+    from pyoscillate.harmony import Harmony
     from pyoscillate.patches.base import BuildContext
     from pyoscillate.tempo import Tempo
-    from pyoscillate.theory.harmony import Harmony
 
     server = Server(sr=SAMPLE_RATE, nchnls=2, duplex=0, audio="offline")
     server.setGlobalSeed(SEED)

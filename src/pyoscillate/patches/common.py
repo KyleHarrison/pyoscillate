@@ -15,13 +15,12 @@ from pyo.lib.tables import ExpTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ChordTones, Melody, Rhythm
-from pyoscillate.theory.notes import semitone_ratio
+from pyoscillate.theory.phrase import Phrase, PhraseMode, Phrases, Rhythms
+from pyoscillate.theory.pitch import Note
 
 
 @dataclass(eq=False)
@@ -260,104 +259,54 @@ class GatedVoice(Patch):
         return self
 
 
-class Rhythmic(GatedVoice):
-    """Opt-in add-on for a voice that plays a `Rhythm`: the `rhythm` dropdown
-    picks it from the shared catalog in `theory/intervals.py`, so a pattern is
-    written there once and any voice can play it. The pattern lives on the
-    `Param` alone; `selected_rhythm` reads it back. A voice names its starting
-    rhythm with `rhythm = Rhythmic.rhythm.replace(default=Rhythm.X.index)` and
-    calls `self.schedule_pattern(context)` from `build()`; `finish()` then runs
-    the control, which reads the steps off the shared clock. Mix it in ahead of
-    the voice base: `class Stab(Gate, Rhythmic, GatedVoice)`."""
+class Phrased(GatedVoice):
+    """Opt-in add-on for a voice that plays a `Phrase`: the `phrase` dropdown
+    picks it from the shared catalogs in `theory/phrase/`, so a pattern is
+    written there once and any voice can play it. The phrase lives on the
+    `Param` alone; `selected_phrase` reads it back. A voice family names the
+    catalog it offers and its starting phrase with
+    `phrase = Phrased.phrase.replace(catalog=Rhythms, default=Rhythms.X)`
+    and calls `self.schedule_pattern(context)` from `build()`; `finish()` then
+    runs the control, which reads the steps off the shared clock. A step's
+    value is the phrase's `values`: its accent for a `PhraseMode.NONE` rhythm,
+    otherwise its offset, which the voice resolves to a pitch by the phrase's
+    mode (semitones above the chord root, or an index into the chord's
+    triad); read a step's level off `selected_phrase.accents[step.index]`.
+    Mix it in ahead of the voice base: `class Stab(Gate, Phrased,
+    GatedVoice)`."""
 
-    def _select_rhythm(self, value: float) -> None:
-        self.use_rhythm(Rhythm.by_index(int(value)))
+    def _select_phrase(self, value: float) -> None:
+        self.use_phrase(self.selected_phrase_at(value))
 
-    rhythm = choice_param(
-        Rhythm,
-        Rhythm.QUARTER_PULSE,
-        "Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
-        "ghost-noted pocket; every voice draws on the same shared patterns.",
-        control=_select_rhythm,
+    phrase = choice_param(
+        Phrases,
+        Rhythms.QUARTER_PULSE,
+        "Picks the pattern that is played, as when in the bar the notes fall and, for a "
+        "pitched voice, which pitches; every voice draws on the same shared phrases.",
+        control=_select_phrase,
     )
 
-    @property
-    def selected_rhythm(self) -> Rhythm:
-        """The `Rhythm` the `rhythm` dropdown currently names."""
-        return Rhythm.by_index(int(self.rhythm))
-
-    def schedule_pattern(self, context: BuildContext) -> Division:
-        """Fire `next_step` on the chosen rhythm's grid and the voice's `rate`."""
-        return self.schedule(self.selected_rhythm.division, self.rate, context.clock)
-
-    def use_rhythm(self, rhythm: Rhythm) -> None:
-        """Play `rhythm` from the shared clock's position, moving to its grid
-        if it needs a different one."""
-        self.play_pattern(rhythm.division, rhythm.cycle, rhythm.hits)
-
-
-class Melodic(GatedVoice):
-    """Opt-in add-on for a voice that plays a `Melody`: the `melody` dropdown
-    picks a line of semitone offsets above the chord root from the shared
-    catalog in `theory/intervals.py`. Used like `Rhythmic`:
-    `melody = Melodic.melody.replace(default=Melody.X.index)`, then
-    `self.schedule_pattern(context)` in `build()`. Read a step's pitch off
-    `step.value` and its level off `selected_melody.accents[step.index]`."""
-
-    def _select_melody(self, value: float) -> None:
-        self.use_melody(Melody.by_index(int(value)))
-
-    melody = choice_param(
-        Melody,
-        Melody.LEAD_ARCH,
-        "Picks the line that is played, as pitches above the current chord; every pitched voice draws "
-        "on the same shared lines.",
-        control=_select_melody,
-    )
+    def selected_phrase_at(self, index: float) -> Phrase:
+        """The `Phrase` at dropdown position `index` of the voice's catalog."""
+        catalog = type(self).phrase.catalog
+        assert catalog is not None
+        return catalog.by_index(int(index))
 
     @property
-    def selected_melody(self) -> Melody:
-        """The `Melody` the `melody` dropdown currently names."""
-        return Melody.by_index(int(self.melody))
+    def selected_phrase(self) -> Phrase:
+        """The `Phrase` the `phrase` dropdown currently names."""
+        return self.selected_phrase_at(self.phrase)
 
     def schedule_pattern(self, context: BuildContext) -> Division:
-        """Fire `next_step` on the chosen melody's grid and the voice's `rate`."""
-        return self.schedule(self.selected_melody.division, self.rate, context.clock)
+        """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
+        return self.schedule(self.selected_phrase.division, self.rate, context.clock)
 
-    def use_melody(self, melody: Melody) -> None:
-        """Play `melody` from the shared clock's position, moving to its grid
+    def use_phrase(self, phrase: Phrase) -> None:
+        """Play `phrase` from the shared clock's position, moving to its grid
         if it needs a different one."""
-        self.play_pattern(melody.division, melody.cycle, melody.steps)
-
-
-class Figured(GatedVoice):
-    """Opt-in add-on for a voice that plays a `ChordTones` figure: the `figure`
-    dropdown picks which chord tones sound on which steps, so the figure takes
-    each chord's own colour. Used like `Rhythmic`."""
-
-    def _select_figure(self, value: float) -> None:
-        self.use_figure(ChordTones.by_index(int(value)))
-
-    figure = choice_param(
-        ChordTones,
-        ChordTones.SPARSE_HOOK,
-        "Picks which chord tones are played and when, from a sparse hook to one that fills every step.",
-        control=_select_figure,
-    )
-
-    @property
-    def selected_figure(self) -> ChordTones:
-        """The `ChordTones` figure the `figure` dropdown currently names."""
-        return ChordTones.by_index(int(self.figure))
-
-    def schedule_pattern(self, context: BuildContext) -> Division:
-        """Fire `next_step` on the chosen figure's grid and the voice's `rate`."""
-        return self.schedule(self.selected_figure.division, self.rate, context.clock)
-
-    def use_figure(self, figure: ChordTones) -> None:
-        """Play `figure` from the shared clock's position, moving to its grid
-        if it needs a different one."""
-        self.play_pattern(figure.division, figure.cycle, figure.steps)
+        if phrase.mode is PhraseMode.POOL_INDEX:
+            raise ValueError(f"{phrase.id} needs a note pool; play it with play_pattern")
+        self.play_pattern(phrase.division, phrase.cycle, phrase.values)
 
 
 @dataclass(eq=False)
@@ -439,7 +388,7 @@ class PitchBend(Patch):
         sweep=True,
     )
     def bend(self, value: float) -> None:
-        self.bend_env.mul = semitone_ratio(value) - 1
+        self.bend_env.mul = Note.semitone_ratio(value) - 1
 
     def add_bend(self, trigger: Trig) -> PyoObject:
         """The frequency multiplier (1 at rest, the bend ratio at each strike,
@@ -719,10 +668,10 @@ class RootPitch(Patch):
     harmony: Harmony
 
     root_freq = Param(
-        notes.A2,
-        notes.A4,
+        Note.A2,
+        Note.A4,
         1,
-        notes.A3,
+        Note.A3,
         "Register",
         "Moves the voice up or down in pitch.",
         scale="note",

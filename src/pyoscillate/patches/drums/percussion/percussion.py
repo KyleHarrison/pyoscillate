@@ -18,10 +18,10 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import RhythmDrum, semitone_ratio
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.pitch import Note
 
 
 class Percussion(RhythmDrum):
@@ -77,7 +77,7 @@ class Percussion(RhythmDrum):
         "Retunes the accent in semitones; lower is deeper and woodier, higher is thinner and sharper.",
     )
     def tune(self, value: float) -> None:
-        self.tuning.value = semitone_ratio(value)
+        self.tuning.value = Note.semitone_ratio(value)
 
     @Param(
         0.5,
@@ -111,7 +111,7 @@ class Percussion(RhythmDrum):
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.tuning = Sig(semitone_ratio(self.tune))
+        self.tuning = Sig(Note.semitone_ratio(self.tune))
         self.body_freq = self.tuning * self.base_freq
 
         self.pitched_body(
@@ -140,7 +140,7 @@ class Percussion(RhythmDrum):
 class PercussionRim(Percussion):
     """Tight, woody rim-click accent."""
 
-    rhythm = Percussion.rhythm.replace(default=Rhythm.RIM_OFFBEATS.index)
+    phrase = Percussion.phrase.replace(default=Rhythms.RIM_OFFBEATS)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         1100.0,
         0.12,
@@ -155,9 +155,9 @@ class PercussionRim(Percussion):
 class PercussionConga(Percussion):
     """Warm, resonant conga-like rhythmic color."""
 
-    rhythm = Percussion.rhythm.replace(default=Rhythm.CONGA_SYNCOPATED.index)
+    phrase = Percussion.phrase.replace(default=Rhythms.CONGA_SYNCOPATED)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
-        notes.A3,
+        Note.A3,
         0.2,
         0.03,
         0.28,

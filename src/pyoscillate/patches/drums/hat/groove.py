@@ -8,8 +8,8 @@ bass range. Each
 hit is either closed or open: both share one exponential envelope, so a closed
 hit retriggers it and chokes any open tail still ringing.
 
-Each style starts on one of the shared `Rhythm` hat patterns, whose steps
-carry a velocity and may be marked open; any hat can play any `Rhythm` from
+Each style starts on one of the shared hat rhythms, whose steps
+carry a velocity and may be marked open; any hat can play any rhythm from
 its Pattern dropdown.
 """
 
@@ -27,7 +27,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.intervals import Rhythm
+from pyoscillate.theory.phrase import Phrase, Rhythms
 
 # carrier (Hz), modulator ratio, index - inharmonic ratios keep the sidebands
 # from lining up into a pitch, so the cluster reads as metal, not a tone
@@ -146,7 +146,7 @@ class Groove(RhythmDrum):
     def next_step(self) -> None:
         step = self._step()
         if step.hit:
-            opened = step.index in self.selected_rhythm.open_steps
+            opened = step.index in self.selected_phrase.open_steps
             self.choke_env.mul = self.level * step.value
             # one envelope for both articulations, so a closed hit
             # restarting it cuts off an open tail - the hat choke
@@ -161,7 +161,7 @@ class GrooveCrisp(Groove):
 
     name = "hat_crisp"
     title = "Hat - Crisp"
-    rhythm = Groove.rhythm.replace(default=Rhythm.HAT_CRISP.index)
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_CRISP)
 
 
 class GrooveOpen(Groove):
@@ -169,7 +169,7 @@ class GrooveOpen(Groove):
 
     name = "hat_open"
     title = "Hat - Open"
-    rhythm = Groove.rhythm.replace(default=Rhythm.HAT_OPEN.index)
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_OPEN)
 
 
 class GrooveShuffle(Groove):
@@ -177,7 +177,7 @@ class GrooveShuffle(Groove):
 
     name = "hat_shuffle"
     title = "Hat - Shuffle"
-    rhythm = Groove.rhythm.replace(default=Rhythm.HAT_SHUFFLE.index)
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_SHUFFLE)
 
 
 class GrooveForest(Groove):
@@ -190,7 +190,7 @@ class GrooveForest(Groove):
     summary = (
         "Quiet open offbeat hats choked by soft closed ghosts; a background shimmer."
     )
-    rhythm = Groove.rhythm.replace(default=Rhythm.HAT_FOREST.index)
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_FOREST)
     cutoff = Groove.cutoff.replace(default=8000)
     metal = Groove.metal.replace(default=0.5)
     length = Groove.length.replace(default=0.7)
@@ -204,9 +204,9 @@ class GrooveLofi(Groove):
     name = "hat_lofi"
     title = "Hat - Lofi"
     summary = "Soft, filtered boom-bap hat pattern with MPC swing and ghost notes."
-    rhythm = Groove.rhythm.replace(default=Rhythm.HAT_LOFI.index)
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_LOFI)
     # the rhythms `on_evolve` rotates through
-    variants: ClassVar[tuple[Rhythm, ...]] = (Rhythm.HAT_LOFI, Rhythm.HAT_LOFI_FULL)
+    variants: ClassVar[tuple[Phrase, ...]] = (Rhythms.HAT_LOFI, Rhythms.HAT_LOFI_FULL)
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     # closes the hat's high-passed edge down into a duller, muffled top end
     lowpass_cutoff: ClassVar[float] = 6000.0
@@ -232,4 +232,4 @@ class GrooveLofi(Groove):
         return self.shaper
 
     def on_evolve(self, index: int) -> None:
-        self.rhythm = self.variants[index % len(self.variants)].index
+        self.phrase = self.variants[index % len(self.variants)]

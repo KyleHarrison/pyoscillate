@@ -14,7 +14,7 @@ from pyoscillate.analysis.features import Features, Hit, features, spectral_cent
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.pitched_percussion.bell import bell
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import Fills
 
 MODULE = "pyoscillate.patches.pitched_percussion.bell.bell"
 BPM = 120
@@ -51,7 +51,7 @@ def _hit(result: Features, onset: float) -> Hit:
 class BellHealthTests(unittest.TestCase):
     def test_hits_land_on_the_pattern(self) -> None:
         # the first hit is under the fade-in, so start from the second
-        expected = [step * SIXTEENTH for step in sorted(Melody.BELL_FIGURE.steps)][1:]
+        expected = [step * SIXTEENTH for step in sorted(Fills.BELL_FIGURE.values)][1:]
         for style in bell.STYLES:
             with self.subTest(style=style):
                 result = _features(style=style, ring=0.3)

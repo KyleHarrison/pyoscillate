@@ -16,16 +16,16 @@ from pyo.lib.generators import Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Melodic
-from pyoscillate.patches.drums.base import DROP, DrumVoice, semitone_ratio
+from pyoscillate.patches.common import Phrased
+from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Melody
+from pyoscillate.theory.phrase import Fills, Melodies
+from pyoscillate.theory.pitch import Note
 
 
-class Tom(Melodic, DrumVoice):
+class Tom(Phrased, DrumVoice):
     """Pitched tom playing a sparse two-bar fill on the current chord.
 
     The fill follows the chord rather than only the key: the rack's chords
@@ -40,7 +40,7 @@ class Tom(Melodic, DrumVoice):
     # settled body pitch (Hz); pitch-bend depth/time; body decay; membrane
     # overtone ratio/level/decay; transient level/tuning/resonance/duration;
     # amplitude and pitch-bend curve exponents
-    body_freq: ClassVar[float] = notes.A2
+    body_freq: ClassVar[float] = Note.A2
     bend_depth: ClassVar[float] = 0.4
     bend_time: ClassVar[float] = 0.06
     decay: ClassVar[float] = 0.3
@@ -89,7 +89,12 @@ class Tom(Melodic, DrumVoice):
     # pitches rather than levels. It walks down the minor pentatonic (fifth,
     # fifth, minor third, root), all tones of the rack's minor-seventh chords
     # (E, E, C, A over Am7)
-    melody = Melodic.melody.replace(default=Melody.TOM_FILL.index)
+    phrase = Phrased.phrase.replace(
+        catalog=Melodies,
+        default=Fills.TOM_FILL,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     tune = Param(
         -12,
@@ -149,7 +154,7 @@ class Tom(Melodic, DrumVoice):
         self._reset()
         self.harmony = context.harmony
 
-        self.tuning = Sig(semitone_ratio(self.tune))
+        self.tuning = Sig(Note.semitone_ratio(self.tune))
         self.root_freq = self.tuning * self.body_freq
 
         self.pitched_body(
@@ -190,5 +195,5 @@ class Tom(Melodic, DrumVoice):
                 self.harmony.chord_freq(self.body_freq, self._clock.bar_index)
                 / self.body_freq
             )
-            self.tuning.value = chord_ratio * semitone_ratio(self.tune + step.value)
+            self.tuning.value = chord_ratio * Note.semitone_ratio(self.tune + step.value)
             self.strike()

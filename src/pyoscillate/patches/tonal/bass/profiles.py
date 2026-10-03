@@ -1,5 +1,5 @@
 """Timbre profiles shared by the project's bass patch families. The notes a
-bass plays are `Melody` members (`theory/intervals.py`), chosen from each
+bass plays are `BassLines` phrases (`theory/phrase/bass.py`), chosen from each
 voice's Pattern dropdown."""
 
 from .base import BassProfile

@@ -14,10 +14,10 @@ from pyo.lib.generators import Sine
 from pyo.lib.server import Server
 
 from pyoscillate.clock import Clock
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import ParamSweep, Sweep
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.harmony import Harmony
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
