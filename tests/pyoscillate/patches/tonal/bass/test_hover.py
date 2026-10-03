@@ -50,7 +50,7 @@ from pyoscillate.analysis.features import features, spectral_centroid
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.bass import hover
-from pyoscillate.patches.tonal.bass.profiles import HOVER
+from pyoscillate.theory.phrase import BassLines
 
 MODULE = "pyoscillate.patches.tonal.bass.hover"
 BPM = 240
@@ -85,16 +85,18 @@ def _centroid(samples: np.ndarray) -> float:
     return spectral_centroid(samples, 44100)
 
 
-class HoverProfileTests(unittest.TestCase):
+class HoverMelodyTests(unittest.TestCase):
     def test_steps_e_f_g_a_once_per_bar(self) -> None:
-        self.assertEqual(HOVER.pattern[0], 0)
-        self.assertEqual(HOVER.pattern[16], 1)
-        self.assertEqual(HOVER.pattern[32], 3)
-        self.assertEqual(HOVER.pattern[48], 5)
+        steps = BassLines.BASS_HOVER.values
+        self.assertEqual(steps[0], 0)
+        self.assertEqual(steps[16], 1)
+        self.assertEqual(steps[32], 3)
+        self.assertEqual(steps[48], 5)
 
     def test_pulses_every_other_step(self) -> None:
-        for step in range(len(HOVER.gates)):
-            self.assertEqual(HOVER.gates[step], step % 2 == 0)
+        steps = BassLines.BASS_HOVER.values
+        for step in range(BassLines.BASS_HOVER.cycle):
+            self.assertEqual(step in steps, step % 2 == 0)
 
 
 class HoverBassHealthTests(unittest.TestCase):

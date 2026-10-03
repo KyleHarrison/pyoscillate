@@ -22,16 +22,15 @@ analogue filter), so the note quacks bright and then settles dark instead of
 staying bright for the whole sustain. The cookbook's "envelope 85%" is a
 synth knob position; `QUACK` octaves is its reading here, tuned by ear.
 
-The line is a one-bar funk figure on chord tones, re-rooted on each bar's
-chord from the rack's `Harmony` (see `Bass.chord_root`). It is written as
-degrees of a minor-seventh chord, like the groove profiles. Accents scale
+The line is `BassLines.BASS_FUNK` by default, a one-bar funk figure on chord
+tones, re-rooted on each bar's chord from the rack's `Harmony` (see
+`Bass.chord_root`). Its pitches are tones of a minor-seventh chord, like the
+other bass lines. Accents scale
 the level and the filter sweep together, so accented notes quack harder and
 ghost notes stay dark.
 """
 
 from __future__ import annotations
-
-from typing import NamedTuple
 
 from pyo import PyoObject
 from pyo.lib.arithmetic import Pow
@@ -46,43 +45,8 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
-from pyoscillate.theory import notes
-
-
-class Step(NamedTuple):
-    """One 16th of the line. `semitones` is above the chord root; `hit` is
-    False for a rest (the other fields are then unused); `length` is how long
-    the note is held, in 16ths."""
-
-    semitones: int
-    accent: float = 1.0
-    length: float = 1.0
-    hit: bool = True
-
-
-REST = Step(0, 0.0, 0.0, hit=False)
-# root on the One, held; octave pops; minor 7th, 5th and minor 3rd fills;
-# dead-note ghosts between them. Every pitch is a tone of the rack's
-# minor-seventh chords, so re-rooting keeps the line consonant. The minor
-# 7th on the last 16th glides down into the next bar's root.
-LINE: tuple[Step, ...] = (
-    Step(0, 1.0, 1.8),
-    REST,
-    REST,
-    Step(0, 0.55, 0.4),
-    Step(12, 0.9, 0.6),
-    REST,
-    Step(10, 0.75, 0.9),
-    Step(0, 0.55, 0.4),
-    REST,
-    Step(7, 0.8, 0.6),
-    Step(0, 0.55, 0.4),
-    Step(3, 0.8, 0.9),
-    REST,
-    Step(7, 0.7, 0.5),
-    Step(12, 0.9, 0.5),
-    Step(10, 0.6, 0.5),
-)
+from pyoscillate.theory.phrase import BassLines
+from pyoscillate.theory.pitch import Note
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
 # the cookbook recipe; every time is in seconds, every level 0..1
@@ -115,6 +79,7 @@ class FunkBass(Bass):
     volume = Patch.volume.replace(default=0.5)
     # the recipe's 20 ms glide on every note change
     glide = Bass.glide.replace(default=0.02)
+    phrase = Bass.phrase.replace(default=BassLines.BASS_FUNK)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -262,7 +227,7 @@ class FunkBass(Bass):
 
         self.gate_end = TrigFunc(self.note_gate["trig"], self.note_off)
 
-        self.schedule(BASE_DIVISION, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.body, context))
 
     def note_off(self) -> None:
@@ -272,14 +237,18 @@ class FunkBass(Bass):
     def next_step(self) -> None:
         # derived from the shared clock's own tick - see `Clock.tick`'s
         # docstring
-        step = LINE[(self._clock.tick // self._division.steps) % len(LINE)]
+        step = self._step()
         if not step.hit:
             return
+        melody = self.selected_phrase
+        accent = melody.accents[step.index]
         root = self.current_root()
-        self.pitch.value = notes.transpose(root, step.semitones)
-        self.note_gate.dur = self._tempo.sixteenth * step.length * self.length
-        self.amp.mul = step.accent
-        self.sweep.mul = self.quack * step.accent
+        self.pitch.value = Note.transpose(root, step.value)
+        self.note_gate.dur = (
+            self._tempo.sixteenth * melody.lengths[step.index] * self.length
+        )
+        self.amp.mul = accent
+        self.sweep.mul = self.quack * accent
         self.amp.play()
         self.sweep.play()
         self.trigger.play()

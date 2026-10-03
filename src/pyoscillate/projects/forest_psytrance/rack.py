@@ -2,7 +2,6 @@
 """Patch definitions for the clock-locked forest-psytrance rack."""
 
 from pyoscillate.controller import (
-    EvolvingGroup,
     FanOut,
     GroupControl,
     GroupController,
@@ -11,15 +10,18 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.lead import fm
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import F, Harmony
+from pyoscillate.theory.phrase import Leads
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class ForestPsytranceRack(Rack):
@@ -31,7 +33,8 @@ class ForestPsytranceRack(Rack):
     ticks_per_bar = 512
     # F Phrygian: a static F vamp that leans on the b2 (Gb) for the last two
     # bars of every eight-bar cycle
-    harmony = Harmony(key=F, progression=(0, 0, 0, 1), bars_per_chord=2)
+    harmony = Harmony(key=Note.KEY_F)
+    progression = Progressions.PSY_VAMP
 
     kick_punch = Slot(kick.KickPunch, punch=0.9, length=0.8, click=0.6)
     kick_group = GroupController(
@@ -104,16 +107,17 @@ class ForestPsytranceRack(Rack):
 
     lead_wind = Slot(
         fm.LeadFmWind,
-        root_freq=notes.F4,
+        evolve=Evolve(8, (Leads.WIND_DRIFT, Leads.WIND_DRIFT_B)),
+        root_freq=Note.F4,
     )
     lead_swirl = Slot(
         fm.LeadFmSwirl,
-        root_freq=notes.F4,
+        evolve=Evolve(8, (Leads.SWIRL_GROOVE, Leads.SWIRL_GROOVE_B)),
+        root_freq=Note.F4,
     )
-    lead_group = EvolvingGroup(
+    lead_group = GroupController(
         "Leads",
         (lead_wind, lead_swirl),
         "Windy, psychedelic FM melodies; the phrase changes every 8 bars.",
-        bars=8,
     )
     layout = (kick_group, bass_group, hat_group, lead_group)

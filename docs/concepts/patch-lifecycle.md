@@ -160,7 +160,7 @@ thread across method boundaries.
 
 A rack (`projects/base.py`) is pure class attributes - no `build_groups()`.
 Each patch is a `Slot(PatchClass, param=value, ...)`, slots are grouped by
-`GroupController`/`EvolvingGroup(title, slots, bars=N, repeat=1)`, and
+`GroupController(title, slots)`, and
 `Rack.__init__` binds fresh patches and groups per rack. Each declaration is a
 descriptor: on the class it is the immutable declaration (what a
 `SidechainSource(kick_group, ...)` or `SlotTarget(slot, ...)` points at), on
@@ -212,5 +212,5 @@ the committed `presets/` folders no longer exist; `PatchRackApp` takes the
   `controls` removed); `volume` is a `Param`; `BuildContext` replaces
   `needs_tempo/needs_clock/needs_harmony`; `rebuild=True` replaces
   `rebuild_parameters`; `self.live(Param)` replaces `live("name")`; racks use
-  typed attributes, `GroupControl`s and `EvolvingGroup`; `PatchRack`,
+  typed attributes, `GroupControl`s and `GroupController`; evolution is per patch (`Slot(..., evolve=Evolve(bars, choices))`); `PatchRack`,
   notebooks and preset files removed.

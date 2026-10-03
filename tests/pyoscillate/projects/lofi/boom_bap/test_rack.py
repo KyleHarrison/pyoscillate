@@ -1,7 +1,7 @@
 """Rack-level sync contract: patches sharing the rack's `Clock` must fire
 their bar-boundary events on the exact same tick, whatever tick the clock
 happened to be on when they were built - not from each patch's own idea of
-where a bar starts. See `pyoscillate.theory.harmony.Harmony`'s docstring: "never
+where a bar starts. See `pyoscillate.harmony.Harmony`'s docstring: "never
 from a patch's own step counter... the clock's bar count is the same for
 everyone."
 
@@ -84,11 +84,11 @@ for _ in range(pre_roll_sixteenths * clock.sixteenth):
 
 context = BuildContext(tempo, clock, rack.harmony)
 
-keys_patch = keys.Keys()
+keys_patch = keys.Keys(progression=rack.progression)
 keys_patch.build(context)
 keys_patch.start()
 
-strings_patch = strings.Strings()
+strings_patch = strings.Strings(progression=rack.progression)
 strings_patch.build(context)
 strings_patch.start()
 

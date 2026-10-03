@@ -15,16 +15,16 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Reverb, SeededDraws, SequencerGroup
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Scale
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.scale import Scales
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 
-CANON_ROOT = notes.A3  # current default
+CANON_ROOT = Note.A3  # current default
 
 
 class Canon(SeededDraws, Reverb, Patch):
@@ -76,8 +76,8 @@ class Canon(SeededDraws, Reverb, Patch):
     voice_b_func: TrigFunc
 
     @Param(
-        notes.A2,
-        notes.A4,
+        Note.A2,
+        Note.A4,
         1,
         CANON_ROOT,
         "Register",
@@ -207,13 +207,13 @@ class Canon(SeededDraws, Reverb, Patch):
         return self.finish(self.reverb)
 
     def next_voice_a(self) -> None:
-        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        interval = self.draws.choice(Scales.MAJOR_PENTATONIC_OCTAVE.offsets)
         self.voice_a_fm.carrier = self.harmony.quantise(
             self.root_freq * pow(2, interval / 12)
         )
 
     def next_voice_b(self) -> None:
-        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        interval = self.draws.choice(Scales.MAJOR_PENTATONIC_OCTAVE.offsets)
         self.voice_b_fm.carrier = self.harmony.quantise(
             self.voice_b_root * pow(2, interval / 12)
         )

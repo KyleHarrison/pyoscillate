@@ -67,6 +67,7 @@ from pyoscillate.analysis.features import features, spectral_centroid
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.bass.funk import funk
+from pyoscillate.theory.phrase import BassLines
 
 MODULE = "pyoscillate.patches.tonal.bass.funk.funk"
 BPM = 120
@@ -77,8 +78,8 @@ LATENCY = 0.006
 ONE, GHOST = 16, 19
 
 
-def _step(index: int) -> funk.Step:
-    return funk.LINE[index % len(funk.LINE)]
+def _accent(index: int) -> float:
+    return BassLines.BASS_FUNK.accents[index % BassLines.BASS_FUNK.cycle]
 
 
 @cache
@@ -105,15 +106,15 @@ def _rms(samples: np.ndarray) -> float:
 
 class FunkBassLineTests(unittest.TestCase):
     def test_measured_steps_are_what_the_tests_assume(self) -> None:
-        self.assertEqual(_step(ONE).semitones, 0)
-        self.assertEqual(_step(GHOST).semitones, 0)
-        self.assertGreater(_step(ONE).accent, _step(GHOST).accent)
+        steps = BassLines.BASS_FUNK.values
+        self.assertEqual(steps[ONE % BassLines.BASS_FUNK.cycle], 0)
+        self.assertEqual(steps[GHOST % BassLines.BASS_FUNK.cycle], 0)
+        self.assertGreater(_accent(ONE), _accent(GHOST))
 
     def test_every_pitch_is_a_minor_seventh_chord_tone(self) -> None:
         tones = {0, 3, 7, 10}
-        for step in funk.LINE:
-            if step.hit:
-                self.assertIn(step.semitones % 12, tones)
+        for semitones in BassLines.BASS_FUNK.values.values():
+            self.assertIn(semitones % 12, tones)
 
 
 class FunkBassHealthTests(unittest.TestCase):

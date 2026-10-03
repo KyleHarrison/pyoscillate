@@ -18,27 +18,29 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
+from pyoscillate.theory.pitch import Note
 
 
-class Percussion(DrumVoice):
+class Percussion(RhythmDrum):
     """Rim-click or conga-like accent from a bent sine body and a
     band-passed noise transient. Style variants share this graph and
     override the profile attributes below."""
 
     volume = Patch.volume.replace(default=0.28)
+    phrase_roles = (PhraseRole.PERC,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.RIM_OFFBEATS)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6
     click_duration: ClassVar[float] = 0.008
 
-    # step-in-16 pattern; body pitch (Hz), pitch bend (fraction above body
+    # body pitch (Hz), pitch bend (fraction above body
     # at the strike), bend time (s), body decay (s), transient level,
     # transient pitch (ratio to body), transient resonance - overridden per
     # style
-    pattern: ClassVar[set[int]]
     base_freq: ClassVar[float]
     bend_depth: ClassVar[float]
     bend_time: ClassVar[float]
@@ -77,7 +79,7 @@ class Percussion(DrumVoice):
         "Retunes the accent in semitones; lower is deeper and woodier, higher is thinner and sharper.",
     )
     def tune(self, value: float) -> None:
-        self.tuning.value = semitone_ratio(value)
+        self.tuning.value = Note.semitone_ratio(value)
 
     @Param(
         0.5,
@@ -111,7 +113,7 @@ class Percussion(DrumVoice):
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
-        self.tuning = Sig(semitone_ratio(self.tune))
+        self.tuning = Sig(Note.semitone_ratio(self.tune))
         self.body_freq = self.tuning * self.base_freq
 
         self.pitched_body(
@@ -140,7 +142,7 @@ class Percussion(DrumVoice):
 class PercussionRim(Percussion):
     """Tight, woody rim-click accent."""
 
-    pattern: ClassVar[set[int]] = {3, 7, 11, 15}
+    phrase = Percussion.phrase.replace(default=Rhythms.RIM_OFFBEATS)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
         1100.0,
         0.12,
@@ -155,9 +157,9 @@ class PercussionRim(Percussion):
 class PercussionConga(Percussion):
     """Warm, resonant conga-like rhythmic color."""
 
-    pattern: ClassVar[set[int]] = {3, 6, 9, 11, 14}
+    phrase = Percussion.phrase.replace(default=Rhythms.CONGA_SYNCOPATED)
     base_freq, bend_depth, bend_time, decay, click_level, click_ratio, click_q = (
-        notes.A3,
+        Note.A3,
         0.2,
         0.03,
         0.28,

@@ -10,16 +10,18 @@ from dataclasses import replace
 from typing import Any, ClassVar
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
-from pyoscillate.controller import EvolvingRuntime, GroupController, GroupRuntime, Slot
+from pyoscillate.controller import GroupController, GroupRuntime, Slot
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
-from pyoscillate.theory.harmony import Harmony
+from pyoscillate.patches.common import Progressive
+from pyoscillate.theory.progression import ChordChanges, Progressions
 
 
 class Rack(ABC):
     """A project's patches and groups plus the engine config to run them.
 
     A subclass sets the class attributes below and declares
-    `GroupController`/`EvolvingGroup`s of `Slot`s (and of inner groups, which
+    `GroupController`s of `Slot`s (and of inner groups, which
     nest in the display) in its class body - top-level groups in the order
     they are declared, unless `layout` lists a different order (needed when a
     sidechain points at a group declared later in the display). The same
@@ -36,9 +38,13 @@ class Rack(ABC):
     # the master output's starting level and safety ceiling
     master_output_default: ClassVar[float] = 0.8
     master_output_max: ClassVar[float] = 1.0
-    # the declared key and progression; every rack gets its own copy in
-    # `__init__`, since the Flet key control mutates it
+    # the declared key; every rack gets its own copy in `__init__`, since the
+    # Flet key control mutates it
     harmony: Harmony = Harmony()
+    # the chord changes every chord-following patch (a `Progressive`) starts on,
+    # so bass, chords and the like change chord together; a `Slot` that sets its
+    # own `progression` keeps it, and each patch can evolve from here
+    progression: ClassVar[ChordChanges] = Progressions.STATIC
 
     def __init__(self) -> None:
         self.harmony = replace(self.harmony)
@@ -53,6 +59,9 @@ class Rack(ABC):
             )
         slots = list(dict.fromkeys(slot for group in declared for slot in group.slots))
         self._patches: dict[Slot[Any], Patch] = {slot: slot.bind() for slot in slots}
+        for slot, patch in self._patches.items():
+            if isinstance(patch, Progressive) and "progression" not in slot.values:
+                patch.progression = self.progression
         self._groups: dict[GroupController, GroupRuntime] = {}
         for group in declared:
             group.bind(self._patches, self._groups)
@@ -61,12 +70,6 @@ class Rack(ABC):
         nested = {inner for group in declared for inner in group.descendants()}
         top_level = self.layout or tuple(g for g in declared if g not in nested)
         self.groups = tuple(self._groups[group] for group in top_level)
-        self.evolving_groups = tuple(
-            nested_group
-            for group in self.groups
-            for nested_group in group.walk()
-            if isinstance(nested_group, EvolvingRuntime)
-        )
 
     def patch_for(self, slot: Slot[Any]) -> Patch:
         """This rack's bound patch for `slot`."""

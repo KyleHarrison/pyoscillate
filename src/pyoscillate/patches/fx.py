@@ -17,7 +17,7 @@ from pyo.lib.effects import Delay, Freeverb, Waveguide
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 
 class Comb(Patch):
@@ -45,10 +45,10 @@ class Comb(Patch):
         self.comb_wave.mul = value * self.COMB_GAIN
 
     comb_pitch = Param(
-        notes.A2,
-        notes.A4,
+        Note.A2,
+        Note.A4,
         1,
-        notes.A3,
+        Note.A3,
         "Comb pitch",
         "The note the ringing is tuned to; low is a deep, boxy resonance, high a thin, glassy one.",
         scale="note",

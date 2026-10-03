@@ -18,7 +18,7 @@ from pyo.lib.generators import FM, Lorenz, Rossler
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Echo, Gate, Reverb, RootPitch
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 
 class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
@@ -38,9 +38,9 @@ class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
     fm_voice: FM
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.A1,
-        maximum=notes.A3,
-        default=notes.A2,
+        minimum=Note.A1,
+        maximum=Note.A3,
+        default=Note.A2,
         help_text="Sets the pad's held pitch, the carrier tone everything else is built on.",
     )
 

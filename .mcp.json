@@ -1,8 +1,11 @@
 {
   "mcpServers": {
     "flet": {
-      "command": "flet",
+      "type": "stdio",
+      "command": "uv",
       "args": [
+        "run",
+        "flet",
         "mcp"
       ]
     },

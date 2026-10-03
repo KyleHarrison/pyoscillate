@@ -2,13 +2,13 @@
 """Patch definitions for the free-running psyambient rack."""
 
 from pyoscillate.controller import (
-    EvolvingGroup,
     GroupControl,
     GroupController,
     ParamControl,
     Slot,
     SlotTarget,
 )
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.musical.arp.arp import Arp
 from pyoscillate.patches.musical.canon.canon import Canon
 from pyoscillate.patches.musical.generative.generative import Generative
@@ -33,7 +33,7 @@ class PsyambientRack(Rack):
 
     soundscape_fm = Slot(SoundscapeFm)
     soundscape_filter = Slot(SoundscapeFilter)
-    soundscape_wash = Slot(SoundscapeWash)
+    soundscape_wash = Slot(SoundscapeWash, evolve=Evolve(16))
     mid_arp = Slot(Arp)
     mid_generative = Slot(Generative)
     mid_canon = Slot(Canon)
@@ -73,12 +73,11 @@ class PsyambientRack(Rack):
         ),
     )
     # the wash rotates its chorus depth and echo feedback every 16 bars
-    soundscapes_group = EvolvingGroup(
+    soundscapes_group = GroupController(
         "Soundscapes",
         (soundscape_fm, soundscape_filter, soundscape_wash),
         "Choose and combine evolving atmospheric beds.",
         controls=(soundscape_drift,),
-        bars=16,
     )
 
     mid_shimmer = GroupControl(
@@ -100,7 +99,7 @@ class PsyambientRack(Rack):
     mid_group = GroupController(
         "Mid Voices",
         (mid_arp, mid_generative, mid_canon),
-        "Melodic movement in the center of the arrangement.",
+        "Phrased movement in the center of the arrangement.",
         controls=(mid_shimmer,),
     )
 

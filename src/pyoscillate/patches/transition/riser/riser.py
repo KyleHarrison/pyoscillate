@@ -46,12 +46,12 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, frequency_shift
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
 STYLES = ("noise", "shift", "pitch")
 PHRASE_BARS = 8
 # `shift` / `pitch`: a root and fifth, as a detuned saw pair
-ROOT = notes.A2
+ROOT = Note.A2
 CHORD = [ROOT, ROOT * 1.5]
 DETUNE = 0.5
 BALANCE = 0.7

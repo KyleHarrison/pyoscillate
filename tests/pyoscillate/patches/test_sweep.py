@@ -10,7 +10,6 @@ from pyoscillate.controller import Slot
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import ParamSweep, Sweep
-from pyoscillate.patches.tonal.lead import fm
 from pyoscillate.projects.forest_psytrance.rack import ForestPsytranceRack
 from src.flet.base import PatchPanel
 

@@ -8,15 +8,11 @@ bass range. Each
 hit is either closed or open: both share one exponential envelope, so a closed
 hit retriggers it and chokes any open tail still ringing.
 
-`pattern`'s value is either a bare articulation string (the accent for that
-step falls back to `offbeat_accent`/`ghost_accent` by its position in the bar)
-or an `(articulation, accent)` pair for a style, like `GrooveLofi`, that needs
-an explicit per-step ghost-note level instead of that generic guess.
-`pattern_cycle` sets how many steps the pattern repeats over - 16 for a
-16th-note bar, 32 for `GrooveLofi`'s 32nd-note (swung 16th) bar.
+Each style starts on one of the shared hat rhythms, whose steps
+carry a velocity and may be marked open; any hat can play any rhythm from
+its Pattern dropdown.
 """
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -29,19 +25,16 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Step
-from pyoscillate.patches.drums.base import DROP, DrumVoice
+from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
-CLOSED = "closed"
-OPEN = "open"
-DURATIONS = {CLOSED: 0.1, OPEN: 0.4}
 # carrier (Hz), modulator ratio, index - inharmonic ratios keep the sidebands
 # from lining up into a pitch, so the cluster reads as metal, not a tone
 METAL_OPERATORS = ((3400.0, 1.47, 4.0), (5250.0, 1.83, 3.0), (7150.0, 1.21, 3.0))
 
 
-class Groove(DrumVoice):
+class Groove(RhythmDrum):
     """Grid-locked hat pattern with closed/open choke: one shared envelope
     whose duration is reassigned per hit to the firing articulation, so a
     closed hit retriggering it cuts off any still-ringing open tail. Style
@@ -50,18 +43,16 @@ class Groove(DrumVoice):
     """
 
     volume = Patch.volume.replace(default=0.25)
+    phrase_roles = (PhraseRole.HAT,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.HAT_CRISP)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     # after the high-pass the FM cluster sits a little below noise; this
     # keeps the Metal blend roughly level-neutral
     metal_gain: ClassVar[float] = 1.25
-    offbeat_accent: ClassVar[float] = 1.0
-    ghost_accent: ClassVar[float] = 0.66
-
-    # step in a `pattern_cycle`-step bar -> which articulation plays there
-    # (or an explicit `(articulation, accent)` pair) - overridden per style
-    pattern: ClassVar[dict[int, str | tuple[str, float]]]
-    pattern_cycle: ClassVar[int] = 16
+    # how long a closed and an open hit rings, before `length` stretches them
+    closed_length: ClassVar[float] = 0.1
+    open_length: ClassVar[float] = 0.4
 
     # the graph, assigned by build(); finish() retains every one of them
     choke_env: TrigEnv
@@ -71,11 +62,6 @@ class Groove(DrumVoice):
     source: Selector
     shaped: PyoObject
     filtered: ButHP
-
-    # the step pattern's callable, frozen at build time - fed to
-    # `next_step`, which build() can no longer close over now that it's a
-    # real method
-    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -139,7 +125,7 @@ class Groove(DrumVoice):
         """Build a style-specific, grid-locked hat pattern with closed/open choke."""
         self._reset()
         self.choke_env = self.envelope(
-            DROP, dur=DURATIONS[CLOSED] * self.length, exp=self.decay_curve
+            DROP, dur=self.closed_length * self.length, exp=self.decay_curve
         )
         self.noise = Noise()
         self.operators = tuple(
@@ -162,18 +148,13 @@ class Groove(DrumVoice):
     def next_step(self) -> None:
         step = self._step()
         if step.hit:
-            entry = step.value
-            if isinstance(entry, tuple):
-                articulation, accent = entry
-            else:
-                articulation = entry
-                accent = (
-                    self.offbeat_accent if step.index % 4 == 2 else self.ghost_accent
-                )
-            self.choke_env.mul = self.level * accent
+            opened = step.index in self.selected_phrase.open_steps
+            self.choke_env.mul = self.level * step.value
             # one envelope for both articulations, so a closed hit
             # restarting it cuts off an open tail - the hat choke
-            self.choke_env.dur = DURATIONS[articulation] * self.length
+            self.choke_env.dur = (
+                self.open_length if opened else self.closed_length
+            ) * self.length
             self.trigger.play()
 
 
@@ -182,7 +163,7 @@ class GrooveCrisp(Groove):
 
     name = "hat_crisp"
     title = "Hat - Crisp"
-    pattern: ClassVar[dict[int, str]] = {2: CLOSED, 6: CLOSED, 10: CLOSED, 14: CLOSED}
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_CRISP)
 
 
 class GrooveOpen(Groove):
@@ -190,13 +171,7 @@ class GrooveOpen(Groove):
 
     name = "hat_open"
     title = "Hat - Open"
-    pattern: ClassVar[dict[int, str]] = {
-        2: OPEN,
-        6: OPEN,
-        10: OPEN,
-        14: OPEN,
-        15: CLOSED,
-    }
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_OPEN)
 
 
 class GrooveShuffle(Groove):
@@ -204,14 +179,7 @@ class GrooveShuffle(Groove):
 
     name = "hat_shuffle"
     title = "Hat - Shuffle"
-    pattern: ClassVar[dict[int, str]] = {
-        2: CLOSED,
-        5: CLOSED,
-        6: CLOSED,
-        10: CLOSED,
-        13: CLOSED,
-        14: OPEN,
-    }
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_SHUFFLE)
 
 
 class GrooveForest(Groove):
@@ -224,53 +192,10 @@ class GrooveForest(Groove):
     summary = (
         "Quiet open offbeat hats choked by soft closed ghosts; a background shimmer."
     )
-    pattern: ClassVar[dict[int, tuple[str, float]]] = {
-        2: (OPEN, 0.6),
-        3: (CLOSED, 0.25),
-        6: (OPEN, 0.6),
-        7: (CLOSED, 0.25),
-        10: (OPEN, 0.6),
-        11: (CLOSED, 0.25),
-        14: (OPEN, 0.7),
-        15: (CLOSED, 0.3),
-    }
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_FOREST)
     cutoff = Groove.cutoff.replace(default=8000)
     metal = Groove.metal.replace(default=0.5)
     length = Groove.length.replace(default=0.7)
-
-
-# 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> (articulation, accent).
-# Each beat's straight 16th grid (offsets 0, 2, 4, 6) keeps the downbeat and
-# the "and" on the grid but delays the weak "e"/"a" 16ths by one 32nd (to 3
-# and 7) for an MPC-style swing, each as a quiet ghost hit; the last "a" of
-# the bar opens instead, to breathe before the loop restarts.
-GROOVE_LOFI_PATTERN: dict[int, tuple[str, float]] = {
-    0: (CLOSED, 1.0),
-    3: (CLOSED, 0.4),
-    4: (CLOSED, 0.75),
-    7: (CLOSED, 0.4),
-    8: (CLOSED, 0.85),
-    11: (CLOSED, 0.4),
-    12: (CLOSED, 0.75),
-    15: (CLOSED, 0.4),
-    16: (CLOSED, 1.0),
-    19: (CLOSED, 0.4),
-    20: (CLOSED, 0.75),
-    23: (CLOSED, 0.4),
-    24: (CLOSED, 0.85),
-    27: (CLOSED, 0.4),
-    28: (OPEN, 0.55),
-}
-GROOVE_LOFI_FULL_PATTERN: dict[int, tuple[str, float]] = {
-    **GROOVE_LOFI_PATTERN,
-    2: (CLOSED, 0.25),
-    6: (CLOSED, 0.3),
-    10: (CLOSED, 0.25),
-    14: (CLOSED, 0.3),
-    18: (CLOSED, 0.25),
-    22: (CLOSED, 0.3),
-    26: (CLOSED, 0.25),
-}
 
 
 class GrooveLofi(Groove):
@@ -281,12 +206,7 @@ class GrooveLofi(Groove):
     name = "hat_lofi"
     title = "Hat - Lofi"
     summary = "Soft, filtered boom-bap hat pattern with MPC swing and ghost notes."
-    pattern: ClassVar[dict[int, tuple[str, float]]] = GROOVE_LOFI_PATTERN
-    pattern_variants: ClassVar[tuple[dict[int, tuple[str, float]], ...]] = (
-        GROOVE_LOFI_PATTERN,
-        GROOVE_LOFI_FULL_PATTERN,
-    )
-    pattern_cycle: ClassVar[int] = 32
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_LOFI)
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     # closes the hat's high-passed edge down into a duller, muffled top end
     lowpass_cutoff: ClassVar[float] = 6000.0
@@ -310,6 +230,3 @@ class GrooveLofi(Groove):
         self.lowpassed = Biquad(self.filtered, freq=self.lowpass_cutoff, q=0.7, type=0)
         self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
         return self.shaper
-
-    def on_evolve(self, index: int) -> None:
-        self.use_pattern(self.pattern_variants[index % len(self.pattern_variants)])

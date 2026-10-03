@@ -19,12 +19,11 @@ from pyo import PyoObject
 from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.clock import Division, NoteDivision
-from pyoscillate.patches.base import BuildContext
-from pyoscillate.patches.common import GatedVoice, Step
-from pyoscillate.theory.notes import semitone_ratio
+from pyoscillate.clock import NoteDivision
+from pyoscillate.patches.common import GatedVoice, Phrased, Step
+from pyoscillate.theory.phrase import Rhythms
 
-__all__ = ["DROP", "DrumVoice", "semitone_ratio"]
+__all__ = ["DROP", "DrumVoice", "RhythmDrum"]
 
 # full-to-zero break-points shared by every drum envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]
@@ -35,21 +34,18 @@ class DrumVoice(GatedVoice):
     shared `self.envelope(...)`/`self.schedule(...)`/`self.finish(...)`
     contract every concrete voice builds on.
 
-    A voice that plays a step pattern declares `pattern` (step -> accent, or
-    a set of steps for a flat accent of 1) and `pattern_cycle`, calls
-    `self.schedule_pattern(context)` from `build()`, and gets `next_step`
-    for free. It overrides `apply_gains()` when its level depends on the
+    A voice that plays a step pattern selects it with a dropdown `Param`
+    (`RhythmDrum` for a rhythm) and calls `self.schedule_pattern(context)`
+    from `build()`. It overrides `apply_gains()` when its level depends on the
     current step's `accent`, and `strike()` for anything extra a hit does.
+    `base_division` only sets the range of the rate slider: the grid a hit
+    lands on is the chosen pattern's own.
     """
 
     base_division: ClassVar[NoteDivision]
-    # step in a `pattern_cycle`-step bar -> accent; the default is a one-step
-    # cycle with a full-level hit, which fires every `base_division` tick
-    pattern: ClassVar[dict[int, float] | set[int]] = {0: 1.0}
-    pattern_cycle: ClassVar[int] = 1
 
-    # per-hit accent from `pattern`, not a parameter: kept on self so a live
-    # level change doesn't lose the current step's accent
+    # per-hit accent from the pattern's velocity, not a parameter: kept on self
+    # so a live level change doesn't lose the current step's accent
     accent: float
     # oscillators restarted at phase zero on every hit, so the attack starts
     # on a zero crossing instead of wherever they last stopped
@@ -71,16 +67,6 @@ class DrumVoice(GatedVoice):
         super()._reset()
         self.accent = 1.0
         self.phased = []
-
-    def schedule_pattern(self, context: BuildContext) -> Division:
-        """Read `pattern` off the shared clock and fire `next_step` on the
-        voice's `rate`."""
-        self.use_pattern(self.pattern)
-        return self.schedule(self.base_division, self.rate, context.clock)
-
-    def use_pattern(self, pattern: dict[int, float] | set[int]) -> None:
-        """Swap the step pattern live (an `EvolvingGroup`'s `on_evolve`)."""
-        self._step = self.step_pattern(self.pattern_cycle, pattern)
 
     def pitched_body(
         self,
@@ -123,6 +109,20 @@ class DrumVoice(GatedVoice):
         for oscillator in self.phased:
             oscillator.reset()
         self.trigger.play()
+
+
+class RhythmDrum(Phrased, DrumVoice):
+    """A drum that plays a rhythm chosen by its `phrase` dropdown: each hit
+    carries its step's velocity as `accent`. A voice names its starting
+    rhythm with `phrase = Voice.phrase.replace(default=Rhythms.X)` and
+    gets `next_step` for free."""
+
+    phrase = Phrased.phrase.replace(
+        default=Rhythms.QUARTER_PULSE,
+        label="Pattern",
+        help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
+        "ghost-noted pocket; every voice draws on the same shared patterns.",
+    )
 
     def next_step(self) -> None:
         step = self._step()

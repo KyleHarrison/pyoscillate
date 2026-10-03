@@ -20,8 +20,9 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DROP, DrumVoice
+from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 # carrier (Hz), modulator ratio, index
 METAL_OPERATORS = (
@@ -32,12 +33,14 @@ METAL_OPERATORS = (
 )
 
 
-class Cymbal(DrumVoice):
+class Cymbal(RhythmDrum):
     """Ride/crash cymbal: dense metallic source through a resonant
     band-pass with a slow, tempo-locked drift of the band's centre. Style
     variants share this graph and override the profile attributes below."""
 
     volume = Patch.volume.replace(default=0.15)
+    phrase_roles = (PhraseRole.CYMBAL,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.RIDE_QUARTERS)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     noise_level: ClassVar[float] = 0.3
     # one full drift of the band centre spans this many bars
@@ -48,10 +51,7 @@ class Cymbal(DrumVoice):
     reference_tone: ClassVar[float] = 7000
     decay_curve: ClassVar[float] = 3
 
-    # cycle length in 16th steps, step -> accent within that cycle, decay
-    # (s), band-pass resonance - overridden per style
-    pattern_cycle: ClassVar[int]
-    pattern: ClassVar[dict[int, float]]
+    # decay (s), band-pass resonance - overridden per style
     decay: ClassVar[float]
     resonance: ClassVar[float]
 
@@ -164,15 +164,12 @@ class Cymbal(DrumVoice):
 class CymbalRide(Cymbal):
     """Quarter-note ride with slowly drifting metallic colour."""
 
-    pattern_cycle, pattern, decay, resonance = (
-        16,
-        {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8},
-        1.0,
-        3.0,
-    )
+    phrase = Cymbal.phrase.replace(default=Rhythms.RIDE_QUARTERS)
+    decay, resonance = 1.0, 3.0
 
 
 class CymbalCrash(Cymbal):
     """Long crash wash marking the start of every eight-bar phrase."""
 
-    pattern_cycle, pattern, decay, resonance = 128, {0: 1.0}, 2.6, 1.2
+    phrase = Cymbal.phrase.replace(default=Rhythms.CRASH_PHRASE)
+    decay, resonance = 2.6, 1.2

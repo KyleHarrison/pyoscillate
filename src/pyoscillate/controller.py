@@ -1,5 +1,5 @@
 """Class-level declarations for a rack - patches (`Slot`), groups
-(`GroupController`, `EvolvingGroup`) with their slider controls
+(`GroupController`) with their slider controls
 (`GroupControl`), sidechains - and the per-rack runtime objects they bind to.
 
 A declaration is an immutable descriptor on a `Rack` subclass. Read on the
@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
-from pyoscillate.clock import Clock, Division
 from pyoscillate.patches.base import Patch, Sidechain
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.sweep import ParamSweep
 
@@ -38,7 +38,8 @@ P = TypeVar("P", bound=Patch)
 
 class Slot(Generic[P]):
     """Declares one patch in a rack: its class, starting `Param` values, and
-    sidechains, and any `sweeps` that start enabled. `Rack` binds a fresh
+    sidechains, any `sweeps` that start enabled, and an `evolve` that starts
+    the patch's own evolution timer. `Rack` binds a fresh
     instance per rack; on a rack instance the slot reads as that instance,
     typed as `patch_class`."""
 
@@ -48,16 +49,20 @@ class Slot(Generic[P]):
         *,
         sidechains: tuple[SidechainSource, ...] = (),
         sweeps: tuple[ParamSweep, ...] = (),
+        evolve: Evolve | None = None,
         **values: float,
     ) -> None:
         self.patch_class = patch_class
         self.sidechains = sidechains
         self.sweeps = sweeps
+        self.evolve = evolve
         self.values = values
 
     def bind(self) -> P:
         patch = self.patch_class(**self.values)
         patch.declare_sweeps(self.sweeps)
+        if self.evolve is not None:
+            patch.declare_evolution(self.evolve)
         return patch
 
     def link(self, patch: P, groups: dict[GroupController, GroupRuntime]) -> None:
@@ -128,8 +133,8 @@ class FanOut:
 @dataclass(frozen=True, eq=False)
 class GroupControl:
     """One slider on a group that pushes a value across its patches - the
-    manual, user-triggered counterpart to `Patch.on_evolve`'s clock-triggered
-    push. Fully declarative: each target is a `SlotTarget` (exact patch), a
+    manual, user-triggered counterpart to a patch's own clock-triggered
+    evolution. Fully declarative: each target is a `SlotTarget` (exact patch), a
     `FanOut` (every patch with a `Param`) or another `GroupControl` declared on
     an inner group, which receives the same amount - so an outer control can
     move inner ones while each inner group keeps its own per-patch mapping."""
@@ -235,32 +240,6 @@ class GroupController:
         return obj.group_for(self)
 
 
-@dataclass(frozen=True, eq=False)
-class EvolvingGroup(GroupController):
-    """A group that also owns a rack-level, infrequent (tens-of-bars)
-    evolution timer: every `bars` bars it calls `Patch.on_evolve(index)` on
-    each patch playing in the group (see `EvolvingRuntime`)."""
-
-    bars: int = 1
-    repeat: int = 1
-
-    def _runtime(
-        self, patches: dict[Slot[Any], Patch], children: tuple[GroupRuntime, ...]
-    ) -> EvolvingRuntime:
-        return EvolvingRuntime(
-            self.title,
-            tuple(patches[slot] for slot in self.slots),
-            self.summary,
-            children=children,
-            controls=self.controls,
-            slot_patches={slot: patches[slot] for slot in self.slots},
-            own_patches=tuple(patches[slot] for slot in self.own_slots),
-            alternatives=self.alternatives,
-            bars=self.bars,
-            repeat=self.repeat,
-        )
-
-
 @dataclass(eq=False)
 class GroupRuntime:
     """One rack's group: its bound patches (nested groups' included), inner
@@ -306,54 +285,3 @@ class GroupRuntime:
             if control in group.controls:
                 return group
         raise LookupError(f"{self.title}: no inner group owns that control")
-
-
-@dataclass(eq=False)
-class EvolvingRuntime(GroupRuntime):
-    """A group's evolution timer. `index` passed to `on_evolve` is the fire
-    count divided by `repeat` (so each index holds for `repeat` fires before
-    advancing); a patch reads it as an index into its own musical data (e.g.
-    `index % len(...)`).
-
-    `bars` and `repeat` are live-adjustable via `set_bars()`/`set_repeat()`
-    (a rack's Flet UI wires a slider to each) - `set_bars` re-subscribes the
-    running `Division` at the new interval, `set_repeat` just changes how the
-    fire count is divided.
-    """
-
-    bars: int = 1
-    repeat: int = 1
-    _running: bool = field(default=False, init=False, repr=False)
-    _fire_count: int = field(default=0, init=False, repr=False)
-    _clock: Clock = field(init=False, repr=False)
-    _division: Division = field(init=False, repr=False)
-
-    def start(self, clock: Clock) -> None:
-        self._fire_count = 0
-        self._clock = clock
-        self._running = True
-        self._subscribe()
-
-    def stop(self) -> None:
-        if self._running:
-            self._division.stop()
-            self._running = False
-
-    def set_bars(self, bars: int) -> None:
-        self.bars = max(1, bars)
-        if self._running:
-            self._division.stop()
-            self._subscribe()
-
-    def set_repeat(self, repeat: int) -> None:
-        self.repeat = max(1, repeat)
-
-    def _subscribe(self) -> None:
-        self._division = self._clock.subscribe(self._clock.bar * self.bars, self._fire)
-        self._division.play()
-
-    def _fire(self) -> None:
-        index = self._fire_count // self.repeat
-        for patch in self.playing_patches():
-            patch.on_evolve(index)
-        self._fire_count += 1

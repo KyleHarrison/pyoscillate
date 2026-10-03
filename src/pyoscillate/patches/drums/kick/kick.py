@@ -7,11 +7,10 @@ amplitude without a phase click. An exponential pitch drop gives the attack
 its gesture, an exponential amplitude decay sets the body length, a short
 noise burst clarifies the transient, and gentle saturation adds density.
 
-`round`/`punch`/`soft` fire on every `base_division` tick (the classic
-four-on-the-floor pulse); `lofi` instead reads a per-step accent pattern off
-`step_pattern()` at 32nd-note resolution, so it can place hits off the
-straight 16th grid for an MPC-style swing pocket and quiet ghost hits,
-without inventing a new timing mechanism.
+`round`/`punch`/`soft` play the quarter-note pulse (the classic
+four-on-the-floor); `lofi` starts on a swung 32nd-note rhythm instead, so it
+can place hits off the straight 16th grid for an MPC-style swing pocket and
+quiet ghost hits. Every kick can play any rhythm from its Pattern dropdown.
 """
 
 from typing import ClassVar
@@ -24,11 +23,12 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DROP, DrumVoice
+from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 
-class Kick(DrumVoice):
+class Kick(RhythmDrum):
     """Four-on-the-floor kick: pitch-enveloped sine body, noise-click
     transient, soft saturation. Style variants subclass this and override
     the profile attributes below with fixed data; the graph itself is
@@ -51,10 +51,11 @@ class Kick(DrumVoice):
     decay: ClassVar[float]
     click_level: ClassVar[float]
 
-    # `pattern`/`pattern_cycle` default to one full-level hit per
-    # base_division tick (plain four-on-the-floor) - a style sets both to
-    # place hits off the straight grid (swing) and/or vary their level
-    # (ghost notes)
+    # the kick plays a full-level hit on every beat unless a style picks
+    # another rhythm to place hits off the straight grid (swing) and/or vary
+    # their level (ghost notes)
+    phrase_roles = (PhraseRole.KICK,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.QUARTER_PULSE)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch_env: TrigEnv
@@ -206,17 +207,6 @@ class KickSoft(Kick):
     )
 
 
-# 32nd-note steps (`pattern_cycle` = 32, 8 per beat) -> accent. Beat 1's
-# downbeat is full; the syncopated "and" of beat 2 lands on step 13 instead
-# of the straight 12 - one 32nd late, a 5:3 (~62:38) swing ratio (see
-# `.claude/skills/music-theory/references/rhythm-groove/groove-and-feel.md`,
-# "Swing ratio") - and a quiet ghost flicks in one 32nd behind beat 4's
-# straight "a" (30) at 31, both sitting just behind the grid for the laid-back
-# boom-bap pocket.
-KICK_LOFI_PATTERN = {0: 1.0, 13: 0.85, 31: 0.3}
-KICK_LOFI_FULL_PATTERN = {0: 1.0, 8: 0.45, 13: 0.85, 24: 0.55, 31: 0.3}
-
-
 class KickLofi(Kick):
     """Soft, closed-low-pass boom-bap kick with an MPC-style swing pocket and
     a ghost hit, sitting behind an 80 BPM beat rather than on a
@@ -231,12 +221,7 @@ class KickLofi(Kick):
         0.04,
     )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
-    pattern_cycle: ClassVar[int] = 32
-    pattern: ClassVar[dict[int, float]] = KICK_LOFI_PATTERN
-    pattern_variants: ClassVar[tuple[dict[int, float], ...]] = (
-        KICK_LOFI_PATTERN,
-        KICK_LOFI_FULL_PATTERN,
-    )
+    phrase = Kick.phrase.replace(default=Rhythms.KICK_LOFI)
     # closes the kick down from the shaper's grittier top end into a muffled,
     # cushioned thump
     lowpass_cutoff: ClassVar[float] = 1100.0
@@ -255,6 +240,3 @@ class KickLofi(Kick):
     def voice_output(self) -> PyoObject:
         self.lowpassed = Biquad(self.shaper, freq=self.lowpass_cutoff, q=0.7, type=0)
         return self.lowpassed
-
-    def on_evolve(self, index: int) -> None:
-        self.use_pattern(self.pattern_variants[index % len(self.pattern_variants)])

@@ -2,14 +2,11 @@ import unittest
 
 from pyoscillate.analysis.features import features
 from pyoscillate.analysis.render import render
-from pyoscillate.patches.tonal.pluck.pluck import (
-    FULL_PATTERN,
-    SPARSE_PATTERN,
-    PluckHook,
-)
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import C, Harmony
-from pyoscillate.theory.notes import freq_to_midi
+from pyoscillate.harmony import Harmony
+from pyoscillate.patches.tonal.pluck.pluck import PluckHook
+from pyoscillate.theory.phrase import Hooks
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class FixedClock:
@@ -26,7 +23,7 @@ class PluckHookTests(unittest.TestCase):
     @staticmethod
     def hit_steps(patch: PluckHook) -> set[int]:
         hits: set[int] = set()
-        for tick in range(PluckHook.cycle):
+        for tick in range(patch.selected_phrase.cycle):
             patch._clock = FixedClock(tick)
             patch._division = FixedClock(tick)
             if patch._step().hit:
@@ -35,27 +32,35 @@ class PluckHookTests(unittest.TestCase):
 
     def test_pattern_evolution_alternates_sparse_and_full_phrases(self) -> None:
         patch = PluckHook()
+        patch._base_division = PluckHook.base_division
 
-        patch.on_evolve(0)
-        self.assertEqual(self.hit_steps(patch), set(SPARSE_PATTERN))
-        patch.on_evolve(1)
-        self.assertEqual(self.hit_steps(patch), set(FULL_PATTERN))
+        # the patch isn't built, so apply the dropdown's control by hand
+        patch.phrase_evolution.set_choice(Hooks.FULL_HOOK, True)
+        patch.use_phrase(patch.selected_phrase)
+        self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
+        patch.phrase_evolution.advance()
+        patch.use_phrase(patch.selected_phrase)
+        self.assertEqual(self.hit_steps(patch), set(Hooks.FULL_HOOK.values))
+        patch.phrase_evolution.advance()
+        patch.use_phrase(patch.selected_phrase)
+        self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
 
     def test_hook_tracks_diatonic_chord_triads_in_upper_register(self) -> None:
         patch = PluckHook()
-        patch.harmony = Harmony(key=C, progression=(2, 7, 0, 9))
-        expected_roots = (notes.D4, notes.G4, notes.C4, notes.A4)
+        patch.harmony = Harmony(key=Note.KEY_C)
+        patch.progression = Progressions.JAZZ_TURNAROUND
+        expected_roots = (Note.D4, Note.G4, Note.C4, Note.A4)
 
         for bar_index, expected in enumerate(expected_roots):
             with self.subTest(bar=bar_index):
                 actual = patch._note_frequency(0, bar_index)
                 self.assertAlmostEqual(
-                    freq_to_midi(actual), freq_to_midi(expected), places=4
+                    Note.freq_to_midi(actual), Note.freq_to_midi(expected), places=4
                 )
 
     def test_sparse_phrase_leaves_rests(self) -> None:
-        self.assertLess(len(SPARSE_PATTERN), PluckHook.cycle)
-        self.assertEqual(len(FULL_PATTERN), PluckHook.cycle)
+        self.assertLess(len(Hooks.SPARSE_HOOK.steps), Hooks.SPARSE_HOOK.cycle)
+        self.assertEqual(len(Hooks.FULL_HOOK.steps), Hooks.FULL_HOOK.cycle)
 
     def test_render_is_silent_until_the_shared_clock_ticks(self) -> None:
         result = features(

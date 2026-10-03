@@ -3,7 +3,6 @@
 """Offbeat chord-stab voices."""
 
 import random
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject, PyoTableObject
@@ -14,15 +13,17 @@ from pyo.lib.tables import CosTable, HarmTable, SawTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, Progressive
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Scale, Voicing
+from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.scale import Scale, Scales
 
 
-class Stab(Gate, GatedVoice):
+class Stab(Gate, Progressive, Phrased, GatedVoice):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
     chord. Style variants subclass this and override `table()` for their
     own oscillator table, plus the profile attributes below; the rest of
@@ -30,6 +31,13 @@ class Stab(Gate, GatedVoice):
 
     volume = Patch.volume.replace(default=0.4)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    # a stab on every offbeat 16th of the bar
+    phrase_roles = (PhraseRole.CHORD_HIT,)
+    phrase = Phrased.phrase.replace(
+        default=Rhythms.OFFBEAT_HOUSE,
+        help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
+        "ghost-noted pocket; every voice draws on the same shared patterns.",
+    )
 
     # every chord root snaps to the octave nearest this, around D3
     register_centre: ClassVar[float] = 146
@@ -43,7 +51,7 @@ class Stab(Gate, GatedVoice):
     # the scale a voicing's degrees are read through: the stab's own quality,
     # independent of the rack's key, so a rack that sets no `scale` still gets
     # minor chords on every root
-    voicing_scale: ClassVar[Scale] = Scale.MINOR
+    voicing_scale: ClassVar[Scale] = Scales.MINOR
     STRUM_SPAN: ClassVar[float] = 0.04
     HUMAN_TIMING: ClassVar[float] = 0.025
     HUMAN_LEVEL: ClassVar[float] = 0.5
@@ -73,7 +81,6 @@ class Stab(Gate, GatedVoice):
     # this bar's chord source, frozen at build time - fed to `next_step`,
     # which build() can no longer close over now that it's a real method
     harmony: Harmony
-    _step: Callable[[], Step]
     # the human-feel jitter's own source, so it never touches the global one
     _feel: random.Random
     # the server's rate, so a delay can be whole samples (see `whole_samples`)
@@ -108,14 +115,14 @@ class Stab(Gate, GatedVoice):
 
     voicing = Param(
         0,
-        74,
+        0,
         1,
-        4,
+        Chords.SEVENTH_CHORD,
         "Voicing",
         "Picks the chord shape, from a bare power chord through triads and sevenths to wide, "
         "cinematic clusters; more notes sound fuller.",
         rebuild=True,
-        options=Voicing.labels(),
+        catalog=Chords,
     )
 
     strum = Param(
@@ -147,7 +154,7 @@ class Stab(Gate, GatedVoice):
         self._reset()
         self.harmony = context.harmony
         self.intervals = self.harmony.voice(
-            Voicing.by_index(int(self.voicing)), scale=self.voicing_scale
+            Chords.by_index(int(self.voicing)), scale=self.voicing_scale
         )
         self.note_level = self.NOTE_LEVEL * self.REFERENCE_VOICES / len(self.intervals)
 
@@ -173,9 +180,9 @@ class Stab(Gate, GatedVoice):
         self.voices = [
             Osc(
                 self.oscillator_table,
-                freq=notes.transpose(
-                    self.harmony.chord_freq(
-                        self.register_centre, context.clock.bar_index
+                freq=Note.transpose(
+                    self.chord_freq(
+                        self.harmony, self.register_centre, context.clock.bar_index
                     ),
                     12 * self.octave + interval,
                 ),
@@ -195,11 +202,7 @@ class Stab(Gate, GatedVoice):
             pre_reverb = self.chorus_voice
         self.reverb = Freeverb(pre_reverb, size=0.72, damp=0.45, bal=self.wet)
 
-        # fires on the third 16th of every 4-step group, i.e. every offbeat
-        # 16th-note pair within the bar
-        self._step = self.step_pattern(16, {2, 6, 10, 14})
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.reverb, context))
 
     def whole_samples(self, seconds: float) -> float:
@@ -211,14 +214,16 @@ class Stab(Gate, GatedVoice):
 
     def next_step(self) -> None:
         if self._step().hit:
-            chord_root = notes.transpose(
-                self.harmony.chord_freq(self.register_centre, self._clock.bar_index),
+            chord_root = Note.transpose(
+                self.chord_freq(
+                    self.harmony, self.register_centre, self._clock.bar_index
+                ),
                 12 * self.octave,
             )
             for index, (oscillator, interval) in enumerate(
                 zip(self.voices, self.intervals, strict=True)
             ):
-                oscillator.freq = notes.transpose(chord_root, interval)
+                oscillator.freq = Note.transpose(chord_root, interval)
                 self.note_delays[index].delay = self.whole_samples(
                     index * self.strum * self.STRUM_SPAN
                     + self._feel.random() * self.feel * self.HUMAN_TIMING

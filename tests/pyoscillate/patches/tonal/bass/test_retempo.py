@@ -3,12 +3,12 @@
 import unittest
 
 from pyoscillate.clock import Clock
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, start_server
 from pyoscillate.patches.tonal.bass import TechnoBass
 from pyoscillate.patches.tonal.bass.fm.fm import FmBassBark
 from pyoscillate.patches.tonal.bass.hover import BassHover
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.harmony import Harmony
 
 
 class BassRetempoTests(unittest.TestCase):

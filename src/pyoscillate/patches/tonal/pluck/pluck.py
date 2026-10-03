@@ -1,8 +1,7 @@
-"""Clocked FM plucks with a decaying brightness envelope and short body."""
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.pluck.pluck
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -11,28 +10,27 @@ from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
+from pyoscillate.patches.common import ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-
-# step -> chord-tone index; a step that is absent is a rest
-SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
-FULL_PATTERN = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 2, 6: 1, 7: 2}
+from pyoscillate.theory.phrase import Hooks, PhraseRole
+from pyoscillate.theory.pitch import Note
 
 
-class Pluck(Gate, RootPitch, GatedVoice):
+class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
     volume = Patch.volume.replace(default=0.4)
+    phrase_roles = (PhraseRole.HOOK,)
+    phrase = Phrased.phrase.replace(
+        default=Hooks.SPARSE_HOOK,
+        help_text="Picks which chord tones are played and when, from a sparse hook to one that fills every step.",
+    )
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
-    # the steps in one pass of a pattern (an eighth-note grid over one bar)
-    cycle: ClassVar[int] = 8
-    patterns: ClassVar[tuple[dict[int, int], ...]] = (SPARSE_PATTERN, FULL_PATTERN)
     triads: ClassVar[dict[int, tuple[int, int, int]]] = {
         0: (0, 4, 7),
         2: (0, 3, 7),
@@ -49,10 +47,9 @@ class Pluck(Gate, RootPitch, GatedVoice):
     fm_voice: FM
     space: Freeverb
     harmony: Harmony
-    _step: Callable[[], Step]
 
-    root_freq = RootPitch.root_freq.replace(
-        default=notes.E3,
+    root_freq = ChordRoot.root_freq.replace(
+        default=Note.E3,
         help_text="Sets the chord-root register; the plucked chord tones sound an octave above it.",
     )
 
@@ -98,15 +95,10 @@ class Pluck(Gate, RootPitch, GatedVoice):
     )
 
     def _note_frequency(self, tone_index: int, bar_index: int) -> float:
-        degree = self.harmony.chord_offset(bar_index) % 12
+        degree = self.chord_offset(self.harmony, bar_index) % 12
         root = self.root_at(bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
-        return notes.transpose(root, 12 + triad[tone_index])
-
-    def on_evolve(self, index: int) -> None:
-        self._step = self.step_pattern(
-            self.cycle, self.patterns[index % len(self.patterns)]
-        )
+        return Note.transpose(root, 12 + triad[tone_index])
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
@@ -128,8 +120,7 @@ class Pluck(Gate, RootPitch, GatedVoice):
         )
         self.space = Freeverb(self.fm_voice, size=0.35, damp=0.55, bal=0.22)
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(self.cycle, self.patterns[0])
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.space, context))
 
     def next_step(self) -> None:

@@ -13,12 +13,11 @@ class PsyambientRackTests(unittest.TestCase):
             ["Soundscapes", "Mid Voices", "Bass"],
         )
 
-    def test_soundscapes_evolve_on_their_own_timer(self) -> None:
+    def test_the_wash_evolves_on_its_own_timer(self) -> None:
         rack = PsyambientRack()
 
-        self.assertEqual(
-            [group.title for group in rack.evolving_groups], ["Soundscapes"]
-        )
+        self.assertTrue(rack.soundscape_wash.evolution.enabled)
+        self.assertEqual(rack.soundscape_wash.evolution.bars, 16)
 
     def test_intensity_moves_every_layer(self) -> None:
         rack = PsyambientRack()

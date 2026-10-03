@@ -17,8 +17,9 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 # the tick's own default decay (s); read directly at construction (as well as
 # from its own `@Param`) since there's no separate style constant behind it
@@ -27,12 +28,14 @@ DECAY = 0.12
 CUTOFF_FREQ = 3000
 
 
-class LowHat(DrumVoice):
+class LowHat(RhythmDrum):
     """Darker noise tick, once per quarter note, as a rarer, dubbier accent."""
 
     title = "Low hat"
     summary = "Darker, rarer accent beneath the main hat."
     volume = Patch.volume.replace(default=0.2)
+    phrase_roles = (PhraseRole.HAT,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.QUARTER_PULSE)
     base_division: ClassVar[NoteDivision] = NoteDivision.QUARTER
     # exponent of the decay curve - a sharp, strongly exponential drop keeps
     # the accent percussive even with a darker spectrum
@@ -73,7 +76,7 @@ class LowHat(DrumVoice):
         "Controls how prominent this accent is against the main hat.",
     )
     def level(self, value: float) -> None:
-        self.hat_env.mul = value
+        self.apply_gains()
 
     @Param(
         0.03,
@@ -91,6 +94,9 @@ class LowHat(DrumVoice):
         base_division,
         "Halves or doubles the accent pattern speed for each step away from its quarter-note grid.",
     )
+
+    def apply_gains(self) -> None:
+        self.hat_env.mul = self.level * self.accent
 
     def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
@@ -111,7 +117,5 @@ class LowHat(DrumVoice):
         self.body = ButHP(self.hat_burst, freq=self.low_edge)
         self.filtered = ButLP(self.body, freq=self.high_edge, mul=self.hat_swell)
 
-        self.schedule_with(
-            self.base_division, self.rate, context.clock, self.trigger.play
-        )
+        self.schedule_pattern(context)
         return self.finish(self.filtered)

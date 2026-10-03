@@ -160,9 +160,38 @@ sidechains are bound by the rack - there are no `name=`/
   `self.schedule(base_division, rate, clock)` (subscribes `self.next_step`;
   `schedule_with(..., callback)` takes an explicit callback), `self.reschedule()`,
   and `self.step_pattern(cycle, pattern)`, which returns a callable giving a
-  `Step(index, hit, value)`.
+  `Step(index, hit, value)`. What a voice plays is chosen from the shared
+  pattern catalogs (see "Patterns" below), never declared inline.
 - `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
   a no-op `ContinuousSequencer`.
+
+**Phrases.** Every step pattern lives once under `theory/phrase/`, as a
+`Phrase` member of a role catalog (`Rhythms`, `BassLines`, `Leads`, `Fills`,
+`Hooks`; `ArpOrders` and `Walks` for the patches that need a note pool or a
+pace of their own). A `Phrase` is `division`, `cycle`, a tuple of named-field
+`Step(at, offset, accent, length, open)`s, and a `mode` (`PhraseMode`) saying
+what `offset` means: nothing for a drum rhythm (`NONE`), semitones above the
+chord root (`SEMITONES`), an index into the chord's triad (`CHORD_TONE`) or
+into a note pool the patch supplies (`POOL_INDEX`). A patch never defines its
+own: it mixes in `Phrased` (`common.py`), which adds a dropdown `Param`
+(`phrase`), schedules on the chosen phrase's own grid and swaps it live. A
+voice family names the `PhraseRole`s it accepts and its starting phrase with
+`phrase_roles = (PhraseRole.HAT,)` and
+`phrase = Phrased.phrase.replace(default=Rhythms.X)`; the dropdown then offers
+only phrases tagged with one of those roles (a `Phrase` lists every job it
+suits in `roles`; a default outside them raises when the class is
+defined). A choice with several categories and over 12 options shows as a
+category dropdown over an item dropdown in the Flet panel. A style
+changes only the default (`phrase = Voice.phrase.replace(default=Rhythms.Y)`)
+and evolution rotates by assigning the member to the `Param`
+(`self.phrase = member`), so the dropdown stays the single source: a patch
+declares no list of variants, the listener ticks which phrases take part
+(see "Evolution" below). The
+`Param` stores the member's position but a preset stores its stable `id`
+(the lowercase attribute name), so members can be added or reordered. A phrase
+a patch needs that the catalogs lack is added there, so every other patch can
+play it too. `base_division` stays on the class only to set the range of the
+`rate` slider.
 
 **`Step.hit` vs `Step.value`.** `hit` says whether the pattern has an event at
 the step (structure); `value` says what the event carries (an accent, a pitch
@@ -315,15 +344,26 @@ return self.finish(self.<output node>)
 ### Live hooks outside `@Param`
 
 `on_evolve(self, index: int) -> None` is a no-op hook a patch may override
-for rack-level, infrequent (tens-of-bars) evolution — an `EvolvingGroup`
-(an `EvolvingGroup` in `controller.py`) calls it live, every N bars, on whichever patch instance is
-currently active in a watched group. It is a third live-update path
-alongside `@Param` controls, but deliberately not a
-`@Param`: no slider, not user-facing, just a plain method
-call driven by the controller's timer instead of a widget. `index` is the
-controller's own fire count; an override reads it into its own musical data
+for infrequent (tens-of-bars) evolution. Overriding it makes the patch
+`evolvable`: its panel gets an Evolve toggle, a bars slider and a countdown
+bar. The patch's own `Evolution` (`patches/evolve.py`, like `Sweep` one per
+instance, never per group) holds a clock `Division` that fires every `bars`
+bars while enabled and playing, so a change lands on a bar line shared with
+the rest of the rack. It is a third live-update path alongside `@Param`
+controls, but deliberately not a `@Param`: no slider for the change itself,
+just a plain method call driven by the timer. `index` is the number of fires
+since the patch started; an override reads it into its own musical data
 (e.g. `index % len(self.SOMETHING)`) and owns its own wraparound — there's
 no shared numeric range to clamp against.
+
+`Phrased` implements `on_evolve` itself: it moves the `phrase` dropdown to
+the next phrase the listener has ticked (`evolution.choices`, a checkbox per
+phrase in the Evolve view), wrapping, so the dropdown always shows what is
+playing and a phrase picked by hand continues from there. Only the starting
+phrase is ticked by default, so nothing rotates until a rack declares
+`Slot(Voice, evolve=Evolve(bars, (PhraseA, PhraseB)))` or the listener ticks
+more. A phrased patch that overrides `on_evolve` for something else (keys'
+inversion, strings' colour tone) calls `super().on_evolve(index)` too.
 
 ### Gate add-on
 
@@ -413,7 +453,7 @@ A slider that sets a pitch in Hz (Register, `root_freq`) takes
 `scale="note"`: its ticks are equal-tempered semitones and its label shows
 the note name, so it can only land on in-tune notes. Keep the parameter in
 Hz and give its `minimum`, `maximum` and `default` as notes from
-`theory/notes` (`notes.A1`, not `55`). Continuous detune belongs in its own
+`Note` in `theory/pitch.py` (`Note.A1`, not `55`). Continuous detune belongs in its own
 control, not in a Register slider with Hz steps.
 
 ### 3. Parameter changes should usually be live

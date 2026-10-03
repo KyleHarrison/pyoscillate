@@ -17,12 +17,11 @@ echo smears each phrase into the next.
   instead of locking it. Plays a short, syncopated, sliding groove.
 
 Both play a two-bar phrase in semitones above the rack's current chord root,
-and `on_evolve` alternates between two phrase variants.
+and its evolution can rotate between phrase variants.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -34,15 +33,16 @@ from pyo.lib.tables import CosTable, LinTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
+from pyoscillate.patches.common import ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.phrase import Leads, PhraseRole
+from pyoscillate.theory.pitch import Note
 
 
-class LeadFm(Gate, RootPitch, GatedVoice):
+class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -88,11 +88,12 @@ class LeadFm(Gate, RootPitch, GatedVoice):
         (8191, 0.0),
     ]
 
-    # this style's phrases, in semitones above the chord root; a step absent
-    # from the dict is a rest. `phrases[0]` plays first and `on_evolve`
-    # rotates through the rest. A phrase spans `cycle` steps (two bars).
-    phrases: ClassVar[tuple[dict[int, int], ...]]
-    cycle: ClassVar[int] = 32
+    phrase_roles = (PhraseRole.LEAD,)
+    phrase = Phrased.phrase.replace(
+        default=Leads.LEAD_ARCH,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -121,12 +122,11 @@ class LeadFm(Gate, RootPitch, GatedVoice):
     harmony: Harmony
     _tempo: Tempo
     _accent: float
-    _step: Callable[[], Step]
 
-    root_freq = RootPitch.root_freq.replace(
-        minimum=notes.F3,
-        maximum=notes.F5,
-        default=notes.F4,
+    root_freq = ChordRoot.root_freq.replace(
+        minimum=Note.F3,
+        maximum=Note.F5,
+        default=Note.F4,
         help_text="Moves the lead up or down; low is a warm, reedy mid voice, high is a thin, whistling line above the mix. Notes always follow the rack's key and chord.",
     )
 
@@ -299,25 +299,17 @@ class LeadFm(Gate, RootPitch, GatedVoice):
         self.mixed = self.body + self.echo
         self.cleaned = ButHP(self.mixed, freq=self.subsonic)
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(self.cycle, self.phrases[0])
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.cleaned, context))
 
     def next_step(self) -> None:
         step = self._step()
         if step.hit:
             self._accent = self.beat_accent if step.index % 4 == 0 else 1.0
-            self.pitch.value = notes.transpose(self.note_root(), step.value)
+            self.pitch.value = Note.transpose(self.note_root(), step.value)
             self.bark.mul = self.bite * self._accent
             self.amp.mul = self._accent
             self.trigger.play()
-
-    def on_evolve(self, index: int) -> None:
-        """Rotate which of `phrases` is playing; called rarely (tens of
-        bars) by the rack's `EvolvingGroup`, never by the clock."""
-        self._step = self.step_pattern(
-            self.cycle, self.phrases[index % len(self.phrases)]
-        )
 
 
 class LeadFmWind(LeadFm):
@@ -333,10 +325,7 @@ class LeadFmWind(LeadFm):
     length = LeadFm.length.replace(default=3.0)
     glide = LeadFm.glide.replace(default=0.09)
     breath = LeadFm.breath.replace(default=0.45)
-    phrases = (
-        {0: 7, 5: 8, 8: 7, 12: 5, 16: 3, 21: 5, 24: 7, 28: 1},
-        {0: 12, 6: 10, 10: 8, 14: 7, 16: 5, 22: 3, 26: 1, 30: 0},
-    )
+    phrase = LeadFm.phrase.replace(default=Leads.WIND_DRIFT)
 
 
 class LeadFmSwirl(LeadFm):
@@ -350,37 +339,4 @@ class LeadFmSwirl(LeadFm):
     swirl_bars = 1.0
     drift_bars = 2.0
     length = LeadFm.length.replace(default=0.9)
-    phrases = (
-        {
-            0: 7,
-            3: 7,
-            6: 8,
-            8: 7,
-            10: 5,
-            12: 3,
-            14: 5,
-            16: 7,
-            19: 10,
-            22: 8,
-            24: 7,
-            27: 5,
-            30: 1,
-        },
-        {
-            0: 12,
-            2: 10,
-            3: 8,
-            6: 7,
-            8: 8,
-            11: 7,
-            14: 5,
-            16: 3,
-            18: 5,
-            19: 7,
-            22: 5,
-            24: 3,
-            27: 1,
-            28: 0,
-            30: 1,
-        },
-    )
+    phrase = LeadFm.phrase.replace(default=Leads.SWIRL_GROOVE)

@@ -23,14 +23,16 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import Clock
-from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
+from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.common import Progressive
+from pyoscillate.patches.evolve import Evolution
+from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.intervals import Progression
-from pyoscillate.theory.notes import NOTE_NAMES
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -40,6 +42,9 @@ TEXT = "#F4F7F6"
 MUTED = "#A9B8B4"
 BPM_MIN = 40
 BPM_MAX = 220
+# a choice with more options than this and several categories is split into a
+# category dropdown and an item dropdown
+GROUPED_OPTION_THRESHOLD = 12
 ERROR = "#FF8A80"
 # preset entry for rack-wide settings; the leading underscore keeps it from
 # colliding with a patch name
@@ -247,6 +252,239 @@ class SweepRow:
         e.page.update()
 
 
+class EvolveSection:
+    """One bordered section for one `Evolution` of a patch: a Hold/Evolve
+    selector, a menu of the choices (for a dropdown axis such as the phrase or
+    progression), how many bars pass between changes and a bar that fills
+    towards the next one. The menu is the axis's dropdown and its checklist in
+    one: in Hold mode a row picks that choice, in Evolve mode a row ticks it
+    into the rotation and the menu stays open. Reads and writes the
+    `Evolution`; holds no values of its own."""
+
+    BARS_MAX = Evolution.MAX_BARS
+    HOOK_SUMMARY = "Slowly changes something about the sound on its own."
+
+    def __init__(
+        self,
+        evolution: Evolution,
+        pick: Callable[[Param, int], None],
+        *,
+        grouped: bool,
+    ) -> None:
+        self.evolution = evolution
+        self._pick = pick
+        self._shown_current: Any = None
+        self.mode = ft.SegmentedButton(
+            segments=[
+                ft.Segment(value="hold", label="Hold"),
+                ft.Segment(value="evolve", label="Evolve"),
+            ],
+            selected=["hold"],
+            show_selected_icon=False,
+            on_change=self._handle_mode,
+        )
+        self.bars_text = ft.Text("", color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
+        self.bars_slider = ft.Slider(
+            min=Evolution.MIN_BARS,
+            max=self.BARS_MAX,
+            divisions=self.BARS_MAX - Evolution.MIN_BARS,
+            value=evolution.bars,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_bars,
+        )
+        self.countdown = ft.ProgressBar(
+            value=0, color=ACCENT, bgcolor="#31403D", bar_height=6, border_radius=3
+        )
+        self.countdown_text = ft.Text("", color=MUTED, size=11)
+        self.evolve_view = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Text("Changes every", color=MUTED, size=12),
+                        self.bars_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                self.bars_slider,
+                self.countdown,
+                self.countdown_text,
+            ],
+            spacing=2,
+        )
+        self.menu_label = ft.Text("", color=TEXT, size=14)
+        self._rows: dict[Any, tuple[ft.MenuItemButton, ft.Icon, ft.Text]] = {}
+        self._bulk: list[ft.MenuItemButton] = []
+        controls: list[ft.Control] = [
+            ft.Row(
+                controls=[
+                    ft.Column(
+                        controls=[
+                            ft.Text(
+                                evolution.label, color=TEXT, weight=ft.FontWeight.BOLD
+                            ),
+                            ft.Text(self._summary(), color=MUTED, size=12),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    self.mode,
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        ]
+        if evolution.options:
+            controls.append(self._build_menu(grouped))
+        controls.append(self.evolve_view)
+        self.control = ft.Container(
+            content=ft.Column(controls=controls, spacing=6),
+            border=ft.Border.all(1, "#31403D"),
+            border_radius=8,
+            padding=10,
+        )
+        self.show()
+
+    def _summary(self) -> str:
+        axis = self.evolution.axis
+        return axis.spec.help_text if axis else self.HOOK_SUMMARY
+
+    def _build_menu(self, grouped: bool) -> ft.MenuBar:
+        """The axis's choices as one menu, split under a submenu per category
+        when the list is long and varied."""
+        items = self.evolution.options
+        self._bulk = [
+            ft.MenuItemButton(
+                content=ft.Text(name, size=12, color=MUTED),
+                close_on_click=False,
+                on_click=lambda e, ticked=ticked: self._handle_bulk(ticked, e),
+            )
+            for name, ticked in (("All", True), ("None", False))
+        ]
+        rows = [self._row(choice) for choice in items]
+        if grouped:
+            categories = dict.fromkeys(choice.category for choice in items)
+            body: list[ft.Control] = [
+                ft.SubmenuButton(
+                    content=ft.Text(category),
+                    controls=[
+                        row
+                        for choice, row in zip(items, rows, strict=True)
+                        if choice.category == category
+                    ],
+                )
+                for category in categories
+            ]
+        else:
+            body = list(rows)
+        return ft.MenuBar(
+            controls=[
+                ft.SubmenuButton(
+                    content=self.menu_label,
+                    leading=ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=MUTED),
+                    controls=[*self._bulk, *body],
+                )
+            ],
+            style=ft.MenuStyle(bgcolor=PANEL),
+        )
+
+    def _row(self, choice: Any) -> ft.MenuItemButton:
+        icon = ft.Icon(ft.Icons.RADIO_BUTTON_UNCHECKED, size=18, color=ACCENT)
+        label = ft.Text(choice.label, color=TEXT)
+        row = ft.MenuItemButton(
+            content=label,
+            leading=icon,
+            on_click=lambda e, choice=choice: self._handle_choice(choice, e),
+        )
+        self._rows[choice] = (row, icon, label)
+        return row
+
+    def show(self) -> None:
+        """Bring every control in line with the evolution's settings."""
+        evolution = self.evolution
+        self.mode.selected = ["evolve" if evolution.enabled else "hold"]
+        self.evolve_view.visible = evolution.enabled
+        self.bars_slider.value = evolution.bars
+        self.bars_text.value = f"{evolution.bars} bars"
+        for item in self._bulk:
+            item.visible = evolution.enabled
+        self._show_choices()
+        self.refresh()
+
+    def _show_choices(self) -> None:
+        """The menu's marks and its closed label: which choices are ticked
+        (Evolve) or which is picked (Hold), and which is playing."""
+        evolution = self.evolution
+        if not evolution.options:
+            return
+        current = evolution.current
+        self._shown_current = current
+        for choice, (row, icon, label) in self._rows.items():
+            if evolution.enabled:
+                icon.icon = (
+                    ft.Icons.CHECK_BOX
+                    if choice in evolution.choices
+                    else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+                )
+            else:
+                icon.icon = (
+                    ft.Icons.RADIO_BUTTON_CHECKED
+                    if choice is current
+                    else ft.Icons.RADIO_BUTTON_UNCHECKED
+                )
+            row.close_on_click = not evolution.enabled
+            label.weight = ft.FontWeight.BOLD if choice is current else None
+        if evolution.enabled:
+            self.menu_label.value = (
+                f"{len(evolution.choices)} of {len(evolution.options)}"
+                f" · now {current.label}"
+            )
+        else:
+            self.menu_label.value = current.label
+
+    def refresh(self) -> None:
+        """Fill the bar to where the clock is between changes, and follow the
+        choice an evolution moved to."""
+        evolution = self.evolution
+        self.countdown.value = evolution.progress
+        if evolution.running:
+            self.countdown_text.value = f"Next change in {evolution.bars_left:.1f} bars"
+        else:
+            self.countdown_text.value = "Starts when the patch is playing"
+        if evolution.options and evolution.current is not self._shown_current:
+            self._show_choices()
+
+    def _handle_mode(self, e: ft.ControlEvent) -> None:
+        self.evolution.set_enabled("evolve" in e.control.selected)
+        self.show()
+        e.page.update()
+
+    def _handle_bars(self, e: ft.ControlEvent) -> None:
+        self.evolution.configure(float(e.control.value))
+        self.bars_text.value = f"{self.evolution.bars} bars"
+        e.page.update()
+
+    def _handle_choice(self, choice: Any, e: ft.ControlEvent) -> None:
+        evolution = self.evolution
+        if evolution.enabled:
+            ticked = choice not in evolution.choices
+            # at least one choice stays ticked, or there is nothing to play
+            if ticked or len(evolution.choices) > 1:
+                evolution.set_choice(choice, ticked)
+        elif evolution.axis is not None:
+            self._pick(evolution.axis, evolution.options.index(choice))
+        self._show_choices()
+        e.page.update()
+
+    def _handle_bulk(self, ticked: bool, e: ft.ControlEvent) -> None:
+        """All ticks every choice; None leaves just the one playing."""
+        evolution = self.evolution
+        evolution.choices = (
+            evolution.options if ticked else evolution.order((evolution.current,))
+        )
+        self._show_choices()
+        e.page.update()
+
+
 class PatchPanel:
     """One patch's live controls: an enable switch plus one slider per
     `Param` (volume included).
@@ -268,7 +506,21 @@ class PatchPanel:
         self._value_texts: dict[Param, ft.Text] = {}
         self._sliders: dict[Param, ft.Slider] = {}
         self._dropdowns: dict[Param, ft.Dropdown] = {}
+        self._category_dropdowns: dict[Param, ft.Dropdown] = {}
         self.sweep_rows: dict[Param, SweepRow] = {}
+        # one section per thing the patch evolves; a dropdown they rotate shows
+        # in its section, not in the parameter grid
+        self.evolve_rows = [
+            EvolveSection(
+                evolution,
+                self._pick_option,
+                grouped=bool(evolution.axis) and self._is_grouped(evolution.axis.spec),
+            )
+            for evolution in patch.evolutions
+        ]
+        self._evolved_params = {
+            evolution.axis.origin for evolution in patch.evolutions if evolution.axis
+        }
 
         self.switch = ft.Switch(
             value=False,
@@ -280,27 +532,57 @@ class PatchPanel:
 
     # -- UI construction -------------------------------------------------
 
+    @staticmethod
+    def _is_grouped(spec: SliderSpec) -> bool:
+        """Whether a choice is long and varied enough to split into a
+        category dropdown and an item dropdown filtered to it."""
+        return (
+            len(set(spec.option_categories)) > 1
+            and len(spec.options) > GROUPED_OPTION_THRESHOLD
+        )
+
+    @staticmethod
+    def _item_options(
+        spec: SliderSpec, category: str | None = None
+    ) -> list[ft.dropdown.Option]:
+        """The options of `category` (all of them when None), each keyed by
+        its index in `spec`."""
+        return [
+            ft.dropdown.Option(key=str(i), text=name)
+            for i, name in enumerate(spec.options)
+            if category is None or spec.option_categories[i] == category
+        ]
+
     def _option_row(self, param: Param) -> ft.Container:
-        """A named-choice parameter: a dropdown whose value is the index."""
+        """A named-choice parameter: a dropdown whose value is the index, or
+        for a long grouped list a category dropdown over an item dropdown."""
         spec = param.spec
+        index = int(param.read(self.patch))
+        controls: list[ft.Control] = [
+            ft.Text(spec.description, color=TEXT, size=14),
+            ft.Text(spec.help_text, color=MUTED, size=12),
+        ]
+        if self._is_grouped(spec):
+            categories = tuple(dict.fromkeys(spec.option_categories))
+            category_dropdown = ft.Dropdown(
+                options=[ft.dropdown.Option(key=name) for name in categories],
+                value=spec.option_categories[index],
+                on_select=lambda e, param=param: self._handle_category(param, e),
+            )
+            self._category_dropdowns[param] = category_dropdown
+            controls.append(category_dropdown)
+            item_options = self._item_options(spec, spec.option_categories[index])
+        else:
+            item_options = self._item_options(spec)
         dropdown = ft.Dropdown(
-            options=[
-                ft.dropdown.Option(key=str(i), text=name)
-                for i, name in enumerate(spec.options)
-            ],
-            value=str(int(param.read(self.patch))),
+            options=item_options,
+            value=str(index),
             on_select=lambda e, param=param: self._handle_option(param, e),
         )
         self._dropdowns[param] = dropdown
+        controls.append(dropdown)
         return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(spec.description, color=TEXT, size=14),
-                    ft.Text(spec.help_text, color=MUTED, size=12),
-                    dropdown,
-                ],
-                spacing=2,
-            ),
+            content=ft.Column(controls=controls, spacing=2),
             col={"xs": 12, "md": 6},
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
@@ -357,7 +639,11 @@ class PatchPanel:
         )
 
     def _build_control(self) -> ft.Control:
-        rows = [self._slider_row(param) for param in self.patch.params]
+        rows = [
+            self._slider_row(param)
+            for param in self.patch.params
+            if param.origin not in self._evolved_params
+        ]
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -379,6 +665,7 @@ class PatchPanel:
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
+                    *[section.control for section in self.evolve_rows],
                     ft.ResponsiveRow(controls=rows, spacing=12, run_spacing=4),
                 ],
                 spacing=8,
@@ -395,18 +682,39 @@ class PatchPanel:
             self._show(param, param.read(self.patch))
         for sweep_row in self.sweep_rows.values():
             sweep_row.show()
+        for section in self.evolve_rows:
+            section.show()
 
-    def refresh_sweeps(self) -> bool:
-        """Move every live sweep marker; whether any sweep is running."""
+    def refresh_live(self) -> bool:
+        """Move every live marker - each running sweep's dot, the evolve
+        countdown - and show any value the patch changed by itself (the
+        phrase an evolution moved to); whether anything is running."""
         running = False
         for sweep_row in self.sweep_rows.values():
             if sweep_row.sweep.running:
                 sweep_row.refresh()
                 running = True
+        for section in self.evolve_rows:
+            if section.evolution.running:
+                section.refresh()
+                running = True
         return running
 
     def _show(self, param: Param, value: float) -> None:
+        if param.origin in self._evolved_params:
+            # its dropdown lives in an evolve section, which shows the value
+            for section in self.evolve_rows:
+                axis = section.evolution.axis
+                if axis is not None and axis.origin is param.origin:
+                    section.show()
+            return
         if param in self._dropdowns:
+            if param in self._category_dropdowns:
+                category = param.spec.option_categories[int(value)]
+                self._category_dropdowns[param].value = category
+                self._dropdowns[param].options = self._item_options(
+                    param.spec, category
+                )
             self._dropdowns[param].value = str(int(value))
             return
         self._sliders[param].value = param.spec.to_position(value)
@@ -445,6 +753,23 @@ class PatchPanel:
         self._apply()
         e.page.update()
 
+    def _handle_category(self, param: Param, e: ft.ControlEvent) -> None:
+        """Show the chosen category's items and select the first of them."""
+        spec = param.spec
+        options = self._item_options(spec, str(e.control.value))
+        item = self._dropdowns[param]
+        item.options = options
+        item.value = options[0].key
+        param.write(self.patch, float(options[0].key))
+        self._apply()
+        e.page.update()
+
+    def _pick_option(self, param: Param, index: int) -> None:
+        """Select option `index` of `param`, from a menu rather than its own
+        dropdown."""
+        param.write(self.patch, float(index))
+        self._apply()
+
     def _handle_option(self, param: Param, e: ft.ControlEvent) -> None:
         param.write(self.patch, float(e.control.value))
         self._apply()
@@ -467,7 +792,7 @@ class PatchPanel:
         )
         if rebuild:
             self.patch.build(self.context)
-            self.patch.start(self.context.tempo)
+            self.patch.start(self.context.tempo, self.context.clock)
             self._built_values = {
                 param: param.read(self.patch) for param in self.patch.rebuild_params
             }
@@ -475,7 +800,7 @@ class PatchPanel:
     # -- presets -------------------------------------------------------------
 
     def to_preset(self) -> dict[str, Any]:
-        values = {param.name: param.read(self.patch) for param in self.patch.params}
+        values = {param.name: self._preset_value(param) for param in self.patch.params}
         preset: dict[str, Any] = {"enabled": self.enabled, **values}
         if self.patch.sweeps:
             preset["sweeps"] = {
@@ -487,14 +812,49 @@ class PatchPanel:
                 }
                 for param, sweep in self.patch.sweeps.items()
             }
+        if self.evolve_rows:
+            preset["evolve"] = {
+                self._evolve_key(section.evolution): {
+                    "enabled": section.evolution.enabled,
+                    "bars": section.evolution.bars,
+                    "choices": [choice.id for choice in section.evolution.choices],
+                }
+                for section in self.evolve_rows
+            }
         return preset
+
+    @staticmethod
+    def _evolve_key(evolution: Evolution) -> str:
+        """The preset key of an evolution: its dropdown's name, or "patch"
+        for the patch's own `on_evolve` hook."""
+        return evolution.axis.name if evolution.axis else "patch"
+
+    def _preset_value(self, param: Param) -> Any:
+        """What a preset stores for `param`: a dropdown's option id (stable
+        across reordering), any other parameter's number."""
+        value = param.read(self.patch)
+        if param.spec.option_ids:
+            return param.spec.option_ids[int(value)]
+        return value
+
+    @staticmethod
+    def _from_preset(param: Param, saved: Any) -> float | None:
+        """The parameter value a preset's `saved` entry stands for; None when
+        a dropdown's saved id is no longer one of its options."""
+        if param.spec.option_ids:
+            if saved not in param.spec.option_ids:
+                return None
+            return float(param.spec.option_ids.index(saved))
+        return param.spec.snap(float(saved))
 
     def apply_preset(self, data: dict[str, Any]) -> None:
         self.enabled = bool(data.get("enabled", False))
         self.switch.value = self.enabled
         for param in self.patch.params:
             if param.name in data:
-                value = param.spec.snap(float(data[param.name]))
+                value = self._from_preset(param, data[param.name])
+                if value is None:
+                    continue
                 param.write(self.patch, value)
                 self._show(param, value)
         for param, sweep in self.patch.sweeps.items():
@@ -505,11 +865,28 @@ class PatchPanel:
                 )
                 sweep.set_enabled(bool(saved["enabled"]))
                 self.sweep_rows[param].show()
+        saved_evolve = data.get("evolve")
+        if saved_evolve is not None:
+            # a preset saved before each dropdown had its own timer holds one
+            # entry for all of them
+            legacy = "enabled" in saved_evolve
+            for section in self.evolve_rows:
+                evolution = section.evolution
+                saved = (
+                    saved_evolve
+                    if legacy
+                    else saved_evolve.get(self._evolve_key(evolution))
+                )
+                if saved is None:
+                    continue
+                known = {choice.id: choice for choice in evolution.options}
+                evolution.configure(float(saved["bars"]))
+                ticked = tuple(known[i] for i in saved["choices"] if i in known)
+                if ticked:
+                    evolution.choices = evolution.order(ticked)
+                evolution.set_enabled(bool(saved["enabled"]))
+                section.show()
         self._apply()
-
-
-GROUP_CONTROLLER_BARS_MAX = 64
-GROUP_CONTROLLER_REPEAT_MAX = 16
 
 
 class GroupControlSlider:
@@ -578,11 +955,9 @@ class GroupControlSlider:
 
 class PatchGroup:
     """Titled group control that gates a row of related patch panels and any
-    nested `PatchGroup`s, plus the group's own `GroupControl` sliders and (for
-    an `EvolvingRuntime`) the live sliders for its own interval/repeat - the
-    group-level evolution timer described in `controller.py`, distinct from
-    any patch's own parameters. Switching a group off silences everything
-    inside it, nested groups included."""
+    nested `PatchGroup`s, plus the group's own `GroupControl` sliders.
+    Switching a group off silences everything inside it, nested groups
+    included."""
 
     def __init__(
         self,
@@ -626,90 +1001,8 @@ class PatchGroup:
         )
         self.control = self._build_control()
 
-    def _controller_row(
-        self, label: str, help_text: str, text: ft.Text, slider: ft.Slider
-    ) -> ft.Container:
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[ft.Text(label, color=TEXT, size=14), text],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    slider,
-                    ft.Text(help_text, color=MUTED, size=11),
-                ],
-                spacing=2,
-            ),
-            col={"xs": 12, "md": 6},
-            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
-        )
-
-    def _evolution_rows(self, group: EvolvingRuntime) -> list[ft.Container]:
-        bars_text = ft.Text(
-            f"{group.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        bars_slider = ft.Slider(
-            min=1,
-            max=GROUP_CONTROLLER_BARS_MAX,
-            divisions=GROUP_CONTROLLER_BARS_MAX - 1,
-            value=group.bars,
-            active_color=ACCENT,
-            inactive_color="#31403D",
-            on_change=lambda e: self._handle_bars(group, bars_text, e),
-        )
-        repeat_text = ft.Text(
-            f"{group.repeat}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        repeat_slider = ft.Slider(
-            min=1,
-            max=GROUP_CONTROLLER_REPEAT_MAX,
-            divisions=GROUP_CONTROLLER_REPEAT_MAX - 1,
-            value=group.repeat,
-            active_color=ACCENT,
-            inactive_color="#31403D",
-            on_change=lambda e: self._handle_repeat(group, repeat_text, e),
-        )
-        return [
-            self._controller_row(
-                "Evolve every (bars)",
-                "How many bars pass before this group's evolution moves on.",
-                bars_text,
-                bars_slider,
-            ),
-            self._controller_row(
-                "Repeat",
-                "How many times each step repeats before advancing to the next.",
-                repeat_text,
-                repeat_slider,
-            ),
-        ]
-
-    def _handle_bars(
-        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
-    ) -> None:
-        value = round(float(e.control.value))
-        group.set_bars(value)
-        text.value = f"{value}"
-        e.page.update()
-
-    def _handle_repeat(
-        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
-    ) -> None:
-        value = round(float(e.control.value))
-        group.set_repeat(value)
-        text.value = f"{value}"
-        e.page.update()
-
     def _build_control(self) -> ft.Control:
-        controller_rows = [
-            *(slider.control_view for slider in self.control_sliders),
-            *(
-                self._evolution_rows(self.group_def)
-                if isinstance(self.group_def, EvolvingRuntime)
-                else []
-            ),
-        ]
+        controller_rows = [slider.control_view for slider in self.control_sliders]
 
         patch_columns = []
         panel_column = (
@@ -912,7 +1205,7 @@ class PatchRackApp:
             label="Key",
             options=[
                 ft.dropdown.Option(key=str(pitch_class), text=name)
-                for pitch_class, name in enumerate(NOTE_NAMES)
+                for pitch_class, name in enumerate(Note.NAMES)
             ],
             value=str(rack.harmony.key),
             width=140,
@@ -923,7 +1216,7 @@ class PatchRackApp:
             label="Progression",
             options=[
                 ft.dropdown.Option(key=str(i), text=name)
-                for i, name in enumerate(Progression.labels())
+                for i, name in enumerate(Progressions.labels())
             ],
             value=self._progression_value(),
             width=180,
@@ -1178,28 +1471,34 @@ class PatchRackApp:
         self._set_key(int(e.control.value))
         e.page.update()
 
+    def _progressive_patches(self) -> list[Progressive]:
+        """Every patch in the rack that follows chord changes."""
+        return [
+            panel.patch
+            for panel in self.panels.values()
+            if isinstance(panel.patch, Progressive)
+        ]
+
     def _progression_value(self) -> str | None:
-        """The dropdown value for the rack's chord roots; None (blank) when
-        the rack's own progression isn't one of the named presets."""
-        progression = self.rack.harmony.progression
-        if isinstance(progression, Progression):
-            return str(progression.index)
+        """The dropdown value for the progression every chord-following patch
+        is on; None (blank) when they differ, as after one evolves."""
+        chosen = {patch.selected_progression for patch in self._progressive_patches()}
+        if len(chosen) == 1:
+            return str(Progressions.index_of(chosen.pop()))
         return None
 
-    def _progression_preset(self) -> dict[str, str]:
-        """The preset entry for a named progression; empty for a rack's own."""
-        progression = self.rack.harmony.progression
-        if isinstance(progression, Progression):
-            return {"progression": Progression.labels()[progression.index]}
-        return {}
-
     def _handle_progression(self, e: ft.ControlEvent) -> None:
-        # patches read the progression on each note, so no rebuild is needed
+        # patches read their progression on each note, so no rebuild is needed
         self._set_progression(int(e.control.value))
         e.page.update()
 
     def _set_progression(self, index: int) -> None:
-        self.rack.harmony.progression = Progression.by_index(index)
+        """Put every chord-following patch on `Progressions` member `index`."""
+        progression = Progressions.by_index(index)
+        for patch in self._progressive_patches():
+            patch.progression = progression
+            param = type(patch).progression
+            self.panels[patch.name]._show(param, param.read(patch))
         self.progression_dropdown.value = str(index)
 
     def _set_key(self, pitch_class: int) -> None:
@@ -1219,8 +1518,6 @@ class PatchRackApp:
         tempo = Tempo(bpm=self.bpm)
         self.clock = Clock(tempo, ticks_per_bar=self.rack.ticks_per_bar)
         self.clock.start()
-        for group in self.rack.evolving_groups:
-            group.start(self.clock)
         context = BuildContext(tempo, self.clock, self.rack.harmony)
         self.context = context
         self.running = True
@@ -1240,7 +1537,9 @@ class PatchRackApp:
         """While the engine runs, move every live sweep marker ~10 times a
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
-            moving = [panel.refresh_sweeps() for panel in self.panels.values()]
+            moving = [panel.refresh_live() for panel in self.panels.values()]
+            # an evolving patch can move off the shared progression
+            self.progression_dropdown.value = self._progression_value()
             if any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
@@ -1255,8 +1554,6 @@ class PatchRackApp:
             group.set_engine_ready(False)
         for panel in self.panels.values():
             panel.engine_stopped()
-        for group in self.rack.evolving_groups:
-            group.stop()
         self.clock.stop()
         self.server.stop()
         self.server.shutdown()
@@ -1282,9 +1579,6 @@ class PatchRackApp:
         first if it is stopped)."""
         for panel in self.panels.values():
             panel.engine_stopped()
-        if self.running:
-            for group in self.rack.evolving_groups:
-                group.stop()
         key = self.rack.harmony.key
         rack, catalog_dir = self.variants[name]()
         rack.harmony.key = key
@@ -1301,8 +1595,6 @@ class PatchRackApp:
         self.pause_button.icon = ft.Icons.PAUSE
         if self.running:
             self.context = BuildContext(self.context.tempo, self.clock, rack.harmony)
-            for group in rack.evolving_groups:
-                group.start(self.clock)
             for panel in self.panels.values():
                 panel.engine_started(self.context)
             for group in self.groups:
@@ -1335,12 +1627,11 @@ class PatchRackApp:
             self.page.update()
             return
         rack_values = preset.get(RACK_PRESET_KEY, {})
-        if rack_values.get("key") in NOTE_NAMES:
-            self._set_key(NOTE_NAMES.index(rack_values["key"]))
-        if rack_values.get("progression") in Progression.labels():
-            self._set_progression(
-                Progression.labels().index(rack_values["progression"])
-            )
+        if rack_values.get("key") in Note.NAMES:
+            self._set_key(Note.NAMES.index(rack_values["key"]))
+        # presets saved before each patch held its own progression
+        if rack_values.get("progression") in Progressions.ids():
+            self._set_progression(Progressions.ids().index(rack_values["progression"]))
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
             if control.path in control_values:
@@ -1361,8 +1652,7 @@ class PatchRackApp:
             patch_name: panel.to_preset() for patch_name, panel in self.panels.items()
         }
         values[RACK_PRESET_KEY] = {
-            "key": NOTE_NAMES[self.rack.harmony.key],
-            **self._progression_preset(),
+            "key": Note.NAMES[self.rack.harmony.key],
             "controls": {
                 control.path: control.group.values[control.control]
                 for control in self.control_sliders

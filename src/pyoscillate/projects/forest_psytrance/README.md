@@ -7,7 +7,7 @@ A 160 BPM, clock-locked rack for forest psytrance: a dark, hypnotic subgenre of 
 - **Tempo/feel:** 160 BPM, straight 16ths, four-on-the-floor. At this tempo a beat is 375 ms and a 16th is ~94 ms, so every envelope is sized in 16ths, not seconds.
 - **Bass pulse:** the kick owns the beat; the bass is the three 16ths *between* kicks (the "e", "&" and "a" of each beat) and rests on the beat itself. That rest is the pocket: bass and kick alternate instead of stacking, which is the "rolling" motion. The line stays on the root with an octave bounce on each "a", and a minor-second (♭2) approach into the next beat once per bar.
 - **Harmony:** F Phrygian. The modal colour is the ♭2 (G♭) over a static F root: a forest-psy vamp barely moves, it just leans on the ♭2 for tension. The progression is `i, i, i, ♭II` at two bars per chord (an 8-bar cycle), so the bass and lead re-root on G♭ for the last two bars of every cycle and then fall back to F.
-- **Lead phrases:** 2-bar syncopated 16th phrases from F Phrygian (root, ♭2, ♭3, 4, 5, ♭6, ♭7). Notes slide into one another (portamento) and two phrase variants alternate every 8 bars via `on_evolve`, so the hypnotic loop drifts instead of repeating exactly.
+- **Lead phrases:** 2-bar syncopated 16th phrases from F Phrygian (root, ♭2, ♭3, 4, 5, ♭6, ♭7). Notes slide into one another (portamento) and two phrase variants alternate every 8 bars via each lead's own `Evolve`, so the hypnotic loop drifts instead of repeating exactly.
 - **Form:** the rack is a looping groove, not a full arrangement. Energy comes from the lead group's *Energy* control and from which layers are switched on.
 
 Grounded in `music-theory/references/genres/electronic-edm.md` (trance/EDM tempo and structure conventions), `electronic-parts/bass-lines.md` (kick/bass interaction: a steady kick means a syncopated bass; low register; filter as expression), `electronic-parts/scales-and-modes.md` and `harmony/modal-harmony.md` (Phrygian colour), and `production-aware/arrangement-for-mix.md` (keeping the mid-range lead out of the bass and hat bands).
@@ -36,7 +36,7 @@ Grounded in `music-theory/references/genres/electronic-edm.md` (trance/EDM tempo
 ## Shared constants (the rack will use)
 
 - `bpm = 160`, `ticks_per_bar = 512` (the default timing resolution used by the deep-house rack).
-- `harmony = Harmony(key=F, progression=(0, 0, 0, 1), bars_per_chord=2)`; `F` (pitch class 5) is added to `harmony.py` next to `A` and `C`.
+- `harmony = Harmony(key=F)` and `progression = Progressions.PSY_VAMP` (i-i-i-bII, two bars each); `F` (pitch class 5) is added to `harmony.py` next to `A` and `C`.
 - Register anchors from `theory/notes`: bass around `F1`, lead around `F4`.
 - Sidechain: the bass ducks off the kick group (`depth` ~0.5, `release` ~0.1 s, inside one 16th) so the two do not stack on the beat.
 
@@ -45,4 +45,4 @@ Grounded in `music-theory/references/genres/electronic-edm.md` (trance/EDM tempo
 - **Kick** (`KickPunch`)
 - **Bass** (`BassForest`): *Roll* control opens the filter slightly and lifts the pulse.
 - **Hi-hats** (`GrooveForest`), started at volume 0.8 so the shimmer stays about 18 dB under the kick
-- **Leads** (`LeadFmWind`, `LeadFmSwirl`), an `EvolvingGroup` that rotates the lead phrase every 8 bars; *Energy* control raises FM bite, breath and echo together.
+- **Leads** (`LeadFmWind`, `LeadFmSwirl`), a group whose leads each rotate their phrase every 8 bars; *Energy* control raises FM bite, breath and echo together.

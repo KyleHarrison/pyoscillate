@@ -18,9 +18,10 @@ from pyo.lib.generators import FM, Sine
 
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate, Reverb, RootPitch
+from pyoscillate.patches.params import choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.intervals import Walk
+from pyoscillate.theory.phrase.walk import Walks
+from pyoscillate.theory.pitch import Note
 
 # mostly small steps so the pitch glides rather than leaps
 ### One pre-existing latent bug was surfaced but deliberately left alone (out of scope, no sonic-behavior changes were part of this task): tonal/drone's base Drone.next_step snapshots root_freq at build time rather than reading it live, so a live Register-slider move doesn't affect future note steps. Worth a separate follow-up if you want it fixed.
@@ -41,10 +42,18 @@ class Drone(Gate, Reverb, RootPitch, ContinuousVoice):
     fm_voice: FM
 
     root_freq = RootPitch.root_freq.replace(
-        minimum=notes.A1,
-        maximum=notes.A3,
-        default=notes.Fs3,
+        minimum=Note.A1,
+        maximum=Note.A3,
+        default=Note.Fs3,
         help_text="Moves the drone's register; higher brings it closer to the arp and reads as more melodic, lower pushes it toward a sustained sub layer.",
+    )
+
+    # read at each note step, so it needs no live control
+    walk = choice_param(
+        Walks,
+        Walks.DRONE_WANDER,
+        "Picks the line of pitches the drone wanders through, a note every few bars; every pitched "
+        "voice draws on the same shared walks.",
     )
 
     reverb_size = Reverb.reverb_size.replace(default=0.7)
@@ -88,9 +97,9 @@ class Drone(Gate, Reverb, RootPitch, ContinuousVoice):
         step = {"i": 0}
 
         def next_step() -> None:
-            i = step["i"] % len(Walk.DRONE_WANDER.value)
+            walk = Walks.by_index(int(self.walk)).offsets
             self.drone_freq_sig.value = root_freq * pow(
-                2, Walk.DRONE_WANDER.value[i] / 12
+                2, walk[step["i"] % len(walk)] / 12
             )
             step["i"] += 1
 

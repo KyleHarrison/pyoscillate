@@ -13,9 +13,9 @@ from pyo.lib.generators import BrownNoise, Sine
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
+from pyoscillate.theory.pitch import Note
 
-SUB_FREQ = notes.E1  # current default
+SUB_FREQ = Note.E1  # current default
 
 
 class BassRumble(Gate, ContinuousVoice):

@@ -29,7 +29,6 @@ voice continuously between triggers, not just at the strike.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -41,21 +40,21 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     RING_CURVE,
+    ChordRoot,
     Gate,
     GatedVoice,
-    RootPitch,
-    Step,
+    Phrased,
     decay_points,
 )
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import Rhythm, Voicing
+from pyoscillate.theory.chord import Chord, Chords
+from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
+from pyoscillate.theory.pitch import Note
 
-BAR_STEPS = 16
 NOTES = 4
 SLOTS = 4
 
@@ -65,8 +64,8 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, RootPitch, GatedVoice):
-    """FM electric piano comping the rack's chord changes in a `Rhythm`.
+class Keys(Gate, ChordRoot, Phrased, GatedVoice):
+    """FM electric piano comping the rack's chord changes in a rhythm.
     See the module docstring for the sonic detail."""
 
     title = "Keys (FM electric piano)"
@@ -119,12 +118,9 @@ class Keys(Gate, RootPitch, GatedVoice):
     velocities: list[float]
     _inversion: int
     _harmony: Harmony
-    # the active rhythm's step -> velocity, and its steps in order: used to
-    # number each bar's hits (0, 1, ...) so the slot rotation stays
-    # deterministic from the shared clock
-    _hits: dict[int, float]
+    # the active rhythm's steps in order: used to number each bar's hits
+    # (0, 1, ...) so the slot rotation stays deterministic from the shared clock
     _hit_steps: tuple[int, ...]
-    _step: Callable[[], Step]
     amp_table: LinTable
     body_table: LinTable
     tine_table: LinTable
@@ -147,22 +143,21 @@ class Keys(Gate, RootPitch, GatedVoice):
     throb: PyoObject
     voice_signal: PyoObject
 
-    rhythm = Param(
-        0,
-        4,
-        1,
-        0,
-        "Rhythm",
-        "Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
+    phrase_roles = (PhraseRole.CHORD_HIT,)
+    phrase = Phrased.phrase.replace(
+        default=Rhythms.CHARLESTON,
+        help_text="Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
         "or one chord left to ring.",
-        rebuild=True,
-        options=Rhythm.labels(),
     )
+
+    def use_phrase(self, phrase: Phrase) -> None:
+        super().use_phrase(phrase)
+        self._hit_steps = tuple(sorted(phrase.accents))
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
-    root_freq = RootPitch.root_freq.replace(
-        maximum=notes.E4,
+    root_freq = ChordRoot.root_freq.replace(
+        maximum=Note.E4,
         help_text="Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
     )
 
@@ -250,10 +245,12 @@ class Keys(Gate, RootPitch, GatedVoice):
         )
 
     def on_evolve(self, index: int) -> None:
-        """Alternate which inversion is voicing the shared chords; called
-        rarely (tens of bars) by a rack-level `GroupController`, never by
-        the clock directly. Owns its own wraparound, per `on_evolve`'s
-        contract - there's no shared numeric range to clamp against."""
+        """Alternate which inversion is voicing the shared chords, then
+        advance the ticked phrase; called rarely (tens of bars) by the
+        patch's own `Evolution`, never by the clock directly. Owns its own
+        wraparound, per `on_evolve`'s contract - there's no shared numeric
+        range to clamp against."""
+        super().on_evolve(index)
         self._inversion = index % 2
 
     def build(self, context: BuildContext) -> Patch:
@@ -263,8 +260,6 @@ class Keys(Gate, RootPitch, GatedVoice):
         # `@Param`: only `on_evolve` and `next_step()` read/write it
         self._inversion = 0
         self._harmony = context.harmony
-        self._hits = Rhythm.by_index(int(self.rhythm)).hits
-        self._hit_steps = tuple(sorted(self._hits))
         self.velocities = [0.0] * SLOTS
         self.freqs = [self.root_freq] * (SLOTS * NOTES)
         self.triggers = [Trig().stop() for _ in range(SLOTS)]
@@ -322,20 +317,21 @@ class Keys(Gate, RootPitch, GatedVoice):
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb
 
-        self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(BAR_STEPS, self._hits)
+        self.schedule_pattern(context)
         return self.finish(
             self.add_gate(self.voice_signal, context),
             resources=(*self.triggers, *self.freq_sigs, *self.wobbled_freqs),
         )
 
-    def shape(self, bar: int) -> Voicing:
+    def shape(self, bar: int) -> Chord:
         """The stack for `bar`'s chord: a thirteenth on a dominant chord (a
         major third and a minor seventh over the root), a ninth on any other."""
-        root, third, _, seventh = self._harmony.chord_tones(bar, Voicing.SEVENTH_CHORD)
+        root, third, _, seventh = self.chord_tones(
+            self._harmony, bar, Chords.SEVENTH_CHORD
+        )
         if (third - root, seventh - root) == (4, 10):
-            return Voicing.ROOTLESS_THIRTEENTH
-        return Voicing.ROOTLESS_NINTH
+            return Chords.ROOTLESS_THIRTEENTH
+        return Chords.ROOTLESS_NINTH
 
     def voicing(self, bar: int) -> tuple[int, ...]:
         """`bar`'s chord as semitones above Register: the rack's chord in the
@@ -345,7 +341,7 @@ class Keys(Gate, RootPitch, GatedVoice):
         harmony = self._harmony
         tones = [
             tone + harmony.key - self.register_pitch_class
-            for tone in harmony.chord_tones(bar, self.shape(bar))
+            for tone in self.chord_tones(harmony, bar, self.shape(bar))
         ]
         tones.sort()
         # each inversion (the lowest note moved up an octave, repeatedly) put
@@ -381,7 +377,7 @@ class Keys(Gate, RootPitch, GatedVoice):
             chord_notes = self.voicing(bar)
             start = slot * NOTES
             new_freqs = [
-                notes.transpose(self.root_freq, semitones) for semitones in chord_notes
+                Note.transpose(self.root_freq, semitones) for semitones in chord_notes
             ]
             self.freqs[start : start + NOTES] = new_freqs
             for offset, freq in enumerate(new_freqs):

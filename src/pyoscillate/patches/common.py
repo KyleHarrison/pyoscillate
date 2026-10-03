@@ -15,12 +15,21 @@ from pyo.lib.tables import ExpTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, Division, NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.evolve import Evolution
+from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.notes import semitone_ratio
+from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.phrase import (
+    Phrase,
+    PhraseMode,
+    PhraseRole,
+    Phrases,
+    Rhythms,
+)
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import ChordChanges, Progressions
 
 
 @dataclass(eq=False)
@@ -129,6 +138,8 @@ class GatedVoice(Patch):
     _clock: Clock
     _base_division: NoteDivision
     _scheduled: bool
+    # the clocked `rate` `Param` every scheduled voice declares
+    rate: float
 
     def _reset(self) -> None:
         """Call at the top of `build()`: fresh Pyo objects and a fresh
@@ -198,8 +209,24 @@ class GatedVoice(Patch):
         return self._division
 
     def reschedule(self, rate: float) -> None:
-        """Live `rate` control: re-space the scheduled division."""
-        self._division.steps = self._clock.ticks_for_rate(self._base_division, rate)
+        """Live `rate` control: re-space the scheduled division. The offset is
+        held inside the range `_base_division` allows, since a pattern on a
+        finer grid than the slider was built for narrows it."""
+        minimum, maximum = self._clock.rate_limits(self._base_division)
+        offset = min(max(round(rate), minimum), maximum)
+        self._division.steps = self._clock.ticks_for_rate(self._base_division, offset)
+
+    def play_pattern(
+        self, division: NoteDivision, cycle: int, steps: dict[int, Any] | set[int]
+    ) -> None:
+        """Make `steps` the live step pattern, `cycle` steps long on a
+        `division` grid: they are read through `step_pattern`, and the
+        schedule moves to the grid when it differs from the one already
+        running. Called by a pattern `Param`'s control, never from the clock."""
+        if division != self._base_division:
+            self._base_division = division
+            self.reschedule(self.rate)
+        self._step = self.step_pattern(cycle, steps)
 
     def step_pattern(
         self, cycle: int, pattern: dict[int, Any] | set[int]
@@ -239,6 +266,136 @@ class GatedVoice(Patch):
         self.voice = voice
         self._bind()
         return self
+
+
+class Phrased(GatedVoice):
+    """Opt-in add-on for a voice that plays a `Phrase`: the `phrase` dropdown
+    picks it from the shared catalogs in `theory/phrase/`, so a pattern is
+    written there once and any voice can play it. The phrase lives on the
+    `Param` alone; `selected_phrase` reads it back. A voice family names the
+    roles it accepts and its starting phrase with
+    `phrase_roles = (PhraseRole.HAT,)` and
+    `phrase = Phrased.phrase.replace(default=Rhythms.X)`, so the dropdown
+    offers only phrases tagged with one of those roles (a starting phrase
+    or variant outside them raises when the class is defined). It calls `self.schedule_pattern(context)` from `build()`; `finish()` then
+    runs the control, which reads the steps off the shared clock. A step's
+    value is the phrase's `values`: its accent for a `PhraseMode.NONE` rhythm,
+    otherwise its offset, which the voice resolves to a pitch by the phrase's
+    mode (semitones above the chord root, or an index into the chord's
+    triad); read a step's level off `selected_phrase.accents[step.index]`.
+    Mix it in ahead of the voice base: `class Stab(Gate, Phrased,
+    GatedVoice)`."""
+
+    # the roles whose phrases the dropdown offers; empty offers every phrase
+    phrase_roles: ClassVar[tuple[PhraseRole, ...]] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        if cls.phrase_roles and "phrase_roles" in vars(cls):
+            narrowed = cls.phrase.replace(catalog=Phrases.for_roles(*cls.phrase_roles))
+            narrowed.__set_name__(cls, "phrase")
+            cls.phrase = narrowed
+        super().__init_subclass__(**kwargs)
+
+    def _select_phrase(self, value: float) -> None:
+        self.use_phrase(self.selected_phrase_at(value))
+
+    phrase = choice_param(
+        Phrases,
+        Rhythms.QUARTER_PULSE,
+        "Picks the pattern that is played, as when in the bar the notes fall and, for a "
+        "pitched voice, which pitches; every voice draws on the same shared phrases.",
+        control=_select_phrase,
+    )
+
+    def selected_phrase_at(self, index: float) -> Phrase:
+        """The `Phrase` at dropdown position `index` of the voice's catalog."""
+        catalog = type(self).phrase.catalog
+        assert catalog is not None
+        return catalog.by_index(int(index))
+
+    @property
+    def selected_phrase(self) -> Phrase:
+        """The `Phrase` the `phrase` dropdown currently names."""
+        return self.selected_phrase_at(self.phrase)
+
+    def schedule_pattern(self, context: BuildContext) -> Division:
+        """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
+        return self.schedule(self.selected_phrase.division, self.rate, context.clock)
+
+    @classmethod
+    def evolution_axes(cls) -> tuple[Param, ...]:
+        """The `phrase` dropdown rotates on its own timer."""
+        return (cls.phrase, *super().evolution_axes())
+
+    @property
+    def phrase_evolution(self) -> Evolution:
+        """The timer that rotates the ticked phrases."""
+        return self.evolution_of(type(self).phrase)
+
+    def use_phrase(self, phrase: Phrase) -> None:
+        """Play `phrase` from the shared clock's position, moving to its grid
+        if it needs a different one."""
+        if phrase.mode is PhraseMode.POOL_INDEX:
+            raise ValueError(
+                f"{phrase.id} needs a note pool; play it with play_pattern"
+            )
+            raise ValueError(
+                f"{phrase.id} is a progression; select it with `progression`"
+            )
+        self.play_pattern(phrase.division, phrase.cycle, phrase.values)
+
+
+class Progressive(Patch):
+    """Opt-in add-on for a voice whose pitch follows the chords: the
+    `progression` dropdown picks which chord changes it plays against, from
+    the `Progressions` catalog. A phrase says when to play and which interval
+    above the chord root; this says which chord root that is in each bar. The
+    progression lives on this patch, not on the
+    rack, so the patch can evolve through progressions on its own timer; a
+    rack keeps its chord-following patches on the same chords by seeding each
+    with the same one and, if they evolve, the same bars and choices. Read it
+    through `chord_freq`, `chord_offset` and `chord_tones`, passing the
+    rack's `Harmony`. Mix it in ahead of the voice base: `class Bass(Gate,
+    Progressive, Phrased, GatedVoice)`."""
+
+    progression = choice_param(
+        Progressions,
+        Progressions.STATIC,
+        "Picks the chord changes the voice follows, one chord root per bar or run of "
+        "bars; chord-following voices on the same progression change chord together.",
+        label="Progression",
+    )
+
+    @property
+    def selected_progression(self) -> ChordChanges:
+        """The `ChordChanges` the `progression` dropdown currently names."""
+        catalog = type(self).progression.catalog
+        assert catalog is not None
+        return catalog.by_index(int(self.progression))
+
+    def chord_offset(self, harmony: Harmony, bar: int) -> int:
+        """Semitones above the key of the chord root sounding in `bar`."""
+        return harmony.chord_offset(bar, self.selected_progression)
+
+    def chord_freq(self, harmony: Harmony, centre: float, bar: int) -> float:
+        """The root of `bar`'s chord in the octave nearest `centre` Hz."""
+        return harmony.chord_freq(centre, bar, self.selected_progression)
+
+    def chord_tones(self, harmony: Harmony, bar: int, shape: Chord) -> tuple[int, ...]:
+        """`shape` stacked on `bar`'s chord, as semitones above the key."""
+        return harmony.chord_tones(bar, shape, self.selected_progression)
+
+    @classmethod
+    def evolution_axes(cls) -> tuple[Param, ...]:
+        """The `progression` dropdown rotates on its own timer, so a patch
+        with a phrase too changes its chords on a separate clock. Patches
+        with the same bars and choices change chord together."""
+        return (*super().evolution_axes(), cls.progression)
+
+    @property
+    def progression_evolution(self) -> Evolution:
+        """The timer that rotates the ticked progressions."""
+        return self.evolution_of(type(self).progression)
 
 
 @dataclass(eq=False)
@@ -320,7 +477,7 @@ class PitchBend(Patch):
         sweep=True,
     )
     def bend(self, value: float) -> None:
-        self.bend_env.mul = semitone_ratio(value) - 1
+        self.bend_env.mul = Note.semitone_ratio(value) - 1
 
     def add_bend(self, trigger: Trig) -> PyoObject:
         """The frequency multiplier (1 at rest, the bend ratio at each strike,
@@ -589,8 +746,7 @@ class Echo(Patch):
 
 class RootPitch(Patch):
     """Opt-in `Register` slider: the voice's root pitch (`root_freq`, snapped
-    to equal-tempered notes) and `root_at()`, the root of the rack's chord
-    nearest to it. A patch sets its own range, default and wording with
+    to equal-tempered notes). A patch sets its own range, default and wording with
     `root_freq = RootPitch.root_freq.replace(minimum=..., maximum=...,
     default=..., help_text=...)`. Mix it in ahead of the voice base:
     `class Lead(RootPitch, GatedVoice)`. A slider that must also move a
@@ -600,19 +756,25 @@ class RootPitch(Patch):
     harmony: Harmony
 
     root_freq = Param(
-        notes.A2,
-        notes.A4,
+        Note.A2,
+        Note.A4,
         1,
-        notes.A3,
+        Note.A3,
         "Register",
         "Moves the voice up or down in pitch.",
         scale="note",
     )
 
+
+class ChordRoot(RootPitch, Progressive):
+    """`RootPitch` for a voice that follows the chords: `root_at()` is the
+    root of the progression's chord nearest the `root_freq` Register. Mix it
+    in where `RootPitch` would go."""
+
     def root_at(self, bar_index: int) -> float:
         """The sounding chord's root in the octave nearest `root_freq`; call
         after `build()` has set `self.harmony`."""
-        return self.harmony.chord_freq(self.root_freq, bar_index)
+        return self.chord_freq(self.harmony, self.root_freq, bar_index)
 
 
 @dataclass(eq=False)

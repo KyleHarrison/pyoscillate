@@ -1,12 +1,12 @@
 import unittest
 
 from pyoscillate.clock import Clock
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, start_server
 from pyoscillate.patches.texture.atmosphere import Atmosphere
 from pyoscillate.patches.tonal.drone import Drone
 from pyoscillate.patches.tonal.lead.fm import LeadFmWind
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.harmony import Harmony
 
 
 class TonalRetempoTests(unittest.TestCase):

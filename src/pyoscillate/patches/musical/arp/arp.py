@@ -13,14 +13,15 @@ from collections.abc import Callable
 from pyo.lib.controls import SigTo
 from pyo.lib.generators import FM
 
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Reverb, Step
 from pyoscillate.patches.params import Param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
-from pyoscillate.theory.intervals import ArpOrder, Scale
+from pyoscillate.theory.phrase.arp import ArpOrders
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.scale import Scales
 
-MID_ROOT = notes.E4  # current default
+MID_ROOT = Note.E4  # current default
 
 
 class Arp(Gate, Reverb, GatedVoice):
@@ -48,8 +49,8 @@ class Arp(Gate, Reverb, GatedVoice):
     fm_voice: FM
 
     @Param(
-        notes.A2,
-        notes.E5,
+        Note.A2,
+        Note.E5,
         1,
         MID_ROOT,
         "Register",
@@ -72,15 +73,16 @@ class Arp(Gate, Reverb, GatedVoice):
 
     contour = Param(
         0,
-        6,
-        1,
         0,
+        1,
+        ArpOrders.ARCH,
         "Contour",
         "Sets the shape the melody traces through its notes: 0 climbs and falls in one arch, "
         "1 only rises, 2 only falls, 3 repeats a short three-note climb, 4 alternates four up "
         "with four down, 5 rises and falls then stutters, 6 rises and snaps back to the root. "
         "Notes come from a calm major pentatonic, so every contour stays consonant.",
         rebuild=True,
+        catalog=ArpOrders,
     )
 
     @Param(
@@ -130,9 +132,9 @@ class Arp(Gate, Reverb, GatedVoice):
         self.harmony = context.harmony
         self.step_root_freq = self.root_freq
         # a calm major pentatonic - consonant, no leading tones to create tension
-        order = ArpOrder.by_index(int(self.contour))
+        order = ArpOrders.by_index(int(self.contour))
         self._step = self.step_pattern(
-            order.cycle, order.steps(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+            order.cycle, order.resolve(Scales.MAJOR_PENTATONIC_OCTAVE.offsets)
         )
 
         # `step_bars` counts whole bars, not a `NoteDivision` offset

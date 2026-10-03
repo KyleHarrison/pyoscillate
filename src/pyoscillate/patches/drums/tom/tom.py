@@ -16,14 +16,16 @@ from pyo.lib.generators import Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.drums.base import DROP, DrumVoice, semitone_ratio
+from pyoscillate.patches.common import Phrased, Progressive
+from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory import notes
-from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.phrase import Fills, PhraseRole
+from pyoscillate.theory.pitch import Note
 
 
-class Tom(DrumVoice):
+class Tom(Progressive, Phrased, DrumVoice):
     """Pitched tom playing a sparse two-bar fill on the current chord.
 
     The fill follows the chord rather than only the key: the rack's chords
@@ -34,16 +36,11 @@ class Tom(DrumVoice):
     summary = "Sparse two-bar tom fill on the current chord's minor pentatonic."
     volume = Patch.volume.replace(default=0.3)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
-    # step in the two-bar (32-step) cycle -> semitones above the chord root;
-    # fifth, fifth, minor third, root walks down the minor pentatonic, and all
-    # four are tones of the rack's minor-seventh chords (E, E, C, A over Am7)
-    pattern: ClassVar[dict[int, float]] = {10: 7, 26: 7, 29: 3, 31: 0}
-    pattern_cycle: ClassVar[int] = 32
 
     # settled body pitch (Hz); pitch-bend depth/time; body decay; membrane
     # overtone ratio/level/decay; transient level/tuning/resonance/duration;
     # amplitude and pitch-bend curve exponents
-    body_freq: ClassVar[float] = notes.A2
+    body_freq: ClassVar[float] = Note.A2
     bend_depth: ClassVar[float] = 0.4
     bend_time: ClassVar[float] = 0.06
     decay: ClassVar[float] = 0.3
@@ -72,9 +69,7 @@ class Tom(DrumVoice):
     partials: PyoObject
     voice_signal: PyoObject
 
-    # this bar's chord source and the fill's step pattern, frozen at build
-    # time - fed to `next_step`, which build() can no longer close over now
-    # that it's a real method
+    # this bar's chord source, frozen at build time - read by `next_step`
     harmony: Harmony
 
     @Param(
@@ -89,6 +84,17 @@ class Tom(DrumVoice):
         self.body_env.mul = value
         self.overtone_env.mul = value * self.tone * self.overtone_level
         self.click_env.mul = value * self.tone * self.click_level
+
+    # the fill: semitones above the chord root, so the pattern's steps are
+    # pitches rather than levels. It walks down the minor pentatonic (fifth,
+    # fifth, minor third, root), all tones of the rack's minor-seventh chords
+    # (E, E, C, A over Am7)
+    phrase_roles = (PhraseRole.FILL,)
+    phrase = Phrased.phrase.replace(
+        default=Fills.TOM_FILL,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     tune = Param(
         -12,
@@ -148,7 +154,7 @@ class Tom(DrumVoice):
         self._reset()
         self.harmony = context.harmony
 
-        self.tuning = Sig(semitone_ratio(self.tune))
+        self.tuning = Sig(Note.semitone_ratio(self.tune))
         self.root_freq = self.tuning * self.body_freq
 
         self.pitched_body(
@@ -186,8 +192,10 @@ class Tom(DrumVoice):
         step = self._step()
         if step.hit:
             chord_ratio = (
-                self.harmony.chord_freq(self.body_freq, self._clock.bar_index)
+                self.chord_freq(self.harmony, self.body_freq, self._clock.bar_index)
                 / self.body_freq
             )
-            self.tuning.value = chord_ratio * semitone_ratio(self.tune + step.value)
+            self.tuning.value = chord_ratio * Note.semitone_ratio(
+                self.tune + step.value
+            )
             self.strike()

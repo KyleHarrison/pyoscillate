@@ -9,6 +9,7 @@ from pyoscillate.controller import (
     SidechainSource,
     Slot,
 )
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
@@ -21,7 +22,8 @@ from pyoscillate.patches.musical.stab import stab
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.harmony import A, Harmony
+from pyoscillate.theory.pitch import Note
+from pyoscillate.theory.progression import Progressions
 
 
 class DeepHouseRack(Rack):
@@ -35,11 +37,13 @@ class DeepHouseRack(Rack):
     # their own values instead of sharing a static default from `pyoscillate.clock`
     bpm = 132
     ticks_per_bar = 512
-    # the rack's shared key and progression: every harmonic patch (bass,
-    # chords, tom) re-roots on the same chord on the same bar. i-iv-bVII-v as
-    # parallel minor sevenths - the deep-house "chord memory" sound - one chord
-    # per bar, so the four-bar loop turns twice inside each eight-bar crash phrase
-    harmony = Harmony(key=A, progression=(0, 5, 10, 7), bars_per_chord=1)
+    # the rack's shared key and the progression every harmonic patch (bass,
+    # chords, tom) starts on, so they re-root on the same chord on the same bar.
+    # i-iv-bVII-v as parallel minor sevenths - the deep-house "chord memory"
+    # sound - one chord per bar, so the four-bar loop turns twice inside each
+    # eight-bar crash phrase
+    harmony = Harmony(key=Note.KEY_A)
+    progression = Progressions.DEEP_HOUSE_MINOR
 
     # --- rhythm: the kick group comes first so the harmonic layers can duck off it
     kick_punch = GroupControl(

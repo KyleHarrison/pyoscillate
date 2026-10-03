@@ -1,15 +1,15 @@
 """Bass-archetype name for the shared gated-voice base.
 
-Every voice in this family strikes one note per clock step against a fixed
-pattern of scale degrees, either on a live `root_freq` or re-rooted on the
-rack's current chord each bar - see `current_root` for that shared policy.
+Every voice in this family strikes one note per clock step of a phrase
+chosen from its Pattern dropdown, either on a live `root_freq` or re-rooted on
+the rack's current chord each bar - see `current_root` for that shared policy.
 That's the shape `GatedVoice` (`pyoscillate.patches.common`) doesn't already
 cover - `drums.base.DrumVoice` is that base's name for the drums family,
 this is its name for the bass family.
 
 `build` additionally covers the shared Osc+HarmTable+MoogLP graph the
 groove, hover and techno voices build from a `BassProfile` (a fixed or
-LFO-swept low-pass driven by a per-step semitone/accent pattern). A voice
+LFO-swept low-pass, struck by the chosen phrase's semitones and accents). A voice
 with a genuinely different graph (`fm`, `funk`) still subclasses `Bass` for
 `chord_root`/`schedule`/`finish`, but builds its own oscillator and filter
 chain directly in its own `build()` - see `patches/AGENTS.md`'s design
@@ -31,10 +31,17 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, PitchBend
+from pyoscillate.patches.common import (
+    Gate,
+    GatedVoice,
+    Phrased,
+    PitchBend,
+    Progressive,
+)
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory import notes
+from pyoscillate.theory.phrase import BassLines, PhraseRole
+from pyoscillate.theory.pitch import Note
 
 __all__ = ["AccentBass", "Bass", "BassProfile"]
 
@@ -43,24 +50,16 @@ BASE_DIVISION = NoteDivision.SIXTEENTH
 
 @dataclass(frozen=True)
 class BassProfile:
-    """Musical and perceptual policy for one bass voice.
+    """Timbre policy for one bass voice: how long a note rings, how resonant
+    the filter is and which harmonics the oscillator carries. What it plays
+    is the voice's `phrase`, not part of the profile."""
 
-    `gates` marks which steps actually strike a note; a `False` step is a
-    rest - `next_step` skips both the retune and the trigger, so the
-    previous note's envelope tail (and the silence after it) is what's
-    heard, rather than every step restriking the pattern's pitch. A profile
-    that strikes every step passes an all-`True` tuple.
-    """
-
-    pattern: tuple[int, ...]
-    accents: tuple[float, ...]
-    gates: tuple[bool, ...]
     envelope_decay: float
     resonance: float
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
 
 
-class Bass(PitchBend, Gate, GatedVoice):
+class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
     clock step. See `current_root` for the root-pitch policy every concrete
     voice supplies, and `build` for the shared graph the groove, hover and
@@ -69,9 +68,16 @@ class Bass(PitchBend, Gate, GatedVoice):
 
     # the centre a chord-following voice's `chord_root` snaps every chord
     # root to the octave nearest
-    register_centre: ClassVar[float] = notes.A1
-    # the style's musical policy; supplied by each style subclass
+    register_centre: ClassVar[float] = Note.A1
+    # the style's timbre; supplied by each style subclass
     profile: ClassVar[BassProfile]
+    # the line a style starts on; any melodic phrase can be chosen from the dropdown
+    phrase_roles = (PhraseRole.BASS,)
+    phrase = Phrased.phrase.replace(
+        default=BassLines.BASS_ROLLING,
+        help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
+        "on the same shared lines.",
+    )
 
     # shared "Register" control for the harmony-following voices (`chord_root`
     # re-roots on the current chord in the octave nearest `register_centre`);
@@ -118,7 +124,7 @@ class Bass(PitchBend, Gate, GatedVoice):
     rate: float
 
     # the context and profile `next_step`/`chord_root` read at trigger time,
-    # frozen at build time (`_profile` may be swapped live by `on_evolve`)
+    # frozen at build time
     _context: BuildContext
     _profile: BassProfile
     _tempo: Tempo
@@ -134,8 +140,8 @@ class Bass(PitchBend, Gate, GatedVoice):
         `register_centre`, lifted by the live `octave` - re-rooting on a live
         `root_freq` control could drag a chord-following line out of key."""
         context = self._context
-        return context.harmony.chord_freq(
-            self.register_centre, context.clock.bar_index
+        return self.chord_freq(
+            context.harmony, self.register_centre, context.clock.bar_index
         ) * (2**self.octave)
 
     def cutoff_source(self) -> Any:
@@ -151,10 +157,6 @@ class Bass(PitchBend, Gate, GatedVoice):
         onto the nodes assigned here, so the nodes are built neutral."""
         self._reset()
         profile = self.profile
-        if len(profile.pattern) != len(profile.accents):
-            raise ValueError("Bass pattern and accent pattern must have equal lengths")
-        if len(profile.gates) != len(profile.pattern):
-            raise ValueError("Bass gates must have the same length as the pattern")
         self._context = context
         self._profile = profile
         self._tempo = context.tempo
@@ -180,7 +182,7 @@ class Bass(PitchBend, Gate, GatedVoice):
             res=profile.resonance,
         )
 
-        self.schedule(BASE_DIVISION, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.add_gate(self.voice_output(), context))
 
     def pitch_signal(self, initial: float) -> PyoObject:
@@ -200,16 +202,14 @@ class Bass(PitchBend, Gate, GatedVoice):
         return self.filtered
 
     def next_step(self) -> None:
-        # derived from the shared clock's own tick, not a local counter
+        # the step comes from the shared clock's own tick, not a local counter
         # that starts at 0 whenever this patch is built or restarted -
-        # see `Clock.tick`'s docstring
-        profile = self._profile
-        step = (self._clock.tick // self._division.steps) % len(profile.pattern)
-        if profile.gates[step]:
-            self.pitch.value = notes.transpose(
-                self.current_root(), profile.pattern[step]
-            )
-            self.apply_accent(profile.accents[step])
+        # see `Clock.tick`'s docstring. An absent step is a rest: the previous
+        # note's envelope tail is what's heard.
+        step = self._step()
+        if step.hit:
+            self.pitch.value = Note.transpose(self.current_root(), step.value)
+            self.apply_accent(self.selected_phrase.accents[step.index])
             self.trigger.play()
 
     def apply_accent(self, accent: float) -> None:
