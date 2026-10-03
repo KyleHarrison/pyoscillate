@@ -121,6 +121,7 @@ def main(page: ft.Page) -> None:
         catalog_dir=catalog_dir,
         variants=variants,
         variant=variant,
+        analysis=True,
     )
 
 

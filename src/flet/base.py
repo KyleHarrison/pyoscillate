@@ -22,6 +22,7 @@ from pyo.lib._core import PyoError
 from pyo.lib.server import Server
 
 import flet as ft
+from pyoscillate.analysis.live import LiveAnalyser
 from pyoscillate.clock import Clock
 from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
@@ -33,6 +34,7 @@ from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import Progressions
+from src.flet.analysis import AnalysisView
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -1279,8 +1281,13 @@ class PatchRackApp:
         catalog_dir: Path,
         variants: dict[str, Callable[[], tuple[Rack, Path]]] | None = None,
         variant: str | None = None,
+        analysis: bool = False,
     ) -> None:
         self.page = page
+        # opt-in: one analyser pair on the first patch, only for single-patch
+        # apps; rack apps allocate neither analysers nor a view
+        self.analyser = LiveAnalyser() if analysis else None
+        self.analysis_view = AnalysisView() if analysis else None
         self.title = title
         self.subtitle = subtitle
         self.rack = rack
@@ -1533,10 +1540,21 @@ class PatchRackApp:
             spacing=0,
             expand=True,
         )
+        analysis = (
+            [
+                ft.Container(
+                    content=self.analysis_view.control,
+                    padding=ft.padding.Padding(left=28, top=0, right=28, bottom=8),
+                )
+            ]
+            if self.analysis_view
+            else []
+        )
         self.page.add(
             ft.Column(
                 controls=[
                     header,
+                    *analysis,
                     ft.Container(
                         content=group_list,
                         padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
@@ -1684,9 +1702,27 @@ class PatchRackApp:
             moving = [panel.refresh_live() for panel in self.panels.values()]
             # an evolving patch can move off the shared progression
             self.progression_dropdown.value = self._progression_value()
-            if any(moving):
+            if self._refresh_analysis() or any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
+
+    def _refresh_analysis(self) -> bool:
+        """Reconcile the analyser with the monitored patch's current output
+        (it changes on every rebuild, stop or style swap) and redraw; whether
+        the view changed. Attaching only after a successful start and
+        detaching as soon as the output is gone keeps one live pair."""
+        if self.analyser is None or self.analysis_view is None:
+            return False
+        patch = next(iter(self.panels.values())).patch
+        output = patch.output
+        if output is not self.analyser.source:
+            if output is None:
+                self.analyser.detach()
+            else:
+                self.analyser.attach(output)
+        wave, spectrum = self.analyser.snapshot()
+        self.analysis_view.show(wave, spectrum, live=output is not None)
+        return True
 
     def _stop_engine(self) -> None:
         if not self.running:
@@ -1694,6 +1730,8 @@ class PatchRackApp:
         self.running = False
         self.paused = False
         self._paused_panels = set()
+        if self.analyser is not None:
+            self.analyser.detach()
         for group in self.groups:
             group.set_engine_ready(False)
         for panel in self.panels.values():
@@ -1701,6 +1739,8 @@ class PatchRackApp:
         self.clock.stop()
         self.server.stop()
         self.server.shutdown()
+        if self.analysis_view is not None:
+            self.analysis_view.show([], [], live=False)
         self.status.value = "Engine stopped"
         self.status.color = MUTED
         self.engine_button.text = "Start engine"

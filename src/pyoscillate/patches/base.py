@@ -449,6 +449,12 @@ class Patch(ABC):
             obj.stop(wait=STOP_FADE)
         return self
 
+    @property
+    def output(self) -> PyoObject | None:
+        """The final stereo signal (after volume, limiter and fade, before
+        the rack's master gain) for read-only monitoring; None unless playing."""
+        return self._output if self._playing else None
+
     def _graph_objects(self) -> list[PyoObject | PyoPVObject]:
         """Every stoppable Pyo object the current build owns, including
         ones only held in list/tuple attributes."""
