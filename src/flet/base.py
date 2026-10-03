@@ -35,6 +35,7 @@ from pyoscillate.tempo import Tempo
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import Progressions
 from src.flet.analysis import AnalysisView
+from src.flet.timeline import EvolveTimeline
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -387,9 +388,7 @@ class EvolveSection:
             inactive_color="#31403D",
             on_change=self._handle_bars,
         )
-        self.countdown = ft.ProgressBar(
-            value=0, color=ACCENT, bgcolor="#31403D", bar_height=6, border_radius=3
-        )
+        self.timeline = EvolveTimeline(evolution)
         self.countdown_text = ft.Text("", color=MUTED, size=11)
         self.evolve_view = ft.Column(
             controls=[
@@ -401,7 +400,6 @@ class EvolveSection:
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
                 self.bars_slider,
-                self.countdown,
                 self.countdown_text,
             ],
             spacing=2,
@@ -422,6 +420,7 @@ class EvolveSection:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 help.text(summary),
+                self.timeline.control,
                 self.evolve_view,
             ],
             spacing=4,
@@ -487,6 +486,9 @@ class EvolveSection:
         evolution = self.evolution
         self.mode.selected = ["evolve" if evolution.enabled else "hold"]
         self.evolve_view.visible = evolution.enabled
+        # a dropdown's timeline also shows the held choice; the patch's own
+        # hook has nothing to draw until it evolves
+        self.timeline.control.visible = evolution.axis is not None or evolution.enabled
         self.bars_slider.value = evolution.bars
         self.bars_text.value = f"{evolution.bars} bars"
         for item in self._bulk:
@@ -529,13 +531,13 @@ class EvolveSection:
         """Fill the bar to where the clock is between changes, and follow the
         choice an evolution moved to."""
         evolution = self.evolution
-        self.countdown.value = evolution.progress
         if evolution.running:
             self.countdown_text.value = f"Next change in {evolution.bars_left:.1f} bars"
         else:
             self.countdown_text.value = "Starts when the patch is playing"
         if evolution.options and evolution.current is not self._shown_current:
             self._show_choices()
+        self.timeline.redraw()
 
     def _handle_mode(self, e: ft.ControlEvent) -> None:
         self.evolution.set_enabled("evolve" in e.control.selected)
@@ -545,6 +547,7 @@ class EvolveSection:
     def _handle_bars(self, e: ft.ControlEvent) -> None:
         self.evolution.configure(float(e.control.value))
         self.bars_text.value = f"{self.evolution.bars} bars"
+        self.timeline.redraw()
         e.page.update()
 
     def _handle_choice(self, choice: Any, e: ft.ControlEvent) -> None:
@@ -557,6 +560,7 @@ class EvolveSection:
         elif evolution.axis is not None:
             self._pick(evolution.axis, evolution.options.index(choice))
         self._show_choices()
+        self.timeline.redraw()
         e.page.update()
 
     def _handle_bulk(self, ticked: bool, e: ft.ControlEvent) -> None:
@@ -566,6 +570,7 @@ class EvolveSection:
             evolution.options if ticked else evolution.order((evolution.current,))
         )
         self._show_choices()
+        self.timeline.redraw()
         e.page.update()
 
 
@@ -851,7 +856,7 @@ class PatchPanel:
                 sweep_row.refresh()
                 running = True
         for section in self.evolve_rows:
-            if section.evolution.running:
+            if section.evolution.ticking:
                 section.refresh()
                 running = True
         return running
