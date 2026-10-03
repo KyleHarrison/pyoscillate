@@ -9,24 +9,18 @@ transient bright and woody; the conga uses a lower, longer body with only a
 soft touch of transient, a warmer answer to the kick.
 """
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib._core import Sig
 from pyo.lib.filters import Biquad
-from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
-
-# full-to-zero break-points shared by every envelope; `exp` sets the curve
-DROP = [(0, 1), (8191, 0)]
 
 
 class Percussion(DrumVoice):
@@ -56,22 +50,11 @@ class Percussion(DrumVoice):
     # the graph, assigned by build(); finish() retains every one of them
     tuning: Sig
     body_freq: PyoObject
-    bend: TrigEnv
-    pitch: PyoObject
-    body: Sine
-    body_env: TrigEnv
-    body_signal: PyoObject
-    noise: Noise
     click_env: TrigEnv
     click_burst: PyoObject
     click_freq: PyoObject
     click_signal: Biquad
     source: PyoObject
-
-    # the step pattern's callable, frozen at build time - fed to
-    # `next_step`, which build() can no longer close over now that it's a
-    # real method
-    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -131,19 +114,18 @@ class Percussion(DrumVoice):
         self.tuning = Sig(semitone_ratio(self.tune))
         self.body_freq = self.tuning * self.base_freq
 
-        self.bend = self.envelope(
-            DROP, dur=self.bend_time, mul=self.bend_depth, add=1, exp=self.bend_curve
+        self.pitched_body(
+            self.body_freq,
+            bend_depth=self.bend_depth,
+            bend_time=self.bend_time,
+            bend_curve=self.bend_curve,
+            decay=self.decay,
+            decay_curve=self.decay_curve,
         )
-        self.pitch = self.body_freq * self.bend
-        self.body = Sine(freq=self.pitch)
-        self.body_env = self.envelope(DROP, dur=self.decay, exp=self.decay_curve)
-        self.body_signal = self.body * self.body_env
 
-        self.noise = Noise()
-        self.click_env = self.envelope(
-            DROP, dur=self.click_duration, exp=self.bend_curve
+        self.click_env, self.click_burst = self.noise_burst(
+            dur=self.click_duration, exp=self.bend_curve
         )
-        self.click_burst = self.noise * self.click_env
         self.click_freq = self.body_freq * self.click_ratio
         self.click_signal = Biquad(
             self.click_burst, freq=self.click_freq, q=self.click_q, type=2
@@ -151,17 +133,8 @@ class Percussion(DrumVoice):
 
         self.source = self.body_signal + self.click_signal
 
-        self._step = self.step_pattern(16, self.pattern)
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.source)
-
-    def next_step(self) -> None:
-        if self._step().hit:
-            # restart the body on a zero crossing so the immediate
-            # attack doesn't click wherever the oscillator last stopped
-            self.body.reset()
-            self.trigger.play()
 
 
 class PercussionRim(Percussion):

@@ -137,10 +137,6 @@ class FunkBass(Bass):
     gate_end: TrigFunc
     body: PyoObject
 
-    # the sixteenth-note duration `next_step` reads at trigger time, frozen at
-    # build time
-    _sixteenth: float
-
     octave = Bass.octave.replace(
         help_text="Lifts the bassline up an octave; low sits deep under the kick, high brings the "
         "quack forward like a slap line. The notes always follow the rack's key and chord changes.",
@@ -226,7 +222,7 @@ class FunkBass(Bass):
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
         self._context = context
-        self._sixteenth = context.tempo.sixteenth
+        self._tempo = context.tempo
 
         # osc 1 (the saw) sits at the register centre; osc 2 (the pulse) is an
         # octave above it
@@ -248,6 +244,7 @@ class FunkBass(Bass):
         self.note_gate = TrigEnv(
             self.trigger, self.note_gate_table, dur=context.tempo.sixteenth
         )
+        self.sync(context.tempo, lambda t: setattr(self.note_gate, "dur", t.sixteenth))
         self.amp = Adsr(**AMP_ENVELOPE)
         self.level = self.amp * GAIN
         self.sweep = Adsr(
@@ -280,7 +277,7 @@ class FunkBass(Bass):
             return
         root = self.current_root()
         self.pitch.value = notes.transpose(root, step.semitones)
-        self.note_gate.dur = self._sixteenth * step.length * self.length
+        self.note_gate.dur = self._tempo.sixteenth * step.length * self.length
         self.amp.mul = step.accent
         self.sweep.mul = self.quack * step.accent
         self.amp.play()

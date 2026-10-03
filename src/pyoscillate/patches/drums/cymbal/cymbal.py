@@ -10,7 +10,6 @@ marks the start of each eight-bar phrase with a long, broad wash.
 """
 
 import math
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -21,8 +20,7 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Step
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
 
 # carrier (Hz), modulator ratio, index
@@ -32,8 +30,6 @@ METAL_OPERATORS = (
     (6200.0, 1.29, 4.0),
     (8300.0, 1.87, 3.0),
 )
-# full-to-zero break-points for the amplitude envelope
-DROP = [(0, 1), (8191, 0)]
 
 
 class Cymbal(DrumVoice):
@@ -54,7 +50,7 @@ class Cymbal(DrumVoice):
 
     # cycle length in 16th steps, step -> accent within that cycle, decay
     # (s), band-pass resonance - overridden per style
-    cycle: ClassVar[int]
+    pattern_cycle: ClassVar[int]
     pattern: ClassVar[dict[int, float]]
     decay: ClassVar[float]
     resonance: ClassVar[float]
@@ -70,11 +66,6 @@ class Cymbal(DrumVoice):
     band: PyoObject
     tone_filter: Biquad
 
-    # the step pattern's callable, frozen at build time - fed to
-    # `next_step`, which build() can no longer close over now that it's a
-    # real method
-    _step: Callable[[], Step]
-
     @Param(
         0.02,
         0.4,
@@ -84,7 +75,7 @@ class Cymbal(DrumVoice):
         "Sets how far forward the cymbal sits; keep it low so the tail doesn't mask the groove.",
     )
     def level(self, value: float) -> None:
-        self.amp_env.mul = value
+        self.apply_gains()
 
     @Param(
         3000,
@@ -148,8 +139,11 @@ class Cymbal(DrumVoice):
         self.shaped = self.source * self.amp_env
 
         self.centre = Sig(self.tone)
-        self.drift = Sine(
-            freq=1 / (self.movement_bars * context.tempo.bar), mul=self.movement, add=1
+        self.drift = self.tempo_sine(
+            context.tempo,
+            lambda t: self.movement_bars * t.bar,
+            mul=self.movement,
+            add=1,
         )
         self.band = self.centre * self.drift
         self.tone_filter = Biquad(
@@ -160,25 +154,25 @@ class Cymbal(DrumVoice):
             mul=self._makeup(self.tone),
         )
 
-        self._step = self.step_pattern(self.cycle, self.pattern)
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.tone_filter)
 
-    def next_step(self) -> None:
-        step = self._step()
-        if step.hit:
-            self.amp_env.mul = self.level * step.value
-            self.trigger.play()
+    def apply_gains(self) -> None:
+        self.amp_env.mul = self.level * self.accent
 
 
 class CymbalRide(Cymbal):
     """Quarter-note ride with slowly drifting metallic colour."""
 
-    cycle, pattern, decay, resonance = 16, {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8}, 1.0, 3.0
+    pattern_cycle, pattern, decay, resonance = (
+        16,
+        {0: 1.0, 4: 0.8, 8: 0.9, 12: 0.8},
+        1.0,
+        3.0,
+    )
 
 
 class CymbalCrash(Cymbal):
     """Long crash wash marking the start of every eight-bar phrase."""
 
-    cycle, pattern, decay, resonance = 128, {0: 1.0}, 2.6, 1.2
+    pattern_cycle, pattern, decay, resonance = 128, {0: 1.0}, 2.6, 1.2

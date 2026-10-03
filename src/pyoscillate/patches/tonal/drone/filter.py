@@ -11,14 +11,13 @@ itself wandering, a more angular, "breathing" character closer to a classic
 from __future__ import annotations
 
 from pyo.lib.controls import SigTo
-from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import Lorenz
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice, Gate
+from pyoscillate.patches.common import ContinuousVoice, Echo, Gate, Reverb, RootPitch
 from pyoscillate.patches.params import Param
 from pyoscillate.theory import notes
 
@@ -27,7 +26,7 @@ from pyoscillate.theory import notes
 PAD_HARMONICS = [1, 0.6, 0.4, 0.25, 0.15, 0.08, 0.04]
 
 
-class SoundscapeFilter(Gate, ContinuousVoice):
+class SoundscapeFilter(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
     """Static harmonic-rich drone carved by a chaotically-swept resonant lowpass filter.
 
     Unlike `SoundscapeFm`'s smooth FM timbre drift, all the movement here
@@ -47,29 +46,15 @@ class SoundscapeFilter(Gate, ContinuousVoice):
     filter_res_sig: SigTo
     filter_base_sig: SigTo
     filter_range_sig: SigTo
-    reverb_size_sig: SigTo
-    reverb_damp_sig: SigTo
-    reverb_bal_sig: SigTo
-    delay_time_sig: SigTo
-    delay_feedback_sig: SigTo
     pad_table: HarmTable
     pad_osc: Osc
     cutoff_chaos_lfo: Lorenz
     filtered: MoogLP
-    reverb_voice: Freeverb
-    output: Delay
 
-    @Param(
-        notes.A1,
-        notes.A4,
-        1,
-        notes.A3,
-        "Register",
-        "Sets the drone's fundamental pitch.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.A1,
+        help_text="Sets the drone's fundamental pitch.",
     )
-    def root_freq(self, value: float) -> None:
-        self.root_freq_sig.value = value
 
     @Param(
         0.01,
@@ -136,67 +121,11 @@ class SoundscapeFilter(Gate, ContinuousVoice):
     def filter_range(self, value: float) -> None:
         self.filter_range_sig.value = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.8,
-        "Space",
-        "Sets how large and distant the drone's room feels, from a tight presence to a huge, cavernous decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb_size_sig.value = value
+    reverb_size = Reverb.reverb_size.replace(default=0.8)
+    reverb_bal = Reverb.reverb_bal.replace(default=0.75)
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
-        "settings stay bright and shimmering.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb_damp_sig.value = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.75,
-        "Distance",
-        "Blends how much of the drone is heard through the reverb versus dry; higher dissolves it into "
-        "the atmosphere, lower keeps it present.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb_bal_sig.value = value
-
-    @Param(
-        0.05,
-        2,
-        0.05,
-        0.45,
-        "Echo spacing",
-        "Sets the time between echo repeats, smearing the timbral drift across time.",
-        sweep=True,
-    )
-    def delay_time(self, value: float) -> None:
-        self.delay_time_sig.value = value
-
-    @Param(
-        0,
-        0.9,
-        0.05,
-        0.3,
-        "Echo density",
-        "Sets how many times each echo repeats before fading; higher creates a denser, more layered wash.",
-        sweep=True,
-    )
-    def delay_feedback(self, value: float) -> None:
-        self.delay_feedback_sig.value = value
+    delay_time = Echo.delay_time.replace(default=0.45)
+    delay_feedback = Echo.delay_feedback.replace(default=0.3)
 
     def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
@@ -207,11 +136,6 @@ class SoundscapeFilter(Gate, ContinuousVoice):
         self.filter_res_sig = self.live(type(self).filter_res)
         self.filter_base_sig = self.live(type(self).filter_base)
         self.filter_range_sig = self.live(type(self).filter_range)
-        self.reverb_size_sig = self.live(type(self).reverb_size)
-        self.reverb_damp_sig = self.live(type(self).reverb_damp)
-        self.reverb_bal_sig = self.live(type(self).reverb_bal)
-        self.delay_time_sig = self.live(type(self).delay_time)
-        self.delay_feedback_sig = self.live(type(self).delay_feedback)
 
         self.pad_table = HarmTable(PAD_HARMONICS)
         self.pad_osc = Osc(table=self.pad_table, freq=self.root_freq_sig, mul=0.25)
@@ -226,16 +150,6 @@ class SoundscapeFilter(Gate, ContinuousVoice):
             self.pad_osc, freq=self.cutoff_chaos_lfo, res=self.filter_res_sig
         )
 
-        self.reverb_voice = Freeverb(
-            self.filtered,
-            size=self.reverb_size_sig,
-            damp=self.reverb_damp_sig,
-            bal=self.reverb_bal_sig,
-        )
-        self.output = Delay(
-            self.reverb_voice,
-            delay=self.delay_time_sig,
-            feedback=self.delay_feedback_sig,
-            maxdelay=2,
-        )
+        self.reverb = self.add_reverb(self.filtered)
+        self.output = self.add_echo(self.reverb)
         return self.finish(self.add_gate(self.output, context))

@@ -38,6 +38,8 @@ PANEL = "#182220"
 TILE_BG = "#1D2B28"
 TEXT = "#F4F7F6"
 MUTED = "#A9B8B4"
+BPM_MIN = 40
+BPM_MAX = 220
 ERROR = "#FF8A80"
 # preset entry for rack-wide settings; the leading underscore keeps it from
 # colliding with a patch name
@@ -853,6 +855,7 @@ class PatchRackApp:
         self.paused = False
         self._paused_panels: set[str] = set()
         self.master_output = rack.master_output_default
+        self.bpm = rack.bpm
         self.preset_store = PresetStore(catalog_dir)
         self._bind_rack(rack)
 
@@ -884,6 +887,18 @@ class PatchRackApp:
             active_color=ACCENT,
             inactive_color="#31403D",
             on_change=self._handle_master_output,
+        )
+        self.bpm_text = ft.Text(
+            f"{self.bpm:g} BPM", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
+        )
+        self.bpm_slider = ft.Slider(
+            min=BPM_MIN,
+            max=BPM_MAX,
+            divisions=BPM_MAX - BPM_MIN,
+            value=min(max(self.bpm, BPM_MIN), BPM_MAX),
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_bpm,
         )
         self.preset_dropdown = ft.Dropdown(
             label="Preset",
@@ -1022,6 +1037,24 @@ class PatchRackApp:
                 col={"xs": 12, "md": 6},
             )
         )
+        level_controls.append(
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("Tempo", color=TEXT, size=14),
+                                self.bpm_text,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        self.bpm_slider,
+                    ],
+                    spacing=2,
+                ),
+                col={"xs": 12, "md": 6},
+            )
+        )
         rack_controls.append(
             ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8)
         )
@@ -1130,6 +1163,17 @@ class PatchRackApp:
             self.server.setAmp(self.master_output)
         e.page.update()
 
+    def _handle_bpm(self, e: ft.ControlEvent) -> None:
+        self.bpm = float(e.control.value)
+        self.bpm_text.value = f"{self.bpm:g} BPM"
+        if self.running:
+            self.context.tempo.set_bpm(self.bpm)
+            self.clock.retime()
+            for panel in self.panels.values():
+                if panel.patch.built:
+                    panel.patch.retempo()
+        e.page.update()
+
     def _handle_key(self, e: ft.ControlEvent) -> None:
         self._set_key(int(e.control.value))
         e.page.update()
@@ -1172,7 +1216,7 @@ class PatchRackApp:
             return
         self.server = server
         self.server.setAmp(self.master_output)
-        tempo = Tempo(bpm=self.rack.bpm)
+        tempo = Tempo(bpm=self.bpm)
         self.clock = Clock(tempo, ticks_per_bar=self.rack.ticks_per_bar)
         self.clock.start()
         for group in self.rack.evolving_groups:
@@ -1264,6 +1308,9 @@ class PatchRackApp:
             for group in self.groups:
                 group.set_engine_ready(True)
         else:
+            self.bpm = rack.bpm
+            self.bpm_slider.value = min(max(self.bpm, BPM_MIN), BPM_MAX)
+            self.bpm_text.value = f"{self.bpm:g} BPM"
             self._start_engine()
         if self.running:
             for panel in self.panels.values():

@@ -35,13 +35,14 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
 
 
-class LeadFm(Gate, GatedVoice):
+class LeadFm(Gate, RootPitch, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -115,22 +116,18 @@ class LeadFm(Gate, GatedVoice):
     mixed: PyoObject
     cleaned: ButHP
 
-    # the rack's harmony, the sixteenth-note length and the current note's
+    # the rack's harmony, the live tempo and the current note's
     # accent, read by `next_step` and the controls
     harmony: Harmony
-    _sixteenth: float
+    _tempo: Tempo
     _accent: float
     _step: Callable[[], Step]
 
-    root_freq = Param(
-        notes.F3,
-        notes.F5,
-        1,
-        notes.F4,
-        "Register",
-        "Moves the lead up or down; low is a warm, reedy mid voice, high is a thin, whistling "
-        "line above the mix. Notes always follow the rack's key and chord.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.F3,
+        maximum=notes.F5,
+        default=notes.F4,
+        help_text="Moves the lead up or down; low is a warm, reedy mid voice, high is a thin, whistling line above the mix. Notes always follow the rack's key and chord.",
     )
 
     @Param(
@@ -223,7 +220,7 @@ class LeadFm(Gate, GatedVoice):
         sweep=True,
     )
     def length(self, value: float) -> None:
-        self.amp.dur = self._sixteenth * value
+        self.amp.dur = self._tempo.sixteenth * value
 
     @Param(
         0,
@@ -245,20 +242,17 @@ class LeadFm(Gate, GatedVoice):
 
     def note_root(self) -> float:
         """The current bar's chord root in the octave nearest `root_freq`."""
-        return self.harmony.chord_freq(self.root_freq, self._clock.bar_index)
+        return self.root_at(self._clock.bar_index)
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
-        tempo = context.tempo
-        self._sixteenth = tempo.sixteenth
+        self._tempo = tempo = context.tempo
         self._accent = 1.0
 
         self.pitch = SigTo(value=self.root_freq, time=self.glide, init=self.root_freq)
-        self.drift = Sine(
-            freq=1 / (tempo.bar * self.drift_bars),
-            mul=self.drift_depth,
-            add=1.0,
+        self.drift = self.tempo_sine(
+            tempo, lambda t: t.bar * self.drift_bars, mul=self.drift_depth, add=1.0
         )
         self.carrier = self.pitch * self.drift
 
@@ -271,9 +265,12 @@ class LeadFm(Gate, GatedVoice):
             mul=self.bite,
             add=self.edge,
         )
-        self.swirl_lfo = Sine(freq=1 / (tempo.bar * self.swirl_bars), mul=0, add=0)
+        self.swirl_lfo = self.tempo_sine(
+            tempo, lambda t: t.bar * self.swirl_bars, mul=0, add=0
+        )
         self.index = self.bark + self.swirl_lfo
-        self.amp = TrigEnv(self.trigger, self.amp_table, dur=tempo.sixteenth)
+        self.amp = TrigEnv(self.trigger, self.amp_table, dur=1.0)
+        self.sync(tempo, lambda t: setattr(self.amp, "dur", t.sixteenth * self.length))
         self.level = self.amp * self.gain
         self.tone = FM(carrier=self.carrier, index=self.index, mul=self.level)
 
@@ -291,9 +288,13 @@ class LeadFm(Gate, GatedVoice):
 
         self.echo = Delay(
             self.body,
-            delay=tempo.sixteenth * self.echo_sixteenths,
+            delay=0.1,
             feedback=self.echo_feedback,
             maxdelay=2.0,
+        )
+        self.sync(
+            tempo,
+            lambda t: setattr(self.echo, "delay", t.sixteenth * self.echo_sixteenths),
         )
         self.mixed = self.body + self.echo
         self.cleaned = ButHP(self.mixed, freq=self.subsonic)

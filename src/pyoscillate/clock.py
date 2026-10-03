@@ -84,7 +84,16 @@ class Clock:
     _pattern: Pattern = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._pattern = Pattern(self._advance, time=self.tempo.bar / self.ticks_per_bar)
+        self._pattern = Pattern(self._advance, time=self._tick_seconds())
+
+    def _tick_seconds(self) -> float:
+        return self.tempo.bar / self.ticks_per_bar
+
+    def retime(self) -> None:
+        """Follow the tempo's current BPM. The tick count, and so every
+        patch's position on the grid, is untouched - only the spacing of
+        the ticks changes."""
+        self._pattern.time = self._tick_seconds()
 
     def ticks(self, division: NoteDivision) -> int:
         """Raw ticks for a standard bar-fraction division, clamped to at

@@ -1,23 +1,133 @@
-"""Drums-archetype name for the shared gated-voice base.
+"""Drums-archetype base: the shape every gated drum voice shares.
 
 Every gated drum voice (kick, snare, clap, hat, ...) follows the same shape
 `GatedVoice` (`pyoscillate.patches.common`) factors out: one `Trig()` fires
 per hit, one or more `TrigEnv`s read a break-point table off it, and a
-`Clock` `Division` schedules the hit with a live `rate` control. That shape
-isn't drums-specific - `tonal.bass.base.Bass` builds on the same base - so
-this module just gives the drums family its own name for it, matching
-`patches/AGENTS.md`'s directory-level-base convention.
+`Clock` `Division` schedules the hit with a live `rate` control. `DrumVoice`
+adds what the drums themselves repeat on top of that: the per-step accent
+pattern and its `next_step`, restarting the oscillators' phase on a hit, and
+the pitched body (a sine with a downward bend) that most of the kit is built
+around, so a concrete drum only supplies what makes it that drum.
 """
 
 from __future__ import annotations
 
-from pyoscillate.patches.common import GatedVoice
+from collections.abc import Callable
+from typing import ClassVar
+
+from pyo import PyoObject
+from pyo.lib.generators import Noise, Sine
+from pyo.lib.triggers import TrigEnv
+
+from pyoscillate.clock import Division, NoteDivision
+from pyoscillate.patches.base import BuildContext
+from pyoscillate.patches.common import GatedVoice, Step
 from pyoscillate.theory.notes import semitone_ratio
 
-__all__ = ["DrumVoice", "semitone_ratio"]
+__all__ = ["DROP", "DrumVoice", "semitone_ratio"]
+
+# full-to-zero break-points shared by every drum envelope; `exp` sets the curve
+DROP = [(0, 1), (8191, 0)]
 
 
 class DrumVoice(GatedVoice):
     """Base for a gated drums-archetype voice. See `GatedVoice` for the
     shared `self.envelope(...)`/`self.schedule(...)`/`self.finish(...)`
-    contract every concrete voice builds on."""
+    contract every concrete voice builds on.
+
+    A voice that plays a step pattern declares `pattern` (step -> accent, or
+    a set of steps for a flat accent of 1) and `pattern_cycle`, calls
+    `self.schedule_pattern(context)` from `build()`, and gets `next_step`
+    for free. It overrides `apply_gains()` when its level depends on the
+    current step's `accent`, and `strike()` for anything extra a hit does.
+    """
+
+    base_division: ClassVar[NoteDivision]
+    # step in a `pattern_cycle`-step bar -> accent; the default is a one-step
+    # cycle with a full-level hit, which fires every `base_division` tick
+    pattern: ClassVar[dict[int, float] | set[int]] = {0: 1.0}
+    pattern_cycle: ClassVar[int] = 1
+
+    # per-hit accent from `pattern`, not a parameter: kept on self so a live
+    # level change doesn't lose the current step's accent
+    accent: float
+    # oscillators restarted at phase zero on every hit, so the attack starts
+    # on a zero crossing instead of wherever they last stopped
+    phased: list[Sine]
+    # the step pattern's callable, assigned by `schedule_pattern()`
+    _step: Callable[[], Step]
+
+    # the pitched body, assigned by `pitched_body()`
+    bend: TrigEnv
+    pitch: PyoObject
+    body: Sine
+    body_env: TrigEnv
+    body_signal: PyoObject
+
+    # the noise source shared by every `noise_burst()`, assigned by it
+    noise: Noise
+
+    def _reset(self) -> None:
+        super()._reset()
+        self.accent = 1.0
+        self.phased = []
+
+    def schedule_pattern(self, context: BuildContext) -> Division:
+        """Read `pattern` off the shared clock and fire `next_step` on the
+        voice's `rate`."""
+        self.use_pattern(self.pattern)
+        return self.schedule(self.base_division, self.rate, context.clock)
+
+    def use_pattern(self, pattern: dict[int, float] | set[int]) -> None:
+        """Swap the step pattern live (an `EvolvingGroup`'s `on_evolve`)."""
+        self._step = self.step_pattern(self.pattern_cycle, pattern)
+
+    def pitched_body(
+        self,
+        freq: PyoObject | float,
+        *,
+        bend_depth: float,
+        bend_time: float,
+        bend_curve: float,
+        decay: float,
+        decay_curve: float,
+    ) -> PyoObject:
+        """A sine body whose pitch starts `bend_depth` (a fraction of `freq`)
+        above it and falls over `bend_time`, under a `decay`-long amplitude
+        envelope. Every node lands on `self`; the oscillator joins `phased`.
+        Returns the enveloped body."""
+        self.bend = self.envelope(
+            DROP, dur=bend_time, mul=bend_depth, add=1, exp=bend_curve
+        )
+        self.pitch = freq * self.bend
+        self.body = Sine(freq=self.pitch)
+        self.phased.append(self.body)
+        self.body_env = self.envelope(DROP, dur=decay, exp=decay_curve)
+        self.body_signal = self.body * self.body_env
+        return self.body_signal
+
+    def noise_burst(self, *, dur: float, exp: float) -> tuple[TrigEnv, PyoObject]:
+        """A `dur`-long decaying burst of white noise. `self.noise` is the
+        source; returns the envelope (for its live `mul`/`dur`) and the
+        enveloped burst, which the caller assigns to its own names."""
+        self.noise = Noise()
+        env = self.envelope(DROP, dur=dur, exp=exp)
+        return env, self.noise * env
+
+    def apply_gains(self) -> None:
+        """Recombine the current level controls with this hit's `accent`.
+        A no-op unless a voice's level depends on its step accent."""
+
+    def strike(self) -> None:
+        """Play one hit: restart the `phased` oscillators, then fire."""
+        for oscillator in self.phased:
+            oscillator.reset()
+        self.trigger.play()
+
+    def next_step(self) -> None:
+        step = self._step()
+        if not step.hit:
+            return
+        self.accent = float(step.value)
+        self.apply_gains()
+        self.strike()

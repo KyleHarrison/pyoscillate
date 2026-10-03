@@ -33,9 +33,11 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
+from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 
 STYLES = ("bark", "grit")
@@ -58,7 +60,7 @@ GAIN = 0.3
 SUBSONIC = 20
 
 
-class FmBass(Bass):
+class FmBass(RootPitch, Bass):
     """FM bass base: every note barks bright, then settles to a rounder
     tone. Style variants subclass this and override `tone()` for FM vs.
     CrossFM; the rest of the graph is identical. See the module docstring
@@ -77,23 +79,19 @@ class FmBass(Bass):
     tone_signal: PyoObject
     body: ButHP
 
-    # the sixteenth-note length and current step accent `next_step` and the
+    # the live tempo and current step accent `next_step` and the
     # `growl`/`length` controls read, assigned by build()
-    _sixteenth: float
+    _tempo: Tempo
     _accent: float
 
     # read live off `self.root_freq` by build()'s trigger-time callback - no
     # control body needed, see `patches/AGENTS.md`'s note on a parameter
     # only read by a sequencer callback
-    root_freq = Param(
-        notes.B0,
-        notes.A2,
-        1,
-        notes.A1,
-        "Register",
-        "Moves the bassline up or down; low sits under the kick as weight, high brings the bark "
-        "forward as a melodic line.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.B0,
+        maximum=notes.A2,
+        default=notes.A1,
+        help_text="Moves the bassline up or down; low sits under the kick as weight, high brings the bark forward as a melodic line.",
     )
 
     # whole steps only: an integer ratio keeps every note pitched (see AGENTS.md)
@@ -160,7 +158,7 @@ class FmBass(Bass):
         sweep=True,
     )
     def length(self, value: float) -> None:
-        self.amp.dur = self._sixteenth * value
+        self.amp.dur = self._tempo.sixteenth * value
 
     rate = rate_param(
         BASE_DIVISION,
@@ -181,7 +179,7 @@ class FmBass(Bass):
         # onto `Bass`'s trigger: silent until the clock ticks (see
         # tests/pyoscillate/patches/test_gated_patches.py)
         self.trigger.stop()
-        self._sixteenth = context.tempo.sixteenth
+        self._tempo = context.tempo
         self._accent = 1.0
 
         self.pitch_signal(self.root_freq)
@@ -193,7 +191,11 @@ class FmBass(Bass):
         self.floor = SigTo(value=self.edge, time=0.05, init=self.edge)
         self.index = self.bark + self.floor
         self.amp = TrigEnv(
-            self.trigger, self.amp_table, dur=self._sixteenth * self.length
+            self.trigger, self.amp_table, dur=self._tempo.sixteenth * self.length
+        )
+        self.sync(
+            context.tempo,
+            lambda t: setattr(self.amp, "dur", t.sixteenth * self.length),
         )
         self.level = self.amp * GAIN
 

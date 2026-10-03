@@ -138,7 +138,7 @@ class Bass(PitchBend, Gate, GatedVoice):
             self.register_centre, context.clock.bar_index
         ) * (2**self.octave)
 
-    def cutoff_source(self, tempo: Tempo) -> Any:
+    def cutoff_source(self) -> Any:
         """Hook: what drives the low-pass cutoff. The default is the fixed
         `cutoff` value (its `Param` control retunes `filtered` live); a style
         overrides this to sweep it, assigning any node it builds onto `self`."""
@@ -165,12 +165,18 @@ class Bass(PitchBend, Gate, GatedVoice):
             table=self.envelope_table,
             dur=context.tempo.sixteenth * profile.envelope_decay,
         )
+        self.sync(
+            context.tempo,
+            lambda t: setattr(
+                self.envelope, "dur", t.sixteenth * self._profile.envelope_decay
+            ),
+        )
         self.oscillator_table = HarmTable(list(profile.harmonics))
         freq = self.pitch_signal(self.current_root())
         self.oscillator = Osc(self.oscillator_table, freq=freq, mul=self.envelope)
         self.filtered = MoogLP(
             self.oscillator,
-            freq=self.cutoff_source(context.tempo),
+            freq=self.cutoff_source(),
             res=profile.resonance,
         )
 

@@ -16,7 +16,7 @@ from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import HarmTable
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import ContinuousVoice, Gate
+from pyoscillate.patches.common import ContinuousVoice, Gate, RootPitch
 from pyoscillate.patches.params import Param
 from pyoscillate.theory import notes
 
@@ -24,7 +24,7 @@ from pyoscillate.theory import notes
 SUB_HARMONICS = [1, 0.15, 0.05]
 
 
-class BassDrone(Gate, ContinuousVoice):
+class BassDrone(Gate, RootPitch, ContinuousVoice):
     """Slow-swelling sub drone: a near-static low fundamental that breathes in and out in level rather than changing pitch or timbre."""
 
     title = "Bass - slow-swelling sub drone"
@@ -44,17 +44,12 @@ class BassDrone(Gate, ContinuousVoice):
     sub_osc: Osc
     output: MoogLP
 
-    @Param(
-        notes.E0,
-        notes.E2,
-        1,
-        notes.E1,
-        "Register",
-        "Sets the fixed pitch of the sub drone.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.E0,
+        maximum=notes.E2,
+        default=notes.E1,
+        help_text="Sets the fixed pitch of the sub drone.",
     )
-    def root_freq(self, value: float) -> None:
-        self.root_freq_sig.value = value
 
     @Param(
         2,

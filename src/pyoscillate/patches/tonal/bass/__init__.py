@@ -6,15 +6,15 @@ from __future__ import annotations
 from pyo.lib.generators import LFO
 
 from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass, BassProfile
-from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 
 from .profiles import TECHNO
 
 
-class TechnoBass(AccentBass):
+class TechnoBass(RootPitch, AccentBass):
     """The original rolling, swept techno bass: a fixed root note under a
     continuous filter sweep, with no chord-following (see the groove
     styles in `groove.py` for that)."""
@@ -31,15 +31,11 @@ class TechnoBass(AccentBass):
     # read live off `self.root_freq` by `current_root`'s trigger-time
     # callback - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
-    root_freq = Param(
-        notes.B0,
-        notes.A2,
-        1,
-        notes.Fs2,
-        "Register",
-        "Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings "
-        "it closer to the mid range and easier to pick out melodically.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.B0,
+        maximum=notes.A2,
+        default=notes.Fs2,
+        help_text="Moves the bass up or down in pitch; lower digs deeper into the sub range, higher brings it closer to the mid range and easier to pick out melodically.",
     )
 
     @Param(
@@ -89,9 +85,11 @@ class TechnoBass(AccentBass):
     def current_root(self) -> float:
         return self.root_freq
 
-    def cutoff_source(self, tempo: Tempo) -> LFO:
+    def cutoff_source(self) -> LFO:
         # neutral depth/centre: `filter_base`/`filter_range` controls set the real ones
-        self.cutoff_lfo = LFO(freq=1 / tempo.bar, type=0, mul=0, add=0)
+        self.cutoff_lfo = LFO(freq=1 / self._tempo.bar, type=0, mul=0, add=0)
+        self.retain(self.cutoff_lfo)
+        self.sync(self._tempo, lambda t: setattr(self.cutoff_lfo, "freq", 1 / t.bar))
         return self.cutoff_lfo
 
 

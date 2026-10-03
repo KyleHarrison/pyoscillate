@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
@@ -9,6 +10,7 @@ from pyo.lib._core import PyoObjectBase, PyoPVObject
 from pyo.lib.analysis import Follower2
 from pyo.lib.controls import SigTo
 from pyo.lib.dynamics import Clip, Compress
+from pyo.lib.generators import Sine
 from pyo.lib.server import Server
 
 from pyoscillate.clock import Clock
@@ -186,6 +188,7 @@ class Patch(ABC):
         self.resources: list[Any] = []
         self.live_signals: dict[Param, SigTo] = {}
         self.sidechains: tuple[Sidechain, ...] = ()
+        self._tempo_links: list[Callable[[], None]] = []
         self.sweeps: dict[Param, Sweep] = {
             param: Sweep(self, param) for param in self.params if param.sweep
         }
@@ -222,6 +225,33 @@ class Patch(ABC):
         self.live_signals[param] = signal
         return signal
 
+    def sync(self, tempo: Tempo, apply: Callable[[Tempo], None]) -> None:
+        """Run `apply(tempo)` now and again on every `retempo()`. Use it for
+        any value derived from a note length (an envelope `dur`, an LFO rate,
+        a delay time) instead of computing it once in `build()`, so a BPM
+        change reaches the running graph. `apply` may read `Param`s: it is
+        replayed with their current values."""
+        apply(tempo)
+        self._tempo_links.append(lambda: apply(tempo))
+
+    def tempo_sine(
+        self, tempo: Tempo, period: Callable[[Tempo], float], **kwargs: Any
+    ) -> Sine:
+        """A retained `Sine` LFO whose period (seconds, from `period(tempo)`)
+        follows the tempo, e.g. `period=lambda t: t.bar * 4`."""
+        lfo = Sine(freq=1 / period(tempo), **kwargs)
+        self.retain(lfo)
+        self.sync(tempo, lambda t: setattr(lfo, "freq", 1 / period(t)))
+        return lfo
+
+    def retempo(self) -> None:
+        """Recompute every `sync()`ed value and sweep length after the
+        shared `Tempo` changed. Safe on a built patch, playing or not."""
+        for link in self._tempo_links:
+            link()
+        for sweep in self.sweeps.values():
+            sweep.retempo()
+
     def sweep_for(self, param: Param) -> Sweep:
         """This patch's `Sweep` for `param`, recognised across style
         overrides (see `Param.origin`)."""
@@ -255,6 +285,7 @@ class Patch(ABC):
         )
         self.resources = []
         self.live_signals = {}
+        self._tempo_links = []
         self._built = False
 
     def _bind(self) -> None:

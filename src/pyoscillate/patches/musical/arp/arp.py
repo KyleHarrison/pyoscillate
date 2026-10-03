@@ -11,11 +11,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from pyo.lib.controls import SigTo
-from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, Reverb, Step
 from pyoscillate.patches.params import Param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
@@ -24,7 +23,7 @@ from pyoscillate.theory.intervals import ArpOrder, Scale
 MID_ROOT = notes.E4  # current default
 
 
-class Arp(Gate, GatedVoice):
+class Arp(Gate, Reverb, GatedVoice):
     """Calm, consonant melodic line locked to the groove.
 
     `step_bars` is a `rebuild` parameter: it sets the `SigTo` glide
@@ -47,7 +46,6 @@ class Arp(Gate, GatedVoice):
 
     mid_freq: SigTo
     fm_voice: FM
-    reverb: Freeverb
 
     @Param(
         notes.A2,
@@ -111,62 +109,23 @@ class Arp(Gate, GatedVoice):
     def fm_index(self, value: float) -> None:
         self.fm_voice.index = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.6,
-        "Space",
-        "Sets how large and distant the melody's room feels, from a tight presence to a huge, "
-        "cavernous decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb.size = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, "
-        "lower settings stay bright and shimmering.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb.damp = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.4,
-        "Distance",
-        "Blends how much of the melody is heard through the reverb versus dry; higher dissolves "
-        "it into the atmosphere, lower keeps it present and up front.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb.bal = value
-
     def build(self, context: BuildContext) -> Patch:
         self._reset()
-        step_time = context.tempo.bar * self.step_bars
 
         # glides to each new note over most of the step time instead of
         # snapping, so the melody drifts between pitches rather than
         # plucking them
-        self.mid_freq = SigTo(value=self.root_freq, time=step_time * 0.85)
+        self.mid_freq = SigTo(
+            value=self.root_freq, time=context.tempo.bar * self.step_bars * 0.85
+        )
         self.fm_voice = FM(
             carrier=self.mid_freq, ratio=self.fm_ratio, index=self.fm_index, mul=0.18
         )
-        self.reverb = Freeverb(
-            self.fm_voice,
-            size=self.reverb_size,
-            damp=self.reverb_damp,
-            bal=self.reverb_bal,
+        self.sync(
+            context.tempo,
+            lambda t: setattr(self.mid_freq, "time", t.bar * self.step_bars * 0.85),
         )
+        self.reverb = self.add_reverb(self.fm_voice)
 
         self.harmony = context.harmony
         self.step_root_freq = self.root_freq

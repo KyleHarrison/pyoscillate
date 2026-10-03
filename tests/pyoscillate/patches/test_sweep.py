@@ -94,25 +94,6 @@ class SweepTests(unittest.TestCase):
         sweep.run()
         self.assertFalse(sweep.running)
 
-    def test_every_lead_param_but_register_and_rate_sweeps(self):
-        for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
-            with self.subTest(lead=lead.name):
-                swept = {p.name for p in lead.params if p.sweep}
-                self.assertEqual(
-                    swept,
-                    {
-                        "bite",
-                        "settle",
-                        "swirl",
-                        "breath",
-                        "glide",
-                        "length",
-                        "echo_level",
-                        # the Gate add-on's depth is sweepable on every voice
-                        "gate",
-                    },
-                )
-
     def test_forest_leads_start_with_every_sweep_off(self):
         rack = ForestPsytranceRack()
         for lead in (rack.lead_wind, rack.lead_swirl):

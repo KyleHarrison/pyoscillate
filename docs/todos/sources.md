@@ -42,11 +42,6 @@
 - [Olney, *Computational Thinking through Modular Sound Synthesis*: TB-303 chapter](https://olney.ai/ct-modular-book/tb-303.html) (free).
 - For sub and Reese bass, what I found was mostly vendor blogs ([Noise Engineering: Reese](https://noiseengineering.us/blogs/loquelic-literitas-the-blog/quick-patch-how-to-make-a-reese-with-just-about-anything/) is the best of them). They're weaker, so use them only for style variants.
 
-**pitched_percussion/bell**
-- Synth Secrets 40 ("Synthesizing Bells") and 41 ("Cowbells & Claves").
-- [CCRMA CLM FM tutorial](https://ccrma.stanford.edu/software/clm/compmus/clm-tutorials/fm2.html) and [Cycling '74 MSP FM tutorial](https://docs.cycling74.com/learn/articles/06_synthesischapter05/) (free): harmonicity ratio, index, and Chowning's bell (inharmonic ratio, index falling over the note, long exponential decay).
-- [Elektron Digitone manual](https://www.elektron.se/wp-content/uploads/2024/09/Digitone_User_Manual_ENG_OS1.41_231108.pdf), appendix on FM ratios (free, a product manual like your drum source).
-
 **tonal/pluck**
 - Synth Secrets 28–30 (plucked strings, the theoretical guitar patch).
 - [Julius O. Smith, Karplus-Strong in *Physical Audio Signal Processing* (CCRMA)](https://ccrma.stanford.edu/~jos/pasp/Karplus_Strong_Algorithm.html) (free, authoritative).
@@ -64,10 +59,4 @@
 **Drums (to extend your existing docs)**
 - Synth Secrets 31–39 cover kick, snare, metallic percussion and cymbals in depth. They're worth cross-checking against your current drum docs.
 
-## Suggested order
-
-1. Answer the soundscape definition question. If it's the harmonic bed, the Szabo thesis, musicdsp and Valhalla give you a strong grounded doc for all three current patches.
-2. **Bass** next: the Devil Fish manual is the nearest equivalent to your drum source, and bass currently has no `AGENTS.md`.
-3. **Bell and pluck**: Synth Secrets plus the CCRMA material are high quality and free.
-
-When we write each doc, I'd fetch the specific sources, turn them into principles in your kick-doc format, and add a short "Sources" line at the bottom of the doc so its origin is recorded. Tell me which patch to start with.
+When writing each doc, fetch the specific sources, turn them into principles in the kick-doc format, and add a short "Sources" line at the bottom of the doc.

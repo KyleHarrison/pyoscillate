@@ -10,7 +10,7 @@ from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib.filters import ButHP
-from pyo.lib.generators import Noise, Sine
+from pyo.lib.generators import Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
@@ -18,8 +18,6 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
 
-# full-to-zero break-points shared by the tick's envelope
-DROP = [(0, 1), (8191, 0)]
 # the tick's own default decay (s); read directly at construction (as well as
 # from its own `@Param`) since there's no separate style constant behind it
 DECAY = 0.15
@@ -39,7 +37,6 @@ class Tick(DrumVoice):
     decay_curve: ClassVar[float] = 5
 
     # the graph, assigned by build(); finish() retains every one of them
-    hat_noise: Noise
     hat_env: TrigEnv
     hat_burst: PyoObject
     hat_swell: Sine
@@ -90,12 +87,12 @@ class Tick(DrumVoice):
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
 
-        self.hat_noise = Noise()
-        self.hat_env = self.envelope(DROP, dur=DECAY, exp=self.decay_curve)
-        self.hat_burst = self.hat_noise * self.hat_env
+        self.hat_env, self.hat_burst = self.noise_burst(dur=DECAY, exp=self.decay_curve)
 
         # slow swell over 32 steps so the ticks don't sit at a fixed level
-        self.hat_swell = Sine(freq=1 / (32 * context.tempo.sixteenth), mul=0.3, add=0.8)
+        self.hat_swell = self.tempo_sine(
+            context.tempo, lambda t: 32 * t.sixteenth, mul=0.3, add=0.8
+        )
 
         # high-pass to keep it thin and airy, out of the kick and bass range
         self.filtered = ButHP(self.hat_burst, mul=self.hat_swell)

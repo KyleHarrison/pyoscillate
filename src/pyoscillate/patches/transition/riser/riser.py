@@ -181,6 +181,12 @@ class Riser(Gate, GatedVoice):
             _ramp_points(context.tempo, round(self.length), self.cut_seconds),
             initToFirstVal=True,
         )
+        self.sync(
+            context.tempo,
+            lambda t: self.ramp.setList(
+                _ramp_points(t, round(self.length), self.cut_seconds)
+            ),
+        )
         self.tension = Pow(self.ramp, self.surge_control)
         self.climb_octaves = self.tension * self.climb_control
         self.climb_ratio = Pow(2, self.climb_octaves)

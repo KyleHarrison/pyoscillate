@@ -9,13 +9,12 @@ from __future__ import annotations
 from typing import ClassVar
 
 from pyo import PyoObject
-from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import SeededDraws
+from pyoscillate.patches.common import Reverb, SeededDraws
 from pyoscillate.patches.params import Param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
@@ -26,7 +25,7 @@ from pyoscillate.theory.intervals import Scale
 MID_ROOT = notes.E4  # current default
 
 
-class Generative(SeededDraws, Patch):
+class Generative(SeededDraws, Reverb, Patch):
     """Free-running generative melody: a new pentatonic note is drawn at random every `note_period` seconds, in real time rather than locked to the shared clock.
 
     Closer to Eno's tape-loop style generative ambient than a fixed
@@ -57,7 +56,6 @@ class Generative(SeededDraws, Patch):
     note_metro: Metro
     note_env: TrigEnv
     fm_voice: FM
-    reverb: Freeverb
     note_func: TrigFunc
     harmony: Harmony
 
@@ -120,44 +118,7 @@ class Generative(SeededDraws, Patch):
     def fm_index(self, value: float) -> None:
         self.fm_voice.index = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.6,
-        "Space",
-        "Sets how large and distant the melody's room feels, from a tight presence to a huge, cavernous "
-        "decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb.size = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
-        "settings stay bright and shimmering.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb.damp = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.45,
-        "Distance",
-        "Blends how much of the melody is heard through the reverb versus dry; higher dissolves it into "
-        "the atmosphere, lower keeps it present.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb.bal = value
+    reverb_bal = Reverb.reverb_bal.replace(default=0.45)
 
     def finish(self, voice: PyoObject) -> Patch:
         """Minimal `finish()` for a musical-structure patch that owns its own
@@ -183,7 +144,7 @@ class Generative(SeededDraws, Patch):
         )
 
         self.fm_voice = FM(mul=self.note_env)
-        self.reverb = Freeverb(self.fm_voice)
+        self.reverb = self.add_reverb(self.fm_voice)
 
         self.note_func = TrigFunc(self.note_metro, self.next_note)
         self.sequencer = self.note_metro

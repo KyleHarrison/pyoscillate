@@ -19,15 +19,12 @@ listed first.
 
 ## Tier 1: fills a family that has no builder yet (synth-only, no soundfile)
 
+(bell, FM bass, keys, noise and riser are built and removed from this table.)
+
 | Family | Example(s) | What to take from it |
 |---|---|---|
-| `pitched_percussion/bell` | [x06/03 complex resonator](https://belangeo.github.io/pyo/examples/x06-filters/03-complex-resonator.html), [x03/03 FM](https://belangeo.github.io/pyo/examples/x03-generators/03-fm-generators.html), [x10/01 envelopes](https://belangeo.github.io/pyo/examples/x10-tables/01-envelopes.html) | Two routes. (a) **Modal/chime**: a `Metro` impulse excites a `ComplexRes` bank at inharmonic frequencies. Decay is a live control, and `Pattern` retunes the partials. The bell doc doesn't mention this route yet; add it as a design alternative. (b) **Chowning FM**: `FM` with a non-integer `ratio` and an index envelope that falls over the note. This matches the doc's "FM network". |
-| `tonal/bass/fm` | x03/03 FM, x10/01 envelopes | `FM` with an integer `ratio`. Its index follows a break-point table (`LinTable` 20 → 0) read by `TableRead`: the doc's "bark then settle". `CrossFM` (`ind1`/`ind2`) is a second, grittier profile. |
-| `tonal/keys` | x10/01 envelopes | FM with three break-point envelopes (amp `CosTable`, ratio `ExpTable`, index `LinTable`). Reader freq = `1/dur`, so the same shape scales to any note length. That fits an electric-piano "tine": index envelope = bark, and velocity can scale the index. |
 | `tonal/lead` | [x03/01 complex oscs](https://belangeo.github.io/pyo/examples/x03-generators/01-complex-oscs.html), [x05/03 exponential ramp](https://belangeo.github.io/pyo/examples/x05-envelopes/03-exponential-ramp.html), [x03/06 random generators](https://belangeo.github.io/pyo/examples/x03-generators/06-random-generators.html) | Brightness from one oscillator parameter: `Blit.harms`, `RCOsc.sharp` or `SineLoop.feedback`. `Selector` morphs between them as a "character" control. `Port(risetime≠falltime)` gives asymmetric portamento (fast rise, slow fall). `Randi` in the ±0.7% range gives natural pitch drift. |
 | `tonal/pluck` | x06/03 complex resonator, x03/01 complex oscs | Impulse → resonator is the doc's "short transient into a resonant network". A second profile: `Blit` with a `harms` envelope that decays fast is the "brightness contour". |
-| `texture/noise` | [x03/04 noise generators](https://belangeo.github.io/pyo/examples/x03-generators/04-noise-generators.html), [x06/04 phasing](https://belangeo.github.io/pyo/examples/x06-filters/04-phasing.html), [x06/07 Hilbert](https://belangeo.github.io/pyo/examples/x06-filters/07-hilbert-transform.html) | A `Selector` over `Noise`/`PinkNoise`/`BrownNoise` gives one "colour" slider. `Phaser(num=20)` on pink noise, with separate slow LFOs on freq/spread/q per channel, gives surf/wind movement. The Hilbert frequency shift gives a slow barber-pole motion. None of these need a soundfile. |
-| `transition/riser` | x06/07 Hilbert, [x05/05 break-point functions](https://belangeo.github.io/pyo/examples/x05-envelopes/05-breakpoints-functions.html), x05/02–03 ramps | Hilbert + quadrature `Sine` frequency shift (single sideband) = an endless barber-pole rise with no audible top. Sweep the shift amount over bars with `Linseg`/`Expseg` timed from the tempo. |
 | `tonal/strings` | [x07/05 hand-made chorus](https://belangeo.github.io/pyo/examples/x07-effects/05-hand-made-chorus.html), x03/01 (`SuperSaw`) | 8 `Delay` lines modulated by `Sine` LFOs at unrelated rates (0.25–1.9 Hz, 9–18 ms centre, 1–2.3 ms depth). Odd lines go left and even lines right. This is the "ensemble chorus" stage the doc asks for, and it gives more control than the `Chorus` object. |
 | `tonal/pad` | [x10/07 moving points](https://belangeo.github.io/pyo/examples/x10-tables/07-moving-points.html), x03/01, x06/04 | A `Pattern` rewrites a small `LinTable` (256 pts) from two slow LFOs every 50 ms. `Osc` reads it as an amplitude/brightness shape that keeps changing: a "breathing" pad. Keep the table small; rewriting large tables glitches. |
 | `tonal/bass/reese` | x03/01 (`SuperSaw.detune`), x07/05 | Weaker fit. SuperSaw detune is the beating control. The example only shows the object, not a bassline. |
@@ -55,9 +52,9 @@ All three need a decision on how a rack loads and owns a `SndTable`: where files
 
 ## Rack-level (not patch families)
 
-- [x08/02 ducking](https://belangeo.github.io/pyo/examples/x08-dynamics/02-ducking.html) and [x08/04 auto-wah](https://belangeo.github.io/pyo/examples/x08-dynamics/04-rms-tracing.html): `Follower` → `Scale` → a parameter. This is the "one voice's amplitude modulates another" link: kick ducks the pad, and the drum envelope opens the bass filter. It belongs in `linked-rack-modulation.md`, not in a patch.
+- [x08/02 ducking](https://belangeo.github.io/pyo/examples/x08-dynamics/02-ducking.html) and [x08/04 auto-wah](https://belangeo.github.io/pyo/examples/x08-dynamics/04-rms-tracing.html): `Follower` → `Scale` → a parameter. This is the "one voice's amplitude modulates another" link: kick ducks the pad, and the drum envelope opens the bass filter. Kick-driven ducking is already built (`SidechainSource`); auto-wah is not. It belongs at rack level, not in a patch.
 - Effects that could become a shared send/bus: x07/01 flanger, x07/02 Schroeder reverb (4 prime-spaced combs → 2 allpasses), x07/04 ping-pong delay, x07/06 harmonizer, and x14/04 spectral delay (`FFT` → per-band `Delay` → `IFFT`).
-- x14/02–03 FFT cross-synthesis and morphing: two of our voices morphing into each other. This is interesting, but it needs two voices routed into one processor, so it depends on the rack-linking design.
+- x14/02–03 FFT cross-synthesis and morphing: two of our voices morphing into each other. This is interesting, but it needs two voices routed into one processor, so it needs a two-voice routing design.
 
 ## Skipped
 
@@ -65,7 +62,7 @@ x01, x02 (basics/GUI), x04/01–02 and 04–06 (disk playback and recording), x0
 
 ## Tasks
 
-Work the phases in order; tasks inside a phase can go in any order unless a
+Phases 1-3 (noise, riser, FM family) are done. Work the remaining phases in order; tasks inside a phase can go in any order unless a
 dependency is noted. The tables above hold the detail for each example. Tick a
 box when the task lands and add a line to the Log.
 
@@ -73,31 +70,6 @@ box when the task lands and add a line to the Log.
 status dropped), the module exposes `PARAMETERS` + `build()`, every graph
 object is in `voice`/`sequencer`/`resources`, controls update live where the
 topology allows, the patch is registered in its family `__init__.py`, 
-
-### Phase 1: `texture/noise`
-
-- [x] Fill `texture/noise/AGENTS.md` from sources; drop placeholder status
-- [x] x03/04 noise generators → first noise patch with a white/pink/brown "colour" control (`Selector`)
-- [x] x06/04 phasing → phaser movement profile (`Phaser(num=20)`, independent slow LFOs per channel)
-- [x] x06/07 Hilbert → barber-pole frequency-shift profile
-
-### Phase 2: `transition/riser`
-
-- [x] Fill `transition/riser/AGENTS.md`; drop placeholder status
-- [x] x06/07 Hilbert → endless-rise source (single-sideband shift)
-- [x] x05/05 break-point functions → rise shape over a duration set in bars from the tempo (`Linseg`/`Expseg`)
-- [x] x05/02–03 linear/exponential ramps → pitch and level climb (`SigTo`, `Port`)
-
-### Phase 3: FM family (shared break-point-envelope pattern)
-
-- [x] Add the modal/resonator route to `pitched_percussion/bell/AGENTS.md` as a design alternative
-- [x] x06/03 complex resonator → bell chime profile (`Metro` impulses into a `ComplexRes` bank)
-- [x] x03/03 FM + x10/01 envelopes → Chowning FM bell profile (non-integer ratio, falling index)
-- [x] Fill `tonal/bass/fm/AGENTS.md`; drop placeholder status
-- [x] x03/03 FM + x10/01 envelopes → FM bass with index envelope ("bark then settle")
-- [x] x03/03 `CrossFM` → gritty FM bass profile
-- [x] Fill `tonal/keys/AGENTS.md`; drop placeholder status
-- [x] x10/01 envelopes → electric-piano tine (amp/ratio/index tables, reader freq = `1/dur`, velocity scales index)
 
 ### Phase 4: shared drive stage (before lead and acid)
 
@@ -153,10 +125,9 @@ topology allows, the patch is registered in its family `__init__.py`,
 - [ ] Fill `sample/breakbeat/AGENTS.md`; drop placeholder status
 - [ ] x10/06 table stutter → stutter/retrigger mechanics (`Pointer` + `Linseg` + `Fader`)
 
-### Phase 10: rack-level (depends on `linked-rack-modulation.md`)
+### Phase 10: rack-level
 
-- [ ] x08/02 ducking → hand to `linked-rack-modulation.md` task 5 (kick ducks pad/bass)
-- [ ] x08/04 auto-wah → hand to `linked-rack-modulation.md` (envelope follower → filter)
+- [ ] x08/04 auto-wah → rack-level envelope follower → filter
 - [ ] x07/01 flanger → shared effect
 - [ ] x07/02 Schroeder reverb → shared effect
 - [ ] x07/04 ping-pong delay → shared effect
@@ -164,10 +135,3 @@ topology allows, the patch is registered in its family `__init__.py`,
 - [ ] x14/04 spectral delay → shared effect
 - [ ] x14/02 cross-synthesis → two-voice processor
 - [ ] x14/03 spectral morphing → two-voice processor
-
-## Log
-
-- 2026-09-24: examples surveyed and mapped; task list created.
-- 2026-09-24: Phase 1 done. `texture/noise/noise.py` (styles `air`, `surf`, `barber`); `frequency_shift`, `Stage` and `SequencerGroup` added to `patches/common.py`; `windows`/`spectral_movement` added to `analysis/features.py`. Finding: pyo's `Phaser` is a pure allpass, so x06/04's output alone has a flat spectrum; `surf` sums it with the dry bed (see `test_noise.py`).
-- 2026-09-25: Phase 2 done. `transition/riser/riser.py` (styles `noise`, `shift`, `pitch`) on an 8-bar phrase, Length 1–8 bars. One `Linseg` ramp raised to a live power (Surge) drives climb, filter and level, instead of `SigTo`/`Port`: `Port` is a one-pole lag (front-loaded, the wrong shape for a build) and neither restarts from zero per shot. The shift source climbs by SSB shift within the gesture, but it isn't a true endless barber-pole; that needs a shift inside a feedback delay, recorded as a design alternative in the riser `AGENTS.md`. The noise band gets 1/√centre makeup (constant-Q bandwidth grows with the centre, which clipped at Climb 4). Also fixed ruff RUF007 in `analysis/features.py`.
-- 2026-09-25: Phase 3 done. `pitched_percussion/bell/bell.py` (styles `chime`, `fm`), `tonal/bass/fm/fm.py` (styles `bark`, `grit`) and `tonal/keys/keys.py`, with `decay_points` and `RING_CURVE` in `patches/common.py` as the shared break-point envelope (`TrigEnv` `dur` plays the reader-frequency-1/dur role of x10/01's `TableRead`). The bell's modal route uses church-bell partial ratios with per-partial decay, not x06/03's random frequencies; that wind-chime version is recorded as a design alternative. Keys leave out x10/01's ratio table (a moving ratio sounds like a synth sweep, not a struck tine); a second, fixed 14:1 tine pair takes its place. Findings: ratio-1 FM puts a sideband on 0 Hz, and because pyo's `FM` integrates frequency it doesn't cancel, so the FM bass and keys carry a DC offset that follows the index envelope. Both got a 20 Hz `ButHP` (`DCBlock` is too slow). The keys' tine carrier, left ringing, partly cancelled the body after a hard strike (-7 dB), so the tine pair got its own 0.3 s envelope at half level. Both findings are in the test docstrings. `ComplexRes` `decay` is a 1/e time constant (-40 dB at ~4.6× decay).

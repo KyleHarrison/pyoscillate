@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
+from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import Hilbert
 from pyo.lib.generators import Sine
 from pyo.lib.tables import ExpTable, LinTable
@@ -17,6 +18,8 @@ from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
 from pyoscillate.theory.notes import semitone_ratio
 
 
@@ -445,6 +448,7 @@ class Gate(Patch):
             self.next_gate_step,
         )
         self._gated = True
+        self.sync(context.tempo, lambda t: self.retime_gate())
         return self.gate_output
 
     def retime_gate(self) -> None:
@@ -477,6 +481,138 @@ class Gate(Patch):
         patch = super().finish(voice, **kwargs)  # type: ignore[misc]
         self.sequencer = SequencerGroup((self.sequencer, self._gate_pulse))
         return patch
+
+
+class Reverb(Patch):
+    """Opt-in reverb: `Space` (room size), `Tail darkness` (damping) and
+    `Distance` (wet/dry) sliders and the `Freeverb` they drive, so a patch
+    only calls `self.reverb = self.add_reverb(source)` and returns it (or
+    mixes it onward). Each control glides through a `live()` signal, so a
+    slider or sweep moves the tail without zipper noise. A patch changes the
+    starting point with `reverb_size = Reverb.reverb_size.replace(default=...)`.
+    Mix it in ahead of the voice base: `class Arp(Gate, Reverb, GatedVoice)`.
+    """
+
+    reverb: Freeverb
+
+    reverb_size = Param(
+        0,
+        1,
+        0.05,
+        0.6,
+        "Space",
+        "Sets how large and distant the reverb tail feels, from a close presence to a huge, cavernous "
+        "wash.",
+        sweep=True,
+    )
+    reverb_damp = Param(
+        0,
+        1,
+        0.05,
+        0.5,
+        "Tail darkness",
+        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
+        "settings stay bright and shimmering.",
+        sweep=True,
+    )
+    reverb_bal = Param(
+        0,
+        1,
+        0.05,
+        0.4,
+        "Distance",
+        "Blends how much of the sound is heard through the reverb versus dry; higher dissolves it into "
+        "the space, lower stays upfront.",
+        sweep=True,
+    )
+
+    def add_reverb(self, source: PyoObject) -> Freeverb:
+        """Run `source` through the reverb and return it. Call from `build()`."""
+        cls = type(self)
+        return Freeverb(
+            source,
+            size=self.live(cls.reverb_size),
+            damp=self.live(cls.reverb_damp),
+            bal=self.live(cls.reverb_bal),
+        )
+
+
+class Echo(Patch):
+    """Opt-in free-running echo: `Echo spacing` (delay time in seconds) and
+    `Echo density` (feedback) sliders and the `Delay` they drive, so a patch
+    only calls `self.echo = self.add_echo(source)` and returns or mixes it
+    onward. Each control glides through a `live()` signal (`delay_time_sig`,
+    `delay_feedback_sig`), so a slider or sweep moves the repeats without
+    zipper noise. A patch changes the starting point with
+    `delay_time = Echo.delay_time.replace(default=...)`. For an echo locked to
+    the tempo, build a `Delay` with `sync()` instead. Mix it in ahead of the
+    voice base: `class Pad(Gate, Reverb, Echo, ContinuousVoice)`.
+    """
+
+    echo: Delay
+    delay_time_sig: SigTo
+    delay_feedback_sig: SigTo
+
+    delay_time = Param(
+        0.05,
+        2,
+        0.05,
+        0.5,
+        "Echo spacing",
+        "Sets the time between echo repeats, smearing the sound across time.",
+        sweep=True,
+    )
+    delay_feedback = Param(
+        0,
+        0.9,
+        0.05,
+        0.3,
+        "Echo density",
+        "Sets how many times each echo repeats before fading; higher creates a denser, more layered "
+        "wash.",
+        sweep=True,
+    )
+
+    def add_echo(self, source: PyoObject) -> Delay:
+        """Run `source` through the echo and return the `Delay` (wet only).
+        Call from `build()`."""
+        cls = type(self)
+        self.delay_time_sig = self.live(cls.delay_time)
+        self.delay_feedback_sig = self.live(cls.delay_feedback)
+        return Delay(
+            source,
+            delay=self.delay_time_sig,
+            feedback=self.delay_feedback_sig,
+            maxdelay=2,
+        )
+
+
+class RootPitch(Patch):
+    """Opt-in `Register` slider: the voice's root pitch (`root_freq`, snapped
+    to equal-tempered notes) and `root_at()`, the root of the rack's chord
+    nearest to it. A patch sets its own range, default and wording with
+    `root_freq = RootPitch.root_freq.replace(minimum=..., maximum=...,
+    default=..., help_text=...)`. Mix it in ahead of the voice base:
+    `class Lead(RootPitch, GatedVoice)`. A slider that must also move a
+    node at once keeps its own `Param` and control instead.
+    """
+
+    harmony: Harmony
+
+    root_freq = Param(
+        notes.A2,
+        notes.A4,
+        1,
+        notes.A3,
+        "Register",
+        "Moves the voice up or down in pitch.",
+        scale="note",
+    )
+
+    def root_at(self, bar_index: int) -> float:
+        """The sounding chord's root in the octave nearest `root_freq`; call
+        after `build()` has set `self.harmony`."""
+        return self.harmony.chord_freq(self.root_freq, bar_index)
 
 
 @dataclass(eq=False)

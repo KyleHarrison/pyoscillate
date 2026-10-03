@@ -14,23 +14,18 @@ straight 16th grid for an MPC-style swing pocket and quiet ghost hits,
 without inventing a new timing mechanism.
 """
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
 from pyo.lib.effects import Disto
 from pyo.lib.filters import Biquad
-from pyo.lib.generators import Noise, Sine
+from pyo.lib.generators import Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Step
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-
-# full-to-zero break-points shared by every envelope; `exp` sets the curve
-DROP = [(0, 1), (8191, 0)]
 
 
 class Kick(DrumVoice):
@@ -56,31 +51,20 @@ class Kick(DrumVoice):
     decay: ClassVar[float]
     click_level: ClassVar[float]
 
-    # step in a `pattern_cycle`-step bar -> accent; the default is a one-step
-    # cycle with a full-level hit, which fires every base_division tick (plain
-    # four-on-the-floor) - a style sets both to place hits off the straight
-    # grid (swing) and/or vary their level (ghost notes)
-    pattern: ClassVar[dict[int, float]] = {0: 1.0}
-    pattern_cycle: ClassVar[int] = 1
+    # `pattern`/`pattern_cycle` default to one full-level hit per
+    # base_division tick (plain four-on-the-floor) - a style sets both to
+    # place hits off the straight grid (swing) and/or vary their level
+    # (ghost notes)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch_env: TrigEnv
     body: Sine
     body_env: TrigEnv
     body_signal: PyoObject
-    noise: Noise
     click_env: TrigEnv
     click_signal: PyoObject
     source: PyoObject
     shaper: Disto
-
-    # per-hit accent from `pattern`, not a parameter: stays 1.0 (a no-op) for
-    # every style that doesn't set `pattern`, and lets a live Body/Click
-    # change coexist with a swung style's per-step ghost accents
-    accent: float
-
-    # the per-step accent pattern's callable, assigned by build()
-    _step: Callable[[], Step]
 
     @Param(
         0.1,
@@ -165,40 +149,24 @@ class Kick(DrumVoice):
     def build(self, context: BuildContext) -> Patch:
         """Wire the graph; `finish()` applies every parameter's control."""
         self._reset()
-        self.accent = 1.0
 
         self.pitch_env = self.envelope(
             DROP, dur=self.sweep_time, add=self.body_freq, exp=self.pitch_curve
         )
         self.body = Sine(freq=self.pitch_env)
+        self.phased.append(self.body)
         self.body_env = self.envelope(DROP, dur=self.decay, exp=self.body_curve)
         self.body_signal = self.body * self.body_env
 
-        self.noise = Noise()
-        self.click_env = self.envelope(
-            DROP, dur=self.click_duration, exp=self.pitch_curve
+        self.click_env, self.click_signal = self.noise_burst(
+            dur=self.click_duration, exp=self.pitch_curve
         )
-        self.click_signal = self.noise * self.click_env
 
         self.source = self.body_signal + self.click_signal
         self.shaper = Disto(self.source, slope=0.85)
 
-        self._step = self.step_pattern(self.pattern_cycle, self.pattern)
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.voice_output())
-
-    def next_step(self) -> None:
-        step = self._step()
-        if not step.hit:
-            return
-        self.accent = step.value
-        self.apply_gains()
-        # restart the sine at phase zero so the full-level attack starts
-        # on a zero crossing instead of wherever the oscillator last
-        # stopped
-        self.body.reset()
-        self.trigger.play()
 
 
 class KickRound(Kick):
@@ -289,5 +257,4 @@ class KickLofi(Kick):
         return self.lowpassed
 
     def on_evolve(self, index: int) -> None:
-        pattern = self.pattern_variants[index % len(self.pattern_variants)]
-        self._step = self.step_pattern(self.pattern_cycle, pattern)
+        self.use_pattern(self.pattern_variants[index % len(self.pattern_variants)])

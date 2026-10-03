@@ -80,6 +80,14 @@ instead means every patch's "every Nth tick" always refers to the same
 tick, and a patch that rebuilds mid-session resubscribes into the clock's
 current position rather than resetting its own phase to zero.
 
+The tempo can change while the rack plays. `Tempo` is mutable, so a patch
+never computes a note length once and keeps the number: it registers every
+tempo-derived value (an envelope `dur`, an LFO rate, a delay time) through
+`self.sync(tempo, apply)` or `self.tempo_sine(...)`, and the rack's BPM
+control calls `Tempo.set_bpm()`, `Clock.retime()` and each built patch's
+`retempo()`, which replays those registrations. Tick-based timing
+(`Pulse`, `Division`) needs nothing: the clock only changes tick spacing.
+
 `Tempo`/`Clock`/`Harmony` are handed into `build()` as one `BuildContext`
 (always fully populated; there are no `needs_*` flags) (not stored
 on the class, not looked up globally) precisely because they're

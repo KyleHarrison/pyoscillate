@@ -8,6 +8,7 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
+from pyoscillate.patches.musical.arp import arp
 from pyoscillate.patches.musical.stab import stab
 from pyoscillate.patches.params import RateParam
 from pyoscillate.patches.tonal.bass import groove as bass
@@ -130,6 +131,19 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         self.assertIn("Trig", resource_types)
         self.assertIn("TrigEnv", resource_types)
         self.assertEqual(resource_types.count("Osc"), len(Voicing.SEVENTH_CHORD.value))
+
+    def test_arp_glide_and_gate_follow_tempo(self) -> None:
+        patch = arp.Arp()
+        built = patch.build(BuildContext(self.tempo, self.clock, Harmony()))
+        bpm = self.tempo.bpm
+        self.addCleanup(self.tempo.set_bpm, bpm)
+        glide, gate = patch.mid_freq.time, patch.gate_env.dur
+
+        self.tempo.set_bpm(bpm * 2)
+        built.retempo()
+
+        self.assertAlmostEqual(patch.mid_freq.time, glide / 2, places=4)
+        self.assertAlmostEqual(patch.gate_env.dur, gate / 2, places=4)
 
     def test_chord_voice_count_follows_voicing(self) -> None:
         context = BuildContext(self.tempo, self.clock, Harmony())

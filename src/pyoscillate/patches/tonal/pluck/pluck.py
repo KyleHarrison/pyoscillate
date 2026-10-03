@@ -12,7 +12,7 @@ from pyo.lib.generators import FM
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, RootPitch, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
@@ -22,7 +22,7 @@ SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
 FULL_PATTERN = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 2, 6: 1, 7: 2}
 
 
-class Pluck(Gate, GatedVoice):
+class Pluck(Gate, RootPitch, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
@@ -51,14 +51,9 @@ class Pluck(Gate, GatedVoice):
     harmony: Harmony
     _step: Callable[[], Step]
 
-    root_freq = Param(
-        notes.A2,
-        notes.A4,
-        1,
-        notes.E3,
-        "Register",
-        "Sets the chord-root register; the plucked chord tones sound an octave above it.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        default=notes.E3,
+        help_text="Sets the chord-root register; the plucked chord tones sound an octave above it.",
     )
 
     @Param(
@@ -104,7 +99,7 @@ class Pluck(Gate, GatedVoice):
 
     def _note_frequency(self, tone_index: int, bar_index: int) -> float:
         degree = self.harmony.chord_offset(bar_index) % 12
-        root = self.harmony.chord_freq(self.root_freq, bar_index)
+        root = self.root_at(bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
         return notes.transpose(root, 12 + triad[tone_index])
 

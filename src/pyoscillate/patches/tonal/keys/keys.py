@@ -46,6 +46,7 @@ from pyoscillate.patches.common import (
     RING_CURVE,
     Gate,
     GatedVoice,
+    RootPitch,
     Step,
     decay_points,
 )
@@ -64,7 +65,7 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, GatedVoice):
+class Keys(Gate, RootPitch, GatedVoice):
     """FM electric piano comping the rack's chord changes in a `Rhythm`.
     See the module docstring for the sonic detail."""
 
@@ -160,14 +161,9 @@ class Keys(Gate, GatedVoice):
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
-    root_freq = Param(
-        notes.A2,
-        notes.E4,
-        1,
-        notes.A3,
-        "Register",
-        "Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        maximum=notes.E4,
+        help_text="Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
     )
 
     @Param(
@@ -319,7 +315,9 @@ class Keys(Gate, GatedVoice):
 
         # gain swings between 1 - tremolo and 1
         self.depth = SigTo(value=self.tremolo / 2, time=0.05, init=self.tremolo / 2)
-        self.tremolo_lfo = Sine(freq=1 / context.tempo.eighth, mul=self.depth)
+        self.tremolo_lfo = self.tempo_sine(
+            context.tempo, lambda t: t.eighth, mul=self.depth
+        )
         self.swing = self.tremolo_lfo - self.depth
         self.throb = self.swing + 1
         self.voice_signal = self.chord * self.throb

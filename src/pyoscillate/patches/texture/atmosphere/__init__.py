@@ -14,14 +14,14 @@ to have happened.
 
 from __future__ import annotations
 
-from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice, Reverb
 from pyoscillate.patches.params import Param
+from pyoscillate.tempo import Tempo
 from pyoscillate.theory import notes
 from pyoscillate.theory.intervals import Walk
 
@@ -32,7 +32,7 @@ ARP_ROOT = notes.Gs3  # current default
 ENVELOPE_POINTS = [(0, 0), (2000, 1), (5000, 0.4), (8191, 0)]
 
 
-class Atmosphere(Gate, GatedVoice):
+class Atmosphere(Gate, Reverb, GatedVoice):
     """FM pad voice arpeggiated on the clock, with a slow amplitude swell and reverb.
 
     `step_division` is a `rebuild` parameter: the swell period and
@@ -51,7 +51,6 @@ class Atmosphere(Gate, GatedVoice):
     envelope_table: CosTable
     arp_env: TrigEnv
     fm_voice: FM
-    reverb: Freeverb
 
     @Param(
         110,
@@ -101,67 +100,38 @@ class Atmosphere(Gate, GatedVoice):
     def fm_index(self, value: float) -> None:
         self.fm_voice.index = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.25,
-        "Space",
-        "Sets how large and distant the pad's room feels, from a tight close ambience to a huge, "
-        "cavernous decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb.size = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.15,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
-        "settings stay bright and shimmering.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb.damp = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.1,
-        "Distance",
-        "Blends how much of the pad is heard through the reverb versus dry; higher dissolves it into an "
-        "atmospheric wash, lower keeps it present and up front.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb.bal = value
+    reverb_size = Reverb.reverb_size.replace(default=0.25)
+    reverb_damp = Reverb.reverb_damp.replace(default=0.15)
+    reverb_bal = Reverb.reverb_bal.replace(default=0.1)
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
 
-        step_time = context.tempo.sixteenth * self.step_division
+        def step_time(t: Tempo) -> float:
+            return t.sixteenth * self.step_division
 
         # slow swell over 32 steps so the pad breathes in and out across two bars
-        self.arp_swell = Sine(freq=1 / (32 * step_time), mul=0.01, add=0.5)
+        self.arp_swell = self.tempo_sine(
+            context.tempo, lambda t: 32 * step_time(t), mul=0.01, add=0.5
+        )
 
         self.envelope_table = CosTable(ENVELOPE_POINTS)
         self.arp_env = TrigEnv(
             self.trigger,
             self.envelope_table,
-            dur=step_time * 1.2,
+            dur=1.0,
             mul=self.arp_swell,
             add=-0.3,
+        )
+        self.sync(
+            context.tempo, lambda t: setattr(self.arp_env, "dur", step_time(t) * 1.2)
         )
 
         # slow, detuned ratio for a warm, slightly unstable atmospheric tone;
         # carrier/ratio/index start neutral here - each one's @Param control
         # sets the real value once finish() binds every control below
         self.fm_voice = FM(mul=self.arp_env, add=-0.3)
-        self.reverb = Freeverb(self.fm_voice)
+        self.reverb = self.add_reverb(self.fm_voice)
 
         # step_division is a rebuild-only raw tick count, not a live rate
         # offset from a base division

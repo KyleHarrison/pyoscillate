@@ -26,7 +26,7 @@ from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice, RootPitch
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
@@ -43,7 +43,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
+class Strings(Gate, Flood, Disperse, Comb, RootPitch, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -81,15 +81,8 @@ class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
     # `COLOUR_TONE_VARIANTS` entry the colour voice is currently on
     _colour_interval: int
 
-    root_freq = Param(
-        notes.A2,
-        notes.A4,
-        1,
-        notes.A3,
-        "Register",
-        "Moves the ensemble up or down; low sits warm and covered under the melody, high moves it "
-        "closer to the surface.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        help_text="Moves the ensemble up or down; low sits warm and covered under the melody, high moves it closer to the surface.",
     )
 
     @Param(
@@ -210,7 +203,7 @@ class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
         )
 
     def current_root(self, clock: Clock) -> float:
-        return self.harmony.chord_freq(self.root_freq, clock.bar_index)
+        return self.root_at(clock.bar_index)
 
     def on_evolve(self, index: int) -> None:
         """Rotate which `COLOUR_TONE_VARIANTS` interval the colour voice is

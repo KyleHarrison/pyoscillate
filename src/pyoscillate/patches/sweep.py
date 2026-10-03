@@ -120,6 +120,11 @@ class Sweep:
         self.pattern.play()
         self._running = True
 
+    def retempo(self) -> None:
+        """Re-lock the cycle length to the tempo's current BPM."""
+        if self._running:
+            self.lfo.freq = self._frequency()
+
     def halt(self) -> None:
         """Stop driving the parameter. The pyo objects are stopped but kept
         until the next `run()` replaces them, so they are never collected

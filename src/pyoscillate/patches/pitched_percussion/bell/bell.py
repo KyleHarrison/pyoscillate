@@ -32,7 +32,7 @@ from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import RING_CURVE, decay_points
+from pyoscillate.patches.common import RING_CURVE, RootPitch, decay_points
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory import notes
 
@@ -83,7 +83,7 @@ def _peak_index(strike: float) -> float:
     return low + (high - low) * strike
 
 
-class Bell(Patch):
+class Bell(RootPitch, Patch):
     """Struck bell playing `PATTERN` across `VOICES` rotating voices, so a
     long ring overlaps the next strike instead of being cut or retuned
     mid-ring. Style variants subclass this and override `voice_graph()`,
@@ -99,14 +99,11 @@ class Bell(Patch):
     _pattern_step: int
     _voice_slot: int
 
-    root_freq = Param(
-        notes.A3,
-        notes.A5,
-        1,
-        notes.A4,
-        "Register",
-        "Moves the bell figure up or down; low reads as a church bell or gong, high as a glockenspiel or chime.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.A3,
+        maximum=notes.A5,
+        default=notes.A4,
+        help_text="Moves the bell figure up or down; low reads as a church bell or gong, high as a glockenspiel or chime.",
     )
 
     @Param(

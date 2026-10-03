@@ -11,17 +11,17 @@ left for the rack to treat externally - see `voice_output()`.
 from __future__ import annotations
 
 from pyo import PyoObject
-from pyo.lib.effects import Freeverb
 from pyo.lib.generators import Sine
 
 from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import Reverb, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass
 from pyoscillate.patches.tonal.bass.profiles import HOVER
 from pyoscillate.theory import notes
 
 
-class BassHover(AccentBass):
+class BassHover(Reverb, RootPitch, AccentBass):
     """Dark, sine-like bass that hovers on a fixed tonic with slow stepwise
     neighbour motion, soaked in a long, slowly breathing reverb tail rather
     than articulated with a plucky envelope."""
@@ -35,21 +35,17 @@ class BassHover(AccentBass):
     volume = Patch.volume.replace(default=0.22)
     profile = HOVER
 
-    reverb_voice: Freeverb
     breath_lfo: Sine
     breathed: PyoObject
 
     # read live off `self.root_freq` by `current_root`'s trigger-time
     # callback - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
-    root_freq = Param(
-        notes.E0,
-        notes.E2,
-        1,
-        notes.E1,
-        "Register",
-        "Sets the tonic the bass hovers around.",
-        scale="note",
+    root_freq = RootPitch.root_freq.replace(
+        minimum=notes.E0,
+        maximum=notes.E2,
+        default=notes.E1,
+        help_text="Sets the tonic the bass hovers around.",
     )
 
     @Param(
@@ -65,44 +61,8 @@ class BassHover(AccentBass):
     def cutoff(self, value: float) -> None:
         self.filtered.freq = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.85,
-        "Space",
-        "Sets how large and distant the reverb tail feels, from a close presence to a huge, "
-        "cavernous decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb_voice.size = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
-        "settings stay brighter.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb_voice.damp = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.55,
-        "Distance",
-        "Blends how much of the bass is heard through the reverb versus dry; higher dissolves it "
-        "into the wash, lower keeps the pulse present.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb_voice.bal = value
+    reverb_size = Reverb.reverb_size.replace(default=0.85)
+    reverb_bal = Reverb.reverb_bal.replace(default=0.55)
 
     @Param(
         0,
@@ -124,15 +84,15 @@ class BassHover(AccentBass):
     )
 
     def voice_output(self) -> PyoObject:
-        self.reverb_voice = Freeverb(
-            self.filtered, size=self.reverb_size, damp=self.reverb_damp
-        )
+        self.reverb = self.add_reverb(self.filtered)
         # a single slow cycle every four bars - slow enough to read as
         # "breathing" (see the rack's README) rather than tremolo. `mul`/
         # `add` are neutral (no swell) here; `breath`'s control sets the
         # real depth once `finish()` runs every control below.
-        self.breath_lfo = Sine(freq=1 / (self._tempo.bar * 4), mul=0, add=1)
-        self.breathed = self.reverb_voice * self.breath_lfo
+        self.breath_lfo = self.tempo_sine(
+            self._tempo, lambda t: t.bar * 4, mul=0, add=1
+        )
+        self.breathed = self.reverb * self.breath_lfo
         return self.breathed
 
     def current_root(self) -> float:

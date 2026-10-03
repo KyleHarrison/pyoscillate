@@ -11,13 +11,12 @@ from __future__ import annotations
 from typing import ClassVar
 
 from pyo import PyoObject
-from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import SeededDraws, SequencerGroup
+from pyoscillate.patches.common import Reverb, SeededDraws, SequencerGroup
 from pyoscillate.patches.params import Param
 from pyoscillate.theory import notes
 from pyoscillate.theory.harmony import Harmony
@@ -28,7 +27,7 @@ from pyoscillate.theory.intervals import Scale
 CANON_ROOT = notes.A3  # current default
 
 
-class Canon(SeededDraws, Patch):
+class Canon(SeededDraws, Reverb, Patch):
     """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on
     its own free-running period, so they drift in and out of alignment like an ever-shifting call and
     response.
@@ -73,7 +72,6 @@ class Canon(SeededDraws, Patch):
     voice_b_env: TrigEnv
     voice_b_fm: FM
     source: PyoObject
-    reverb: Freeverb
     voice_a_func: TrigFunc
     voice_b_func: TrigFunc
 
@@ -160,44 +158,8 @@ class Canon(SeededDraws, Patch):
         self.voice_a_fm.index = value
         self.voice_b_fm.index = value
 
-    @Param(
-        0,
-        1,
-        0.05,
-        0.7,
-        "Space",
-        "Sets how large and distant the canon's room feels, from a tight presence to a huge, cavernous "
-        "decay.",
-        sweep=True,
-    )
-    def reverb_size(self, value: float) -> None:
-        self.reverb.size = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Tail darkness",
-        "Darkens the reverb tail as it decays; higher settings sound warmer and more muffled, lower "
-        "settings stay bright and shimmering.",
-        sweep=True,
-    )
-    def reverb_damp(self, value: float) -> None:
-        self.reverb.damp = value
-
-    @Param(
-        0,
-        1,
-        0.05,
-        0.5,
-        "Distance",
-        "Blends how much of the canon is heard through the reverb versus dry; higher dissolves it into "
-        "the atmosphere, lower keeps it present.",
-        sweep=True,
-    )
-    def reverb_bal(self, value: float) -> None:
-        self.reverb.bal = value
+    reverb_size = Reverb.reverb_size.replace(default=0.7)
+    reverb_bal = Reverb.reverb_bal.replace(default=0.5)
 
     def finish(self, voice: PyoObject) -> Patch:
         """Minimal `finish()` for a musical-structure patch that owns its own
@@ -234,7 +196,7 @@ class Canon(SeededDraws, Patch):
         self.voice_b_fm = FM(carrier=self.voice_b_root, mul=self.voice_b_env)
 
         self.source = self.voice_a_fm + self.voice_b_fm
-        self.reverb = Freeverb(self.source)
+        self.reverb = self.add_reverb(self.source)
 
         self.voice_a_func = TrigFunc(self.voice_a_metro, self.next_voice_a)
         self.voice_b_func = TrigFunc(self.voice_b_metro, self.next_voice_b)

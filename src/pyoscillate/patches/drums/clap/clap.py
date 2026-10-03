@@ -7,7 +7,6 @@ whole envelope shapes white noise band-passed into the papery clap region.
 """
 
 import math
-from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -18,12 +17,8 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-
-# beats two and four of a 16-step bar - the backbeat this clap accents
-PATTERN = {4, 12}
 
 
 class Clap(DrumVoice):
@@ -36,6 +31,9 @@ class Clap(DrumVoice):
     summary = "Sharp, bright clap accent."
     volume = Patch.volume.replace(default=0.28)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
+    # beats two and four of a 16-step bar - the backbeat this clap accents
+    pattern: ClassVar[set[int]] = {4, 12}
+    pattern_cycle: ClassVar[int] = 16
     # short bursts before the tail; the tail's onset acts as the final hand
     bursts: ClassVar[int] = 3
     # level each burst decays to before the next hand arrives
@@ -57,11 +55,6 @@ class Clap(DrumVoice):
     noise: Noise
     source: PyoObject
     tone_filter: Biquad
-
-    # the step pattern's callable, frozen at build time - fed to
-    # `next_step`, which build() can no longer close over now that it's a
-    # real method
-    _step: Callable[[], Step]
 
     @Param(
         0.02,
@@ -178,11 +171,5 @@ class Clap(DrumVoice):
             mul=self._makeup(self.tone),
         )
 
-        self._step = self.step_pattern(16, PATTERN)
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.tone_filter)
-
-    def next_step(self) -> None:
-        if self._step().hit:
-            self.trigger.play()

@@ -8,7 +8,7 @@ This file records the few ideas worth keeping and the order to add them in.
 
 ## How to use this file (for future sessions)
 
-1. Work through the tasks in order. Tasks 1 and 2 come first because later tasks build on them.
+1. Work through the tasks in order. Task 2 comes first.
 2. Before editing, re-read the files a task touches. They may have changed since this was written.
 3. Respect the existing layering. Don't duplicate contracts between layers:
    - [.claude/skills/pyo-music/SKILL.md](../../.claude/skills/pyo-music/SKILL.md) holds the sonic/perceptual reasoning.
@@ -41,35 +41,15 @@ and [pyo-api/core/server.py](../../.claude/skills/pyo-music/references/pyo-api/c
 
 ## Tasks
 
-### 1. Timbre-descriptor reference — [x] done (2026-09-24)
+Task 1 (timbre-descriptor reference) is done: `.claude/skills/pyo-music/references/timbre-descriptors.md`.
 
-**Why:** pyo-music says not to map "metallic" → `Resonx`, but gives nothing to
-use instead. The gist points to two sources: the NSynth quality labels and the
-Arturia/"Make That Sound More Metallic" work on perceptually relevant timbre
-control.
-
-**Do:**
-- Create `.claude/skills/pyo-music/references/timbre-descriptors.md`.
-- For each descriptor, give:
-  - a perceptual definition
-  - a measurable correlate (centroid, envelope slope, inharmonicity, noise ratio, pitch stability, and so on)
-  - 2–4 *different* candidate mechanisms
-  - context caveats, in the "do not overclaim" style already in pyo-music
-- Include these descriptors:
-  - the NSynth set: bright, dark, distortion, fast_decay, long_release, multiphonic, nonlinear_env, percussive, reverb, tempo-synced
-  - common extras: metallic, warm, hollow, airy, punchy, gritty, glassy, wide
-- Example row: *metallic* → inharmonic partials / partial ratios off the harmonic series → FM with a non-integer ratio, a resonator bank, ring modulation, or comb/Karplus feedback.
-- Link it from the "Parameter reasoning standard" section of pyo-music SKILL.md.
-
-**Done when:** the reference exists, it is linked, and no descriptor maps to a single Pyo object.
-
-### 2. Render-and-verify step — [ ] not started (depends on 1)
+### 2. Render-and-verify step — [ ] not started 
 
 **Why:** this closes the loop between the brief and the audio (see "Why these ideas matter here").
 
 **Do:**
 - In pyo-music SKILL.md, add step 8 to the "Minimal working pattern": render
-  offline and check the measurable correlates from task 1 against the brief.
+  offline and check the measurable correlates from `timbre-descriptors.md` against the brief.
   Example: "raising Brightness raises the centroid"; "Decay 0.3 s reaches −40 dB in about 0.3 s".
 - In patches/AGENTS.md, add an optional item to the quality bar: key controls
   move their correlate in the direction the label promises. Keep the
@@ -113,7 +93,7 @@ Different engines have different defaults ("Vital warm, Serum crisp").
   [pyo-api-navigation.md](../../.claude/skills/pyo-music/references/pyo-api-navigation.md)
   (around line 86) to cover references like "a Serum supersaw" or "a DX7 E-piano".
 - Treat a reference as a *perceptual target*. Run it through the normal chain
-  and the task 1 descriptors. Never copy knob or parameter values.
+  and the `timbre-descriptors.md` descriptors. Never copy knob or parameter values.
 - Add a short by-ear reverse-engineering checklist: oscillator/source →
   filter → envelopes → modulation → FX/space → register/playing. It is based
   on the Unison guide: https://unison.audio/reverse-engineer-presets-in-serum/
@@ -195,15 +175,8 @@ Add these to the "Sources that cover several patches" table:
   we reason about patches; we don't train models.
 - **Metadata tagging** (NSynth-style source/family/qualities on `PatchDef` for
   searching by vibe): maybe later, once the library is big enough to need search.
-  If picked up, reuse the task 1 descriptor vocabulary.
+  If picked up, reuse the `timbre-descriptors.md` vocabulary.
 
-## Log
+## Open decision
 
-- 2026-09-24: gist reviewed; this plan written.
-- 2026-09-24: task 1 done.
-  - Added `.claude/skills/pyo-music/references/timbre-descriptors.md` with 19 descriptors in 5 groups.
-  - Linked it from pyo-music SKILL.md: the routing list, the reasoning model, and step 2 of the parameter reasoning standard.
-  - Every cited Pyo object and parameter was checked against `pyo-api/`.
-  - Findings for task 2:
-    - Native Pyo can measure centroid, envelope, attack, decay and pitch (`Centroid`, `Follower`, `PeakAmp`, `AttackDetector`, `Yin`, `AToDB`).
-    - Harmonicity, even/odd balance and stereo correlation have no native object. They need an offline FFT, and **numpy is not currently a dependency**. Decide whether to add it (probably as a dev/test dependency) or to limit verification to the native correlates.
+Harmonicity, even/odd balance and stereo correlation have no native Pyo object and need an offline FFT. numpy is not a dependency: add it (probably dev/test only) or limit verification to native correlates (`Centroid`, `Follower`, `PeakAmp`, `AttackDetector`, `Yin`, `AToDB`). `src/pyoscillate/analysis/` (`render.py`, `features.py`) already exists; check how far it covers task 2's helper before building.

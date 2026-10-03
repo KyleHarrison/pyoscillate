@@ -30,11 +30,9 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Step
-from pyoscillate.patches.drums.base import DrumVoice
+from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
 
-# full-to-zero break-points shared by the choke envelope
-DROP = [(0, 1), (8191, 0)]
 CLOSED = "closed"
 OPEN = "open"
 DURATIONS = {CLOSED: 0.1, OPEN: 0.4}
@@ -158,9 +156,7 @@ class Groove(DrumVoice):
         self.shaped = self.source * self.choke_env
         self.filtered = ButHP(self.shaped)
 
-        self._step = self.step_pattern(self.pattern_cycle, self.pattern)
-
-        self.schedule(self.base_division, self.rate, context.clock)
+        self.schedule_pattern(context)
         return self.finish(self.voice_output())
 
     def next_step(self) -> None:
@@ -316,5 +312,4 @@ class GrooveLofi(Groove):
         return self.shaper
 
     def on_evolve(self, index: int) -> None:
-        pattern = self.pattern_variants[index % len(self.pattern_variants)]
-        self._step = self.step_pattern(self.pattern_cycle, pattern)
+        self.use_pattern(self.pattern_variants[index % len(self.pattern_variants)])
