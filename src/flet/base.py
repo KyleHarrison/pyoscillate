@@ -565,6 +565,20 @@ class PatchGroup:
         self.enabled = True
         self._parent_enabled = True
         self._engine_ready = False
+        # for a group of alternative styles, only the selected panel is shown
+        self._alternatives = group_def.alternatives and len(panels) > 1
+        self._selected = panels[0] if panels else None
+        self._boxes: dict[PatchPanel, ft.Container] = {}
+        self.style_dropdown = ft.Dropdown(
+            label="Style",
+            options=[
+                ft.dropdown.Option(key=str(i), text=panel.patch.title)
+                for i, panel in enumerate(panels)
+            ],
+            value="0",
+            width=220,
+            on_select=self._handle_style,
+        )
         self.switch = ft.Switch(
             value=True,
             active_color=ACCENT,
@@ -659,11 +673,19 @@ class PatchGroup:
         ]
 
         patch_columns = []
-        panel_column = 12 if len(self.panels) == 1 or len(self.panels) > 2 else 6
+        panel_column = (
+            12
+            if self._alternatives or len(self.panels) == 1 or len(self.panels) > 2
+            else 6
+        )
         for panel in self.panels:
-            patch_columns.append(
-                ft.Container(content=panel.control, col={"xs": 12, "md": panel_column})
+            box = ft.Container(
+                content=panel.control,
+                col={"xs": 12, "md": panel_column},
+                visible=not self._alternatives or panel is self._selected,
             )
+            self._boxes[panel] = box
+            patch_columns.append(box)
 
         return ft.Container(
             content=ft.ExpansionTile(
@@ -686,6 +708,7 @@ class PatchGroup:
                                     if controller_rows
                                     else []
                                 ),
+                                *([self.style_dropdown] if self._alternatives else []),
                                 ft.ResponsiveRow(
                                     controls=patch_columns,
                                     spacing=12,
@@ -705,6 +728,37 @@ class PatchGroup:
             padding=16,
             margin=ft.margin.Margin(left=0, top=0, right=0, bottom=12),
         )
+
+    def _select(self, panel: PatchPanel) -> None:
+        """Show `panel` in place of the selected one, handing the playing
+        state over so a running group switches style without a gap."""
+        current = self._selected
+        if not self._alternatives or current is None or panel is current:
+            return
+        was_on = current.enabled
+        current.apply_enabled(False)
+        self._selected = panel
+        for each, box in self._boxes.items():
+            box.visible = each is panel
+        self.style_dropdown.value = str(self.panels.index(panel))
+        panel.apply_enabled(was_on)
+
+    def _handle_style(self, e: ft.ControlEvent) -> None:
+        self._select(self.panels[int(e.control.value)])
+        e.page.update()
+
+    def reveal_enabled(self) -> None:
+        """After values were loaded from outside, show the style that is on."""
+        if self._alternatives:
+            on = next((p for p in self.panels if p.enabled), None)
+            if on is not None:
+                self._select_shown(on)
+
+    def _select_shown(self, panel: PatchPanel) -> None:
+        self._selected = panel
+        for each, box in self._boxes.items():
+            box.visible = each is panel
+        self.style_dropdown.value = str(self.panels.index(panel))
 
     def walk(self) -> list[PatchGroup]:
         """This group then every group nested inside it, depth-first."""
@@ -746,29 +800,24 @@ class PatchRackApp:
         subtitle: str,
         rack: Rack,
         catalog_dir: Path,
+        variants: dict[str, Callable[[], tuple[Rack, Path]]] | None = None,
+        variant: str | None = None,
     ) -> None:
         self.page = page
         self.title = title
         self.subtitle = subtitle
         self.rack = rack
+        self.variants = variants or {}
+        self.variant = variant
         self.server: Server
         self.clock: Clock
+        self.context: BuildContext
         self.running = False
         self.paused = False
         self._paused_panels: set[str] = set()
         self.master_output = rack.master_output_default
         self.preset_store = PresetStore(catalog_dir)
-        patches = [patch for group in rack.groups for patch in group.patches]
-        self.panels = {patch.name: PatchPanel(patch) for patch in patches}
-        if len(self.panels) != len(patches):
-            raise ValueError("Patch names must be unique across rack groups")
-        self.groups = [self._patch_group(group) for group in rack.groups]
-        self.control_sliders = [
-            slider
-            for top in self.groups
-            for group in top.walk()
-            for slider in group.control_sliders
-        ]
+        self._bind_rack(rack)
 
         self.status = ft.Text("Engine stopped", color=MUTED, size=13)
         self.engine_button = ft.Button(
@@ -818,8 +867,31 @@ class PatchRackApp:
             on_select=self._handle_key,
         )
 
+        self.variant_dropdown = ft.Dropdown(
+            label="Style",
+            options=[ft.dropdown.Option(name) for name in self.variants],
+            value=variant,
+            width=180,
+            on_select=self._handle_variant,
+        )
+
         self._configure_page()
         self._build_view()
+
+    def _bind_rack(self, rack: Rack) -> None:
+        """Make `rack` the live rack: one panel per patch and the group views."""
+        self.rack = rack
+        patches = [patch for group in rack.groups for patch in group.patches]
+        self.panels = {patch.name: PatchPanel(patch) for patch in patches}
+        if len(self.panels) != len(patches):
+            raise ValueError("Patch names must be unique across rack groups")
+        self.groups = [self._patch_group(group) for group in rack.groups]
+        self.control_sliders = [
+            slider
+            for top in self.groups
+            for group in top.walk()
+            for slider in group.control_sliders
+        ]
 
     def _patch_group(self, group: GroupRuntime, path: str = "") -> PatchGroup:
         """The view of `group` and, recursively, the groups nested in it."""
@@ -850,7 +922,12 @@ class PatchRackApp:
     def _build_view(self) -> None:
         rack_controls: list[ft.Control] = [
             ft.Row(
-                controls=[self.engine_button, self.pause_button, self.key_dropdown],
+                controls=[
+                    *([self.variant_dropdown] if self.variants else []),
+                    self.engine_button,
+                    self.pause_button,
+                    self.key_dropdown,
+                ],
                 alignment=ft.MainAxisAlignment.END,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 wrap=True,
@@ -1028,6 +1105,7 @@ class PatchRackApp:
         for group in self.rack.evolving_groups:
             group.start(self.clock)
         context = BuildContext(tempo, self.clock, self.rack.harmony)
+        self.context = context
         self.running = True
         self.page.run_task(self._animate_sweeps)
         for panel in self.panels.values():
@@ -1073,6 +1151,50 @@ class PatchRackApp:
         self.pause_button.icon = ft.Icons.PAUSE
         self.pause_button.disabled = True
 
+    # -- style variants ----------------------------------------------------
+
+    def _handle_variant(self, e: ft.ControlEvent) -> None:
+        name = e.control.value
+        if name and name != self.variant:
+            self._swap_variant(name)
+        self.page.update()
+
+    def _swap_variant(self, name: str) -> None:
+        """Replace the rack with another variant's, keeping the audio server,
+        clock, key and (when running) the on/off state."""
+        was_on = {n: p.enabled for n, p in self.panels.items()}
+        for panel in self.panels.values():
+            panel.engine_stopped()
+        if self.running:
+            for group in self.rack.evolving_groups:
+                group.stop()
+        key = self.rack.harmony.key
+        rack, catalog_dir = self.variants[name]()
+        rack.harmony.key = key
+        self.variant = name
+        self.preset_store = PresetStore(catalog_dir)
+        self.preset_dropdown.options = [
+            ft.dropdown.Option(n) for n in self.preset_store.names()
+        ]
+        self.preset_dropdown.value = None
+        self._bind_rack(rack)
+        self.paused = False
+        self.pause_button.text = "Pause"
+        self.pause_button.icon = ft.Icons.PAUSE
+        if self.running:
+            self.context = BuildContext(self.context.tempo, self.clock, rack.harmony)
+            for group in rack.evolving_groups:
+                group.start(self.clock)
+            for panel_name, panel in self.panels.items():
+                panel.engine_started(self.context)
+            for group in self.groups:
+                group.set_engine_ready(True)
+            for panel_name, panel in self.panels.items():
+                if was_on.get(panel_name):
+                    panel.apply_enabled(True)
+        self.page.controls.clear()
+        self._build_view()
+
     # -- presets -------------------------------------------------------------
 
     def _load_preset(self, e: ft.ControlEvent) -> None:
@@ -1096,6 +1218,9 @@ class PatchRackApp:
         for patch_name, panel in self.panels.items():
             if patch_name in preset:
                 panel.apply_preset(preset[patch_name])
+        for top in self.groups:
+            for group in top.walk():
+                group.reveal_enabled()
         self.page.update()
 
     def _save_preset(self, e: ft.ControlEvent) -> None:

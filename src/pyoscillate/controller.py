@@ -149,6 +149,9 @@ class GroupController:
     members: tuple[Slot[Any] | GroupController, ...]
     summary: str = ""
     controls: tuple[GroupControl, ...] = ()
+    # the directly listed slots are alternative styles of one role: the Flet
+    # panel shows a dropdown to pick which one is on screen (and playing)
+    alternatives: bool = False
 
     def __post_init__(self) -> None:
         slots = set(self.slots)
@@ -217,6 +220,7 @@ class GroupController:
             controls=self.controls,
             slot_patches={slot: patches[slot] for slot in self.slots},
             own_patches=tuple(patches[slot] for slot in self.own_slots),
+            alternatives=self.alternatives,
         )
 
     @overload
@@ -251,6 +255,7 @@ class EvolvingGroup(GroupController):
             controls=self.controls,
             slot_patches={slot: patches[slot] for slot in self.slots},
             own_patches=tuple(patches[slot] for slot in self.own_slots),
+            alternatives=self.alternatives,
             bars=self.bars,
             repeat=self.repeat,
         )
@@ -268,6 +273,7 @@ class GroupRuntime:
     controls: tuple[GroupControl, ...] = ()
     slot_patches: dict[Slot[Any], Patch] = field(default_factory=dict)
     own_patches: tuple[Patch, ...] = ()
+    alternatives: bool = False
     values: dict[GroupControl, float] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:

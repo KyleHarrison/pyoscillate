@@ -65,6 +65,7 @@ class DeepHouseRack(Rack):
         (Slot(kick.KickRound), Slot(kick.KickPunch), Slot(kick.KickSoft)),
         "Four-on-the-floor pulse; the bass and chords duck off it.",
         controls=(kick_punch,),
+        alternatives=True,
     )
     hat_air = GroupControl(
         SliderSpec(
@@ -90,11 +91,13 @@ class DeepHouseRack(Rack):
         (Slot(hat.GrooveCrisp), Slot(hat.GrooveOpen), Slot(hat.GrooveShuffle)),
         "Offbeat and shuffled top-end motion.",
         controls=(hat_air,),
+        alternatives=True,
     )
     percussion_group = GroupController(
         "Percussion",
         (Slot(percussion.PercussionRim), Slot(percussion.PercussionConga)),
         "Accent percussion around the groove.",
+        alternatives=True,
     )
     claps_group = GroupController("Claps", (Slot(clap.Clap),), "Backbeat clap.")
     drums_group = GroupController(
@@ -191,6 +194,7 @@ class DeepHouseRack(Rack):
         ),
         "Moving low end that re-roots on every chord.",
         controls=(bass_filter, bass_slide, bass_accent),
+        alternatives=True,
     )
     chord_brightness = GroupControl(
         SliderSpec(
@@ -241,6 +245,7 @@ class DeepHouseRack(Rack):
         ),
         "Offbeat minor-seventh chord memory.",
         controls=(chord_brightness, chord_feel),
+        alternatives=True,
     )
     harmony_warmth = GroupControl(
         SliderSpec(

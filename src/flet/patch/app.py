@@ -7,8 +7,9 @@ The module's `Patch` subclass is declared as a `Slot` in a one-group
 patch itself, same as a project rack. When a
 module defines several style variants (e.g. `kick.py`'s `KickRound` /
 `KickPunch` / `KickSoft`), pass `style=<name fragment>` to pick one by a
-case-insensitive match against its class name; with only one concrete
-`Patch` subclass in the module, `style` is optional.
+case-insensitive match against its class name to choose the starting style.
+A module with several styles shows a "Style" dropdown that swaps the patch
+live (audio server and clock keep running); `style` is optional.
 
 Any other `key=value` arguments after the module path are converted with
 `float()` and fixed into the instance's initial parameter values, for the
@@ -20,6 +21,7 @@ the rack itself is fully typed.
 import importlib
 import inspect
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -71,11 +73,11 @@ def _select_class(module: ModuleType, style: str | None) -> type[Patch]:
     if style is None:
         if len(classes) == 1:
             return next(iter(classes.values()))
-        raise SystemExit(
-            f"{module.__name__} defines several patches - pass style=<name>, one of: "
-            + ", ".join(sorted(classes))
-        )
-    matches = [cls for name, cls in classes.items() if style.lower() in name.lower()]
+        return next(iter(classes.values()))
+    def squash(text: str) -> str:
+        return "".join(ch for ch in text.lower() if ch.isalnum())
+
+    matches = [cls for name, cls in classes.items() if squash(style) in squash(name)]
     if len(matches) != 1:
         raise SystemExit(
             f"style={style!r} matched {len(matches)} patches in {module.__name__} - available: "
@@ -84,20 +86,40 @@ def _select_class(module: ModuleType, style: str | None) -> type[Patch]:
     return matches[0]
 
 
+def _variant(
+    patch_class: type[Patch], values: dict[str, float]
+) -> Callable[[], tuple[Rack, Path]]:
+    return lambda: (
+        SinglePatchRack.for_patch(patch_class, values)(),
+        Path(__file__).parent / "presets" / patch_class.name,
+    )
+
+
 def main(page: ft.Page) -> None:
     module = importlib.import_module(sys.argv[1])
     fixed = dict(arg.split("=", 1) for arg in sys.argv[2:])
     style = fixed.pop("style", None)
+    values = {key: float(value) for key, value in fixed.items()}
+    classes = _patch_classes(module)
     patch_class = _select_class(module, style)
+    # a multi-style module gets a live style dropdown; `style=` only picks the
+    # starting one
+    variants = (
+        {name: _variant(cls, values) for name, cls in classes.items()}
+        if len(classes) > 1
+        else None
+    )
+    variant = next((n for n, c in classes.items() if c is patch_class), None)
 
+    rack, catalog_dir = _variant(patch_class, values)()
     PatchRackApp(
         page,
         patch_class.title,
         patch_class.summary,
-        SinglePatchRack.for_patch(
-            patch_class, {key: float(value) for key, value in fixed.items()}
-        )(),
-        catalog_dir=Path(__file__).parent / "presets" / patch_class.name,
+        rack,
+        catalog_dir=catalog_dir,
+        variants=variants,
+        variant=variant,
     )
 
 
