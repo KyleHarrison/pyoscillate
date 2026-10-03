@@ -18,7 +18,7 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 # mostly fundamental with a touch of 2nd/3rd harmonic - rounded, sub-heavy tone
 SUB_HARMONICS = [1, 0.15, 0.05]

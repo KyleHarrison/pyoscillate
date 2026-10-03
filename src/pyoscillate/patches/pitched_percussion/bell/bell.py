@@ -34,7 +34,7 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import RING_CURVE, decay_points
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 STYLES = ("chime", "fm")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -179,7 +179,7 @@ class Bell(Patch):
         index = self._pattern_step % PATTERN_STEPS
         if index in PATTERN:
             slot = self._voice_slot
-            self.tune(slot, self.root_freq * 2 ** (PATTERN[index] / 12))
+            self.tune(slot, notes.transpose(self.root_freq, PATTERN[index]))
             self.triggers[slot].play()
             self._voice_slot = (slot + 1) % VOICES
         self._pattern_step += 1

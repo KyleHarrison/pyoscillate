@@ -8,8 +8,8 @@ from pyo.lib.generators import LFO
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass, BassProfile
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory import notes
 
 from .profiles import TECHNO
 

@@ -1,5 +1,5 @@
 # Run: uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.funk.funk
-#      uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
+#      uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove
 """Play any single patch module in the rack GUI, without a project rack.
 
 The module's `Patch` subclass is declared as a `Slot` in a one-group
@@ -74,6 +74,7 @@ def _select_class(module: ModuleType, style: str | None) -> type[Patch]:
         if len(classes) == 1:
             return next(iter(classes.values()))
         return next(iter(classes.values()))
+
     def squash(text: str) -> str:
         return "".join(ch for ch in text.lower() if ch.isalnum())
 

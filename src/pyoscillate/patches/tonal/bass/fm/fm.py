@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.fm.fm style=bark
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.fm.fm
 #   style: bark | grit
 """FM bass: every note barks bright, then settles to a rounder tone.
 
@@ -36,7 +36,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.patches.tonal.bass.profiles import GROOVE
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 STYLES = ("bark", "grit")
 BASE_DIVISION = NoteDivision.SIXTEENTH
@@ -214,7 +214,7 @@ class FmBass(Bass):
         # docstring
         step = (self._clock.tick // self._division.steps) % len(PROFILE.pattern)
         self._accent = PROFILE.accents[step]
-        self.pitch.value = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
+        self.pitch.value = notes.transpose(self.root_freq, PROFILE.pattern[step])
         self.bark.mul = self.growl * self._accent
         self.amp.mul = self._accent
         self.trigger.play()

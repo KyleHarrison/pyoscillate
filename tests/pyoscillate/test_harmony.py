@@ -3,9 +3,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock
-from pyoscillate.harmony import A, Harmony
-from pyoscillate.intervals import Scale, Voicing
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.harmony import A, Harmony
+from pyoscillate.theory.intervals import Scale, Voicing
 
 
 def semitones_between(low: float, high: float) -> float:
@@ -48,7 +48,7 @@ class QuantiseTests(unittest.TestCase):
         self.assertEqual(Harmony(key=A).quantise(123.4), 123.4)
 
     def test_snaps_to_the_nearest_scale_note(self) -> None:
-        harmony = Harmony(key=A, scale=Scale.MINOR.value)
+        harmony = Harmony(key=A, scale=Scale.MINOR)
         # A minor has no C# (138.59 Hz); equidistant from C and C#? no - C#
         # sits a semitone above C and below D, so it snaps down to C
         self.assertAlmostEqual(harmony.quantise(138.59), 130.81, places=1)
@@ -57,12 +57,12 @@ class QuantiseTests(unittest.TestCase):
         self.assertAlmostEqual(harmony.quantise(261.63), 261.63, places=1)
 
     def test_follows_the_key(self) -> None:
-        harmony = Harmony(key=0, scale=Scale.MAJOR_PENTATONIC.value)
+        harmony = Harmony(key=0, scale=Scale.MAJOR_PENTATONIC)
         # C major pentatonic: F (349.23) is a semitone from E and 2 from G
         self.assertAlmostEqual(harmony.quantise(349.23), 329.63, places=1)
 
     def test_result_is_always_in_the_scale(self) -> None:
-        harmony = Harmony(key=A, scale=Scale.MINOR.value)
+        harmony = Harmony(key=A, scale=Scale.MINOR)
         allowed = {(A + d) % 12 for d in Scale.MINOR.value}
         for hz in range(60, 1000, 7):
             snapped = harmony.quantise(float(hz))
@@ -79,16 +79,14 @@ class VoiceTests(unittest.TestCase):
         )
 
     def test_same_shape_is_major_in_a_major_scale(self) -> None:
-        self.assertEqual(
-            Harmony(scale=Scale.MAJOR.value).voice(Voicing.TRIAD), (0, 4, 7)
-        )
+        self.assertEqual(Harmony(scale=Scale.MAJOR).voice(Voicing.TRIAD), (0, 4, 7))
 
     def test_negative_degrees_drop_an_octave(self) -> None:
         self.assertEqual(Harmony().voice(Voicing.WIDE_POWER_CHORD)[0], -12)
 
     def test_root_degree_shifts_the_shape_up_the_scale(self) -> None:
         self.assertEqual(
-            Harmony(scale=Scale.MAJOR.value).voice(Voicing.TRIAD, root_degree=1),
+            Harmony(scale=Scale.MAJOR).voice(Voicing.TRIAD, root_degree=1),
             (2, 5, 9),
         )
 

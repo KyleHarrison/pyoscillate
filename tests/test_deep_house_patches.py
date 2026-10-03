@@ -5,16 +5,16 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.harmony import A, Harmony
-from pyoscillate.intervals import Voicing
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
-from pyoscillate.patches.musical.chord import chord
+from pyoscillate.patches.musical.stab import stab
 from pyoscillate.patches.params import RateParam
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.harmony import A, Harmony
+from pyoscillate.theory.intervals import Voicing
 
 
 class ServerStartupTests(unittest.TestCase):
@@ -57,7 +57,7 @@ class KickNativeCrashTests(unittest.TestCase):
     def test_two_kicks_survive_live_updates(self) -> None:
         code = """
 from pyoscillate.clock import Clock
-from pyoscillate.harmony import Harmony
+from pyoscillate.theory.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, start_server
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.tempo import Tempo
@@ -122,7 +122,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
                     patch.stop()
 
     def test_chord_retains_native_trigger_graph(self) -> None:
-        patch = chord.ChordVelvet().build(
+        patch = stab.StabVelvet().build(
             BuildContext(self.tempo, self.clock, Harmony())
         )
         resource_types = [type(resource).__name__ for resource in patch.resources]
@@ -135,16 +135,16 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         context = BuildContext(self.tempo, self.clock, Harmony())
         for index in (0, 1, 33, 74):
             with self.subTest(voicing=index):
-                stab = chord.ChordVelvet()
-                chord.ChordVelvet.voicing.write(stab, index)
-                patch = stab.build(context)
+                voice = stab.StabVelvet()
+                stab.StabVelvet.voicing.write(voice, index)
+                patch = voice.build(context)
                 resource_types = [type(r).__name__ for r in patch.resources]
                 self.assertEqual(
                     resource_types.count("Osc"),
                     len(Voicing.by_index(index).value),
                 )
                 loudness = sum(env.mul for env in patch.note_envs)
-                self.assertAlmostEqual(loudness, 4 * chord.Chord.NOTE_LEVEL)
+                self.assertAlmostEqual(loudness, 4 * stab.Stab.NOTE_LEVEL)
 
     def sounding_roots(self, harmony: Harmony) -> dict[str, float]:
         """Fire each pitched patch's sequencer at its first note in the
@@ -157,7 +157,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         calling the voice's own division callback once (its `sequencer` may also hold a gate), rather than calling it
         repeatedly with the clock held still."""
         context = BuildContext(self.tempo, self.clock, harmony)
-        chord_patch = chord.ChordVelvet().build(context)
+        chord_patch = stab.StabVelvet().build(context)
         bass_patch = bass.BassRolling().build(context)
         tom_patch = tom.Tom().build(context)
         bar_start = self.clock._tick

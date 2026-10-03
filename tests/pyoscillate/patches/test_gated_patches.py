@@ -44,7 +44,7 @@ GATED_PATCHES = {
     "pyoscillate.patches.drums.percussion.percussion": {"style": "rim"},
     "pyoscillate.patches.drums.snare.snare": {},
     "pyoscillate.patches.drums.tom.tom": {},
-    "pyoscillate.patches.musical.chord.chord": {"style": "velvet"},
+    "pyoscillate.patches.musical.stab.stab": {"style": "velvet"},
     "pyoscillate.patches.pitched_percussion.bell.bell": {"style": "chime"},
     "pyoscillate.patches.pitched_percussion.bell.bell#fm": {"style": "fm"},
     "pyoscillate.patches.tonal.bass": {},

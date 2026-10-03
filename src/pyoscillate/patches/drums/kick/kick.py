@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.kick.kick style=round
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.kick.kick
 #   style: round | punch | soft | lofi
 """Four-on-the-floor kick voices, plus a swung, softened lofi voice.
 

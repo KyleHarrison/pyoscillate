@@ -105,7 +105,7 @@ A typical session looks like this:
 
 ## Debugging patches
 
-Play any single patch module on its own with `uv run flet run src/flet/patch/app.py -- <module> style=<name> [param=value ...]`, or render and measure one offline with `uv run python -m pyoscillate.analysis <module> --set name=value`. Both build the patch with a full `BuildContext` (tempo, clock, harmony), so a failing lifecycle stage shows up in isolation.
+Play any single patch module on its own with `uv run flet run src/flet/patch/app.py -- <module> [param=value ...]`, or render and measure one offline with `uv run python -m pyoscillate.analysis <module> --set name=value`. Both build the patch with a full `BuildContext` (tempo, clock, harmony), so a failing lifecycle stage shows up in isolation.
 
 ## Why it exists
 

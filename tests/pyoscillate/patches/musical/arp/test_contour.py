@@ -1,6 +1,6 @@
 import unittest
 
-from pyoscillate.intervals import ArpOrder, Scale
+from pyoscillate.theory.intervals import ArpOrder, Scale
 
 
 class ArpOrderTests(unittest.TestCase):

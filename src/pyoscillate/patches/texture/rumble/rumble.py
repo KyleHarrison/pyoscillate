@@ -13,7 +13,7 @@ from pyo.lib.generators import BrownNoise, Sine
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 SUB_FREQ = notes.E1  # current default
 

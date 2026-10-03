@@ -17,6 +17,7 @@ from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.notes import semitone_ratio
 
 
 @dataclass(eq=False)
@@ -55,12 +56,6 @@ class ContinuousVoice(Patch):
         self.voice = voice
         self._bind()
         return self
-
-
-def semitone_ratio(semitones: float) -> float:
-    """Frequency ratio for a pitch shift of `semitones`, for detuning an
-    oscillator relative to a body/root frequency."""
-    return 2 ** (semitones / 12)
 
 
 @dataclass(frozen=True)
@@ -322,7 +317,7 @@ class PitchBend(Patch):
         sweep=True,
     )
     def bend(self, value: float) -> None:
-        self.bend_env.mul = 2 ** (value / 12) - 1
+        self.bend_env.mul = semitone_ratio(value) - 1
 
     def add_bend(self, trigger: Trig) -> PyoObject:
         """The frequency multiplier (1 at rest, the bend ratio at each strike,

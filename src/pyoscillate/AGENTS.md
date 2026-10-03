@@ -35,7 +35,7 @@ the scope and ownership rules below.
 - Keep rack modules declarative: subclass `Rack`, configure it with class
   attributes, declare each group as a `GroupController` class attribute, and
   let `Rack` bind fresh `GroupRuntime` instances.
-- Declare every musical pitch from `patches/utility/notes/notes.py` (for
+- Declare every musical pitch from `theory/notes.py` (for
   example `notes.F3`), never as a raw Hz literal such as
   `174.61411571650194`. This applies to rack `Slot` kwargs, `Param`
   defaults/bounds, and tests. Do not paste computed or snapped frequencies;

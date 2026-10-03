@@ -18,7 +18,7 @@ from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass
 from pyoscillate.patches.tonal.bass.profiles import HOVER
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 
 class BassHover(AccentBass):

@@ -1,3 +1,4 @@
+# Run: uv run flet run src/flet/lofi/app.py
 """Patch definitions for the clock-locked lofi beats-to-study-to rack."""
 
 from pyoscillate.controller import (
@@ -10,7 +11,6 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
-from pyoscillate.harmony import C, Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -22,8 +22,9 @@ from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import C, Harmony
 
 
 class LofiRack(Rack):

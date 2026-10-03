@@ -24,12 +24,12 @@ from pyo.lib.server import Server
 import flet as ft
 from pyoscillate.clock import Clock
 from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
-from pyoscillate.harmony import NOTE_NAMES
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.notes import NOTE_NAMES
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -264,6 +264,7 @@ class PatchPanel:
         self._built_values: dict[Param, float] = {}
         self._value_texts: dict[Param, ft.Text] = {}
         self._sliders: dict[Param, ft.Slider] = {}
+        self._dropdowns: dict[Param, ft.Dropdown] = {}
         self.sweep_rows: dict[Param, SweepRow] = {}
 
         self.switch = ft.Switch(
@@ -276,8 +277,35 @@ class PatchPanel:
 
     # -- UI construction -------------------------------------------------
 
+    def _option_row(self, param: Param) -> ft.Container:
+        """A named-choice parameter: a dropdown whose value is the index."""
+        spec = param.spec
+        dropdown = ft.Dropdown(
+            options=[
+                ft.dropdown.Option(key=str(i), text=name)
+                for i, name in enumerate(spec.options)
+            ],
+            value=str(int(param.read(self.patch))),
+            on_select=lambda e, param=param: self._handle_option(param, e),
+        )
+        self._dropdowns[param] = dropdown
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(spec.description, color=TEXT, size=14),
+                    ft.Text(spec.help_text, color=MUTED, size=12),
+                    dropdown,
+                ],
+                spacing=2,
+            ),
+            col={"xs": 12, "md": 6},
+            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+        )
+
     def _slider_row(self, param: Param) -> ft.Container:
         spec = param.spec
+        if spec.options:
+            return self._option_row(param)
         value = param.read(self.patch)
         value_text = ft.Text(
             spec.format(value), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
@@ -375,6 +403,9 @@ class PatchPanel:
         return running
 
     def _show(self, param: Param, value: float) -> None:
+        if param in self._dropdowns:
+            self._dropdowns[param].value = str(int(value))
+            return
         self._sliders[param].value = param.spec.to_position(value)
         self._value_texts[param].value = param.spec.format(value)
 
@@ -408,6 +439,11 @@ class PatchPanel:
         value = param.spec.from_position(float(e.control.value))
         param.write(self.patch, value)
         self._value_texts[param].value = param.spec.format(value)
+        self._apply()
+        e.page.update()
+
+    def _handle_option(self, param: Param, e: ft.ControlEvent) -> None:
+        param.write(self.patch, float(e.control.value))
         self._apply()
         e.page.update()
 
@@ -1161,8 +1197,8 @@ class PatchRackApp:
 
     def _swap_variant(self, name: str) -> None:
         """Replace the rack with another variant's, keeping the audio server,
-        clock, key and (when running) the on/off state."""
-        was_on = {n: p.enabled for n, p in self.panels.items()}
+        clock and key. The new variant is switched on (starting the engine
+        first if it is stopped)."""
         for panel in self.panels.values():
             panel.engine_stopped()
         if self.running:
@@ -1185,13 +1221,18 @@ class PatchRackApp:
             self.context = BuildContext(self.context.tempo, self.clock, rack.harmony)
             for group in rack.evolving_groups:
                 group.start(self.clock)
-            for panel_name, panel in self.panels.items():
+            for panel in self.panels.values():
                 panel.engine_started(self.context)
             for group in self.groups:
                 group.set_engine_ready(True)
-            for panel_name, panel in self.panels.items():
-                if was_on.get(panel_name):
-                    panel.apply_enabled(True)
+        else:
+            self._start_engine()
+        if self.running:
+            for panel in self.panels.values():
+                panel.apply_enabled(True)
+            for top in self.groups:
+                for group in top.walk():
+                    group.reveal_enabled()
         self.page.controls.clear()
         self._build_view()
 

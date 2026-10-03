@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from pyoscillate.patches.drums.hat.groove import CLOSED, GrooveLofi
 from pyoscillate.patches.drums.kick.kick import KickLofi
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
+from pyoscillate.theory import notes
 
 
 class SlowedReverbRackDefaultsTests(unittest.TestCase):

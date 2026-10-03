@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare style=lofi
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare
 """Tone-and-rattle snare voice, plus a swung, softened lofi voice.
 
 Two layers share one trigger: a short sine body a little above the kick's
@@ -30,7 +30,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 # full-to-zero break-points shared by every envelope; `exp` sets the curve
 DROP = [(0, 1), (8191, 0)]

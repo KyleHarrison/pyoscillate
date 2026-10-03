@@ -14,12 +14,12 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
-from pyoscillate.harmony import Harmony
-from pyoscillate.intervals import ArpOrder, Scale
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import ArpOrder, Scale
 
 MID_ROOT = notes.E4  # current default
 
@@ -173,10 +173,7 @@ class Arp(Gate, GatedVoice):
         # a calm major pentatonic - consonant, no leading tones to create tension
         order = ArpOrder.by_index(int(self.contour))
         self._step = self.step_pattern(
-            len(order.value),
-            dict(
-                enumerate(order.intervals(Scale.MAJOR_PENTATONIC_OCTAVE.value)),
-            ),
+            order.cycle, order.steps(Scale.MAJOR_PENTATONIC_OCTAVE.value)
         )
 
         # `step_bars` counts whole bars, not a `NoteDivision` offset

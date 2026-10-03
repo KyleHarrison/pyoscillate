@@ -14,12 +14,12 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
-from pyoscillate.harmony import Harmony
-from pyoscillate.intervals import Scale
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import SeededDraws
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import Scale
 
 # major pentatonic across one octave - consonant, calm, no leading tones
 

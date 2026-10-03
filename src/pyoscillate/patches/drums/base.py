@@ -11,7 +11,8 @@ this module just gives the drums family its own name for it, matching
 
 from __future__ import annotations
 
-from pyoscillate.patches.common import GatedVoice, semitone_ratio
+from pyoscillate.patches.common import GatedVoice
+from pyoscillate.theory.notes import semitone_ratio
 
 __all__ = ["DrumVoice", "semitone_ratio"]
 

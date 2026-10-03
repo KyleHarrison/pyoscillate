@@ -20,7 +20,7 @@ from pyo.lib.tables import HarmTable
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 # harmonic-rich static tone for the filter to carve movement into - the drone's
 # "color" comes entirely from the cutoff sweep below, not from this waveform changing

@@ -177,7 +177,7 @@ called `schedule()`.
 
 ### Module anatomy (follow `Kick`'s order)
 
-1. A run comment (`# uv run flet run src/flet/patch/app.py -- <module> style=<x>`),
+1. A run comment (`# uv run flet run src/flet/patch/app.py -- <module>`),
    then a module docstring describing the sound and its mechanism.
 2. Class constants for plain shared data (break-point lists, curve shapes),
    owned by the family class that uses them.
@@ -413,7 +413,7 @@ A slider that sets a pitch in Hz (Register, `root_freq`) takes
 `scale="note"`: its ticks are equal-tempered semitones and its label shows
 the note name, so it can only land on in-tune notes. Keep the parameter in
 Hz and give its `minimum`, `maximum` and `default` as notes from
-`utility/notes` (`notes.A1`, not `55`). Continuous detune belongs in its own
+`theory/notes` (`notes.A1`, not `55`). Continuous detune belongs in its own
 control, not in a Register slider with Hz steps.
 
 ### 3. Parameter changes should usually be live

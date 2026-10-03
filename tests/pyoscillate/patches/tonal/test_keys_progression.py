@@ -1,6 +1,6 @@
 import unittest
 
-from pyoscillate.intervals import KeysProgression
+from pyoscillate.theory.intervals import KeysProgression
 
 
 class KeysProgressionTests(unittest.TestCase):

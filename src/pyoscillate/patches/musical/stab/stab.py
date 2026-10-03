@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.chord.chord style=velvet
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.musical.stab.stab
 #   style: velvet | organ | shimmer
 """Offbeat chord-stab voices."""
 
@@ -14,14 +14,15 @@ from pyo.lib.tables import CosTable, HarmTable, SawTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.harmony import Harmony
-from pyoscillate.intervals import Scale, Voicing
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import Scale, Voicing
 
 
-class Chord(Gate, GatedVoice):
+class Stab(Gate, GatedVoice):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
     chord. Style variants subclass this and override `table()` for their
     own oscillator table, plus the profile attributes below; the rest of
@@ -112,9 +113,9 @@ class Chord(Gate, GatedVoice):
         4,
         "Voicing",
         "Picks the chord shape, from a bare power chord through triads and sevenths to wide, "
-        "cinematic clusters (0 power chord, 1 triad, 4 seventh, 28 wide power chord, 30 deep house, "
-        "63 cinematic wide, 65 chromatic cluster); more notes sound fuller.",
+        "cinematic clusters; more notes sound fuller.",
         rebuild=True,
+        options=Voicing.labels(),
     )
 
     strum = Param(
@@ -172,10 +173,12 @@ class Chord(Gate, GatedVoice):
         self.voices = [
             Osc(
                 self.oscillator_table,
-                freq=self.harmony.chord_freq(
-                    self.register_centre, context.clock.bar_index
-                )
-                * 2 ** (self.octave + interval / 12),
+                freq=notes.transpose(
+                    self.harmony.chord_freq(
+                        self.register_centre, context.clock.bar_index
+                    ),
+                    12 * self.octave + interval,
+                ),
                 mul=note_env,
             )
             for interval, note_env in zip(self.intervals, self.note_envs, strict=True)
@@ -208,14 +211,14 @@ class Chord(Gate, GatedVoice):
 
     def next_step(self) -> None:
         if self._step().hit:
-            chord_root = (
-                self.harmony.chord_freq(self.register_centre, self._clock.bar_index)
-                * 2**self.octave
+            chord_root = notes.transpose(
+                self.harmony.chord_freq(self.register_centre, self._clock.bar_index),
+                12 * self.octave,
             )
             for index, (oscillator, interval) in enumerate(
                 zip(self.voices, self.intervals, strict=True)
             ):
-                oscillator.freq = chord_root * 2 ** (interval / 12)
+                oscillator.freq = notes.transpose(chord_root, interval)
                 self.note_delays[index].delay = self.whole_samples(
                     index * self.strum * self.STRUM_SPAN
                     + self._feel.random() * self.feel * self.HUMAN_TIMING
@@ -226,7 +229,7 @@ class Chord(Gate, GatedVoice):
             self.trigger.play()
 
 
-class ChordVelvet(Chord):
+class StabVelvet(Stab):
     """Warm, rounded minor-seventh chord stabs."""
 
     title = "Chord Stab - Velvet"
@@ -236,7 +239,7 @@ class ChordVelvet(Chord):
         return HarmTable([1, 0.25, 0.12])
 
 
-class ChordOrgan(Chord):
+class StabOrgan(Stab):
     """Sustained, organ-like harmonic bed."""
 
     title = "Chord Stab - Organ"
@@ -246,7 +249,7 @@ class ChordOrgan(Chord):
         return HarmTable([1, 0.7, 0.4, 0.2])
 
 
-class ChordShimmer(Chord):
+class StabShimmer(Stab):
     """Bright, shimmering chord stabs with more edge."""
 
     title = "Chord Stab - Shimmer"

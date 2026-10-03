@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.transition.riser.riser style=noise
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.transition.riser.riser
 #   style: noise | shift | pitch
 """Tempo-locked riser: one ramp lifts pitch, brightness and level into a downbeat.
 
@@ -45,8 +45,8 @@ from pyo.lib.generators import Noise, SuperSaw
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, frequency_shift
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory import notes
 
 STYLES = ("noise", "shift", "pitch")
 PHRASE_BARS = 8

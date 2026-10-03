@@ -1,4 +1,4 @@
-"""`Chord.strum` and `Chord.feel`: what each stab writes onto its per-note
+"""`Stab.strum` and `Stab.feel`: what each stab writes onto its per-note
 delays and envelopes, checked on stand-in nodes (no audio server)."""
 
 import unittest
@@ -7,10 +7,10 @@ from types import SimpleNamespace
 import numpy as np
 
 from pyoscillate.analysis.render import render
-from pyoscillate.patches.musical.chord.chord import Chord, ChordVelvet
+from pyoscillate.patches.musical.stab.stab import Stab, StabVelvet
 
 SAMPLE_RATE = 44100
-MODULE = "pyoscillate.patches.musical.chord.chord"
+MODULE = "pyoscillate.patches.musical.stab.stab"
 
 
 def _chord(strum: float, feel: float) -> SimpleNamespace:
@@ -19,12 +19,12 @@ def _chord(strum: float, feel: float) -> SimpleNamespace:
     chord = SimpleNamespace(
         strum=strum,
         feel=feel,
-        STRUM_SPAN=Chord.STRUM_SPAN,
-        HUMAN_TIMING=Chord.HUMAN_TIMING,
-        HUMAN_LEVEL=Chord.HUMAN_LEVEL,
+        STRUM_SPAN=Stab.STRUM_SPAN,
+        HUMAN_TIMING=Stab.HUMAN_TIMING,
+        HUMAN_LEVEL=Stab.HUMAN_LEVEL,
         intervals=intervals,
-        note_level=Chord.NOTE_LEVEL,
-        register_centre=Chord.register_centre,
+        note_level=Stab.NOTE_LEVEL,
+        register_centre=Stab.register_centre,
         octave=0,
         _step=lambda: SimpleNamespace(hit=True),
         _clock=SimpleNamespace(bar_index=0),
@@ -35,35 +35,35 @@ def _chord(strum: float, feel: float) -> SimpleNamespace:
         note_envs=[SimpleNamespace(mul=0.0) for _ in range(voices)],
         trigger=SimpleNamespace(play=lambda: None),
         _sample_rate=SAMPLE_RATE,
-        whole_samples=lambda seconds: Chord.whole_samples(chord, seconds),
+        whole_samples=lambda seconds: Stab.whole_samples(chord, seconds),
     )
     return chord
 
 
-class ChordFeelTests(unittest.TestCase):
+class StabFeelTests(unittest.TestCase):
     def test_defaults_play_one_block(self) -> None:
         chord = _chord(0, 0)
-        Chord.next_step(chord)
+        Stab.next_step(chord)
 
         self.assertEqual([d.delay for d in chord.note_delays], [0.0] * 4)
-        self.assertEqual([e.mul for e in chord.note_envs], [Chord.NOTE_LEVEL] * 4)
+        self.assertEqual([e.mul for e in chord.note_envs], [Stab.NOTE_LEVEL] * 4)
 
     def test_strum_spreads_notes_low_to_high(self) -> None:
         chord = _chord(1.0, 0)
-        Chord.next_step(chord)
+        Stab.next_step(chord)
 
         delays = [d.delay for d in chord.note_delays]
         self.assertEqual(delays[0], 0.0)
         self.assertEqual(delays, sorted(delays))
-        self.assertAlmostEqual(delays[-1], 3 * Chord.STRUM_SPAN)
+        self.assertAlmostEqual(delays[-1], 3 * Stab.STRUM_SPAN)
 
     def test_feel_offsets_timing_and_softens_level(self) -> None:
         chord = _chord(0, 1.0)
-        Chord.next_step(chord)
+        Stab.next_step(chord)
 
-        self.assertAlmostEqual(chord.note_delays[0].delay, Chord.HUMAN_TIMING, places=4)
+        self.assertAlmostEqual(chord.note_delays[0].delay, Stab.HUMAN_TIMING, places=4)
         self.assertAlmostEqual(
-            chord.note_envs[0].mul, Chord.NOTE_LEVEL * (1 - Chord.HUMAN_LEVEL)
+            chord.note_envs[0].mul, Stab.NOTE_LEVEL * (1 - Stab.HUMAN_LEVEL)
         )
 
     def test_delays_land_on_whole_samples(self) -> None:
@@ -71,7 +71,7 @@ class ChordFeelTests(unittest.TestCase):
         # `TrigEnv` ignores, so the note would never sound
         chord = _chord(0.37, 0.61)
         chord._feel = SimpleNamespace(random=lambda: 0.3137)
-        Chord.next_step(chord)
+        Stab.next_step(chord)
 
         for note_delay in chord.note_delays:
             samples = note_delay.delay * SAMPLE_RATE
@@ -92,8 +92,8 @@ class ChordFeelTests(unittest.TestCase):
                 self.assertGreater(float(np.abs(result.samples).max()), 0.01)
 
     def test_styles_expose_both(self) -> None:
-        self.assertIs(ChordVelvet.strum.origin, Chord.strum)
-        self.assertIs(ChordVelvet.feel.origin, Chord.feel)
+        self.assertIs(StabVelvet.strum.origin, Stab.strum)
+        self.assertIs(StabVelvet.feel.origin, Stab.feel)
 
 
 if __name__ == "__main__":

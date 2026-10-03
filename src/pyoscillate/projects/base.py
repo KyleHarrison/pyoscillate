@@ -11,8 +11,8 @@ from typing import Any, ClassVar
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
 from pyoscillate.controller import EvolvingRuntime, GroupController, GroupRuntime, Slot
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
+from pyoscillate.theory.harmony import Harmony
 
 
 class Rack(ABC):

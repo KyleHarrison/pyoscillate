@@ -17,12 +17,12 @@ from pyo.lib.generators import Noise, Sine
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Step
 from pyoscillate.patches.drums.base import DrumVoice, semitone_ratio
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
 
 # full-to-zero break-points shared by every envelope
 DROP = [(0, 1), (8191, 0)]

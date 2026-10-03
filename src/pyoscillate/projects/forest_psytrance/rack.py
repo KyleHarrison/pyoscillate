@@ -1,3 +1,4 @@
+# Run: uv run flet run src/flet/forest_psytrance/app.py
 """Patch definitions for the clock-locked forest-psytrance rack."""
 
 from pyoscillate.controller import (
@@ -10,15 +11,15 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
-from pyoscillate.harmony import F, Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.lead import fm
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import F, Harmony
 
 
 class ForestPsytranceRack(Rack):

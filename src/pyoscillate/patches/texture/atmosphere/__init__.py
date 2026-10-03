@@ -19,11 +19,11 @@ from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import TrigEnv
 
-from pyoscillate.intervals import Walk
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Walk
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
 

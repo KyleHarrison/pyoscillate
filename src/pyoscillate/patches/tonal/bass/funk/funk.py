@@ -46,6 +46,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
+from pyoscillate.theory import notes
 
 
 class Step(NamedTuple):
@@ -278,7 +279,7 @@ class FunkBass(Bass):
         if not step.hit:
             return
         root = self.current_root()
-        self.pitch.value = root * 2 ** (step.semitones / 12)
+        self.pitch.value = notes.transpose(root, step.semitones)
         self.note_gate.dur = self._sixteenth * step.length * self.length
         self.amp.mul = step.accent
         self.sweep.mul = self.quack * step.accent

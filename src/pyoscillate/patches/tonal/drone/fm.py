@@ -19,7 +19,7 @@ from pyo.lib.generators import FM, Lorenz, Rossler
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 
 class SoundscapeFm(Gate, ContinuousVoice):

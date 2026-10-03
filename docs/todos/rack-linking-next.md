@@ -19,7 +19,7 @@ system the original plan proposed.
    - [.claude/skills/pyo-music/SKILL.md](../../.claude/skills/pyo-music/SKILL.md) — sonic reasoning, "Modulation and timescale" section.
    - [src/pyoscillate/patches/AGENTS.md](../../src/pyoscillate/patches/AGENTS.md) — patch runtime contract, including `on_evolve` and `resources` ownership rules.
    - [src/pyoscillate/controller.py](../../src/pyoscillate/controller.py) — `GroupController`: owns a group's name/title/patches/summary plus an optional `bars`-period evolution timer that calls `Patch.on_evolve(index)` on whichever patch is currently active in the group.
-   - [src/pyoscillate/harmony.py](../../src/pyoscillate/harmony.py) — pulled, not routed. Shared key/root/progression, read independently by every `needs_harmony` patch each note.
+   - [src/pyoscillate/theory/harmony.py](../../src/pyoscillate/theory/harmony.py) — pulled, not routed. Shared key/root/progression, read independently by every `needs_harmony` patch each note.
    - [AGENTS.md](../../AGENTS.md) — project scaffolding; the rack module owns declarative config (`build_groups()`, `harmony`), the app layer stays thin.
 4. Keep the foundational principle: never map a word directly to a Pyo object. Reason musically first.
 5. When a task is done, tick it here, note the commit or files, and add anything learned to the Log.

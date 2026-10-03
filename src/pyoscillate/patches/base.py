@@ -12,10 +12,10 @@ from pyo.lib.dynamics import Clip, Compress
 from pyo.lib.server import Server
 
 from pyoscillate.clock import Clock
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import ParamSweep, Sweep
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.harmony import Harmony
 
 # ramp-to-silence time before a stopped patch's objects are actually cut, so
 # stop() never truncates a voice mid-sample and produces a click/pop
@@ -131,8 +131,8 @@ class Patch(ABC):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Collect every `Param` along the MRO (a redeclared name replaces
-        its parent's in place, a new one is appended) into `params`, and
-        derive `name`/`title`/`summary` from the class itself unless its body
+        its parent's in place, a new one is appended) into `params`, with the
+        named-choice (dropdown) params first, and derive `name`/`title`/`summary` from the class itself unless its body
         assigns them."""
         super().__init_subclass__(**kwargs)
         merged: dict[str, Param] = {}
@@ -140,7 +140,9 @@ class Patch(ABC):
             for value in vars(klass).values():
                 if isinstance(value, Param):
                     merged[value.name] = value
-        cls.params = tuple(merged.values())
+        cls.params = tuple(
+            sorted(merged.values(), key=lambda param: not param.spec.options)
+        )
         cls.rebuild_params = tuple(param for param in cls.params if param.rebuild)
         if "name" not in vars(cls):
             cls.name = cls.slugify(cls.__name__)

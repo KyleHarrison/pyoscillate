@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.lead.fm style=wind
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.lead.fm
 #   style: wind | swirl
 """Windy, psychedelic FM leads.
 
@@ -34,11 +34,11 @@ from pyo.lib.tables import CosTable, LinTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
 
 
 class LeadFm(Gate, GatedVoice):
@@ -306,7 +306,7 @@ class LeadFm(Gate, GatedVoice):
         step = self._step()
         if step.hit:
             self._accent = self.beat_accent if step.index % 4 == 0 else 1.0
-            self.pitch.value = self.note_root() * 2 ** (step.value / 12)
+            self.pitch.value = notes.transpose(self.note_root(), step.value)
             self.bark.mul = self.bite * self._accent
             self.amp.mul = self._accent
             self.trigger.play()

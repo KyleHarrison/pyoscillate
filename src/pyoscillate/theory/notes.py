@@ -1,7 +1,8 @@
 import math
 from enum import Enum
 
-from pyoscillate.harmony import NOTE_NAMES
+# pitch-class names, spelled as the rack's key picker spells them
+NOTE_NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 
 
 class Note(float, Enum):
@@ -157,6 +158,16 @@ def midi_to_freq(note: float) -> float:
 def freq_to_midi(freq: float) -> float:
     """MIDI note number of `freq` Hz; fractional when `freq` is between notes."""
     return 69 + 12 * math.log2(freq / 440)
+
+
+def semitone_ratio(semitones: float) -> float:
+    """Frequency ratio of a pitch shift of `semitones`."""
+    return 2 ** (semitones / 12)
+
+
+def transpose(freq: float, semitones: float) -> float:
+    """`freq` Hz shifted by `semitones`."""
+    return freq * semitone_ratio(semitones)
 
 
 def nearest_note(freq: float) -> float:

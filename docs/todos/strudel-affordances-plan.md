@@ -46,10 +46,10 @@ decay, Q together; `rlpf/rhpf` = 0–1 → perceptually-spaced cutoff (`(12x)^4`
 |---|----------|-----|
 | C1 | **Glide/portamento across notes** (remembers previous note) and **bend** | Done (see C1 status) |
 | C2 | **Scale-quantise** (`grab`, `sc`) — snap any pitch stream to the rack's scale | Done (see C2 status) |
-| C3 | **Strum** (per-note time spread in a chord) and **humanize** (timing ±, velocity ±) | `musical/chord` lacks strum; no humanize on any sequencer. Both are timing/state concerns → design rule 5 |
+| C3 | **Strum** (per-note time spread in a chord) and **humanize** (timing ±, velocity ±) | `musical/stab` lacks strum; no humanize on any sequencer. Both are timing/state concerns → design rule 5 |
 | C4 | **Glitch** — random parameter corruption by amount | Candidate for `on_evolve`/sweep-style rack tool, low priority |
 | C5 | **Arp index patterns** (`notearp`, `trancearp` forward/back/preset rhythms) | Direction presets done: `ArpOrder` in `intervals.py` and `Arp.contour` (rebuild). Not done: `trancearp`'s rhythm presets (need a fast gated arp; `Arp` is a slow glide voice) and `notearp`'s octave-transposing wrap (`ArpOrder` wraps by modulo, as `trancearp` does) |
-| C6 | **Chord voicing library** (75 shapes, power chord → cinematic cluster) | Check `musical/chord`; extend voicing table rather than new family |
+| C6 | **Chord voicing library** (75 shapes, power chord → cinematic cluster) | Check `musical/stab`; extend voicing table rather than new family |
 
 ## D. Timbre/modulation distinctions
 
@@ -120,7 +120,7 @@ a gate would distort the duck signal).
 
 **B2 status (2026-10-03):** the gate already had `gate_seed`. `SeededDraws` mixin (`common.py`) now gives `generative` and `canon` a `seed` Param ("Melody") and a per-instance `random.Random`; `on_evolve` re-rolls from seed + fire count. Reproducible, tested; not auditioned. `NoiseDust` still uses pyo's own randomness (not seedable this way). Racks do not list the slider yet.
 
-**C3 status (2026-10-03):** `musical/chord` has `strum` (notes spread low to high, up to 120 ms) and `feel` (per-note timing and level jitter) Params, via a delayed trigger and envelope per note; both default 0 (unchanged sound). Tested on stand-in nodes, not auditioned. Named `feel` because `Patch.humanize` is already a title helper. Humanize is chord-only so far; the other sequencers (bass, arp, lead) still have none, and the gate's Pulse is unjittered. Racks do not list the sliders yet.
+**C3 status (2026-10-03):** `musical/stab` has `strum` (notes spread low to high, up to 120 ms) and `feel` (per-note timing and level jitter) Params, via a delayed trigger and envelope per note; both default 0 (unchanged sound). Tested on stand-in nodes, not auditioned. Named `feel` because `Patch.humanize` is already a title helper. Humanize is chord-only so far; the other sequencers (bass, arp, lead) still have none, and the gate's Pulse is unjittered. Racks do not list the sliders yet.
 
 **C1 status (2026-10-03):** audit: `lead/fm` (live `glide` Param), `arp`, `pluck` (fixed 10 ms) already glided; `funk` had a fixed 20 ms; the profile-driven bass (`groove`, `hover`, `techno`), `fm` bass and `lead/lead` jumped (lead had a per-style, non-live `glide_time`). Now `Bass.glide` (seconds, sweepable, default 0) drives a shared `pitch` `SigTo` (`Bass.pitch_signal`) that groove/hover/techno, fm and funk play from (funk defaults to its 0.02); `Lead.glide` replaces `glide_time` (Mellow70s defaults 0.02). Defaults keep every voice's old sound. Tests: `bass/test_glide.py`, stand-in nodes; not auditioned. `bend` (2026-10-03): `PitchBend` mixin in `common.py` (`bend` Param, -12..12 semitones, default 0; a 60 ms scoop off a `TrigEnv`) on every `Bass` voice and `Lead`; tested on stand-in nodes plus offline renders, not auditioned. Rack sliders: `Slide` (glide + a 3-semitone scoop) and `Accent` on the bass group in `deep_house`, `forest_psytrance` and `lofi/boom_bap`; `Feel` (strum + human feel) on deep_house chords. The seed, gate and `lead/fm` sliders are per-patch only. Not done: `pluck` keeps its fixed 10 ms glide; `keys` is polyphonic.
 

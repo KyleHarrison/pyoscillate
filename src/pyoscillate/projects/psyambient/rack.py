@@ -1,3 +1,4 @@
+# Run: uv run flet run src/flet/psyambient/app.py
 """Patch definitions for the free-running psyambient rack."""
 
 from pyoscillate.controller import (

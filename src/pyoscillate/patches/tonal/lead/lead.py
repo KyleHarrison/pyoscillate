@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.lead.lead style=brass
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.lead.lead
 #   style: brass | mellow_70s
 """Dual-oscillator subtractive lead voices.
 
@@ -30,16 +30,17 @@ from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, PitchBend, Step
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import ArpOrder, Phrase, Voicing
 
-# step -> semitone offset above the current chord root; an absent step (6) is
-# a rest, giving the phrase somewhere for its Release tail to be heard. The
-# default motif for styles that don't override `pattern` (see `Lead.pattern`).
-PATTERN = {0: 0, 1: 4, 2: 7, 3: 12, 4: 7, 5: 4, 7: 0}
+# an absent step (6) is a rest, giving the phrase somewhere for its Release
+# tail to be heard. The default phrase for styles that don't override
+# `Lead.phrase`.
+PATTERN = Phrase(8, {0: 0, 1: 4, 2: 7, 3: 12, 4: 7, 5: 4, 7: 0})
 BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
@@ -52,11 +53,9 @@ class Lead(PitchBend, Gate, GatedVoice):
 
     volume = Patch.volume.replace(default=0.7)
     base_division: ClassVar[NoteDivision] = BASE_DIVISION
-    # this style's melodic motif; a style with a sparser or differently-
+    # this style's own melodic phrase; a style with a sparser or differently-
     # phrased line overrides it (different profile data, same graph)
-    pattern: ClassVar[dict[int, int]] = PATTERN
-    # the number of steps one pass of `pattern` spans
-    cycle: ClassVar[int] = 8
+    phrase: ClassVar[Phrase] = PATTERN
 
     # osc1/osc2 detune in semitones (osc2's can exceed an octave, e.g. +12.1)
     osc1_detune: ClassVar[float]
@@ -107,8 +106,32 @@ class Lead(PitchBend, Gate, GatedVoice):
     )
     def detune(self, value: float) -> None:
         # semitones, split symmetrically on top of the style's own offsets
-        self.detune_up.value = 2 ** (value / 12)
-        self.detune_down.value = 2 ** (-value / 12)
+        self.detune_up.value = notes.semitone_ratio(value)
+        self.detune_down.value = notes.semitone_ratio(-value)
+
+    voicing = Param(
+        0,
+        len(Voicing.__members__),
+        1,
+        0,
+        "Chord arpeggio",
+        "Plays the notes of a chord shape in turn instead of the style's own phrase; the first "
+        "choice keeps the style's phrase.",
+        rebuild=True,
+        options=("Style phrase", *Voicing.labels()),
+    )
+
+    arp_order = Param(
+        0,
+        len(ArpOrder.__members__) - 1,
+        1,
+        0,
+        "Arpeggio order",
+        "The order the chord shape's notes are visited, from climbing and falling to stuttering "
+        "restarts. Only used when a chord arpeggio is chosen.",
+        rebuild=True,
+        options=ArpOrder.labels(),
+    )
 
     # the graph, assigned by build(); finish() retains every one of them
     detune_up: SigTo
@@ -225,10 +248,10 @@ class Lead(PitchBend, Gate, GatedVoice):
 
         initial_root = self.note_root(context.clock)
         self.pitch1 = SigTo(
-            value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide
+            value=notes.transpose(initial_root, self.osc1_detune), time=self.glide
         )
         self.pitch2 = SigTo(
-            value=initial_root * 2 ** (self.osc2_detune / 12), time=self.glide
+            value=notes.transpose(initial_root, self.osc2_detune), time=self.glide
         )
 
         self.detune_up = SigTo(value=1.0, time=0.05)
@@ -275,8 +298,17 @@ class Lead(PitchBend, Gate, GatedVoice):
         self.voice_signal = self.shaped
 
         self.schedule(self.base_division, self.rate, context.clock)
-        self._step = self.step_pattern(self.cycle, self.pattern)
+        self._step = self.step_pattern(*self.played_phrase(context.harmony))
         return self.finish(self.add_gate(self.voice_signal, context))
+
+    def played_phrase(self, harmony: Harmony) -> Phrase:
+        """The style's own phrase, or - when a chord arpeggio is chosen - that
+        chord shape's notes walked in the chosen order."""
+        if not self.voicing:
+            return self.phrase
+        order = ArpOrder.by_index(int(self.arp_order))
+        pool = harmony.voice(Voicing.by_index(int(self.voicing) - 1))
+        return Phrase(order.cycle, order.steps(pool))
 
     def next_step(self) -> None:
         # derived from the shared clock's own tick, not a local counter
@@ -287,9 +319,9 @@ class Lead(PitchBend, Gate, GatedVoice):
             self.amp_env.stop()
             self.filter_env.stop()
         else:
-            target = self.note_root(self._clock) * 2 ** (step.value / 12)
-            self.pitch1.value = target * 2 ** (self.osc1_detune / 12)
-            self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
+            target = notes.transpose(self.note_root(self._clock), step.value)
+            self.pitch1.value = notes.transpose(target, self.osc1_detune)
+            self.pitch2.value = notes.transpose(target, self.osc2_detune)
             self.amp_env.play()
             self.filter_env.play()
             self.trigger.play()
@@ -329,7 +361,7 @@ class LeadMellow70s(Lead):
 # 7th) that leaves space after each two- or three-note idea, rather than
 # filling every subdivision - see lofi/README.md, "The melody should often
 # leave space after a phrase."
-MUTED_KEYS_PATTERN = {0: 0, 3: 3, 6: 7, 8: 10, 11: 7, 13: 3}
+MUTED_KEYS_PATTERN = Phrase(16, {0: 0, 3: 3, 6: 7, 8: 10, 11: 7, 13: 3})
 
 
 class LeadMutedKeys(Lead):
@@ -341,8 +373,7 @@ class LeadMutedKeys(Lead):
     title = "Lead - Muted Keys"
     summary = "Soft, dark dual-pulse pluck playing a sparse, rest-heavy minor-pentatonic motif."
     base_division = NoteDivision.SIXTEENTH
-    pattern = MUTED_KEYS_PATTERN
-    cycle = 16
+    phrase = MUTED_KEYS_PATTERN
     osc1_detune, osc2_detune = -0.05, 0.05
     osc1_duty, osc2_duty = 0.5, 0.45
     pwm_rate, pwm_depth = 0.0, 0.0

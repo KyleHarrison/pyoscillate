@@ -17,7 +17,7 @@ from pyo.lib.effects import Delay, Freeverb, Waveguide
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
 
 
 class Comb(Patch):

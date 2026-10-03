@@ -37,7 +37,7 @@ Grounded in `music-theory/references/genres/electronic-edm.md` (trance/EDM tempo
 
 - `bpm = 160`, `ticks_per_bar = 512` (the default timing resolution used by the deep-house rack).
 - `harmony = Harmony(key=F, progression=(0, 0, 0, 1), bars_per_chord=2)`; `F` (pitch class 5) is added to `harmony.py` next to `A` and `C`.
-- Register anchors from `patches/utility/notes`: bass around `F1`, lead around `F4`.
+- Register anchors from `theory/notes`: bass around `F1`, lead around `F4`.
 - Sidechain: the bass ducks off the kick group (`depth` ~0.5, `release` ~0.1 s, inside one 16th) so the two do not stack on the beat.
 
 ## Groups

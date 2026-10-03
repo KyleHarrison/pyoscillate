@@ -25,13 +25,13 @@ from pyo.lib.filters import Biquad
 from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.harmony import Harmony
-from pyoscillate.intervals import ChordShape
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.intervals import ChordShape
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
@@ -186,11 +186,11 @@ class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
         # finish() below) apply the live values, per patches/AGENTS.md's
         # rule against repeating a parameter's mapping in build()
         self.chord_saws = [
-            SuperSaw(freq=root * 2 ** (interval / 12), detune=0, bal=0.7, mul=GAIN)
+            SuperSaw(freq=notes.transpose(root, interval), detune=0, bal=0.7, mul=GAIN)
             for interval in ChordShape.OPEN_FIFTH.value
         ]
         self.colour_saw = SuperSaw(
-            freq=root * 2 ** (self._colour_interval / 12), detune=0, bal=0.7, mul=0
+            freq=notes.transpose(root, self._colour_interval), detune=0, bal=0.7, mul=0
         )
         self.mixed = Mix([*self.chord_saws, self.colour_saw], voices=1)
         self.filtered = Biquad(self.mixed, freq=self.brightness, q=FILTER_Q, type=0)
@@ -227,6 +227,6 @@ class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
         for saw, interval in zip(
             self.chord_saws, ChordShape.OPEN_FIFTH.value, strict=True
         ):
-            saw.freq = new_root * 2 ** (interval / 12)
-        self.colour_saw.freq = new_root * 2 ** (self._colour_interval / 12)
+            saw.freq = notes.transpose(new_root, interval)
+        self.colour_saw.freq = notes.transpose(new_root, self._colour_interval)
         self.amp_env.play()

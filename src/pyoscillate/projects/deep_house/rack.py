@@ -1,3 +1,4 @@
+# Run: uv run flet run src/flet/deep_house/app.py
 """Patch definitions for the clock-locked deep-house rack."""
 
 from pyoscillate.controller import (
@@ -8,7 +9,6 @@ from pyoscillate.controller import (
     SidechainSource,
     Slot,
 )
-from pyoscillate.harmony import A, Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
@@ -17,10 +17,11 @@ from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.drums.percussion import percussion
 from pyoscillate.patches.drums.snare import snare
 from pyoscillate.patches.drums.tom import tom
-from pyoscillate.patches.musical.chord import chord
+from pyoscillate.patches.musical.stab import stab
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory.harmony import A, Harmony
 
 
 class DeepHouseRack(Rack):
@@ -206,7 +207,7 @@ class DeepHouseRack(Rack):
             "Brightness",
             "Opens the stabs' filter from velvety to bright.",
         ),
-        (FanOut((ParamControl(chord.Chord.brightness, 1500, 5000),)),),
+        (FanOut((ParamControl(stab.Stab.brightness, 1500, 5000),)),),
     )
     chord_feel = GroupControl(
         SliderSpec(
@@ -221,8 +222,8 @@ class DeepHouseRack(Rack):
         (
             FanOut(
                 (
-                    ParamControl(chord.Chord.strum, 0, 0.4),
-                    ParamControl(chord.Chord.feel, 0, 0.5),
+                    ParamControl(stab.Stab.strum, 0, 0.4),
+                    ParamControl(stab.Stab.feel, 0, 0.5),
                 )
             ),
         ),
@@ -231,15 +232,15 @@ class DeepHouseRack(Rack):
         "Chord Stabs",
         (
             Slot(
-                chord.ChordVelvet,
+                stab.StabVelvet,
                 sidechains=(SidechainSource(kicks_group, depth=0.3, release=0.2),),
             ),
             Slot(
-                chord.ChordOrgan,
+                stab.StabOrgan,
                 sidechains=(SidechainSource(kicks_group, depth=0.3, release=0.2),),
             ),
             Slot(
-                chord.ChordShimmer,
+                stab.StabShimmer,
                 sidechains=(SidechainSource(kicks_group, depth=0.3, release=0.2),),
             ),
         ),

@@ -2,14 +2,14 @@ import unittest
 
 from pyoscillate.analysis.features import features
 from pyoscillate.analysis.render import render
-from pyoscillate.harmony import C, Harmony
 from pyoscillate.patches.tonal.pluck.pluck import (
     FULL_PATTERN,
     SPARSE_PATTERN,
     PluckHook,
 )
-from pyoscillate.patches.utility.notes import notes
-from pyoscillate.patches.utility.notes.notes import freq_to_midi
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import C, Harmony
+from pyoscillate.theory.notes import freq_to_midi
 
 
 class FixedClock:

@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.cymbal.cymbal style=ride
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.cymbal.cymbal
 #   style: ride | crash
 """Ride and crash cymbal voices.
 

@@ -1,3 +1,4 @@
+# Run: uv run flet run src/flet/slowed_reverb/app.py
 """Patch definitions for the dark, slowed-and-reverbed lofi rack."""
 
 from pyoscillate.controller import (
@@ -9,7 +10,6 @@ from pyoscillate.controller import (
     Slot,
     SlotTarget,
 )
-from pyoscillate.harmony import C, Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
@@ -20,8 +20,9 @@ from pyoscillate.patches.tonal.drone import wash
 from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import C, Harmony
 
 
 class SlowedReverbRack(Rack):

@@ -41,7 +41,6 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.intervals import KeysProgression
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     RING_CURVE,
@@ -51,7 +50,8 @@ from pyoscillate.patches.common import (
     decay_points,
 )
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import KeysProgression
 
 # step on the 16th grid -> velocity: the Charleston rhythm
 HITS = {0: 1.0, 6: 0.55}
@@ -340,7 +340,7 @@ class Keys(Gate, GatedVoice):
             chord_notes = progression[bar % len(progression)]
             start = slot * NOTES
             new_freqs = [
-                self.root_freq * 2 ** (semitones / 12) for semitones in chord_notes
+                notes.transpose(self.root_freq, semitones) for semitones in chord_notes
             ]
             self.freqs[start : start + NOTES] = new_freqs
             for offset, freq in enumerate(new_freqs):

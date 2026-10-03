@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove style=crisp
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove
 #   style: crisp | open | shuffle | lofi | forest
 """Groove hi-hat voices with closed and open articulations.
 

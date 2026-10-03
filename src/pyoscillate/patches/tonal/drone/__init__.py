@@ -17,11 +17,11 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM, Sine
 
-from pyoscillate.intervals import Walk
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import ContinuousVoice, Gate
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.intervals import Walk
 
 # mostly small steps so the pitch glides rather than leaps
 ### One pre-existing latent bug was surfaced but deliberately left alone (out of scope, no sonic-behavior changes were part of this task): tonal/drone's base Drone.next_step snapshots root_freq at build time rather than reading it live, so a live Register-slider move doesn't affect future note steps. Worth a separate follow-up if you want it fixed.

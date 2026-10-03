@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, overload
 
 from pyoscillate.clock import Clock, NoteDivision
-from pyoscillate.patches.utility.notes.notes import (
+from pyoscillate.theory.notes import (
     freq_to_midi,
     midi_to_freq,
     note_name,
@@ -44,6 +44,9 @@ class SliderSpec:
     description: str
     help_text: str
     scale: Literal["linear", "note", "cutoff"] = "linear"
+    # named choices for a stepped parameter: the value is an index into
+    # these, and a UI shows a dropdown instead of a slider
+    options: tuple[str, ...] = ()
 
     def to_position(self, value: float) -> float:
         """Where `value` sits on the slider's track."""
@@ -84,6 +87,8 @@ class SliderSpec:
         return max(1, round(span / self.step))
 
     def format(self, value: float) -> str:
+        if self.options:
+            return self.options[min(max(int(value), 0), len(self.options) - 1)]
         if self.scale == "note":
             return note_name(value)
         if self.scale == "cutoff":
@@ -140,6 +145,7 @@ class Param:
         scale: Literal["linear", "note", "cutoff"] = "linear",
         rebuild: bool = False,
         sweep: bool = False,
+        options: tuple[str, ...] = (),
         control: Control = noop_control,
     ) -> None:
         self._fields: dict[str, Any] = {
@@ -152,6 +158,7 @@ class Param:
             "scale": scale,
             "rebuild": rebuild,
             "sweep": sweep,
+            "options": options,
         }
         self.control = control
         self.rebuild = rebuild

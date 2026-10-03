@@ -1,4 +1,4 @@
-# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove style=rolling
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.bass.groove
 #   style: rolling | dub | muted | forest
 """16th-note groove bass voices with a fixed low-pass."""
 

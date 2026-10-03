@@ -7,7 +7,37 @@ Members must keep distinct values: Enum folds equal values into aliases.
 
 from __future__ import annotations
 
+import math
 from enum import Enum
+from typing import NamedTuple, Self
+
+
+class Choice(Enum):
+    """Base for the lookups a patch parameter selects by index. A `Param`
+    stores the index; `by_index` clamps it to the members, and `labels` are
+    the matching dropdown texts. Both walk `__members__`, so an alias (equal
+    values fold into the first name) keeps its own index and label - never
+    index `list(cls)`, which drops aliases."""
+
+    @classmethod
+    def by_index(cls, index: int) -> Self:
+        """The member numbered `index`, clamped to the available range."""
+        members = tuple(cls.__members__.values())
+        return members[max(0, min(index, len(members) - 1))]
+
+    @classmethod
+    def labels(cls) -> tuple[str, ...]:
+        """Display text for each index, in index order."""
+        return tuple(name.replace("_", " ").capitalize() for name in cls.__members__)
+
+
+class Phrase(NamedTuple):
+    """A melodic phrase: `steps` maps a step to its semitone offset above the
+    current chord root, and an absent step is a rest. `cycle` is the number of
+    steps one pass spans."""
+
+    cycle: int
+    steps: dict[int, int]
 
 
 class Scale(Enum):
@@ -20,6 +50,29 @@ class Scale(Enum):
     MINOR_PENTATONIC = (0, 3, 5, 7, 10)
     # major pentatonic closed at the octave, for random-draw melodies
     MAJOR_PENTATONIC_OCTAVE = (0, 2, 4, 7, 9, 12)
+
+    def voice(self, shape: Voicing, root_degree: int = 0) -> tuple[int, ...]:
+        """`shape`'s scale degrees as semitones above the chord root, stepped
+        through this scale, so one voicing is minor in a minor scale and major
+        in a major one. `root_degree` shifts the whole shape up that many
+        scale degrees first, as Strudel's `chrd` does. Degrees past the
+        scale's last tone wrap into the next octave."""
+        semitones = []
+        for degree in shape.value:
+            octave, step = divmod(degree + root_degree, len(self.value))
+            semitones.append(self.value[step] + 12 * octave)
+        return tuple(semitones)
+
+    def snap(self, note: float, key: int) -> float:
+        """MIDI `note` moved to the nearest tone of this scale in `key`
+        (a pitch class); equidistant tones resolve downward."""
+        octave = math.floor((note - key) / 12)
+        candidates = (
+            key + 12 * o + degree
+            for o in (octave - 1, octave, octave + 1)
+            for degree in self.value
+        )
+        return min(candidates, key=lambda c: (abs(c - note), c))
 
 
 class ChordShape(Enum):
@@ -39,7 +92,7 @@ class Walk(Enum):
     DRONE_WANDER = (0, -5, -3, 2, 0, -7, -5, 3)
 
 
-class Voicing(Enum):
+class Voicing(Choice):
     """Chord shapes as **scale degrees** above the chord root (not
     semitones), lowest voice first: `(0, 2, 4)` is a triad in whatever scale
     it is resolved against. Resolve with `Harmony.voice`.
@@ -137,15 +190,8 @@ class Voicing(Enum):
     POLY_CLUSTER = (0, 2, 6, 7, 11)
     BRIGHT_MODERN_EXTENSION = (0, 4, 8, 11, 14)
 
-    @classmethod
-    def by_index(cls, index: int) -> Voicing:
-        """The shape numbered `index` in the Strudel library, clamped to its
-        last entry as Strudel does."""
-        shapes = list(cls.__members__.values())
-        return shapes[max(0, min(index, len(shapes) - 1))]
 
-
-class ArpOrder(Enum):
+class ArpOrder(Choice):
     """The order an arpeggio visits its note pool, as one index per step.
 
     An index selects `pool[index % len(pool)]`, so an order longer than the
@@ -171,18 +217,21 @@ class ArpOrder(Enum):
     # a long rise that resets twice to the root at the end of the bar
     RISE_RESET = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 0, 1)
 
-    @classmethod
-    def by_index(cls, index: int) -> ArpOrder:
-        """The order numbered `index`, clamped to the available range."""
-        orders = list(cls)
-        return orders[max(0, min(index, len(orders) - 1))]
+    @property
+    def cycle(self) -> int:
+        """The number of steps one pass of this order spans."""
+        return len(self.value)
 
     def intervals(self, pool: tuple[int, ...]) -> tuple[int, ...]:
         """This order's semitone offset at each step, drawn from `pool`."""
         return tuple(pool[index % len(pool)] for index in self.value)
 
+    def steps(self, pool: tuple[int, ...]) -> dict[int, int]:
+        """`intervals` keyed by step, the form `step_pattern` reads."""
+        return dict(enumerate(self.intervals(pool)))
 
-class KeysProgression(Enum):
+
+class KeysProgression(Choice):
     """Four-bar electric-piano vamps for `Keys`, in the key of C.
 
     A member's value is `(roots, voicing_sets)`. `roots` are the chord roots
@@ -244,12 +293,6 @@ class KeysProgression(Enum):
             ((-2, 2, 5, 9), (-2, 2, 3, 7), (-4, 0, 3, 7), (-4, 0, 2, 7)),
         ),
     )
-
-    @classmethod
-    def by_index(cls, index: int) -> KeysProgression:
-        """The vamp numbered `index`, clamped to the available range."""
-        vamps = list(cls)
-        return vamps[max(0, min(index, len(vamps) - 1))]
 
     @property
     def roots(self) -> tuple[int, ...]:

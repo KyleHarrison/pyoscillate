@@ -7,11 +7,11 @@ import unittest
 from unittest.mock import MagicMock
 
 import pyoscillate.patches
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.params import Param, SliderSpec
-from pyoscillate.patches.utility.notes import notes
-from pyoscillate.patches.utility.notes.notes import freq_to_midi, midi_to_freq
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
+from pyoscillate.theory.notes import freq_to_midi, midi_to_freq
 
 REGISTER = SliderSpec(
     "root_freq", notes.B0, notes.A2, 1, notes.A1, "Register", "", scale="note"

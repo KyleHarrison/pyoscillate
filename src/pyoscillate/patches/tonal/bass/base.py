@@ -33,8 +33,8 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, PitchBend
 from pyoscillate.patches.params import Param
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory import notes
 
 __all__ = ["AccentBass", "Bass", "BassProfile"]
 
@@ -200,7 +200,9 @@ class Bass(PitchBend, Gate, GatedVoice):
         profile = self._profile
         step = (self._clock.tick // self._division.steps) % len(profile.pattern)
         if profile.gates[step]:
-            self.pitch.value = self.current_root() * 2 ** (profile.pattern[step] / 12)
+            self.pitch.value = notes.transpose(
+                self.current_root(), profile.pattern[step]
+            )
             self.apply_accent(profile.accents[step])
             self.trigger.play()
 

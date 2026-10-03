@@ -4,8 +4,8 @@ from pyoscillate.patches.drums.hat.groove import GrooveForest
 from pyoscillate.patches.drums.kick.kick import KickPunch
 from pyoscillate.patches.tonal.bass.groove import BassForest
 from pyoscillate.patches.tonal.lead.fm import LeadFmSwirl, LeadFmWind
-from pyoscillate.patches.utility.notes import notes
 from pyoscillate.projects.forest_psytrance.rack import ForestPsytranceRack
+from pyoscillate.theory import notes
 
 
 class ForestPsytranceRackTests(unittest.TestCase):

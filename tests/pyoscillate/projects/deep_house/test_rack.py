@@ -1,7 +1,7 @@
 import unittest
 
 from pyoscillate.patches.drums.kick.kick import Kick
-from pyoscillate.patches.musical.chord.chord import Chord
+from pyoscillate.patches.musical.stab.stab import Stab
 from pyoscillate.patches.tonal.bass.groove import GrooveBass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 
@@ -49,7 +49,7 @@ class DeepHouseRackTests(unittest.TestCase):
             )
         for slot in DeepHouseRack.chords_group.slots:
             self.assertEqual(
-                rack.patch_for(slot).brightness, Chord.brightness.spec.default
+                rack.patch_for(slot).brightness, Stab.brightness.spec.default
             )
         for slot in DeepHouseRack.kicks_group.slots:
             self.assertEqual(rack.patch_for(slot).punch, Kick.punch.spec.default)

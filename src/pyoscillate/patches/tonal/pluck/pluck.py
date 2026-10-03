@@ -11,11 +11,11 @@ from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
 from pyoscillate.clock import NoteDivision
-from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.utility.notes import notes
+from pyoscillate.theory import notes
+from pyoscillate.theory.harmony import Harmony
 
 # step -> chord-tone index; a step that is absent is a rest
 SPARSE_PATTERN = {0: 0, 2: 1, 4: 2, 6: 1}
@@ -106,7 +106,7 @@ class Pluck(Gate, GatedVoice):
         degree = self.harmony.chord_offset(bar_index) % 12
         root = self.harmony.chord_freq(self.root_freq, bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
-        return root * 2 ** ((12 + triad[tone_index]) / 12)
+        return notes.transpose(root, 12 + triad[tone_index])
 
     def on_evolve(self, index: int) -> None:
         self._step = self.step_pattern(
