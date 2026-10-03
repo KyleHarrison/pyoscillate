@@ -4,6 +4,7 @@ its members, each with a stable string `id`, a display `label` and a
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -64,6 +65,16 @@ class Catalog:
         return cls._members
 
     @classmethod
+    def subset(cls, members: Iterable[CatalogItem]) -> type[Catalog]:
+        """A new catalog of just `members` (each keeps its id, label and
+        category), in the order given."""
+        return type(
+            f"{cls.__name__}Subset",
+            (Catalog,),
+            {member.id.upper(): member for member in members},
+        )
+
+    @classmethod
     def ids(cls) -> tuple[str, ...]:
         """Each member's stable id, in dropdown order."""
         return tuple(member.id for member in cls._members)
@@ -72,6 +83,11 @@ class Catalog:
     def labels(cls) -> tuple[str, ...]:
         """Display text for each member, in dropdown order."""
         return tuple(member.label for member in cls._members)
+
+    @classmethod
+    def categories(cls) -> tuple[str, ...]:
+        """Each member's category, in dropdown order."""
+        return tuple(member.category for member in cls._members)
 
     @classmethod
     def by_id(cls, member_id: str) -> CatalogItem:
@@ -89,6 +105,8 @@ class Catalog:
     @classmethod
     def index_of(cls, member: CatalogItem) -> int:
         """`member`'s dropdown position, the number a `Param` stores."""
+        if member not in cls._members:
+            raise ValueError(f"{member.id!r} is not a member of {cls.__name__}")
         return cls._members.index(member)
 
     @classmethod

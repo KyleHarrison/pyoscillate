@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class ArpOrders(Catalog):
@@ -16,6 +16,7 @@ class ArpOrders(Catalog):
         cycle=10,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),
@@ -35,6 +36,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),
@@ -60,6 +62,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 15),
             Step(1, 14),
@@ -85,6 +88,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),
@@ -110,6 +114,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),
@@ -135,6 +140,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),
@@ -160,6 +166,7 @@ class ArpOrders(Catalog):
         cycle=16,
         mode=PhraseMode.POOL_INDEX,
         category="Order",
+        roles=(PhraseRole.ARP,),
         steps=(
             Step(0, 0),
             Step(1, 1),

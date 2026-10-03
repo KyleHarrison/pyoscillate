@@ -118,7 +118,6 @@ class RhythmDrum(Phrased, DrumVoice):
     gets `next_step` for free."""
 
     phrase = Phrased.phrase.replace(
-        catalog=Rhythms,
         default=Rhythms.QUARTER_PULSE,
         label="Pattern",
         help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "

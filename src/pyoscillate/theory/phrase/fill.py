@@ -5,7 +5,7 @@ from __future__ import annotations
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class Fills(Catalog):
@@ -19,6 +19,7 @@ class Fills(Catalog):
         label="Descending fill: fifth, fifth, third, root over two bars",
         mode=PhraseMode.SEMITONES,
         category="Fill",
+        roles=(PhraseRole.FILL,),
         steps=(
             Step(10, Interval.PERFECT_FIFTH),
             Step(26, Interval.PERFECT_FIFTH),
@@ -34,6 +35,7 @@ class Fills(Catalog):
         label="Bell figure: a two-bar minor-pentatonic ring",
         mode=PhraseMode.SEMITONES,
         category="Figure",
+        roles=(PhraseRole.BELL,),
         steps=(
             Step(0, Interval.OCTAVE),
             Step(6, Interval.PERFECT_FIFTH),

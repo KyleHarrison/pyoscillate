@@ -40,7 +40,7 @@ from pyoscillate.patches.common import (
 )
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Leads, Melodies, Phrase
+from pyoscillate.theory.phrase import Leads, Phrase, PhraseRole
 from pyoscillate.theory.phrase.arp import ArpOrders
 from pyoscillate.theory.pitch import Note
 
@@ -59,8 +59,8 @@ class Lead(PitchBend, Gate, RootPitch, Phrased, GatedVoice):
     # the arch has a rest at its last-but-one step, giving the phrase
     # somewhere for its Release tail to be heard; a style with a sparser or
     # differently-phrased line starts on another phrase
+    phrase_roles = (PhraseRole.LEAD,)
     phrase = Phrased.phrase.replace(
-        catalog=Melodies,
         default=Leads.LEAD_ARCH,
         help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
         "on the same shared lines.",
@@ -129,6 +129,7 @@ class Lead(PitchBend, Gate, RootPitch, Phrased, GatedVoice):
         rebuild=True,
         options=("Style phrase", *Chords.labels()),
         option_ids=("style_phrase", *Chords.ids()),
+        option_categories=("Style", *Chords.categories()),
     )
 
     arp_order = Param(

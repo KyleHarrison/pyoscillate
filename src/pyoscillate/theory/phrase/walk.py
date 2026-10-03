@@ -5,7 +5,7 @@ from __future__ import annotations
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class Walks(Catalog):
@@ -17,6 +17,7 @@ class Walks(Catalog):
         cycle=8,
         mode=PhraseMode.SEMITONES,
         category="Walk",
+        roles=(PhraseRole.DRONE,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.MINOR_THIRD),
@@ -34,6 +35,7 @@ class Walks(Catalog):
         cycle=8,
         mode=PhraseMode.SEMITONES,
         category="Walk",
+        roles=(PhraseRole.DRONE,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, -Interval.PERFECT_FOURTH),

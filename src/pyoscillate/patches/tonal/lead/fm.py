@@ -38,7 +38,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.phrase import Leads, Melodies, Phrase
+from pyoscillate.theory.phrase import Leads, Phrase, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -88,8 +88,8 @@ class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
         (8191, 0.0),
     ]
 
+    phrase_roles = (PhraseRole.LEAD,)
     phrase = Phrased.phrase.replace(
-        catalog=Melodies,
         default=Leads.LEAD_ARCH,
         help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
         "on the same shared lines.",

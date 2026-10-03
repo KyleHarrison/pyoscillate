@@ -27,7 +27,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Phrase, Rhythms
+from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
 
 # carrier (Hz), modulator ratio, index - inharmonic ratios keep the sidebands
 # from lining up into a pitch, so the cluster reads as metal, not a tone
@@ -43,6 +43,8 @@ class Groove(RhythmDrum):
     """
 
     volume = Patch.volume.replace(default=0.25)
+    phrase_roles = (PhraseRole.HAT,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.HAT_CRISP)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     # after the high-pass the FM cluster sits a little below noise; this

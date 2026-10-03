@@ -7,7 +7,7 @@ import unittest
 
 from pyoscillate import patches
 from pyoscillate.patches.base import Patch
-from pyoscillate.patches.common import Phrased
+from pyoscillate.patches.common import GatedVoice, Phrased
 from pyoscillate.patches.drums.kick.kick import Kick
 from pyoscillate.theory.catalog import Catalog
 from pyoscillate.theory.chord import Chords, ChordUnit
@@ -16,9 +16,9 @@ from pyoscillate.theory.phrase import (
     Fills,
     Hooks,
     Leads,
-    Melodies,
     Phrase,
     PhraseMode,
+    PhraseRole,
     Phrases,
     Rhythms,
 )
@@ -36,7 +36,6 @@ class CatalogTests(unittest.TestCase):
         Fills,
         Hooks,
         Phrases,
-        Melodies,
         ArpOrders,
         Walks,
         Chords,
@@ -190,9 +189,13 @@ class DropdownTests(unittest.TestCase):
 
     def test_a_member_can_be_assigned_to_a_choice_param(self) -> None:
         kick = Kick()
-        kick.phrase = Rhythms.BACKBEAT
-        self.assertEqual(kick.phrase, Rhythms.index_of(Rhythms.BACKBEAT))
-        self.assertIs(kick.selected_phrase, Rhythms.BACKBEAT)
+        kick.phrase = Rhythms.KICK_LOFI
+        self.assertEqual(kick.phrase, Kick.phrase.catalog.index_of(Rhythms.KICK_LOFI))
+        self.assertIs(kick.selected_phrase, Rhythms.KICK_LOFI)
+
+    def test_a_member_outside_the_patch_roles_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            Kick().phrase = BassLines.BASS_TECHNO
 
     def test_a_param_replaced_with_a_member_default_resolves_it(self) -> None:
 
@@ -201,6 +204,66 @@ class DropdownTests(unittest.TestCase):
 
         self.assertEqual(Voice.phrase.default, Rhythms.index_of(Rhythms.BACKBEAT))
         self.assertEqual(Voice.phrase.spec.option_ids, Rhythms.ids())
+
+
+class RoleTests(unittest.TestCase):
+    def test_every_phrase_names_its_roles(self) -> None:
+        for catalog in (Rhythms, BassLines, Leads, Fills, Hooks, ArpOrders, Walks):
+            for phrase in catalog.members():
+                with self.subTest(phrase=phrase.id):
+                    self.assertTrue(phrase.roles)
+
+    def test_for_roles_keeps_only_phrases_that_suit_a_role(self) -> None:
+        catalog = Phrases.for_roles(PhraseRole.KICK, PhraseRole.SNARE)
+        self.assertIn(Rhythms.KICK_LOFI.id, catalog.ids())
+        self.assertIn(Rhythms.BACKBEAT.id, catalog.ids())
+        self.assertNotIn(Rhythms.HAT_CRISP.id, catalog.ids())
+        self.assertNotIn(BassLines.BASS_TECHNO.id, catalog.ids())
+        for phrase in catalog.members():
+            self.assertTrue({PhraseRole.KICK, PhraseRole.SNARE} & set(phrase.roles))
+
+    def test_for_roles_is_the_same_catalog_each_time_and_keeps_order(self) -> None:
+        self.assertIs(
+            Phrases.for_roles(PhraseRole.HAT), Phrases.for_roles(PhraseRole.HAT)
+        )
+        self.assertIs(
+            Phrases.for_roles(PhraseRole.HAT, PhraseRole.KICK),
+            Phrases.for_roles(PhraseRole.KICK, PhraseRole.HAT),
+        )
+        order = [member.id for member in Phrases.members()]
+        ids = list(Phrases.for_roles(PhraseRole.KICK, PhraseRole.HAT).ids())
+        self.assertEqual(ids, sorted(ids, key=order.index))
+
+    def test_every_gated_patch_offers_only_its_roles(self) -> None:
+        checked = 0
+        for cls in DropdownTests.patch_classes():
+            if not (issubclass(cls, Phrased) and cls.phrase_roles):
+                continue
+            checked += 1
+            with self.subTest(patch=cls.__name__):
+                catalog = cls.phrase.catalog
+                for phrase in catalog.members():
+                    self.assertTrue(set(cls.phrase_roles) & set(phrase.roles))
+                self.assertIsInstance(catalog.by_index(int(cls.phrase.default)), Phrase)
+                for variant in getattr(cls, "variants", ()):
+                    self.assertIn(variant, catalog.members())
+        self.assertGreater(checked, 10)
+
+    def test_a_drum_does_not_offer_a_bass_line(self) -> None:
+        self.assertNotIn(BassLines.BASS_TECHNO.id, Kick.phrase.spec.option_ids)
+        self.assertIn(Rhythms.KICK_LOFI.id, Kick.phrase.spec.option_ids)
+
+    def test_a_default_outside_the_roles_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+
+            class Voice(Phrased, GatedVoice):
+                phrase_roles = (PhraseRole.BASS,)
+                phrase = Phrased.phrase.replace(default=Rhythms.QUARTER_PULSE)
+
+    def test_a_choice_param_carries_each_options_category(self) -> None:
+        spec = Kick.phrase.spec
+        self.assertEqual(spec.option_categories, Kick.phrase.catalog.categories())
+        self.assertEqual(len(spec.option_categories), len(spec.options))
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ from pyoscillate.patches.common import (
 )
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chord, Chords
-from pyoscillate.theory.phrase import Phrase, Rhythms
+from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
 from pyoscillate.theory.pitch import Note
 
 NOTES = 4
@@ -143,8 +143,8 @@ class Keys(Gate, RootPitch, Phrased, GatedVoice):
     throb: PyoObject
     voice_signal: PyoObject
 
+    phrase_roles = (PhraseRole.CHORD_HIT,)
     phrase = Phrased.phrase.replace(
-        catalog=Rhythms,
         default=Rhythms.CHARLESTON,
         help_text="Picks when in the bar the chords are struck: from sparse, swung stabs to a stab on every beat, "
         "or one chord left to ring.",

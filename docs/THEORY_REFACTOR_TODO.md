@@ -101,20 +101,23 @@ behaviour unchanged, old modules deleted.
 
 Goal: a patch only offers phrases/chords relevant to it.
 
-- [ ] Define `role` values (e.g. KICK, SNARE, HAT, PERC, BASS, LEAD, BELL,
+- [x] Define `role` values (a phrase carries `roles`, a tuple, since a pulse suits
+      several jobs; added CYMBAL and HOOK) (e.g. KICK, SNARE, HAT, PERC, BASS, LEAD, BELL,
       FILL, CHORD_HIT, ARP, DRONE) as a `PhraseRole` enum in
       `theory/phrase/base.py`.
-- [ ] `Phrased` mixin gets `phrase_roles: ClassVar[tuple[PhraseRole, ...]]`;
+- [x] `Phrased` mixin gets `phrase_roles: ClassVar[tuple[PhraseRole, ...]]`;
       `choice_param` offers only catalog members whose role is accepted.
       Set it on every gated patch (drums, bass, lead, keys, stab, bell, tom).
-- [ ] `Catalog.options` returns grouped data (`category -> members`); extend
+- [x] `Catalog.options` returns grouped data (`category -> members`); extend
       `SliderSpec.options` or add `grouped_options` for large catalogs.
-- [ ] Flet `choice` control (`flet/base.py` ~line 284): when a catalog has
+- [x] Flet `choice` control (`flet/base.py` ~line 284): when a catalog has
       more than one category and more than ~12 members, render a Category
       dropdown plus an Item dropdown filtered to it. Small catalogs stay one
       dropdown. Use the flet MCP (`get_api`) to check Dropdown API.
-- [ ] Apply to Chord/Voicing params (stab, lead) and Progression.
-- [ ] Tests for filtering; ruff; .
+- [x] Apply to Chord/Voicing params (stab, lead) and Progression.
+- [x] Tests for filtering; ruff; .
+
+Note: Progression stays a single dropdown (7 members, under the threshold).
 
 ## Phase 3: Categorised patch selector
 

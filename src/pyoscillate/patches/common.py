@@ -19,7 +19,7 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.phrase import Phrase, PhraseMode, Phrases, Rhythms
+from pyoscillate.theory.phrase import Phrase, PhraseMode, PhraseRole, Phrases, Rhythms
 from pyoscillate.theory.pitch import Note
 
 
@@ -264,9 +264,11 @@ class Phrased(GatedVoice):
     picks it from the shared catalogs in `theory/phrase/`, so a pattern is
     written there once and any voice can play it. The phrase lives on the
     `Param` alone; `selected_phrase` reads it back. A voice family names the
-    catalog it offers and its starting phrase with
-    `phrase = Phrased.phrase.replace(catalog=Rhythms, default=Rhythms.X)`
-    and calls `self.schedule_pattern(context)` from `build()`; `finish()` then
+    roles it accepts and its starting phrase with
+    `phrase_roles = (PhraseRole.HAT,)` and
+    `phrase = Phrased.phrase.replace(default=Rhythms.X)`, so the dropdown
+    offers only phrases tagged with one of those roles (a starting phrase
+    or variant outside them raises when the class is defined). It calls `self.schedule_pattern(context)` from `build()`; `finish()` then
     runs the control, which reads the steps off the shared clock. A step's
     value is the phrase's `values`: its accent for a `PhraseMode.NONE` rhythm,
     otherwise its offset, which the voice resolves to a pitch by the phrase's
@@ -274,6 +276,16 @@ class Phrased(GatedVoice):
     triad); read a step's level off `selected_phrase.accents[step.index]`.
     Mix it in ahead of the voice base: `class Stab(Gate, Phrased,
     GatedVoice)`."""
+
+    # the roles whose phrases the dropdown offers; empty offers every phrase
+    phrase_roles: ClassVar[tuple[PhraseRole, ...]] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        if cls.phrase_roles and "phrase_roles" in vars(cls):
+            narrowed = cls.phrase.replace(catalog=Phrases.for_roles(*cls.phrase_roles))
+            narrowed.__set_name__(cls, "phrase")
+            cls.phrase = narrowed
+        super().__init_subclass__(**kwargs)
 
     def _select_phrase(self, value: float) -> None:
         self.use_phrase(self.selected_phrase_at(value))

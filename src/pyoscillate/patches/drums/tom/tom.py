@@ -21,7 +21,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Phrased
 from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Fills, Melodies
+from pyoscillate.theory.phrase import Fills, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -89,8 +89,8 @@ class Tom(Phrased, DrumVoice):
     # pitches rather than levels. It walks down the minor pentatonic (fifth,
     # fifth, minor third, root), all tones of the rack's minor-seventh chords
     # (E, E, C, A over Am7)
+    phrase_roles = (PhraseRole.FILL,)
     phrase = Phrased.phrase.replace(
-        catalog=Melodies,
         default=Fills.TOM_FILL,
         help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
         "on the same shared lines.",

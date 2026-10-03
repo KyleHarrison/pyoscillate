@@ -175,8 +175,13 @@ chord root (`SEMITONES`), an index into the chord's triad (`CHORD_TONE`) or
 into a note pool the patch supplies (`POOL_INDEX`). A patch never defines its
 own: it mixes in `Phrased` (`common.py`), which adds a dropdown `Param`
 (`phrase`), schedules on the chosen phrase's own grid and swaps it live. A
-voice family names the catalog it offers and its starting phrase with
-`phrase = Phrased.phrase.replace(catalog=Rhythms, default=Rhythms.X)`; a style
+voice family names the `PhraseRole`s it accepts and its starting phrase with
+`phrase_roles = (PhraseRole.HAT,)` and
+`phrase = Phrased.phrase.replace(default=Rhythms.X)`; the dropdown then offers
+only phrases tagged with one of those roles (a `Phrase` lists every job it
+suits in `roles`; a default or variant outside them raises when the class is
+defined). A choice with several categories and over 12 options shows as a
+category dropdown over an item dropdown in the Flet panel. A style
 changes only the default (`phrase = Voice.phrase.replace(default=Rhythms.Y)`)
 and, for `on_evolve`, rotates by assigning the member to the `Param`
 (`self.phrase = variant`), so the dropdown stays the single source. The

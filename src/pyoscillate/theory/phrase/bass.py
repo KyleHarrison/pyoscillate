@@ -5,7 +5,7 @@ from __future__ import annotations
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class BassLines(Catalog):
@@ -18,6 +18,7 @@ class BassLines(Catalog):
         label="Techno bass: steady 16ths with an octave and a fifth leaning in",
         mode=PhraseMode.SEMITONES,
         category="Driving",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.UNISON, accent=0.6),
@@ -43,6 +44,7 @@ class BassLines(Catalog):
         label="Rolling bass: constant 16ths moving through fifth, octave and minor third",
         mode=PhraseMode.SEMITONES,
         category="Driving",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.UNISON, accent=0.72),
@@ -68,6 +70,7 @@ class BassLines(Catalog):
         label="Dub bass: sparser, fifth and minor seventh answering the root",
         mode=PhraseMode.SEMITONES,
         category="Driving",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.UNISON, accent=0.72),
@@ -93,6 +96,7 @@ class BassLines(Catalog):
         label="Muted bass: short stabs, fifth, minor third and minor seventh",
         mode=PhraseMode.SEMITONES,
         category="Muted",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.UNISON, accent=0.72),
@@ -118,6 +122,7 @@ class BassLines(Catalog):
         label="Muted bass B: the same stabs landing on different steps",
         mode=PhraseMode.SEMITONES,
         category="Muted",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.UNISON, accent=0.72),
@@ -143,6 +148,7 @@ class BassLines(Catalog):
         label="Forest bass: rests on each beat, rolls the 16ths between kicks",
         mode=PhraseMode.SEMITONES,
         category="Sparse",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(1, Interval.UNISON, accent=0.8),
             Step(2, Interval.UNISON, accent=0.95),
@@ -164,6 +170,7 @@ class BassLines(Catalog):
         label="Conversation bass: sparse held notes over four bars",
         mode=PhraseMode.SEMITONES,
         category="Sparse",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON, accent=0.75),
             Step(8, Interval.UNISON, accent=0.75),
@@ -180,6 +187,7 @@ class BassLines(Catalog):
         label="Conversation bass B: the third bar leans on the fifth",
         mode=PhraseMode.SEMITONES,
         category="Sparse",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON, accent=0.75),
             Step(8, Interval.UNISON, accent=0.75),
@@ -197,6 +205,7 @@ class BassLines(Catalog):
         label="Hover bass: steady eighths, stepping up a bar at a time",
         mode=PhraseMode.SEMITONES,
         category="Sparse",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON, accent=0.95),
             Step(2, Interval.UNISON, accent=0.8),
@@ -243,6 +252,7 @@ class BassLines(Catalog):
         label="Funk bass: a syncopated bar of held notes, pops and ghosts",
         mode=PhraseMode.SEMITONES,
         category="Groove",
+        roles=(PhraseRole.BASS,),
         steps=(
             Step(0, Interval.UNISON, length=1.8),
             Step(3, Interval.UNISON, accent=0.55, length=0.4),

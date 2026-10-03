@@ -13,7 +13,7 @@ from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import Hooks, Rhythms
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
 
@@ -27,6 +27,7 @@ class _StubPatch(Patch):
 
     test_value = Param(0.0, 1.0, 0.1, 0.5, "Test value", "Helpful detail")
     test_phrase = choice_param(Rhythms, Rhythms.BACKBEAT, "Picks a rhythm.")
+    test_hook = choice_param(Hooks, Hooks.SPARSE_HOOK, "Picks a hook.")
 
     def build(self, context: BuildContext) -> Patch:
         return self
@@ -60,6 +61,56 @@ class PresetIdTests(unittest.TestCase):
         self.panel.apply_preset({"test_phrase": "no_such_rhythm"})
 
         self.assertEqual(self.voice.test_phrase, before)
+
+
+class GroupedChoiceTests(unittest.TestCase):
+    """A long, varied choice splits into a category and an item dropdown."""
+
+    def setUp(self) -> None:
+        self.voice = _StubPatch()
+        self.panel = PatchPanel(self.voice)
+
+    def test_a_large_catalog_gets_a_category_dropdown(self) -> None:
+        category = self.panel._category_dropdowns[_StubPatch.test_phrase]
+        item = self.panel._dropdowns[_StubPatch.test_phrase]
+
+        self.assertEqual(category.value, Rhythms.BACKBEAT.category)
+        self.assertEqual(
+            [int(option.key) for option in item.options],
+            [
+                i
+                for i, member in enumerate(Rhythms.members())
+                if member.category == Rhythms.BACKBEAT.category
+            ],
+        )
+        self.assertEqual(item.value, str(Rhythms.index_of(Rhythms.BACKBEAT)))
+
+    def test_a_small_catalog_stays_one_dropdown(self) -> None:
+        self.assertNotIn(_StubPatch.test_hook, self.panel._category_dropdowns)
+        self.assertEqual(len(self.panel._dropdowns[_StubPatch.test_hook].options), 2)
+
+    def test_choosing_a_category_selects_its_first_item(self) -> None:
+        page = MagicMock()
+        event = SimpleNamespace(control=SimpleNamespace(value="Hats"), page=page)
+
+        self.panel._handle_category(_StubPatch.test_phrase, event)
+
+        self.assertEqual(self.voice.test_phrase, Rhythms.index_of(Rhythms.HAT_CRISP))
+        item = self.panel._dropdowns[_StubPatch.test_phrase]
+        self.assertTrue(
+            all(Rhythms.members()[int(o.key)].category == "Hats" for o in item.options)
+        )
+
+    def test_showing_a_value_moves_both_dropdowns(self) -> None:
+        self.panel._show(_StubPatch.test_phrase, Rhythms.index_of(Rhythms.KICK_LOFI))
+
+        self.assertEqual(
+            self.panel._category_dropdowns[_StubPatch.test_phrase].value, "Lofi"
+        )
+        self.assertEqual(
+            self.panel._dropdowns[_StubPatch.test_phrase].value,
+            str(Rhythms.index_of(Rhythms.KICK_LOFI)),
+        )
 
 
 class PatchGroupTests(unittest.TestCase):

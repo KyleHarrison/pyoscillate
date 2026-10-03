@@ -31,7 +31,7 @@ from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 from pyoscillate.theory.pitch import Note
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
@@ -53,8 +53,8 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Phrased, GatedVoice):
     volume = Patch.volume.replace(default=0.5)
     base_division: ClassVar[NoteDivision] = NoteDivision.WHOLE
     # the ensemble re-articulates once a bar, on the chord change
+    phrase_roles = (PhraseRole.CHORD_HIT,)
     phrase = Phrased.phrase.replace(
-        catalog=Rhythms,
         default=Rhythms.BAR_PULSE,
         help_text="Picks when in the bar the hits fall, from a plain pulse to a backbeat or a swung, "
         "ghost-noted pocket; every voice draws on the same shared patterns.",

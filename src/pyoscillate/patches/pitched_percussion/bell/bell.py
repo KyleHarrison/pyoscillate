@@ -34,7 +34,7 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import RING_CURVE, RootPitch, decay_points
 from pyoscillate.patches.params import Param, choice_param, rate_param
-from pyoscillate.theory.phrase import Fills, Melodies, Phrase
+from pyoscillate.theory.phrase import Fills, Phrase, PhraseRole, Phrases
 from pyoscillate.theory.pitch import Note
 
 STYLES = ("chime", "fm")
@@ -131,23 +131,29 @@ class Bell(RootPitch, Patch):
         self.set_ring(value)
 
     def _select_phrase(self, value: float) -> None:
-        self._grid = Melodies.by_index(int(value)).division
+        self._grid = self.selected_phrase_at(value).division
         self.reschedule(self.rate)
 
     # the figure, as semitones above Register; the bell steps through its own
     # counter, so any melodic phrase on any grid plays from the top when chosen
     phrase = choice_param(
-        Melodies,
+        Phrases.for_roles(PhraseRole.BELL, PhraseRole.LEAD),
         Fills.BELL_FIGURE,
         "Picks the figure the bell rings, as pitches above its register; every pitched voice draws on "
         "the same shared lines.",
         control=_select_phrase,
     )
 
+    def selected_phrase_at(self, index: float) -> Phrase:
+        """The phrase at dropdown position `index`."""
+        catalog = type(self).phrase.catalog
+        assert catalog is not None
+        return catalog.by_index(int(index))
+
     @property
     def selected_phrase(self) -> Phrase:
         """The phrase the `phrase` dropdown currently names."""
-        return Melodies.by_index(int(self.phrase))
+        return self.selected_phrase_at(self.phrase)
 
     rate = rate_param(
         base_division,

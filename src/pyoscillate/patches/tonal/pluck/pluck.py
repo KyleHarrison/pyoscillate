@@ -1,4 +1,4 @@
-"""Clocked FM plucks with a decaying brightness envelope and short body."""
+# uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.pluck.pluck
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Hooks, Phrase
+from pyoscillate.theory.phrase import Hooks, Phrase, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -23,8 +23,8 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
     volume = Patch.volume.replace(default=0.4)
+    phrase_roles = (PhraseRole.HOOK,)
     phrase = Phrased.phrase.replace(
-        catalog=Hooks,
         default=Hooks.SPARSE_HOOK,
         help_text="Picks which chord tones are played and when, from a sparse hook to one that fills every step.",
     )
@@ -114,9 +114,7 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
 
         initial_frequency = self._note_frequency(0, context.clock.bar_index)
         self.pitch = SigTo(value=initial_frequency, time=0.01)
-        self.amp_env = self.envelope(
-            [(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3
-        )
+        self.amp_env = self.envelope([(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3)
         self.brightness_env = self.envelope(
             [(0, 1), (8191, 0)], dur=self.brightness_decay, mul=0, exp=3
         )

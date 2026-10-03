@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pyoscillate.theory.catalog import Catalog
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 from pyoscillate.theory.phrase.bass import BassLines
 from pyoscillate.theory.phrase.fill import Fills
 from pyoscillate.theory.phrase.hook import Hooks
@@ -15,9 +17,9 @@ __all__ = [
     "Fills",
     "Hooks",
     "Leads",
-    "Melodies",
     "Phrase",
     "PhraseMode",
+    "PhraseRole",
     "Phrases",
     "Rhythms",
     "Step",
@@ -27,13 +29,22 @@ __all__ = [
 class Phrases(Catalog):
     """Every phrase a clocked patch can play, one list over all roles.
     `ArpOrders` and `Walks` are not in it: they need a note pool or a pace of
-    their own, so their patches name them directly."""
+    their own, so their patches name them directly. A patch offers the part of
+    it that suits it with `for_roles`."""
 
     sources = (Rhythms, BassLines, Leads, Fills, Hooks)
 
+    _by_roles: ClassVar[dict[frozenset[PhraseRole], type[Catalog]]] = {}
 
-class Melodies(Catalog):
-    """The pitched lines a melodic voice (a bass, a lead, a tom, a bell) can
-    play, whose offsets are semitones above the chord root."""
-
-    sources = (Leads, BassLines, Fills)
+    @classmethod
+    def for_roles(cls, *roles: PhraseRole) -> type[Catalog]:
+        """The catalog of phrases that suit any of `roles`, in `Phrases`
+        order. The same roles give the same catalog."""
+        key = frozenset(roles)
+        if key not in cls._by_roles:
+            cls._by_roles[key] = cls.subset(
+                phrase
+                for phrase in cls.members()
+                if isinstance(phrase, Phrase) and key.intersection(phrase.roles)
+            )
+        return cls._by_roles[key]

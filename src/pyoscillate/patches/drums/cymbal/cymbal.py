@@ -22,7 +22,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 # carrier (Hz), modulator ratio, index
 METAL_OPERATORS = (
@@ -39,6 +39,8 @@ class Cymbal(RhythmDrum):
     variants share this graph and override the profile attributes below."""
 
     volume = Patch.volume.replace(default=0.15)
+    phrase_roles = (PhraseRole.CYMBAL,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.RIDE_QUARTERS)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     noise_level: ClassVar[float] = 0.3
     # one full drift of the band centre spans this many bars

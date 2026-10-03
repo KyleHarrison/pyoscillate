@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class Hooks(Catalog):
@@ -17,6 +17,7 @@ class Hooks(Catalog):
         label="Sparse hook: root, third, fifth, third",
         mode=PhraseMode.CHORD_TONE,
         category="Hook",
+        roles=(PhraseRole.HOOK,),
         steps=(
             Step(0, 0),
             Step(2, 1),
@@ -31,6 +32,7 @@ class Hooks(Catalog):
         label="Full hook: the triad rocked through every eighth",
         mode=PhraseMode.CHORD_TONE,
         category="Hook",
+        roles=(PhraseRole.HOOK,),
         steps=(
             Step(0, 0),
             Step(1, 1),

@@ -20,7 +20,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 from pyoscillate.theory.pitch import Note
 
 
@@ -30,6 +30,8 @@ class Percussion(RhythmDrum):
     override the profile attributes below."""
 
     volume = Patch.volume.replace(default=0.28)
+    phrase_roles = (PhraseRole.PERC,)
+    phrase = RhythmDrum.phrase.replace(default=Rhythms.RIM_OFFBEATS)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     decay_curve: ClassVar[float] = 3
     bend_curve: ClassVar[float] = 6

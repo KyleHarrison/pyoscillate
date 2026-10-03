@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class Rhythms(Catalog):
@@ -17,6 +17,7 @@ class Rhythms(Catalog):
         label="Charleston: beat 1 and the 'and' of 2",
         mode=PhraseMode.NONE,
         category="Comping",
+        roles=(PhraseRole.CHORD_HIT,),
         steps=(
             Step(0),
             Step(6, accent=0.55),
@@ -29,6 +30,7 @@ class Rhythms(Catalog):
         label="Four on the floor: every beat",
         mode=PhraseMode.NONE,
         category="Pulse",
+        roles=(PhraseRole.CHORD_HIT, PhraseRole.KICK),
         steps=(
             Step(0),
             Step(4, accent=0.7),
@@ -43,6 +45,7 @@ class Rhythms(Catalog):
         label="Offbeat house: every 'and'",
         mode=PhraseMode.NONE,
         category="Comping",
+        roles=(PhraseRole.CHORD_HIT, PhraseRole.HAT, PhraseRole.PERC),
         steps=(
             Step(2, accent=0.9),
             Step(6, accent=0.8),
@@ -57,6 +60,7 @@ class Rhythms(Catalog):
         label="Whole bar: one hit a bar",
         mode=PhraseMode.NONE,
         category="Pulse",
+        roles=(PhraseRole.CHORD_HIT,),
         steps=(Step(0),),
     )
     # pushes ahead of beats two and four
@@ -66,6 +70,7 @@ class Rhythms(Catalog):
         label="Syncopated push: ahead of the beat",
         mode=PhraseMode.NONE,
         category="Comping",
+        roles=(PhraseRole.CHORD_HIT,),
         steps=(
             Step(0),
             Step(5, accent=0.6),
@@ -80,6 +85,7 @@ class Rhythms(Catalog):
         label="Quarter pulse: a hit on every beat",
         mode=PhraseMode.NONE,
         category="Pulse",
+        roles=(PhraseRole.KICK, PhraseRole.HAT, PhraseRole.PERC, PhraseRole.CHORD_HIT),
         steps=(Step(0),),
     )
     # one hit per half-beat: a steady ticking hat
@@ -89,6 +95,7 @@ class Rhythms(Catalog):
         label="Eighth pulse: a hit on every half-beat",
         mode=PhraseMode.NONE,
         category="Pulse",
+        roles=(PhraseRole.HAT, PhraseRole.PERC, PhraseRole.CHORD_HIT),
         steps=(Step(0),),
     )
     # beats two and four, the backbeat a clap or snare accents
@@ -98,6 +105,7 @@ class Rhythms(Catalog):
         label="Backbeat: beats 2 and 4",
         mode=PhraseMode.NONE,
         category="Backbeat",
+        roles=(PhraseRole.SNARE, PhraseRole.PERC),
         steps=(
             Step(4),
             Step(12),
@@ -110,6 +118,7 @@ class Rhythms(Catalog):
         label="Backbeat with a ghost: beats 2 and 4, a soft pickup",
         mode=PhraseMode.NONE,
         category="Backbeat",
+        roles=(PhraseRole.SNARE,),
         steps=(
             Step(4),
             Step(12),
@@ -123,6 +132,7 @@ class Rhythms(Catalog):
         label="Rim offbeats: the last 16th of every beat",
         mode=PhraseMode.NONE,
         category="Percussion",
+        roles=(PhraseRole.PERC,),
         steps=(
             Step(3),
             Step(7),
@@ -137,6 +147,7 @@ class Rhythms(Catalog):
         label="Conga syncopation: five loose hits a bar",
         mode=PhraseMode.NONE,
         category="Percussion",
+        roles=(PhraseRole.PERC,),
         steps=(
             Step(3),
             Step(6),
@@ -152,6 +163,7 @@ class Rhythms(Catalog):
         label="Ride quarters: a hit on every beat",
         mode=PhraseMode.NONE,
         category="Cymbal",
+        roles=(PhraseRole.CYMBAL, PhraseRole.HAT),
         steps=(
             Step(0),
             Step(4, accent=0.8),
@@ -166,6 +178,7 @@ class Rhythms(Catalog):
         label="Crash phrase: one hit every eight bars",
         mode=PhraseMode.NONE,
         category="Cymbal",
+        roles=(PhraseRole.CYMBAL,),
         steps=(Step(0),),
     )
     # hats: closed 16ths on the "and" of every beat
@@ -175,6 +188,7 @@ class Rhythms(Catalog):
         label="Crisp hats: closed on every 'and'",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(2),
             Step(6),
@@ -189,6 +203,7 @@ class Rhythms(Catalog):
         label="Open hats: ringing offbeats choked on the last 16th",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(2, open=True),
             Step(6, open=True),
@@ -204,6 +219,7 @@ class Rhythms(Catalog):
         label="Shuffle hats: syncopated, ending open",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(2),
             Step(5, accent=0.66),
@@ -220,6 +236,7 @@ class Rhythms(Catalog):
         label="Forest hats: quiet open offbeats choked by ghosts",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(2, accent=0.6, open=True),
             Step(3, accent=0.25),
@@ -241,6 +258,7 @@ class Rhythms(Catalog):
         label="Lofi hats: swung 16ths with ghost notes",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(0),
             Step(3, accent=0.4),
@@ -266,6 +284,7 @@ class Rhythms(Catalog):
         label="Lofi hats, full: swung 16ths with every ghost filled in",
         mode=PhraseMode.NONE,
         category="Hats",
+        roles=(PhraseRole.HAT,),
         steps=(
             Step(0),
             Step(2, accent=0.25),
@@ -301,6 +320,7 @@ class Rhythms(Catalog):
         label="Lofi kick: boom-bap with a swung 'and' and a ghost",
         mode=PhraseMode.NONE,
         category="Lofi",
+        roles=(PhraseRole.KICK,),
         steps=(
             Step(0),
             Step(13, accent=0.85),
@@ -314,6 +334,7 @@ class Rhythms(Catalog):
         label="Lofi kick, full: boom-bap with extra soft hits",
         mode=PhraseMode.NONE,
         category="Lofi",
+        roles=(PhraseRole.KICK,),
         steps=(
             Step(0),
             Step(8, accent=0.45),
@@ -332,6 +353,7 @@ class Rhythms(Catalog):
         label="Lofi snare: a late backbeat with ghost notes",
         mode=PhraseMode.NONE,
         category="Lofi",
+        roles=(PhraseRole.SNARE,),
         steps=(
             Step(6, accent=0.25),
             Step(9),
@@ -346,5 +368,6 @@ class Rhythms(Catalog):
         label="Bar pulse: a hit at the top of every bar",
         mode=PhraseMode.NONE,
         category="Pulse",
+        roles=(PhraseRole.CHORD_HIT, PhraseRole.CYMBAL),
         steps=(Step(0),),
     )

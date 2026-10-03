@@ -5,7 +5,7 @@ from __future__ import annotations
 from pyoscillate.clock import NoteDivision
 from pyoscillate.theory.catalog import Catalog
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, PhraseRole, Step
 
 
 class Leads(Catalog):
@@ -19,6 +19,7 @@ class Leads(Catalog):
         label="Arch: root up the triad to the octave and back",
         mode=PhraseMode.SEMITONES,
         category="Motif",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.UNISON),
             Step(1, Interval.MAJOR_THIRD),
@@ -37,6 +38,7 @@ class Leads(Catalog):
         label="Muted motif: a sparse minor-pentatonic phrase",
         mode=PhraseMode.SEMITONES,
         category="Motif",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.UNISON),
             Step(3, Interval.MINOR_THIRD),
@@ -53,6 +55,7 @@ class Leads(Catalog):
         label="Wind drift: sparse, floating long notes",
         mode=PhraseMode.SEMITONES,
         category="Wind",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.PERFECT_FIFTH),
             Step(5, Interval.MINOR_SIXTH),
@@ -71,6 +74,7 @@ class Leads(Catalog):
         label="Wind drift B: the same drift falling from the octave",
         mode=PhraseMode.SEMITONES,
         category="Wind",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.OCTAVE),
             Step(6, Interval.MINOR_SEVENTH),
@@ -89,6 +93,7 @@ class Leads(Catalog):
         label="Swirl groove: syncopated 16ths sliding through the minor scale",
         mode=PhraseMode.SEMITONES,
         category="Groove",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.PERFECT_FIFTH),
             Step(3, Interval.PERFECT_FIFTH),
@@ -112,6 +117,7 @@ class Leads(Catalog):
         label="Swirl groove B: the same groove falling from the octave",
         mode=PhraseMode.SEMITONES,
         category="Groove",
+        roles=(PhraseRole.LEAD,),
         steps=(
             Step(0, Interval.OCTAVE),
             Step(2, Interval.MINOR_SEVENTH),

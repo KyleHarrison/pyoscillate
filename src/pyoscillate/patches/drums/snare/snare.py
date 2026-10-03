@@ -26,7 +26,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 from pyoscillate.theory.pitch import Note
 
 
@@ -40,6 +40,7 @@ class Snare(RhythmDrum):
     bend_curve: ClassVar[float] = 6
 
     # the backbeat with a quiet final ghost note
+    phrase_roles = (PhraseRole.SNARE,)
     phrase = RhythmDrum.phrase.replace(default=Rhythms.BACKBEAT_GHOST)
     base_freq: ClassVar[float] = Note.Fs3
     # pitch bend at the strike, as a fraction above the body - kept well

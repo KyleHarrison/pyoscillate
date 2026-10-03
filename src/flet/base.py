@@ -25,7 +25,7 @@ import flet as ft
 from pyoscillate.clock import Clock
 from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
-from pyoscillate.patches.params import Param
+from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
@@ -40,6 +40,9 @@ TEXT = "#F4F7F6"
 MUTED = "#A9B8B4"
 BPM_MIN = 40
 BPM_MAX = 220
+# a choice with more options than this and several categories is split into a
+# category dropdown and an item dropdown
+GROUPED_OPTION_THRESHOLD = 12
 ERROR = "#FF8A80"
 # preset entry for rack-wide settings; the leading underscore keeps it from
 # colliding with a patch name
@@ -268,6 +271,7 @@ class PatchPanel:
         self._value_texts: dict[Param, ft.Text] = {}
         self._sliders: dict[Param, ft.Slider] = {}
         self._dropdowns: dict[Param, ft.Dropdown] = {}
+        self._category_dropdowns: dict[Param, ft.Dropdown] = {}
         self.sweep_rows: dict[Param, SweepRow] = {}
 
         self.switch = ft.Switch(
@@ -280,27 +284,57 @@ class PatchPanel:
 
     # -- UI construction -------------------------------------------------
 
+    @staticmethod
+    def _is_grouped(spec: SliderSpec) -> bool:
+        """Whether a choice is long and varied enough to split into a
+        category dropdown and an item dropdown filtered to it."""
+        return (
+            len(set(spec.option_categories)) > 1
+            and len(spec.options) > GROUPED_OPTION_THRESHOLD
+        )
+
+    @staticmethod
+    def _item_options(
+        spec: SliderSpec, category: str | None = None
+    ) -> list[ft.dropdown.Option]:
+        """The options of `category` (all of them when None), each keyed by
+        its index in `spec`."""
+        return [
+            ft.dropdown.Option(key=str(i), text=name)
+            for i, name in enumerate(spec.options)
+            if category is None or spec.option_categories[i] == category
+        ]
+
     def _option_row(self, param: Param) -> ft.Container:
-        """A named-choice parameter: a dropdown whose value is the index."""
+        """A named-choice parameter: a dropdown whose value is the index, or
+        for a long grouped list a category dropdown over an item dropdown."""
         spec = param.spec
+        index = int(param.read(self.patch))
+        controls: list[ft.Control] = [
+            ft.Text(spec.description, color=TEXT, size=14),
+            ft.Text(spec.help_text, color=MUTED, size=12),
+        ]
+        if self._is_grouped(spec):
+            categories = tuple(dict.fromkeys(spec.option_categories))
+            category_dropdown = ft.Dropdown(
+                options=[ft.dropdown.Option(key=name) for name in categories],
+                value=spec.option_categories[index],
+                on_select=lambda e, param=param: self._handle_category(param, e),
+            )
+            self._category_dropdowns[param] = category_dropdown
+            controls.append(category_dropdown)
+            item_options = self._item_options(spec, spec.option_categories[index])
+        else:
+            item_options = self._item_options(spec)
         dropdown = ft.Dropdown(
-            options=[
-                ft.dropdown.Option(key=str(i), text=name)
-                for i, name in enumerate(spec.options)
-            ],
-            value=str(int(param.read(self.patch))),
+            options=item_options,
+            value=str(index),
             on_select=lambda e, param=param: self._handle_option(param, e),
         )
         self._dropdowns[param] = dropdown
+        controls.append(dropdown)
         return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(spec.description, color=TEXT, size=14),
-                    ft.Text(spec.help_text, color=MUTED, size=12),
-                    dropdown,
-                ],
-                spacing=2,
-            ),
+            content=ft.Column(controls=controls, spacing=2),
             col={"xs": 12, "md": 6},
             padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
         )
@@ -407,6 +441,12 @@ class PatchPanel:
 
     def _show(self, param: Param, value: float) -> None:
         if param in self._dropdowns:
+            if param in self._category_dropdowns:
+                category = param.spec.option_categories[int(value)]
+                self._category_dropdowns[param].value = category
+                self._dropdowns[param].options = self._item_options(
+                    param.spec, category
+                )
             self._dropdowns[param].value = str(int(value))
             return
         self._sliders[param].value = param.spec.to_position(value)
@@ -442,6 +482,17 @@ class PatchPanel:
         value = param.spec.from_position(float(e.control.value))
         param.write(self.patch, value)
         self._value_texts[param].value = param.spec.format(value)
+        self._apply()
+        e.page.update()
+
+    def _handle_category(self, param: Param, e: ft.ControlEvent) -> None:
+        """Show the chosen category's items and select the first of them."""
+        spec = param.spec
+        options = self._item_options(spec, str(e.control.value))
+        item = self._dropdowns[param]
+        item.options = options
+        item.value = options[0].key
+        param.write(self.patch, float(options[0].key))
         self._apply()
         e.page.update()
 

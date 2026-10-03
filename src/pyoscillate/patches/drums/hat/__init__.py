@@ -17,7 +17,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 # the tick's own default decay (s); read directly at construction (as well as
 # from its own `@Param`) since there's no separate style constant behind it
@@ -32,6 +32,7 @@ class Tick(RhythmDrum):
     title = "Hi-hat"
     summary = "Subtle, airy top-end pulse."
     volume = Patch.volume.replace(default=0.2)
+    phrase_roles = (PhraseRole.HAT,)
     phrase = RhythmDrum.phrase.replace(default=Rhythms.EIGHTH_PULSE)
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     # exponent of the decay curve - a sharp, strongly exponential drop keeps

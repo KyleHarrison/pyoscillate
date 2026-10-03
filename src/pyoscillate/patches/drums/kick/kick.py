@@ -25,7 +25,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Phrase, Rhythms
+from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
 
 
 class Kick(RhythmDrum):
@@ -54,6 +54,7 @@ class Kick(RhythmDrum):
     # the kick plays a full-level hit on every beat unless a style picks
     # another rhythm to place hits off the straight grid (swing) and/or vary
     # their level (ghost notes)
+    phrase_roles = (PhraseRole.KICK,)
     phrase = RhythmDrum.phrase.replace(default=Rhythms.QUARTER_PULSE)
 
     # the graph, assigned by build(); finish() retains every one of them

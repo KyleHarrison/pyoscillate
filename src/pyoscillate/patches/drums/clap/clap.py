@@ -19,7 +19,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 
 class Clap(RhythmDrum):
@@ -33,6 +33,7 @@ class Clap(RhythmDrum):
     volume = Patch.volume.replace(default=0.28)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
     # beats two and four - the backbeat this clap accents
+    phrase_roles = (PhraseRole.SNARE,)
     phrase = RhythmDrum.phrase.replace(default=Rhythms.BACKBEAT)
     # short bursts before the tail; the tail's onset acts as the final hand
     bursts: ClassVar[int] = 3

@@ -24,6 +24,27 @@ class PhraseMode(Enum):
     POOL_INDEX = "pool_index"
 
 
+class PhraseRole(Enum):
+    """The job a phrase does, so a patch offers only the phrases that suit it
+    (a kick has no use for a hat shuffle or a bass line)."""
+
+    KICK = "kick"
+    SNARE = "snare"
+    HAT = "hat"
+    CYMBAL = "cymbal"
+    PERC = "perc"
+    BASS = "bass"
+    LEAD = "lead"
+    # a short chord-tone figure (a pluck), as opposed to a longer lead line
+    HOOK = "hook"
+    BELL = "bell"
+    FILL = "fill"
+    # a chord struck on the steps (keys, a stab, strings)
+    CHORD_HIT = "chord_hit"
+    ARP = "arp"
+    DRONE = "drone"
+
+
 @dataclass(frozen=True)
 class Step:
     """One sounding step of a `Phrase`; a step with no `Step` is a rest."""
@@ -59,6 +80,8 @@ class Phrase(CatalogItem):
     division: NoteDivision
     cycle: int
     steps: tuple[Step, ...]
+    # every job this phrase suits; a patch lists the roles it accepts
+    roles: tuple[PhraseRole, ...]
     mode: PhraseMode = PhraseMode.NONE
 
     @property

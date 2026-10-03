@@ -47,6 +47,9 @@ class SliderSpec:
     # a stable id for each option, in the same order: what a preset stores,
     # so a saved choice survives the catalog being reordered
     option_ids: tuple[str, ...] = ()
+    # the category each option sits under, in the same order, so a UI can
+    # split a long dropdown by category; empty when the options are ungrouped
+    option_categories: tuple[str, ...] = ()
 
     def to_position(self, value: float) -> float:
         """Where `value` sits on the slider's track."""
@@ -147,12 +150,14 @@ class Param:
         sweep: bool = False,
         options: tuple[str, ...] = (),
         option_ids: tuple[str, ...] = (),
+        option_categories: tuple[str, ...] = (),
         catalog: type[Catalog] | None = None,
         control: Control = noop_control,
     ) -> None:
         raw_default = default
         if catalog is not None:
             options, option_ids = catalog.labels(), catalog.ids()
+            option_categories = catalog.categories()
             minimum, maximum, step = 0, len(options) - 1, 1
             if isinstance(default, CatalogItem):
                 default = catalog.index_of(default)
@@ -168,6 +173,7 @@ class Param:
             "sweep": sweep,
             "options": options,
             "option_ids": option_ids,
+            "option_categories": option_categories,
         }
         # what `replace` starts from: the arguments as given, so a catalog
         # member default is re-resolved if the catalog is swapped
@@ -183,6 +189,7 @@ class Param:
             "sweep": sweep,
             "options": options,
             "option_ids": option_ids,
+            "option_categories": option_categories,
             "catalog": catalog,
         }
         self.control = control
@@ -239,6 +246,8 @@ class Param:
 
     def __set__(self, obj: Any, value: float | CatalogItem) -> None:
         if isinstance(value, CatalogItem):
+            if value.id not in self.spec.option_ids:
+                raise ValueError(f"{self.name} does not offer {value.id!r}")
             value = self.spec.option_ids.index(value.id)
         obj.__dict__[self.name] = value
         if obj.built:

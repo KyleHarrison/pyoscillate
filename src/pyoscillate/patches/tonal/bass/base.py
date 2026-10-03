@@ -34,7 +34,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Phrased, PitchBend
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.phrase import BassLines, Melodies
+from pyoscillate.theory.phrase import BassLines, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 __all__ = ["AccentBass", "Bass", "BassProfile"]
@@ -66,8 +66,8 @@ class Bass(PitchBend, Gate, Phrased, GatedVoice):
     # the style's timbre; supplied by each style subclass
     profile: ClassVar[BassProfile]
     # the line a style starts on; any melodic phrase can be chosen from the dropdown
+    phrase_roles = (PhraseRole.BASS,)
     phrase = Phrased.phrase.replace(
-        catalog=Melodies,
         default=BassLines.BASS_ROLLING,
         help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
         "on the same shared lines.",
