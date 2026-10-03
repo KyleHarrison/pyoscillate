@@ -11,6 +11,7 @@ from pyoscillate.controller import (
     SlotTarget,
 )
 from pyoscillate.harmony import C, Harmony
+from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.drums.snare import snare
@@ -135,6 +136,37 @@ class LofiRack(Rack):
         ),
         (FanOut((ParamControl.sweep(bass.GrooveBass.cutoff),)),),
     )
+    bass_slide = GroupControl(
+        SliderSpec(
+            "slide",
+            0,
+            1,
+            0.05,
+            0,
+            "Slide",
+            "Smears each bass note into the next and scoops it up from below; low is stepped and clean, high is a sliding line.",
+        ),
+        (
+            FanOut(
+                (
+                    ParamControl(bass.GrooveBass.glide, 0, 0.08),
+                    ParamControl(PitchBend.bend, 0, -3),
+                )
+            ),
+        ),
+    )
+    bass_accent = GroupControl(
+        SliderSpec(
+            "accent",
+            0,
+            1,
+            0.05,
+            0,
+            "Accent",
+            "Makes the strong notes speak: louder, shorter and more squelchy against the soft ones.",
+        ),
+        (FanOut((ParamControl.sweep(bass.GrooveBass.accent),)),),
+    )
     energy = GroupControl(
         SliderSpec(
             "energy",
@@ -166,7 +198,10 @@ class LofiRack(Rack):
     # original one-bar muted groove. `bars=8` rotates each style's own
     # pattern variant (see profiles.py's `CONVERSATION_VARIANTS`/`MUTED_VARIANTS`)
     bass_group = EvolvingGroup(
-        "Bass", (bass_conversation, bass_muted), controls=(bass_energy,), bars=8
+        "Bass",
+        (bass_conversation, bass_muted),
+        controls=(bass_energy, bass_slide, bass_accent),
+        bars=8,
     )
     # high register call-and-response: a soft FM bell, tuned high and
     # sparse. The rack has no cross-patch event bus for the bell to

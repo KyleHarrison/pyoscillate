@@ -19,13 +19,13 @@ from pyo.lib.generators import FM, Sine
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import TrigEnv
 
+from pyoscillate.intervals import Walk
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 # arpeggio shape: root, minor 3rd, 5th, minor 7th, octave, up and back down
-ARP_INTERVALS = [0, 3, 7, 10, 12, 10, 7, 3]
 
 ARP_ROOT = notes.Gs3  # current default
 # dur is longer than the step time so envelopes overlap into a sustained pad
@@ -172,6 +172,6 @@ class Atmosphere(Gate, GatedVoice):
         # derived from the shared clock's own tick, not a local counter
         # that starts at 0 whenever this patch is built or restarted -
         # see `Clock.tick`'s docstring
-        i = (self._clock.tick // self.step_division) % len(ARP_INTERVALS)
-        self.fm_voice.carrier = self.arp_root * pow(2, ARP_INTERVALS[i] / 12)
+        i = (self._clock.tick // self.step_division) % len(Walk.MINOR_7_ARCH.value)
+        self.fm_voice.carrier = self.arp_root * pow(2, Walk.MINOR_7_ARCH.value[i] / 12)
         self.trigger.play()

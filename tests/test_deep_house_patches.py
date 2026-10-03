@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import A, Harmony
+from pyoscillate.intervals import Voicing
 from pyoscillate.patches.base import BuildContext, Patch, start_server
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.tom import tom
@@ -128,7 +129,22 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
 
         self.assertIn("Trig", resource_types)
         self.assertIn("TrigEnv", resource_types)
-        self.assertEqual(resource_types.count("Osc"), len(chord.INTERVALS))
+        self.assertEqual(resource_types.count("Osc"), len(Voicing.SEVENTH_CHORD.value))
+
+    def test_chord_voice_count_follows_voicing(self) -> None:
+        context = BuildContext(self.tempo, self.clock, Harmony())
+        for index in (0, 1, 33, 74):
+            with self.subTest(voicing=index):
+                stab = chord.ChordVelvet()
+                chord.ChordVelvet.voicing.write(stab, index)
+                patch = stab.build(context)
+                resource_types = [type(r).__name__ for r in patch.resources]
+                self.assertEqual(
+                    resource_types.count("Osc"),
+                    len(Voicing.by_index(index).value),
+                )
+                loudness = sum(env.mul for env in patch.note_envs)
+                self.assertAlmostEqual(loudness, 4 * chord.Chord.NOTE_LEVEL)
 
     def sounding_roots(self, harmony: Harmony) -> dict[str, float]:
         """Fire each pitched patch's sequencer at its first note in the
@@ -157,12 +173,11 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         fire(tom_patch, 10)
         self.clock._tick = bar_start
         chord_osc = next(r for r in chord_patch.resources if type(r).__name__ == "Osc")
-        bass_osc = next(r for r in bass_patch.resources if type(r).__name__ == "Osc")
         tom_tuning = next(r for r in tom_patch.resources if type(r).__name__ == "Sig")
         fifth = 2 ** (7 / 12)
         return {
             "chord": chord_osc.freq,
-            "bass": bass_osc.freq,
+            "bass": bass_patch.pitch.value,
             "tom": tom_tuning.value * tom.Tom.body_freq / fifth,
         }
 

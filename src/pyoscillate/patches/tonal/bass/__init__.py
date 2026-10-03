@@ -7,14 +7,14 @@ from pyo.lib.generators import LFO
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, Bass, BassProfile
+from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass, BassProfile
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
 from .profiles import TECHNO
 
 
-class TechnoBass(Bass):
+class TechnoBass(AccentBass):
     """The original rolling, swept techno bass: a fixed root note under a
     continuous filter sweep, with no chord-following (see the groove
     styles in `groove.py` for that)."""

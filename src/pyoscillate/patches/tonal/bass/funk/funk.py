@@ -91,7 +91,6 @@ QUACK = 6.5
 FILTER_ENVELOPE = {"attack": 0.15, "decay": 0.10, "sustain": 0.45, "release": 0.08}
 # the recipe's 0 s attack, lengthened just enough not to click
 AMP_ENVELOPE = {"attack": 0.002, "decay": 0.29, "sustain": 0.30, "release": 0.40}
-GLIDE = 0.02
 # pyo's MoogLP blows up to NaN, which the limiter turns into silence for the
 # rest of the patch, when a fast sweep drives it high with a hot input.
 # Measured offline: at Growl 0.95 and a sweep to 12 kHz it stays finite with
@@ -113,6 +112,8 @@ class FunkBass(Bass):
     See the module docstring for the sonic detail."""
 
     volume = Patch.volume.replace(default=0.5)
+    # the recipe's 20 ms glide on every note change
+    glide = Bass.glide.replace(default=0.02)
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -228,12 +229,9 @@ class FunkBass(Bass):
 
         # osc 1 (the saw) sits at the register centre; osc 2 (the pulse) is an
         # octave above it
-        self.pitch = SigTo(
-            value=self.register_centre, time=GLIDE, init=self.register_centre
-        )
-        self.upper_pitch = self.pitch * 2
+        self.upper_pitch = self.pitch_signal(self.register_centre) * 2
         self.saw_table = SawTable(order=SAW_ORDER)
-        self.saw = Osc(self.saw_table, freq=self.pitch)
+        self.saw = Osc(self.saw_table, freq=self.bent_pitch)
         # a saw minus the same saw a fraction of a cycle later is a pulse of that
         # width; both saws are zero-mean, so the pulse is too
         self.pulse_lead = Osc(self.saw_table, freq=self.upper_pitch)

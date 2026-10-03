@@ -41,6 +41,7 @@ from pyo.lib.tables import LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.intervals import KeysProgression
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     RING_CURVE,
@@ -68,7 +69,7 @@ def _per_note(per_slot: list[float]) -> list[float]:
 
 
 class Keys(Gate, GatedVoice):
-    """FM electric piano comping `PROGRESSIONS` in the Charleston rhythm.
+    """FM electric piano comping a `KeysProgression` vamp in the Charleston rhythm.
     See the module docstring for the sonic detail."""
 
     title = "Keys (FM electric piano)"
@@ -102,26 +103,13 @@ class Keys(Gate, GatedVoice):
     wobble_rate: ClassVar[float] = 0.18
     wobble_depth_max: ClassVar[float] = 0.015
 
-    # semitones above Register (the key's tonic), one close rootless voicing
-    # per bar, matching the rack's shared Dm9-G13-Cmaj9-Am9 vamp (see
-    # rack.py's `HARMONY`) bar-for-bar rather than an independent
-    # progression. Each entry is a full 4-bar voicing set for that same
-    # vamp; a `GroupController` (see controller.py) rotates which one is
-    # comping via `on_evolve`, so the harmony never changes, only which
-    # inversion voices it. PROGRESSIONS[0] is the original voicing, kept
-    # first so existing presets/behaviour don't silently change:
-    # - Dm9 (F A C E), G13 (F A B E, a 3-7-9-13 rootless dominant), Cmaj9
-    #   (E G B D), Am9 (C E G B). The common tones keep the top voices
-    #   moving by step.
-    # PROGRESSIONS[1] takes each chord's lowest note up an octave (a spread
-    # inversion of the same four rootless voicings): Dm9 (A C E F), G13
-    # (A B E F), Cmaj9 (G B D E), Am9 (E G B C). F is a held common tone
-    # across the first two bars, and E across the last two, so the
-    # top-voice-by-step discipline still holds.
-    PROGRESSIONS: ClassVar[tuple[tuple[tuple[int, ...], ...], ...]] = (
-        ((-4, 0, 3, 7), (-4, 0, 2, 7), (-5, -2, 2, 5), (3, 7, 10, 14)),
-        ((0, 3, 7, 8), (0, 2, 7, 8), (-2, 2, 5, 7), (7, 10, 14, 15)),
-    )
+    # the four-bar voicing sets comping the chosen `vamp` come from
+    # `KeysProgression`: semitones above Register, one close rootless voicing
+    # per bar. Set 0 is the home voicing; a `GroupController` (see
+    # controller.py) rotates through the sets via `on_evolve`, so the
+    # harmony never changes, only which inversion voices it. Keys never
+    # reads the rack's harmony, so a rack must be given the same changes:
+    # `Harmony(progression=KeysProgression.X.roots)`.
 
     # the graph, assigned by build(); finish() retains every one of them
     triggers: list[Trig]
@@ -130,6 +118,8 @@ class Keys(Gate, GatedVoice):
     freq_sigs: list[Sig]
     velocities: list[float]
     _progression_index: int
+    # the active vamp's voicing sets, fixed at build time
+    _voicing_sets: tuple[tuple[tuple[int, ...], ...], ...]
     _step: Callable[[], Step]
     amp_table: LinTable
     body_table: LinTable
@@ -152,6 +142,18 @@ class Keys(Gate, GatedVoice):
     swing: PyoObject
     throb: PyoObject
     voice_signal: PyoObject
+
+    vamp = Param(
+        0,
+        5,
+        1,
+        0,
+        "Vamp",
+        "Picks the four-bar chord changes the piano comps: 0 ii-V-I-vi, 1 I-vi-IV-V, 2 vi-IV-I-V, "
+        "3 ii-V-I-IV, 4 I-iii-vi-ii, 5 iii-vi-ii-V. The rest of the rack has to play the same "
+        "changes to stay in key.",
+        rebuild=True,
+    )
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
@@ -253,7 +255,7 @@ class Keys(Gate, GatedVoice):
         rarely (tens of bars) by a rack-level `GroupController`, never by
         the clock directly. Owns its own wraparound, per `on_evolve`'s
         contract - there's no shared numeric range to clamp against."""
-        self._progression_index = index % len(self.PROGRESSIONS)
+        self._progression_index = index % len(self._voicing_sets)
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
@@ -261,6 +263,7 @@ class Keys(Gate, GatedVoice):
         # explicit per patches/AGENTS.md rule 5 (timing/state), not a
         # `@Param`: only `on_evolve` and `next_step()` read/write it
         self._progression_index = 0
+        self._voicing_sets = KeysProgression.by_index(int(self.vamp)).voicing_sets
         self.velocities = [0.0] * SLOTS
         self.freqs = [self.root_freq] * (SLOTS * NOTES)
         self.triggers = [Trig().stop() for _ in range(SLOTS)]
@@ -333,7 +336,7 @@ class Keys(Gate, GatedVoice):
             bar = self._clock.bar_index
             hit_index = bar * len(HIT_STEPS) + HIT_STEPS.index(step.index)
             slot = hit_index % SLOTS
-            progression = self.PROGRESSIONS[self._progression_index]
+            progression = self._voicing_sets[self._progression_index]
             chord_notes = progression[bar % len(progression)]
             start = slot * NOTES
             new_freqs = [

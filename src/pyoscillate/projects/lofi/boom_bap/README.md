@@ -52,11 +52,12 @@ on `clock.bar_index`'s current chord, so they change together regardless of
 their own Rate sliders. `keys.Keys` instead hand-writes the same four bars
 as fixed voicings relative to its own Register slider (see `keys.py`'s
 module docstring) — it doesn't read `HARMONY` directly, so its
-`PROGRESSIONS[0]` is kept in sync with this progression by hand and needs
-updating again if the progression in `rack.py` ever changes.
+its `vamp` param (default `KeysProgression.II_V_I_VI`) is kept in sync with this
+progression by hand: if `rack.py`'s progression changes, pick the matching
+`KeysProgression` (its `.roots` give the `Harmony` progression).
 
 The "Lead Melody" `GroupController` (in `rack.py`, `bars=32`) rotates which
-voicing set `Keys` is comping (`PROGRESSIONS[1]`, then back to `[0]`, ...) via
+voicing set `Keys` is comping (voicing set 1, then back to set 0, ...) via
 `on_evolve` — the harmony itself never changes, only which inversion voices
 it. The group's own UI panel (see `flet/base.py`'s `PatchGroup`) exposes this
 controller's interval and repeat as live sliders, so the rotation speed is

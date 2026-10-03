@@ -14,13 +14,12 @@ from pyo.lib.controls import SigTo
 from pyo.lib.effects import Freeverb
 from pyo.lib.generators import FM
 
+from pyoscillate.harmony import Harmony
+from pyoscillate.intervals import ArpOrder, Scale
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
-
-# major pentatonic - consonant, calm, no leading tones to create tension
-MID_INTERVALS = [0, 2, 4, 7, 9, 12, 9, 7, 4, 2]
 
 MID_ROOT = notes.E4  # current default
 
@@ -43,6 +42,7 @@ class Arp(Gate, GatedVoice):
     # currently gliding, but (as before migration) doesn't retroactively
     # change the interval walk's root until the next rebuild
     step_root_freq: float
+    harmony: Harmony
     _step: Callable[[], Step]
 
     mid_freq: SigTo
@@ -69,6 +69,19 @@ class Arp(Gate, GatedVoice):
         "Pace",
         "Sets how often the melody moves; fewer bars feels more active, more bars stretches it "
         "into a slower, more spacious unfolding.",
+        rebuild=True,
+    )
+
+    contour = Param(
+        0,
+        6,
+        1,
+        0,
+        "Contour",
+        "Sets the shape the melody traces through its notes: 0 climbs and falls in one arch, "
+        "1 only rises, 2 only falls, 3 repeats a short three-note climb, 4 alternates four up "
+        "with four down, 5 rises and falls then stutters, 6 rises and snaps back to the root. "
+        "Notes come from a calm major pentatonic, so every contour stays consonant.",
         rebuild=True,
     )
 
@@ -155,9 +168,15 @@ class Arp(Gate, GatedVoice):
             bal=self.reverb_bal,
         )
 
+        self.harmony = context.harmony
         self.step_root_freq = self.root_freq
+        # a calm major pentatonic - consonant, no leading tones to create tension
+        order = ArpOrder.by_index(int(self.contour))
         self._step = self.step_pattern(
-            len(MID_INTERVALS), dict(enumerate(MID_INTERVALS))
+            len(order.value),
+            dict(
+                enumerate(order.intervals(Scale.MAJOR_PENTATONIC_OCTAVE.value)),
+            ),
         )
 
         # `step_bars` counts whole bars, not a `NoteDivision` offset
@@ -168,4 +187,6 @@ class Arp(Gate, GatedVoice):
 
     def next_step(self) -> None:
         step = self._step()
-        self.mid_freq.value = self.step_root_freq * pow(2, step.value / 12)
+        self.mid_freq.value = self.harmony.quantise(
+            self.step_root_freq * pow(2, step.value / 12)
+        )

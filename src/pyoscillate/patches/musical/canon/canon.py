@@ -8,7 +8,6 @@ two voices into one space.
 
 from __future__ import annotations
 
-import random
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -17,18 +16,19 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
+from pyoscillate.harmony import Harmony
+from pyoscillate.intervals import Scale
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import SequencerGroup
+from pyoscillate.patches.common import SeededDraws, SequencerGroup
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 # major pentatonic across one octave - consonant, calm, no leading tones
-CANON_SCALE = [0, 2, 4, 7, 9, 12]
 
 CANON_ROOT = notes.A3  # current default
 
 
-class Canon(Patch):
+class Canon(SeededDraws, Patch):
     """Two-voice generative canon: a pair of melodic voices, each drawing random pentatonic notes on
     its own free-running period, so they drift in and out of alignment like an ever-shifting call and
     response.
@@ -63,6 +63,7 @@ class Canon(Patch):
     # only recomputed on rebuild, so a live root_freq change doesn't retune
     # voice B's random draws until the patch next rebuilds
     voice_b_root: float
+    harmony: Harmony
 
     envelope_table: CosTable
     voice_a_metro: Metro
@@ -209,6 +210,7 @@ class Canon(Patch):
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
+        self.harmony = context.harmony
 
         self.envelope_table = CosTable(self.ENVELOPE_POINTS)
 
@@ -243,9 +245,13 @@ class Canon(Patch):
         return self.finish(self.reverb)
 
     def next_voice_a(self) -> None:
-        interval = random.choice(CANON_SCALE)
-        self.voice_a_fm.carrier = self.root_freq * pow(2, interval / 12)
+        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        self.voice_a_fm.carrier = self.harmony.quantise(
+            self.root_freq * pow(2, interval / 12)
+        )
 
     def next_voice_b(self) -> None:
-        interval = random.choice(CANON_SCALE)
-        self.voice_b_fm.carrier = self.voice_b_root * pow(2, interval / 12)
+        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        self.voice_b_fm.carrier = self.harmony.quantise(
+            self.voice_b_root * pow(2, interval / 12)
+        )

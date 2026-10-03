@@ -164,6 +164,14 @@ sidechains are bound by the rack - there are no `name=`/
 - `common.ContinuousVoice` — ungated, free-running voices; its sequencer is
   a no-op `ContinuousSequencer`.
 
+**`Step.hit` vs `Step.value`.** `hit` says whether the pattern has an event at
+the step (structure); `value` says what the event carries (an accent, a pitch
+offset, `True` for a plain set), and is meaningless when `hit` is False. Test
+`hit` for rhythm and read `value` only after it. A pattern whose value is also
+its level (velocity-as-structure: a value that rounds to 0 is a rest, anything
+else sets loudness) should still produce both fields, so callbacks never
+infer a rest from a magic value.
+
 Both provide `finish(voice, *, resources=())`. `GatedVoice.finish` raises if `build()` never
 called `schedule()`.
 
@@ -226,9 +234,31 @@ def punch(self, value: float) -> None:
   `rebuild` parameters, and leave off `scale="note"` and `rate` ones. A rack
   starts one enabled with `Slot(..., sweeps=(ParamSweep(Cls.param, low, high,
   bars),))`; the Flet layer adds the toggle and range slider itself.
-- Pitch parameters in Hz take `scale="note"` (design rule 2).
+- Pitch parameters in Hz take `scale="note"` (design rule 2). A filter
+  cutoff in Hz takes `scale="cutoff"`: the track runs 0-1 with a power taper
+  (`step` is in track units, bounds and default stay in Hz), so the low end,
+  where each step is audible, gets most of the slider. Only the per-patch slider
+  applies the taper; group-control and sweep-range sliders still span the
+  Hz range linearly.
 - `rate_param(base_division, help)` is the clocked rate; its control calls
   `reschedule()`, so don't register a rate control by hand.
+
+#### Macro parameters
+
+One musical slider may drive several nodes at once (an "acid" amount that
+raises filter cutoff, envelope depth and resonance together while shortening
+the decay). This is a first-class pattern, not a workaround:
+
+- The one control writes every target node. The relationships between them
+  (curves, ratios, offsets) are written there, once, as style constants or
+  expressions of the single value.
+- Derive, never mirror: no second `Param` or state copy holding a value the
+  macro can compute. If a listener also needs one target alone, give it its
+  own `Param` and keep the macro for the coupled move.
+- Name and describe it by what you hear change as a whole ("Acid": more bite
+  and squelch), not by the nodes it touches (design rule 2).
+- Controls stay cheap, idempotent attribute writes, so a macro is as live and
+  as sweepable as any single-node parameter.
 
 ### `build()`
 
@@ -337,6 +367,21 @@ sits on top of that as a second, independent chop.
   on top and a reverb tail is chopped.
 - Do not name a node `gate` or `gate_*` on a gated voice (a funk bass's note
   gate is `note_gate`); those names belong to the mixin.
+
+### Pitch add-ons
+
+Voices that play a note line share two live Params, so a listener can move
+them without a rebuild:
+
+- `glide` (`Bass.glide`, `Lead.glide`): seconds a note takes to slide in from
+  the previous one. The voice plays from a retained `SigTo` (`self.pitch`),
+  and a step sets `self.pitch.value`. The default is the voice's old sound
+  (0, or 0.02 for funk and the legato lead).
+- `bend` (`PitchBend` mixin, `common.py`): each struck note starts this many
+  semitones off and scoops to pitch over `BEND_TIME`. `add_bend(trigger)`
+  returns the frequency multiplier to multiply into the note pitch, and the
+  voice must `play()` that trigger on every struck note. Default 0 is a clean
+  attack.
 
 ## Design rules
 

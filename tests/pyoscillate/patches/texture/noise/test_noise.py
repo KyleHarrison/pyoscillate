@@ -26,6 +26,27 @@ Change:
     Measured after the change: 1.19 dB still, 1.9 dB moving.
 Status:
     fixed in texture/noise/noise.py.
+
+2. The `dust` crackle never fired
+---------------------------------
+Error:
+    With Depth 0 and Depth 1 (Motion 4), `dust` rendered identical windows
+    (1.077 dB movement, same per-window RMS to the decimal): Depth did
+    nothing, because no click was ever produced.
+Cause:
+    `RandDur` was given `1 / motion_sig * DUST_MIN` as its bounds. Offline,
+    any bound built from a bare reciprocal of a signal makes `RandDur` pick
+    one duration at start and never again (1 `Change` trigger in 3 s, against
+    ~60 for the same bounds as a `Sig`, a product or a plain float). `Port`
+    around the reciprocal avoids it.
+Change:
+    `NoiseDust.motion_scale` is now `Port(1 / motion_sig, 0.01, 0.01)`.
+    With clicks firing, Depth 1 measured +0.46 dB of movement at the old
+    `DUST_GAIN` 1.3, just under the 0.5 bar, so `DUST_GAIN` rose to 1.6
+    (+0.6 dB). 1.8 and above hard-clip at the loudest corner (Level 0.5,
+    brightest, Depth 1), so 1.6 sits between the two limits.
+Status:
+    fixed in texture/noise/noise.py.
 """
 
 import unittest

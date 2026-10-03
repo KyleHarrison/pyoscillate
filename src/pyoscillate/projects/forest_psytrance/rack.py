@@ -2,6 +2,7 @@
 
 from pyoscillate.controller import (
     EvolvingGroup,
+    FanOut,
     GroupControl,
     GroupController,
     ParamControl,
@@ -10,6 +11,7 @@ from pyoscillate.controller import (
     SlotTarget,
 )
 from pyoscillate.harmony import F, Harmony
+from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.params import SliderSpec
@@ -54,11 +56,42 @@ class ForestPsytranceRack(Rack):
         ),
         (SlotTarget(bass_forest, (ParamControl(bass.GrooveBass.cutoff, 420, 900),)),),
     )
+    bass_slide = GroupControl(
+        SliderSpec(
+            "slide",
+            0,
+            1,
+            0.05,
+            0,
+            "Slide",
+            "Smears each bass note into the next and scoops it up from below; low is stepped and clean, high is a sliding line.",
+        ),
+        (
+            FanOut(
+                (
+                    ParamControl(bass.GrooveBass.glide, 0, 0.08),
+                    ParamControl(PitchBend.bend, 0, -3),
+                )
+            ),
+        ),
+    )
+    bass_accent = GroupControl(
+        SliderSpec(
+            "accent",
+            0,
+            1,
+            0.05,
+            0,
+            "Accent",
+            "Makes the strong notes speak: louder, shorter and more squelchy against the soft ones.",
+        ),
+        (FanOut((ParamControl.sweep(bass.GrooveBass.accent),)),),
+    )
     bass_group = GroupController(
         "Bass",
         (bass_forest,),
         "Deep, rolling offbeat low end between the kicks.",
-        controls=(bass_roll,),
+        controls=(bass_roll, bass_slide, bass_accent),
     )
 
     hat_forest = Slot(hat.GrooveForest, volume=0.8)

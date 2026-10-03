@@ -34,7 +34,7 @@ from __future__ import annotations
 from pyo import PyoObject
 from pyo.lib._core import Mix
 from pyo.lib.controls import SigTo
-from pyo.lib.filters import Biquad, Phaser
+from pyo.lib.filters import Biquad, Phaser, Port
 from pyo.lib.generators import BrownNoise, PinkNoise, Sine
 from pyo.lib.generators import Noise as WhiteNoise
 from pyo.lib.pan import Selector
@@ -82,7 +82,7 @@ CLICK_DECAY = 0.01
 # patches/AGENTS.md on graph ownership), so these stay lists.
 DUST_MIN = [0.05, 0.6]
 DUST_MAX = [0.35, 3.0]
-DUST_GAIN = 1.3
+DUST_GAIN = 1.6
 # brown noise is the loudest colour once low-passed; this keeps the three
 # colours in the same loudness range at the default brightness
 COLOUR_GAINS = (1.0, 1.0, 0.8)
@@ -330,7 +330,8 @@ class NoiseDust(Noise):
 
     shaped: Biquad
     dry: PyoObject
-    motion_scale: PyoObject
+    motion_period: PyoObject
+    motion_scale: Port
     click_min: PyoObject
     click_max: PyoObject
     click_interval: RandDur
@@ -347,8 +348,11 @@ class NoiseDust(Noise):
         # RandDur's own `min`/`max` are the crackle's interval bounds in
         # seconds; dividing by Motion (not multiplying, unlike the other
         # styles' LFO rates) shortens that interval - and so densifies the
-        # crackle - as Motion rises
-        self.motion_scale = 1 / self.motion_sig
+        # crackle - as Motion rises. The reciprocal goes through a `Port`:
+        # RandDur fed a bare `1 / signal` bound picks one duration at start
+        # and never fires again (a click-less bed at any Depth)
+        self.motion_period = 1 / self.motion_sig
+        self.motion_scale = Port(self.motion_period, risetime=0.01, falltime=0.01)
         self.click_min = self.motion_scale * DUST_MIN
         self.click_max = self.motion_scale * DUST_MAX
         self.click_interval = RandDur(min=self.click_min, max=self.click_max)

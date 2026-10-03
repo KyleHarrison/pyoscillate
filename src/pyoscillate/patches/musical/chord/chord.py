@@ -2,11 +2,12 @@
 #   style: velvet | organ | shimmer
 """Offbeat chord-stab voices."""
 
+import random
 from collections.abc import Callable
 from typing import ClassVar
 
 from pyo import PyoObject, PyoTableObject
-from pyo.lib.effects import Chorus, Freeverb
+from pyo.lib.effects import Chorus, Delay, Freeverb
 from pyo.lib.filters import Biquad
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable, SawTable
@@ -14,11 +15,10 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
+from pyoscillate.intervals import Scale, Voicing
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Step
 from pyoscillate.patches.params import Param, rate_param
-
-INTERVALS = (0, 3, 7, 10)
 
 
 class Chord(Gate, GatedVoice):
@@ -33,6 +33,20 @@ class Chord(Gate, GatedVoice):
     # every chord root snaps to the octave nearest this, around D3
     register_centre: ClassVar[float] = 146
 
+    # per-note level, and the timing/level spread (s, fraction of level) that
+    # `strum` and `feel` of 1.0 give
+    NOTE_LEVEL: ClassVar[float] = 0.19
+    # the voice count `NOTE_LEVEL` is balanced for; a voicing with more or
+    # fewer notes scales each one so the stab's loudness stays the same
+    REFERENCE_VOICES: ClassVar[int] = 4
+    # the scale a voicing's degrees are read through: the stab's own quality,
+    # independent of the rack's key, so a rack that sets no `scale` still gets
+    # minor chords on every root
+    voicing_scale: ClassVar[Scale] = Scale.MINOR
+    STRUM_SPAN: ClassVar[float] = 0.04
+    HUMAN_TIMING: ClassVar[float] = 0.025
+    HUMAN_LEVEL: ClassVar[float] = 0.5
+
     # envelope duration (s), reverb wet balance, chorus on/off - overridden
     # per style
     duration: ClassVar[float]
@@ -41,8 +55,8 @@ class Chord(Gate, GatedVoice):
 
     # the graph, assigned by build(); finish() retains every one of them
     envelope_table: CosTable
-    chord_env: TrigEnv
-    amplitude: PyoObject
+    note_delays: list[Delay]
+    note_envs: list[TrigEnv]
     oscillator_table: PyoTableObject
     voices: list[Osc]
     source: PyoObject
@@ -51,10 +65,18 @@ class Chord(Gate, GatedVoice):
     chorus_voice: Chorus
     reverb: Freeverb
 
+    # the voicing's notes as semitones above the chord root, and the level of
+    # each one, both fixed at build time
+    intervals: tuple[int, ...]
+    note_level: float
     # this bar's chord source, frozen at build time - fed to `next_step`,
     # which build() can no longer close over now that it's a real method
     harmony: Harmony
     _step: Callable[[], Step]
+    # the human-feel jitter's own source, so it never touches the global one
+    _feel: random.Random
+    # the server's rate, so a delay can be whole samples (see `whole_samples`)
+    _sample_rate: float
 
     def table(self) -> PyoTableObject:
         """This style's oscillator table. Overridden per style."""
@@ -83,6 +105,38 @@ class Chord(Gate, GatedVoice):
     def brightness(self, value: float) -> None:
         self.filter_voice.freq = value
 
+    voicing = Param(
+        0,
+        74,
+        1,
+        4,
+        "Voicing",
+        "Picks the chord shape, from a bare power chord through triads and sevenths to wide, "
+        "cinematic clusters (0 power chord, 1 triad, 4 seventh, 28 wide power chord, 30 deep house, "
+        "63 cinematic wide, 65 chromatic cluster); more notes sound fuller.",
+        rebuild=True,
+    )
+
+    strum = Param(
+        0,
+        1,
+        0.05,
+        0,
+        "Strum",
+        "Spreads the chord's notes in time, low to high, like a hand rolling across strings; zero "
+        "plays them as one block.",
+    )
+
+    feel = Param(
+        0,
+        1,
+        0.05,
+        0,
+        "Human feel",
+        "Loosens each stab: notes land a touch early or late and at slightly different strengths, "
+        "so repeats stop sounding machine-exact.",
+    )
+
     rate = rate_param(
         base_division,
         "Halves or doubles the chord-stab pattern speed for each step away from its 16th-note grid.",
@@ -91,11 +145,30 @@ class Chord(Gate, GatedVoice):
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
+        self.intervals = self.harmony.voice(
+            Voicing.by_index(int(self.voicing)), scale=self.voicing_scale
+        )
+        self.note_level = self.NOTE_LEVEL * self.REFERENCE_VOICES / len(self.intervals)
 
         self.oscillator_table = self.table()
         self.envelope_table = CosTable([(0, 0), (200, 1), (2500, 0.55), (8191, 0)])
-        self.chord_env = TrigEnv(self.trigger, self.envelope_table, dur=self.duration)
-        self.amplitude = self.chord_env * 0.19
+        self._feel = random.Random()
+        self._sample_rate = self.trigger.getServer().getSamplingRate()
+        # one delayed trigger and envelope per note, so a strum can offset
+        # each note's attack; at zero delay they all strike together
+        self.note_delays = [
+            Delay(self.trigger, delay=0, maxdelay=0.3) for _ in self.intervals
+        ]
+        self.note_envs = [
+            TrigEnv(
+                note_delay,
+                self.envelope_table,
+                dur=self.duration,
+                mul=self.note_level,
+            )
+            for note_delay in self.note_delays
+        ]
+        self.retain(*self.note_delays, *self.note_envs)
         self.voices = [
             Osc(
                 self.oscillator_table,
@@ -103,9 +176,9 @@ class Chord(Gate, GatedVoice):
                     self.register_centre, context.clock.bar_index
                 )
                 * 2 ** (self.octave + interval / 12),
-                mul=self.amplitude,
+                mul=note_env,
             )
-            for interval in INTERVALS
+            for interval, note_env in zip(self.intervals, self.note_envs, strict=True)
         ]
         self.retain(*self.voices)
         self.source = sum(self.voices)
@@ -126,14 +199,30 @@ class Chord(Gate, GatedVoice):
         self.schedule(self.base_division, self.rate, context.clock)
         return self.finish(self.add_gate(self.reverb, context))
 
+    def whole_samples(self, seconds: float) -> float:
+        """`seconds` rounded to a whole number of samples. `Delay` interpolates
+        a fractional delay, which splits the trigger's one-sample pulse into
+        two partial values, and `TrigEnv` only fires on a full 1.0: a delay
+        off the sample grid would silence the note."""
+        return round(seconds * self._sample_rate) / self._sample_rate
+
     def next_step(self) -> None:
         if self._step().hit:
             chord_root = (
                 self.harmony.chord_freq(self.register_centre, self._clock.bar_index)
                 * 2**self.octave
             )
-            for oscillator, interval in zip(self.voices, INTERVALS, strict=True):
+            for index, (oscillator, interval) in enumerate(
+                zip(self.voices, self.intervals, strict=True)
+            ):
                 oscillator.freq = chord_root * 2 ** (interval / 12)
+                self.note_delays[index].delay = self.whole_samples(
+                    index * self.strum * self.STRUM_SPAN
+                    + self._feel.random() * self.feel * self.HUMAN_TIMING
+                )
+                self.note_envs[index].mul = self.note_level * (
+                    1 - self._feel.random() * self.feel * self.HUMAN_LEVEL
+                )
             self.trigger.play()
 
 

@@ -89,6 +89,36 @@ class NoteSliderTests(unittest.TestCase):
         self.assertEqual(spec.format(0.3), "0.30")
 
 
+class CutoffSliderTests(unittest.TestCase):
+    CUTOFF = SliderSpec(
+        "brightness", 80, 12000, 0.02, 1200, "Brightness", "", scale="cutoff"
+    )
+
+    def test_track_is_unit_range_with_one_tick_per_step(self):
+        self.assertEqual(self.CUTOFF.to_position(80), 0)
+        self.assertEqual(self.CUTOFF.to_position(12000), 1)
+        self.assertEqual(self.CUTOFF.divisions, 50)
+
+    def test_ends_map_to_the_declared_range(self):
+        self.assertAlmostEqual(self.CUTOFF.from_position(0), 80)
+        self.assertAlmostEqual(self.CUTOFF.from_position(1), 12000)
+
+    def test_taper_spends_the_track_on_the_low_end(self):
+        self.assertLess(self.CUTOFF.from_position(0.5), 1000)
+
+    def test_position_round_trips_through_a_tick(self):
+        position = self.CUTOFF.to_position(self.CUTOFF.from_position(0.3))
+        self.assertAlmostEqual(position, 0.3)
+
+    def test_stored_values_are_only_clamped(self):
+        self.assertEqual(self.CUTOFF.snap(1234), 1234)
+        self.assertEqual(self.CUTOFF.snap(50000), 12000)
+        self.assertEqual(self.CUTOFF.snap(1), 80)
+
+    def test_label_is_whole_hertz(self):
+        self.assertEqual(self.CUTOFF.format(1234.4), "1234")
+
+
 class _Voice(Patch):
     @Param(0, 1, 0.1, 0.5, "Tone", "")
     def tone(self, value: float) -> None:

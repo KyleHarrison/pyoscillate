@@ -44,11 +44,11 @@ decay, Q together; `rlpf/rhpf` = 0–1 → perceptually-spaced cutoff (`(12x)^4`
 
 | # | Addition | Gap |
 |---|----------|-----|
-| C1 | **Glide/portamento across notes** (remembers previous note) and **bend** | Check `bass/groove.py` / `hover.py` coverage; add shared `glide` Param on pitched gated voices if absent |
-| C2 | **Scale-quantise** (`grab`, `sc`) — snap any pitch stream to the rack's scale | `context.harmony` exists; add a quantise step usable by generative/arp patches |
+| C1 | **Glide/portamento across notes** (remembers previous note) and **bend** | Done (see C1 status) |
+| C2 | **Scale-quantise** (`grab`, `sc`) — snap any pitch stream to the rack's scale | Done (see C2 status) |
 | C3 | **Strum** (per-note time spread in a chord) and **humanize** (timing ±, velocity ±) | `musical/chord` lacks strum; no humanize on any sequencer. Both are timing/state concerns → design rule 5 |
 | C4 | **Glitch** — random parameter corruption by amount | Candidate for `on_evolve`/sweep-style rack tool, low priority |
-| C5 | **Arp index patterns** (`notearp`, `trancearp` forward/back/preset rhythms) | Compare with `musical/arp`; add direction/rhythm presets only if missing |
+| C5 | **Arp index patterns** (`notearp`, `trancearp` forward/back/preset rhythms) | Direction presets done: `ArpOrder` in `intervals.py` and `Arp.contour` (rebuild). Not done: `trancearp`'s rhythm presets (need a fast gated arp; `Arp` is a slow glide voice) and `notearp`'s octave-transposing wrap (`ArpOrder` wraps by modulo, as `trancearp` does) |
 | C6 | **Chord voicing library** (75 shapes, power chord → cinematic cluster) | Check `musical/chord`; extend voicing table rather than new family |
 
 ## D. Timbre/modulation distinctions
@@ -57,8 +57,8 @@ decay, Q together; `rlpf/rhpf` = 0–1 → perceptually-spaced cutoff (`(12x)^4`
 |---|----------|-----|
 | D1 | **Supersaw/unison + detune** as a tonal-voice option (`unison`, `detune`) | Confirm pad/lead cover unison spread; add as a shared param on tonal bases |
 | D2 | **Wavetable position as a modulated axis** (`wt`, `wtrate`, `wtdepth`) | Pyo has no direct wavetable synth; evaluate `Osc` table morph (`NewTable`/`TableMorph`) as a Layer A mechanism |
-| D3 | **FM presets with envelope** (`fm`, `fmenv`, `fmh`, `fmdecay`) | `bass/fm` and `lead/fm` exist; verify FM-index envelope + harmonic-ratio exposure |
-| D4 | **Comb / disperse / flood effects** | Multi-tap feedback comb and delay-matrix "disperse" are new Layer A effect mechanisms; `flood` = reverb with dry reduced as amount rises (wet-dominant macro) |
+| D3 | **FM presets with envelope** (`fm`, `fmenv`, `fmh`, `fmdecay`) | Done (see D3 status) |
+| D4 | **Comb / disperse / flood effects** | Done (see D4 status) |
 | D5 | **Noise hat with modulated decay**, **zap** (pitch-env sweep) | Likely covered by drums/hat and transition; verify before adding |
 
 ## E. Rack / arrangement layer
@@ -112,6 +112,26 @@ a gate would distort the duck signal).
 
 **B1 status (2026-10-03):** `Gate` mixin and shared `Pulse` implemented in `common.py` (`GatedVoice` now owns a `Pulse` too). Applied to every voice except Kick (sidechain source), bell, drums, and the free-running generative/canon/clock_tick; tests in `tests/pyoscillate/patches/test_gate.py`. Strings and the drones were auditioned and sound good; the rest are not yet auditioned by ear. Riser needs a live accelerating rate to get the most from it (not done).
 
+**Step 1 status (2026-10-03):** A1 (macro-param pattern) and B3 (`hit`/`value` split) are documented in `patches/AGENTS.md`. Step 3 (B1) was done ahead of step 2.
+
+**A2 status (2026-10-03):** `scale="cutoff"` added to `SliderSpec`/`Param` (`params.py`, 4th-power taper, track 0-1, tested). Not yet adopted by any patch's brightness `Param`; do that per patch when each is next touched.
+
+**A3 status (2026-10-03):** audit found accent already couples level and filter depth in `funk` and `fm` bass and `lead/fm`. The gap was the profile-driven bass (`groove`, `hover`, `techno`), where an accent only changed level. `AccentBass` (`bass/base.py`) adds an `accent` macro `Param` (default 0 = old sound): wider level contrast, shorter decay, more resonance on accented steps. Tested on stand-in nodes only, not auditioned by ear. `funk`/`fm` keep their own coupling.
+
+**B2 status (2026-10-03):** the gate already had `gate_seed`. `SeededDraws` mixin (`common.py`) now gives `generative` and `canon` a `seed` Param ("Melody") and a per-instance `random.Random`; `on_evolve` re-rolls from seed + fire count. Reproducible, tested; not auditioned. `NoiseDust` still uses pyo's own randomness (not seedable this way). Racks do not list the slider yet.
+
+**C3 status (2026-10-03):** `musical/chord` has `strum` (notes spread low to high, up to 120 ms) and `feel` (per-note timing and level jitter) Params, via a delayed trigger and envelope per note; both default 0 (unchanged sound). Tested on stand-in nodes, not auditioned. Named `feel` because `Patch.humanize` is already a title helper. Humanize is chord-only so far; the other sequencers (bass, arp, lead) still have none, and the gate's Pulse is unjittered. Racks do not list the sliders yet.
+
+**C1 status (2026-10-03):** audit: `lead/fm` (live `glide` Param), `arp`, `pluck` (fixed 10 ms) already glided; `funk` had a fixed 20 ms; the profile-driven bass (`groove`, `hover`, `techno`), `fm` bass and `lead/lead` jumped (lead had a per-style, non-live `glide_time`). Now `Bass.glide` (seconds, sweepable, default 0) drives a shared `pitch` `SigTo` (`Bass.pitch_signal`) that groove/hover/techno, fm and funk play from (funk defaults to its 0.02); `Lead.glide` replaces `glide_time` (Mellow70s defaults 0.02). Defaults keep every voice's old sound. Tests: `bass/test_glide.py`, stand-in nodes; not auditioned. `bend` (2026-10-03): `PitchBend` mixin in `common.py` (`bend` Param, -12..12 semitones, default 0; a 60 ms scoop off a `TrigEnv`) on every `Bass` voice and `Lead`; tested on stand-in nodes plus offline renders, not auditioned. Rack sliders: `Slide` (glide + a 3-semitone scoop) and `Accent` on the bass group in `deep_house`, `forest_psytrance` and `lofi/boom_bap`; `Feel` (strum + human feel) on deep_house chords. The seed, gate and `lead/fm` sliders are per-patch only. Not done: `pluck` keeps its fixed 10 ms glide; `keys` is polyphonic.
+
+**C2 status (2026-10-03):** `Harmony.scale` (semitones above the key; `MAJOR`, `MINOR`, `MAJOR_PENTATONIC`, `MINOR_PENTATONIC` in `harmony.py`, default `None` = off) and `Harmony.quantise(freq)` snap a pitch to the nearest scale note (ties down). `arp`, `generative` and `canon` pass every new note through it, so a rack that sets a scale keeps their free melodies in key; with no scale they sound as before. Tested in `test_harmony.py`; not auditioned. No rack sets a scale yet, and pitched patches other than these three (lead, pluck, keys) are not routed through it.
+
+**D1 status (2026-10-03):** audit: `tonal/strings` (`spread`, SuperSaw detune) and `drone/wash` (`detune`) already expose a live detune; `tonal/pad` and `bass/reese` are placeholders; `riser` uses a fixed detune. The gap was `lead/lead`, whose oscillator detune was fixed per style. `Lead.detune` (0-0.5 semitone, default 0 = old sound, sweepable) now splits the two pulses symmetrically via two `SigTo` ratios. Tested on stand-in nodes, not auditioned. Not done: a unison *voice count* (topology, would need `rebuild=True`), and pluck/keys. Build `pad`/`reese` with a detune Param when they are implemented. `test_noise` `dust` subtests fail intermittently, with or without this change.
+
+**D3 status (2026-10-03):** audit: `bass/fm` (Growl/Settle/Edge) and `lead/fm` (Bite/Settle/Swirl) already had the FM-index envelope; the harmonic ratio (`fmh`) was a fixed class constant. Now a live, sweepable `ratio` Param on both: `FmBass.ratio` ("Hollow", whole steps 1-4 so notes stay pitched; bark 1, grit 2) and `LeadFm.ratio` ("Colour", 1-4 in 0.01 steps; wind 2, swirl 3.01). Defaults keep the old sounds. Tests: `tonal/test_fm_ratio.py`, stand-in nodes; not auditioned. Not done: rack sliders, and `drone/fm`, `keys`, `pluck` ratios.
+
+**D4 status (2026-10-03):** new `patches/fx.py` with three opt-in mixins, each owning its `Param`s and an `add_*(source)` helper, always built, amount default 0 (unchanged sound): `Comb` (`comb`, `comb_pitch`, `comb_ring`; pyo `Waveguide` tuned resonator), `Disperse` (`disperse`, `disperse_spread`; four parallel feedback delays at unrelated times, a diffuse smear, not a true cross-fed matrix) and `Flood` (`flood`; `Freeverb` where one amount raises size and wet share together). Prototyped on `Strings` (chain comb, disperse, flood, then gate); tests in `test_fx.py` (default off, audible change per effect). Not auditioned, no rack sliders, no "Effect add-ons" section in `patches/AGENTS.md` yet. Roll out to other voices when wanted.
+
 ## Suggested order
 
 1. **Doc-only (cheap, high value):** A1 macro-param pattern, B3 hit/value split → `patches/AGENTS.md`.
@@ -124,6 +144,6 @@ a gate would distort the duck signal).
 ## Open questions
 
 - B1 (resolved): a `Gate` mixin with `Param`s on the patch; no `Slot` declaration, enabled by constructor override. Next: concept in `patches/AGENTS.md` (done), prototype on `Strings` + `SoundscapeWash`, tests, listen in Flet, then roll out.
-- Does A2's taper belong on `Param` or as a `scale=` kind alongside `scale="note"`?
+- A2 (resolved): a `scale="cutoff"` kind alongside `scale="note"`.
 - Audit before implementing: C1, C5, C6, D1, D3, D5 may already be covered — verify against existing modules first (design rule 1: extend, don't add).
 - Licence: Strudel is AGPL; reimplement the *ideas* in Pyo, don't copy code.

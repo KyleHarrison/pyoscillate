@@ -22,7 +22,7 @@ different profile data (`patches/AGENTS.md`'s design rule 1).
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
@@ -47,7 +47,6 @@ PROFILE = GROOVE["rolling"]
 INDEX_POINTS = [(0, 1.0), (512, 0.5), (8191, 0.0)]
 # the bass core's amplitude shape: a quick rise, a held body, then the release
 AMP_POINTS = [(0, 0.0), (80, 1.0), (2100, 0.5), (8191, 0.0)]
-RATIOS = {"bark": 1, "grit": 2}
 # `grit`: how strongly the carrier modulates the modulator back, relative to
 # the main index
 CROSS = 0.5
@@ -66,8 +65,6 @@ class FmBass(Bass):
     for the sonic detail."""
 
     volume = Patch.volume.replace(default=0.42)
-
-    ratio: ClassVar[int]
 
     # the graph, assigned by build(); finish() retains every one of them
     index_table: LinTable
@@ -98,6 +95,20 @@ class FmBass(Bass):
         "forward as a melodic line.",
         scale="note",
     )
+
+    # whole steps only: an integer ratio keeps every note pitched (see AGENTS.md)
+    @Param(
+        1,
+        4,
+        1,
+        1,
+        "Hollow",
+        "Which harmonics the bark carries: 1 is a full, saw-like buzz, 2 a hollower, square-like "
+        "one, higher thins it toward a nasal, reedy edge. The note keeps its pitch throughout.",
+        sweep=True,
+    )
+    def ratio(self, value: float) -> None:
+        self.tone_signal.ratio = value
 
     @Param(
         0,
@@ -173,6 +184,7 @@ class FmBass(Bass):
         self._sixteenth = context.tempo.sixteenth
         self._accent = 1.0
 
+        self.pitch_signal(self.root_freq)
         self.index_table = LinTable(INDEX_POINTS)
         self.amp_table = CosTable(AMP_POINTS)
         self.bark = TrigEnv(
@@ -202,7 +214,7 @@ class FmBass(Bass):
         # docstring
         step = (self._clock.tick // self._division.steps) % len(PROFILE.pattern)
         self._accent = PROFILE.accents[step]
-        self.tone_signal.carrier = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
+        self.pitch.value = self.root_freq * 2 ** (PROFILE.pattern[step] / 12)
         self.bark.mul = self.growl * self._accent
         self.amp.mul = self._accent
         self.trigger.play()
@@ -211,25 +223,23 @@ class FmBass(Bass):
 class FmBassBark(FmBass):
     """Clean, harmonic bark: two-operator FM at ratio 1."""
 
-    ratio = RATIOS["bark"]
+    ratio = FmBass.ratio.replace(default=1)
 
     def tone(
         self, index: PyoObject, level: PyoObject
     ) -> tuple[PyoObject, tuple[Any, ...]]:
-        tone = FM(carrier=self.root_freq, ratio=self.ratio, index=index, mul=level)
+        tone = FM(carrier=self.bent_pitch, index=index, mul=level)
         return tone, ()
 
 
 class FmBassGrit(FmBass):
     """Grittier, less stable bark: carrier and modulator cross-modulate at ratio 2."""
 
-    ratio = RATIOS["grit"]
+    ratio = FmBass.ratio.replace(default=2)
 
     def tone(
         self, index: PyoObject, level: PyoObject
     ) -> tuple[PyoObject, tuple[Any, ...]]:
         cross = index * CROSS
-        tone = CrossFM(
-            carrier=self.root_freq, ratio=self.ratio, ind1=cross, ind2=index, mul=level
-        )
+        tone = CrossFM(carrier=self.bent_pitch, ind1=cross, ind2=index, mul=level)
         return tone, (cross,)

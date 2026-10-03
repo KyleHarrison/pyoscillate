@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, Bass
+from pyoscillate.patches.tonal.bass.base import BASE_DIVISION, AccentBass
 from pyoscillate.patches.tonal.bass.profiles import (
     CONVERSATION_VARIANTS,
     GROOVE,
@@ -14,7 +14,7 @@ from pyoscillate.patches.tonal.bass.profiles import (
 )
 
 
-class GrooveBass(Bass):
+class GrooveBass(AccentBass):
     """16th-note bassline with a style-specific motion pattern, following
     the rack's chord. Style variants subclass this and fix `profile`; the
     graph itself is identical across styles (see `Bass.build`).

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, overload
+from typing import Any, ClassVar, Literal, overload
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.patches.utility.notes.notes import (
@@ -26,7 +26,15 @@ class SliderSpec:
     semitones, and every value it produces is an in-tune note frequency, so
     a Register slider can't leave a patch out of tune with the rest of the
     rack. `minimum`, `maximum` and `default` should themselves be notes.
+
+    `scale="cutoff"` is for a frequency swept for brightness (a filter
+    cutoff in Hz). The track runs 0-1 and a power curve spends most of it on
+    the low end, where each step is an audible change, instead of letting the
+    top octave take half the slider. `step` counts track units (0.02 = 50
+    ticks), while `minimum`, `maximum` and `default` stay in Hz.
     """
+
+    CUTOFF_CURVE: ClassVar[float] = 4.0
 
     name: str
     minimum: float
@@ -35,23 +43,34 @@ class SliderSpec:
     default: float
     description: str
     help_text: str
-    scale: Literal["linear", "note"] = "linear"
+    scale: Literal["linear", "note", "cutoff"] = "linear"
 
     def to_position(self, value: float) -> float:
         """Where `value` sits on the slider's track."""
         if self.scale == "note":
             return round(freq_to_midi(value) / self.step) * self.step
+        if self.scale == "cutoff":
+            span = self.maximum - self.minimum
+            fraction = min(max((value - self.minimum) / span, 0.0), 1.0)
+            return fraction ** (1 / self.CUTOFF_CURVE)
         return value
 
     def from_position(self, position: float) -> float:
         """The parameter value for a track position, snapped to a tick."""
         if self.scale == "note":
             return midi_to_freq(round(position / self.step) * self.step)
+        if self.scale == "cutoff":
+            ticked = min(max(round(position / self.step) * self.step, 0.0), 1.0)
+            return (
+                self.minimum + (self.maximum - self.minimum) * ticked**self.CUTOFF_CURVE
+            )
         return position
 
     def snap(self, value: float) -> float:
         """A stored value (a preset) brought onto the nearest note, clamped to
-        the range; linear values pass through unchanged."""
+        the range; cutoff values are only clamped, linear ones pass through."""
+        if self.scale == "cutoff":
+            return min(max(value, self.minimum), self.maximum)
         if self.scale != "note":
             return value
         lowest, highest = self.to_position(self.minimum), self.to_position(self.maximum)
@@ -59,12 +78,16 @@ class SliderSpec:
 
     @property
     def divisions(self) -> int:
+        if self.scale == "cutoff":
+            return max(1, round(1 / self.step))
         span = self.to_position(self.maximum) - self.to_position(self.minimum)
         return max(1, round(span / self.step))
 
     def format(self, value: float) -> str:
         if self.scale == "note":
             return note_name(value)
+        if self.scale == "cutoff":
+            return f"{value:.0f}"
         return f"{value:.{decimal_places(self.step)}f}"
 
 
@@ -114,7 +137,7 @@ class Param:
         label: str,
         help_text: str,
         *,
-        scale: Literal["linear", "note"] = "linear",
+        scale: Literal["linear", "note", "cutoff"] = "linear",
         rebuild: bool = False,
         sweep: bool = False,
         control: Control = noop_control,

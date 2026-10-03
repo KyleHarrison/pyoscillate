@@ -50,8 +50,6 @@ class LeadFm(Gate, GatedVoice):
     volume = Patch.volume.replace(default=0.2)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
 
-    # modulator / carrier frequency ratio
-    ratio: ClassVar[float]
     # the brightness left under the whole note once the bark has settled
     edge: ClassVar[float]
     # the index LFO's period and the pitch drift's period, in bars
@@ -134,6 +132,19 @@ class LeadFm(Gate, GatedVoice):
         "line above the mix. Notes always follow the rack's key and chord.",
         scale="note",
     )
+
+    @Param(
+        1,
+        4,
+        0.01,
+        2,
+        "Colour",
+        "Which overtones the tone has: a whole number is a locked, hollow reed-like tone, a hair "
+        "off one (3.01) phases and shimmers against itself, in between is bell-like and unpitched.",
+        sweep=True,
+    )
+    def ratio(self, value: float) -> None:
+        self.tone.ratio = value
 
     @Param(
         0,
@@ -264,9 +275,7 @@ class LeadFm(Gate, GatedVoice):
         self.index = self.bark + self.swirl_lfo
         self.amp = TrigEnv(self.trigger, self.amp_table, dur=tempo.sixteenth)
         self.level = self.amp * self.gain
-        self.tone = FM(
-            carrier=self.carrier, ratio=self.ratio, index=self.index, mul=self.level
-        )
+        self.tone = FM(carrier=self.carrier, index=self.index, mul=self.level)
 
         self.noise = Noise()
         self.air_level = self.live(type(self).breath, time=0.05)
@@ -316,7 +325,7 @@ class LeadFmWind(LeadFm):
 
     title = "Lead - FM Wind"
     summary = "Hollow, breathy FM reed drifting through a sparse, floating phrase."
-    ratio = 2.0
+    ratio = LeadFm.ratio.replace(default=2.0)
     edge = 0.6
     swirl_bars = 2.0
     drift_bars = 3.0
@@ -335,7 +344,7 @@ class LeadFmSwirl(LeadFm):
 
     title = "Lead - FM Swirl"
     summary = "Phasing FM lead sliding through a syncopated 16th-note groove."
-    ratio = 3.01
+    ratio = LeadFm.ratio.replace(default=3.01)
     edge = 1.0
     swirl_bars = 1.0
     drift_bars = 2.0

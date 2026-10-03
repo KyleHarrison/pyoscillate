@@ -9,6 +9,7 @@ from pyoscillate.controller import (
     Slot,
 )
 from pyoscillate.harmony import A, Harmony
+from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.clap import clap
 from pyoscillate.patches.drums.cymbal import cymbal
 from pyoscillate.patches.drums.hat import groove as hat
@@ -141,6 +142,37 @@ class DeepHouseRack(Rack):
         ),
         (FanOut((ParamControl(bass.GrooveBass.cutoff, 720, 1800),)),),
     )
+    bass_slide = GroupControl(
+        SliderSpec(
+            "slide",
+            0,
+            1,
+            0.05,
+            0,
+            "Slide",
+            "Smears each bass note into the next and scoops it up from below; low is stepped and clean, high is a sliding line.",
+        ),
+        (
+            FanOut(
+                (
+                    ParamControl(bass.GrooveBass.glide, 0, 0.08),
+                    ParamControl(PitchBend.bend, 0, -3),
+                )
+            ),
+        ),
+    )
+    bass_accent = GroupControl(
+        SliderSpec(
+            "accent",
+            0,
+            1,
+            0.05,
+            0,
+            "Accent",
+            "Makes the strong notes speak: louder, shorter and more squelchy against the soft ones.",
+        ),
+        (FanOut((ParamControl.sweep(bass.GrooveBass.accent),)),),
+    )
     bass_group = GroupController(
         "Bass",
         (
@@ -158,7 +190,7 @@ class DeepHouseRack(Rack):
             ),
         ),
         "Moving low end that re-roots on every chord.",
-        controls=(bass_filter,),
+        controls=(bass_filter, bass_slide, bass_accent),
     )
     chord_brightness = GroupControl(
         SliderSpec(
@@ -171,6 +203,25 @@ class DeepHouseRack(Rack):
             "Opens the stabs' filter from velvety to bright.",
         ),
         (FanOut((ParamControl(chord.Chord.brightness, 1500, 5000),)),),
+    )
+    chord_feel = GroupControl(
+        SliderSpec(
+            "feel",
+            0,
+            1,
+            0.05,
+            0,
+            "Feel",
+            "Loosens the stabs from a rigid block into a rolled, played-by-hand chord.",
+        ),
+        (
+            FanOut(
+                (
+                    ParamControl(chord.Chord.strum, 0, 0.4),
+                    ParamControl(chord.Chord.feel, 0, 0.5),
+                )
+            ),
+        ),
     )
     chords_group = GroupController(
         "Chord Stabs",
@@ -189,7 +240,7 @@ class DeepHouseRack(Rack):
             ),
         ),
         "Offbeat minor-seventh chord memory.",
-        controls=(chord_brightness,),
+        controls=(chord_brightness, chord_feel),
     )
     harmony_warmth = GroupControl(
         SliderSpec(

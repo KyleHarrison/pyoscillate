@@ -65,7 +65,7 @@ class Clap(DrumVoice):
 
     @Param(
         0.02,
-        0.6,
+        0.3,
         0.01,
         0.18,
         "Presence",

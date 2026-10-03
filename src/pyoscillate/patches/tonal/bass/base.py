@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from pyo import PyoObject
+from pyo.lib.controls import SigTo
 from pyo.lib.filters import MoogLP
 from pyo.lib.tableprocess import Osc
 from pyo.lib.tables import CosTable, HarmTable
@@ -30,12 +31,12 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice
+from pyoscillate.patches.common import Gate, GatedVoice, PitchBend
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 from pyoscillate.tempo import Tempo
 
-__all__ = ["Bass", "BassProfile"]
+__all__ = ["AccentBass", "Bass", "BassProfile"]
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
 
@@ -59,7 +60,7 @@ class BassProfile:
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
 
 
-class Bass(Gate, GatedVoice):
+class Bass(PitchBend, Gate, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
     clock step. See `current_root` for the root-pitch policy every concrete
     voice supplies, and `build` for the shared graph the groove, hover and
@@ -87,7 +88,22 @@ class Bass(Gate, GatedVoice):
         "closer to the chords. The notes always follow the rack's key and chord changes.",
     )
 
+    @Param(
+        0,
+        0.25,
+        0.01,
+        0,
+        "Glide",
+        "Slides each note into the next over this many seconds; none is stepped and exact, long "
+        "is a smeared, sliding line.",
+        sweep=True,
+    )
+    def glide(self, value: float) -> None:
+        self.pitch.time = value
+
     # the graph `build` assigns; finish() retains every one of them.
+    pitch: SigTo
+    bent_pitch: PyoObject
     envelope_table: CosTable
     envelope: TrigEnv
     oscillator_table: HarmTable
@@ -150,9 +166,8 @@ class Bass(Gate, GatedVoice):
             dur=context.tempo.sixteenth * profile.envelope_decay,
         )
         self.oscillator_table = HarmTable(list(profile.harmonics))
-        self.oscillator = Osc(
-            self.oscillator_table, freq=self.current_root(), mul=self.envelope
-        )
+        freq = self.pitch_signal(self.current_root())
+        self.oscillator = Osc(self.oscillator_table, freq=freq, mul=self.envelope)
         self.filtered = MoogLP(
             self.oscillator,
             freq=self.cutoff_source(context.tempo),
@@ -161,6 +176,15 @@ class Bass(Gate, GatedVoice):
 
         self.schedule(BASE_DIVISION, self.rate, context.clock)
         return self.finish(self.add_gate(self.voice_output(), context))
+
+    def pitch_signal(self, initial: float) -> PyoObject:
+        """The note frequency every voice in this family plays from. Setting
+        `self.pitch.value` per step glides at the live `glide` time, and each
+        struck note is scooped by the live `bend` (`finish()` applies both
+        controls, so the neutral values here never sound)."""
+        self.pitch = SigTo(value=initial, time=self.glide, init=initial)
+        self.bent_pitch = self.pitch * self.add_bend(self.trigger)
+        return self.bent_pitch
 
     def voice_output(self) -> PyoObject:
         """Hook: the final output node after `self.filtered`. The default is
@@ -176,8 +200,46 @@ class Bass(Gate, GatedVoice):
         profile = self._profile
         step = (self._clock.tick // self._division.steps) % len(profile.pattern)
         if profile.gates[step]:
-            self.oscillator.freq = self.current_root() * 2 ** (
-                profile.pattern[step] / 12
-            )
-            self.envelope.mul = profile.accents[step]
+            self.pitch.value = self.current_root() * 2 ** (profile.pattern[step] / 12)
+            self.apply_accent(profile.accents[step])
             self.trigger.play()
+
+    def apply_accent(self, accent: float) -> None:
+        """Hook: how a struck note's profile accent (0-1) shapes it. The
+        default is level only; `AccentBass` also couples decay and resonance."""
+        self.envelope.mul = accent
+
+
+class AccentBass(Bass):
+    """A profile-driven bass whose `accent` amount couples the pattern's
+    per-step accents to timbre, as one macro (patches/AGENTS.md, "Macro
+    parameters"). At 0 an accent is only louder. As it rises, accented notes
+    also get louder still relative to the ghosts, shorter and snappier, and
+    more resonant, so they speak instead of just sitting higher in level."""
+
+    ACCENT_SHORTEN: ClassVar[float] = 0.45
+    ACCENT_SQUELCH: ClassVar[float] = 0.3
+    ACCENT_CONTRAST: ClassVar[float] = 2.0
+
+    accent = Param(
+        0,
+        1,
+        0.05,
+        0,
+        "Accent",
+        "Makes the strong notes of the pattern speak: louder against the soft ones, shorter and "
+        "snappier, with more squelch in the filter. At zero they differ only in level.",
+    )
+
+    def apply_accent(self, accent: float) -> None:
+        amount = self.accent
+        profile = self._profile
+        self.envelope.mul = accent ** (1 + amount * self.ACCENT_CONTRAST)
+        self.envelope.dur = (
+            self._tempo.sixteenth
+            * profile.envelope_decay
+            * (1 - amount * accent * self.ACCENT_SHORTEN)
+        )
+        self.filtered.res = min(
+            1.0, profile.resonance + amount * accent * self.ACCENT_SQUELCH
+        )

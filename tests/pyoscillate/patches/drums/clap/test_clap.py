@@ -47,7 +47,8 @@ Change:
     clean at the default volume. Raising volume past the default is
     still caught by the limiter, as intended.
 Status:
-    fix pending - test_presence_range_is_clean_at_default_volume fails until then.
+    fixed - `Clap.level` maximum lowered to 0.3 in
+    src/pyoscillate/patches/drums/clap/clap.py.
 
 Corrected along the way
 -----------------------

@@ -260,6 +260,81 @@ class SequencerGroup:
             sequencer.stop()
 
 
+class SeededDraws(Patch):
+    """Opt-in add-on for a patch that draws random musical choices (notes,
+    intervals): they come from `self.draws`, a `random.Random` owned by the
+    instance and seeded by the `seed` `Param`, so a given seed always plays
+    the same melody. Changing `seed` reseeds live. `on_evolve` re-rolls the
+    draws every N bars from the seed and the fire count, so an evolving group
+    changes the line deterministically instead of leaving the process-wide
+    `random` module in charge. Mix it in ahead of `Patch`:
+    `class Generative(SeededDraws, Patch)`.
+    """
+
+    # one seed's rolls are spaced this far apart so they never collide
+    SEED_ROLLS: ClassVar[int] = 1000
+
+    draws: random.Random
+
+    @Param(
+        0,
+        99,
+        1,
+        0,
+        "Melody",
+        "Picks which melody is drawn; each number is a different one, and the same number always "
+        "plays the same melody.",
+    )
+    def seed(self, value: float) -> None:
+        self.draws = random.Random(int(value) * self.SEED_ROLLS)
+
+    def on_evolve(self, index: int) -> None:
+        self.draws = random.Random(int(self.seed) * self.SEED_ROLLS + index + 1)
+
+
+class PitchBend(Patch):
+    """Opt-in add-on that scoops each struck note into its pitch (see
+    `patches/AGENTS.md`, "Pitch add-ons"). Mix it in ahead of the voice base
+    and call `self.add_bend(trigger)` in `build()`, multiplying the result
+    into the note frequency. It follows `self.trigger`-style retriggers: the
+    voice must play the trigger it passes on every struck note.
+
+    `bend` is how many semitones below (or above) the note it starts, snapping
+    to pitch over a few tens of milliseconds; 0 leaves the pitch untouched.
+    """
+
+    # how long the scoop takes to settle on the note, in seconds
+    BEND_TIME: ClassVar[float] = 0.06
+    BEND_CURVE: ClassVar[float] = 4.0
+
+    bend_table: ExpTable
+    bend_env: TrigEnv
+    bend_ratio: PyoObject
+
+    @Param(
+        -12,
+        12,
+        0.5,
+        0,
+        "Bend",
+        "Scoops each note into its pitch from this many semitones away; negative swoops up from "
+        "below, positive drops down from above, zero is a clean attack.",
+        sweep=True,
+    )
+    def bend(self, value: float) -> None:
+        self.bend_env.mul = 2 ** (value / 12) - 1
+
+    def add_bend(self, trigger: Trig) -> PyoObject:
+        """The frequency multiplier (1 at rest, the bend ratio at each strike,
+        settling back to 1) to multiply into a note's pitch."""
+        self.bend_table = ExpTable(
+            [(0, 1.0), (TABLE_SIZE - 1, 0.0)], exp=self.BEND_CURVE
+        )
+        self.bend_env = TrigEnv(trigger, self.bend_table, dur=self.BEND_TIME, mul=0)
+        self.bend_ratio = self.bend_env + 1
+        return self.bend_ratio
+
+
 class Gate(Patch):
     """Opt-in add-on that chops a voice's output into clocked pulses (see
     `patches/AGENTS.md`, "Gate add-on"). Mix it in ahead of the voice base -

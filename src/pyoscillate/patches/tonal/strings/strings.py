@@ -26,15 +26,16 @@ from pyo.lib.generators import SuperSaw
 
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
+from pyoscillate.intervals import ChordShape
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice
+from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
 # chord-tone intervals (semitones above the bar's chord root) that stay
 # consonant against any chord quality: root, fifth, octave. The colour
 # voice is kept separate (see module docstring / AGENTS.md).
-CHORD_TONES: tuple[int, ...] = (0, 7, 12)
 # low-pass Q just under Butterworth, so brightness never rings or whistles
 FILTER_Q = 0.7
 # balances the four summed SuperSaw voices (three chord tones + colour)
@@ -42,7 +43,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(Gate, GatedVoice):
+class Strings(Gate, Flood, Disperse, Comb, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -55,7 +56,7 @@ class Strings(Gate, GatedVoice):
     # major 9th (default) and a major 13th, an octave-and-a-6th up - both
     # stay consonant against the rack's Dm9-G13-Cmaj9-Am9 vamp the way the
     # 9th does. A rack-level `GroupController` rotates which one is blended
-    # in via `on_evolve`, tens of bars apart - see `Keys.PROGRESSIONS` for
+    # in via `on_evolve`, tens of bars apart - see `KeysProgression` for
     # the same pattern.
     COLOUR_TONE_VARIANTS: ClassVar[tuple[int, ...]] = (14, 21)
 
@@ -67,6 +68,9 @@ class Strings(Gate, GatedVoice):
     chorus: Chorus
     amp_env: Adsr
     voice_signal: PyoObject
+    combed: PyoObject
+    dispersed: PyoObject
+    flooded: PyoObject
 
     # the rack's harmony, frozen at build time - fed to `next_step`, which
     # build() can no longer close over now that it's a real method
@@ -183,7 +187,7 @@ class Strings(Gate, GatedVoice):
         # rule against repeating a parameter's mapping in build()
         self.chord_saws = [
             SuperSaw(freq=root * 2 ** (interval / 12), detune=0, bal=0.7, mul=GAIN)
-            for interval in CHORD_TONES
+            for interval in ChordShape.OPEN_FIFTH.value
         ]
         self.colour_saw = SuperSaw(
             freq=root * 2 ** (self._colour_interval / 12), detune=0, bal=0.7, mul=0
@@ -198,8 +202,11 @@ class Strings(Gate, GatedVoice):
         self.voice_signal = self.chorus * self.amp_env
 
         self.schedule(self.base_division, self.rate, context.clock)
+        self.combed = self.add_comb(self.voice_signal)
+        self.dispersed = self.add_disperse(self.combed)
+        self.flooded = self.add_flood(self.dispersed)
         return self.finish(
-            self.add_gate(self.voice_signal, context), resources=(*self.chord_saws,)
+            self.add_gate(self.flooded, context), resources=(*self.chord_saws,)
         )
 
     def current_root(self, clock: Clock) -> float:
@@ -217,7 +224,9 @@ class Strings(Gate, GatedVoice):
 
     def next_step(self) -> None:
         new_root = self.current_root(self._clock)
-        for saw, interval in zip(self.chord_saws, CHORD_TONES, strict=True):
+        for saw, interval in zip(
+            self.chord_saws, ChordShape.OPEN_FIFTH.value, strict=True
+        ):
             saw.freq = new_root * 2 ** (interval / 12)
         self.colour_saw.freq = new_root * 2 ** (self._colour_interval / 12)
         self.amp_env.play()

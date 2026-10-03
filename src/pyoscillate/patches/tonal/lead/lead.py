@@ -32,7 +32,7 @@ from pyo.lib.generators import LFO
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Step
+from pyoscillate.patches.common import Gate, GatedVoice, PitchBend, Step
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.utility.notes import notes
 
@@ -44,7 +44,7 @@ BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
-class Lead(Gate, GatedVoice):
+class Lead(PitchBend, Gate, GatedVoice):
     """Monophonic lead: two detuned pulse oscillators into a resonant
     low-pass with its own ADSR, then an amplitude ADSR and light saturation.
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
@@ -78,15 +78,45 @@ class Lead(Gate, GatedVoice):
     # cookbook recipes (100%) and exposed live via `sustain`
     amp_attack: ClassVar[float]
     amp_release: ClassVar[float]
-    # portamento time between notes; 0 is an instant jump (no glide)
-    glide_time: ClassVar[float]
     # resting saturation drive
     base_drive: ClassVar[float]
 
+    @Param(
+        0,
+        0.25,
+        0.01,
+        0,
+        "Glide",
+        "Slides each note into the next over this many seconds; none is stepped and exact, long "
+        "is a smeared, sliding line.",
+        sweep=True,
+    )
+    def glide(self, value: float) -> None:
+        self.pitch1.time = value
+        self.pitch2.time = value
+
+    @Param(
+        0.0,
+        0.5,
+        0.01,
+        0.0,
+        "Detune",
+        "Pulls the two oscillators apart in pitch; none keeps the style's own tuning, higher beats "
+        "into a thick, chorused, supersaw-like lead.",
+        sweep=True,
+    )
+    def detune(self, value: float) -> None:
+        # semitones, split symmetrically on top of the style's own offsets
+        self.detune_up.value = 2 ** (value / 12)
+        self.detune_down.value = 2 ** (-value / 12)
+
     # the graph, assigned by build(); finish() retains every one of them
+    detune_up: SigTo
+    detune_down: SigTo
     pitch1: SigTo
     pitch2: SigTo
     pitch_vibrato: LFO
+    bent_pitch: PyoObject
     osc1_freq: PyoObject
     osc2_freq: PyoObject
     pwm: LFO
@@ -195,15 +225,22 @@ class Lead(Gate, GatedVoice):
 
         initial_root = self.note_root(context.clock)
         self.pitch1 = SigTo(
-            value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide_time
+            value=initial_root * 2 ** (self.osc1_detune / 12), time=self.glide
         )
         self.pitch2 = SigTo(
-            value=initial_root * 2 ** (self.osc2_detune / 12), time=self.glide_time
+            value=initial_root * 2 ** (self.osc2_detune / 12), time=self.glide
         )
 
+        self.detune_up = SigTo(value=1.0, time=0.05)
+        self.detune_down = SigTo(value=1.0, time=0.05)
         self.pitch_vibrato = LFO(freq=5.0, type=3, sharp=0.5, mul=0.0)
-        self.osc1_freq = self.pitch1 + self.pitch_vibrato
-        self.osc2_freq = self.pitch2 + self.pitch_vibrato
+        self.bent_pitch = self.add_bend(self.trigger)
+        self.osc1_freq = (
+            self.pitch1 * self.bent_pitch * self.detune_down + self.pitch_vibrato
+        )
+        self.osc2_freq = (
+            self.pitch2 * self.bent_pitch * self.detune_up + self.pitch_vibrato
+        )
 
         # a plain sine LFO, muted (mul=0) whenever a style has no PWM; a
         # single always-built node keeps the graph identical across styles
@@ -255,6 +292,7 @@ class Lead(Gate, GatedVoice):
             self.pitch2.value = target * 2 ** (self.osc2_detune / 12)
             self.amp_env.play()
             self.filter_env.play()
+            self.trigger.play()
 
 
 class LeadBrass(Lead):
@@ -268,7 +306,6 @@ class LeadBrass(Lead):
     filter_base, filter_env_depth, filter_resonance = 200.0, 4000.0, 0.35
     filter_attack, filter_release = 0.03, 0.6
     amp_attack, amp_release = 0.0, 0.35
-    glide_time = 0.0
     base_drive = 0.15
 
 
@@ -283,7 +320,7 @@ class LeadMellow70s(Lead):
     filter_base, filter_env_depth, filter_resonance = 18000.0, 0.0, 0.0
     filter_attack, filter_release = 0.0, 0.0
     amp_attack, amp_release = 0.0, 0.35
-    glide_time = 0.02
+    glide = Lead.glide.replace(default=0.02)
     base_drive = 0.0
 
 
@@ -312,7 +349,6 @@ class LeadMutedKeys(Lead):
     filter_base, filter_env_depth, filter_resonance = 900.0, 700.0, 0.15
     filter_attack, filter_release = 0.01, 0.5
     amp_attack, amp_release = 0.005, 0.6
-    glide_time = 0.0
     base_drive = 0.0
     rate = rate_param(
         base_division,

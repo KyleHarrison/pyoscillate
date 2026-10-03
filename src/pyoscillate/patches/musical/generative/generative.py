@@ -6,7 +6,6 @@ random, so the melody never resolves into a repeating pattern.
 
 from __future__ import annotations
 
-import random
 from typing import ClassVar
 
 from pyo import PyoObject
@@ -15,17 +14,19 @@ from pyo.lib.generators import FM
 from pyo.lib.tables import CosTable
 from pyo.lib.triggers import Metro, TrigEnv, TrigFunc
 
+from pyoscillate.harmony import Harmony
+from pyoscillate.intervals import Scale
 from pyoscillate.patches.base import BuildContext, Patch
+from pyoscillate.patches.common import SeededDraws
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.utility.notes import notes
 
 # major pentatonic across one octave - consonant, calm, no leading tones
-GENERATIVE_SCALE = [0, 2, 4, 7, 9, 12]
 
 MID_ROOT = notes.E4  # current default
 
 
-class Generative(Patch):
+class Generative(SeededDraws, Patch):
     """Free-running generative melody: a new pentatonic note is drawn at random every `note_period` seconds, in real time rather than locked to the shared clock.
 
     Closer to Eno's tape-loop style generative ambient than a fixed
@@ -58,6 +59,7 @@ class Generative(Patch):
     fm_voice: FM
     reverb: Freeverb
     note_func: TrigFunc
+    harmony: Harmony
 
     @Param(
         notes.A2,
@@ -168,6 +170,7 @@ class Generative(Patch):
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
+        self.harmony = context.harmony
 
         self.note_metro = Metro(time=self.note_period)
 
@@ -187,5 +190,7 @@ class Generative(Patch):
         return self.finish(self.reverb)
 
     def next_note(self) -> None:
-        interval = random.choice(GENERATIVE_SCALE)
-        self.fm_voice.carrier = self.root_freq * pow(2, interval / 12)
+        interval = self.draws.choice(Scale.MAJOR_PENTATONIC_OCTAVE.value)
+        self.fm_voice.carrier = self.harmony.quantise(
+            self.root_freq * pow(2, interval / 12)
+        )
