@@ -3,45 +3,46 @@ import unittest
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.tonal.keys.keys import Keys
 from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Rhythms
-from pyoscillate.theory.progression import Progression, Progressions
+from pyoscillate.theory.phrase import Phrase, Progressions, Rhythms
 from pyoscillate.theory.scale import Scales
 
 C = 0
 D = 2
 
 
-def _keys(key: int, progression: Progression, inversion: int = 0) -> Keys:
+def _keys(key: int, progression: Phrase, inversion: int = 0) -> Keys:
     """A `Keys` with only the state `voicing` reads: no graph, no server."""
     keys = Keys.__new__(Keys)
-    keys._harmony = Harmony(key=key, progression=progression)
+    keys._harmony = Harmony(key=key)
+    keys.__dict__["progression"] = Progressions.index_of(progression)
     keys._inversion = inversion
     return keys
 
 
 class ProgressionTests(unittest.TestCase):
-    def test_every_progression_has_four_roots_inside_an_octave(self) -> None:
+    def test_every_progression_holds_roots_inside_an_octave(self) -> None:
         for progression in Progressions.members():
             with self.subTest(progression=progression.id):
-                self.assertEqual(len(progression.roots), 4)
-                self.assertTrue(all(0 <= root < 12 for root in progression.roots))
+                roots = [
+                    progression.chord_root(bar) for bar in range(progression.cycle)
+                ]
+                self.assertTrue(all(0 <= root < 12 for root in roots))
 
-    def test_every_progression_names_its_numerals_and_round_trips(self) -> None:
+    def test_every_progression_round_trips_through_its_catalog(self) -> None:
         for index, progression in enumerate(Progressions.members()):
             with self.subTest(progression=progression.id):
-                self.assertIn(progression.numerals, progression.label)
                 self.assertIs(Progressions.by_index(index), progression)
                 self.assertIs(Progressions.by_id(progression.id), progression)
                 self.assertEqual(Progressions.index_of(progression), index)
 
-    def test_harmony_reads_roots_from_a_progression_or_a_raw_tuple(self) -> None:
-        named = Harmony(progression=Progressions.JAZZ_TURNAROUND)
-        raw = Harmony(progression=(2, 7, 0, 9))
+    def test_a_progression_advances_on_bars_and_wraps(self) -> None:
+        jazz = Progressions.JAZZ_TURNAROUND
+        psy = Progressions.PSY_VAMP
 
-        self.assertEqual(named.roots, raw.roots)
+        self.assertEqual([jazz.chord_root(bar) for bar in range(5)], [2, 7, 0, 9, 2])
         self.assertEqual(
-            [named.chord_offset(bar) for bar in range(4)],
-            [raw.chord_offset(bar) for bar in range(4)],
+            [psy.chord_root(bar) for bar in range(10)],
+            [0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
         )
 
     def test_every_rhythm_hit_is_on_the_bar_with_a_velocity(self) -> None:
@@ -55,11 +56,16 @@ class ProgressionTests(unittest.TestCase):
 
 class ChordTonesTests(unittest.TestCase):
     def test_the_same_shape_is_minor_on_a_ii_and_major_on_a_i(self) -> None:
-        harmony = Harmony(key=C, progression=Progressions.JAZZ_TURNAROUND)
+        harmony = Harmony(key=C)
+        jazz = Progressions.JAZZ_TURNAROUND
 
         # Dm9 without its root: F A C E; Cmaj9 without its root: E G B D
-        self.assertEqual(harmony.chord_tones(0, Chords.ROOTLESS_NINTH), (5, 9, 12, 16))
-        self.assertEqual(harmony.chord_tones(2, Chords.ROOTLESS_NINTH), (4, 7, 11, 14))
+        self.assertEqual(
+            harmony.chord_tones(0, Chords.ROOTLESS_NINTH, jazz), (5, 9, 12, 16)
+        )
+        self.assertEqual(
+            harmony.chord_tones(2, Chords.ROOTLESS_NINTH, jazz), (4, 7, 11, 14)
+        )
 
     def test_a_root_outside_the_scale_takes_the_nearest_degree(self) -> None:
         self.assertEqual(Scales.MAJOR.degree(1), 0)

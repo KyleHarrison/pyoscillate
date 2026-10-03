@@ -6,6 +6,8 @@ from pyoscillate.clock import Clock
 from pyoscillate.harmony import Harmony
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.phrase import Progressions
+from pyoscillate.theory.phrase.progression import chord_changes
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.scale import Scales
 
@@ -20,29 +22,36 @@ class HarmonyTests(unittest.TestCase):
         self.assertAlmostEqual(Harmony(key=Note.KEY_A).key_freq(100), 110)
 
     def test_every_chord_root_stays_within_a_tritone_of_the_centre(self) -> None:
-        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A)
         for key in range(12):
             harmony.key = key
             for bar in range(4):
                 with self.subTest(key=key, bar=bar):
-                    root = harmony.chord_freq(146, bar)
+                    root = harmony.chord_freq(146, bar, Progressions.DEEP_HOUSE_MINOR)
                     self.assertLessEqual(abs(semitones_between(146, root)), 6)
 
     def test_progression_advances_on_bars_and_wraps(self) -> None:
-        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7), bars_per_chord=2)
+        harmony = Harmony(key=Note.KEY_A)
+        progression = chord_changes(
+            (0, 5, 10, 7), label="Test", category="Test", bars_per_chord=2
+        )
 
         self.assertEqual(
-            [harmony.chord_offset(bar) for bar in range(10)],
+            [harmony.chord_offset(bar, progression) for bar in range(10)],
             [0, 0, 5, 5, 10, 10, 7, 7, 0, 0],
         )
 
     def test_chord_root_is_the_progression_step_above_the_key(self) -> None:
-        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A)
 
         # A1, then D2 above it, then G1 and E1 below - the nearest octaves
         expected = [55.0, 73.416, 48.999, 41.203]
         for bar, frequency in enumerate(expected):
-            self.assertAlmostEqual(harmony.chord_freq(55, bar), frequency, places=2)
+            self.assertAlmostEqual(
+                harmony.chord_freq(55, bar, Progressions.DEEP_HOUSE_MINOR),
+                frequency,
+                places=2,
+            )
 
 
 class QuantiseTests(unittest.TestCase):

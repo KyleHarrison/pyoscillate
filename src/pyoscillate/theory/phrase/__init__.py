@@ -10,6 +10,7 @@ from pyoscillate.theory.phrase.bass import BassLines
 from pyoscillate.theory.phrase.fill import Fills
 from pyoscillate.theory.phrase.hook import Hooks
 from pyoscillate.theory.phrase.lead import Leads
+from pyoscillate.theory.phrase.progression import Progressions
 from pyoscillate.theory.phrase.rhythm import Rhythms
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "PhraseMode",
     "PhraseRole",
     "Phrases",
+    "Progressions",
     "Rhythms",
     "Step",
 ]
@@ -32,7 +34,7 @@ class Phrases(Catalog):
     their own, so their patches name them directly. A patch offers the part of
     it that suits it with `for_roles`."""
 
-    sources = (Rhythms, BassLines, Leads, Fills, Hooks)
+    sources = (Rhythms, BassLines, Leads, Fills, Hooks, Progressions)
 
     _by_roles: ClassVar[dict[frozenset[PhraseRole], type[Catalog]]] = {}
 

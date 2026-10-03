@@ -32,11 +32,11 @@ from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
+    ChordRoot,
     Gate,
     GatedVoice,
     Phrased,
     PitchBend,
-    RootPitch,
 )
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chords
@@ -48,7 +48,7 @@ BASE_DIVISION = NoteDivision.EIGHTH
 PULSE_TYPE = 4  # pyo LFO waveform index for Pulse; `sharp` is duty cycle
 
 
-class Lead(PitchBend, Gate, RootPitch, Phrased, GatedVoice):
+class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
     """Monophonic lead: two detuned pulse oscillators into a resonant
     low-pass with its own ADSR, then an amplitude ADSR and light saturation.
     Style subclasses supply fixed detune/PWM/filter/envelope/glide data; the
@@ -171,7 +171,7 @@ class Lead(PitchBend, Gate, RootPitch, Phrased, GatedVoice):
 
     # anchor register for the melody; re-rooted on the rack's current chord
     # each note, in the octave nearest this note (see `note_root`)
-    root_freq = RootPitch.root_freq.replace(
+    root_freq = ChordRoot.root_freq.replace(
         help_text="Moves the melody up or down; low sits in the tenor range, high cuts through above the mix.",
     )
 

@@ -35,14 +35,14 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
+from pyoscillate.patches.common import ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.phrase import Leads, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
-class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
+class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
     """FM lead base: every note barks bright and settles, with breath noise,
     pitch drift, portamento and an echo. Style subclasses supply the
     operator ratio, the swirl and drift speeds and the phrases; the graph is
@@ -123,7 +123,7 @@ class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
     _tempo: Tempo
     _accent: float
 
-    root_freq = RootPitch.root_freq.replace(
+    root_freq = ChordRoot.root_freq.replace(
         minimum=Note.F3,
         maximum=Note.F5,
         default=Note.F4,

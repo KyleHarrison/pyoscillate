@@ -13,7 +13,7 @@ from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
-from pyoscillate.theory.phrase import Hooks, Rhythms
+from pyoscillate.theory.phrase import Hooks, Progressions, Rhythms
 from src.flet.base import PatchGroup, PatchPanel, PatchRackApp
 
 
@@ -352,7 +352,9 @@ class PatchGroupTests(unittest.TestCase):
 
         (sidechain,) = rack.pad_wash.sidechains
         self.assertIs(sidechain.group, rack.kick_group)
-        self.assertEqual(SlowedReverbRack.harmony.roots, (2, 7, 0, 9))
+        self.assertIs(SlowedReverbRack.progression, Progressions.JAZZ_TURNAROUND)
+        for patch in lead.patches:
+            self.assertIs(patch.selected_progression, Progressions.JAZZ_TURNAROUND)
 
     def test_lift_updates_the_visible_output_level(self) -> None:
         rack = SlowedReverbRack()

@@ -12,13 +12,13 @@ from pyo.lib.generators import FM
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
+from pyoscillate.patches.common import ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.phrase import Hooks, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
-class Pluck(Gate, RootPitch, Phrased, GatedVoice):
+class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
     """Single-note FM pluck with a fast amplitude contour and a brighter,
     quickly-decaying modulation index. Style subclasses supply the pattern."""
 
@@ -48,7 +48,7 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
     space: Freeverb
     harmony: Harmony
 
-    root_freq = RootPitch.root_freq.replace(
+    root_freq = ChordRoot.root_freq.replace(
         default=Note.E3,
         help_text="Sets the chord-root register; the plucked chord tones sound an octave above it.",
     )
@@ -95,7 +95,7 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
     )
 
     def _note_frequency(self, tone_index: int, bar_index: int) -> float:
-        degree = self.harmony.chord_offset(bar_index) % 12
+        degree = self.chord_offset(self.harmony, bar_index) % 12
         root = self.root_at(bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
         return Note.transpose(root, 12 + triad[tone_index])
@@ -106,7 +106,9 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
 
         initial_frequency = self._note_frequency(0, context.clock.bar_index)
         self.pitch = SigTo(value=initial_frequency, time=0.01)
-        self.amp_env = self.envelope([(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3)
+        self.amp_env = self.envelope(
+            [(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3
+        )
         self.brightness_env = self.envelope(
             [(0, 1), (8191, 0)], dur=self.brightness_decay, mul=0, exp=3
         )

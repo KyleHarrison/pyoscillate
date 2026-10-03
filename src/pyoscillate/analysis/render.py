@@ -52,7 +52,6 @@ def render(
     bpm: float = DEFAULT_BPM,
     clock_running: bool = True,
     key: int | None = None,
-    progression: tuple[int, ...] | None = None,
 ) -> Render:
     """Build `module`'s patch with `params`, start it, and render `seconds`
     of its output offline in a fresh subprocess.
@@ -60,9 +59,9 @@ def render(
     With `clock_running=False` the patch is started but never receives a
     tick, so anything audible was not scheduled by its sequencer.
 
-    `key` and `progression` set the rack's harmony (a pitch class, and chord
-    roots in semitones above it, one per bar); left out, the patch hears
-    `Harmony`'s defaults.
+    `key` sets the rack's harmony (a pitch class); left out, the patch hears
+    `Harmony`'s default. A chord-following patch's chords are its own
+    `progression` Param, set through `params`.
 
     The patch plays at its `volume` Param's default unless `params` sets
     `volume`, so the render passes through the output limiter the way the
@@ -79,9 +78,7 @@ def render(
             "bpm": bpm,
             "clock_running": clock_running,
             "harmony": {
-                name: value
-                for name, value in (("key", key), ("progression", progression))
-                if value is not None
+                name: value for name, value in (("key", key),) if value is not None
             },
             "path": str(path),
         }

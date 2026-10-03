@@ -84,11 +84,11 @@ for _ in range(pre_roll_sixteenths * clock.sixteenth):
 
 context = BuildContext(tempo, clock, rack.harmony)
 
-keys_patch = keys.Keys()
+keys_patch = keys.Keys(progression=rack.progression)
 keys_patch.build(context)
 keys_patch.start()
 
-strings_patch = strings.Strings()
+strings_patch = strings.Strings(progression=rack.progression)
 strings_patch.build(context)
 strings_patch.start()
 

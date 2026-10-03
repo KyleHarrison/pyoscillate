@@ -16,6 +16,7 @@ from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.projects.deep_house.rack import DeepHouseRack
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.chord import Chords
+from pyoscillate.theory.phrase import Progressions
 from pyoscillate.theory.pitch import Note
 
 
@@ -171,9 +172,10 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
         calling the voice's own division callback once (its `sequencer` may also hold a gate), rather than calling it
         repeatedly with the clock held still."""
         context = BuildContext(self.tempo, self.clock, harmony)
-        chord_patch = stab.StabVelvet().build(context)
-        bass_patch = bass.BassRolling().build(context)
-        tom_patch = tom.Tom().build(context)
+        seed = Progressions.DEEP_HOUSE_MINOR
+        chord_patch = stab.StabVelvet(progression=seed).build(context)
+        bass_patch = bass.BassRolling(progression=seed).build(context)
+        tom_patch = tom.Tom(progression=seed).build(context)
         bar_start = self.clock._tick
 
         def fire(patch: Patch, step_index: int) -> None:
@@ -202,7 +204,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
                 self.assertEqual(pitch_class, expected)
 
     def test_bass_chord_and_tom_change_chord_on_the_same_bar(self) -> None:
-        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A)
         saved_tick = self.clock._tick
         try:
             for bar, pitch_class in enumerate((9, 2, 7, 4)):  # A, D, G, E
@@ -215,7 +217,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
             self.clock._tick = saved_tick
 
     def test_changing_the_key_moves_every_part_together(self) -> None:
-        harmony = Harmony(key=Note.KEY_A, progression=(0, 5, 10, 7))
+        harmony = Harmony(key=Note.KEY_A)
         saved_tick = self.clock._tick
         try:
             self.clock._tick = 0

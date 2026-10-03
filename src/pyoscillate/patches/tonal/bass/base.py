@@ -31,7 +31,13 @@ from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Phrased, PitchBend
+from pyoscillate.patches.common import (
+    Gate,
+    GatedVoice,
+    Phrased,
+    PitchBend,
+    Progressive,
+)
 from pyoscillate.patches.params import Param
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.phrase import BassLines, PhraseRole
@@ -53,7 +59,7 @@ class BassProfile:
     harmonics: tuple[float, ...] = (1.0, 0.32, 0.18, 0.1)
 
 
-class Bass(PitchBend, Gate, Phrased, GatedVoice):
+class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
     clock step. See `current_root` for the root-pitch policy every concrete
     voice supplies, and `build` for the shared graph the groove, hover and
@@ -134,8 +140,8 @@ class Bass(PitchBend, Gate, Phrased, GatedVoice):
         `register_centre`, lifted by the live `octave` - re-rooting on a live
         `root_freq` control could drag a chord-following line out of key."""
         context = self._context
-        return context.harmony.chord_freq(
-            self.register_centre, context.clock.bar_index
+        return self.chord_freq(
+            context.harmony, self.register_centre, context.clock.bar_index
         ) * (2**self.octave)
 
     def cutoff_source(self) -> Any:

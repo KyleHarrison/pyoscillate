@@ -44,10 +44,10 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     RING_CURVE,
+    ChordRoot,
     Gate,
     GatedVoice,
     Phrased,
-    RootPitch,
     decay_points,
 )
 from pyoscillate.patches.params import Param, rate_param
@@ -64,7 +64,7 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, RootPitch, Phrased, GatedVoice):
+class Keys(Gate, ChordRoot, Phrased, GatedVoice):
     """FM electric piano comping the rack's chord changes in a rhythm.
     See the module docstring for the sonic detail."""
 
@@ -156,7 +156,7 @@ class Keys(Gate, RootPitch, Phrased, GatedVoice):
 
     # only read at trigger time (next_step()), so it needs no live control:
     # assigning it already keeps self.root_freq current
-    root_freq = RootPitch.root_freq.replace(
+    root_freq = ChordRoot.root_freq.replace(
         maximum=Note.E4,
         help_text="Moves the chords up or down; low is warm and dark under a vocal, high is bell-like and sits above the mix.",
     )
@@ -326,7 +326,9 @@ class Keys(Gate, RootPitch, Phrased, GatedVoice):
     def shape(self, bar: int) -> Chord:
         """The stack for `bar`'s chord: a thirteenth on a dominant chord (a
         major third and a minor seventh over the root), a ninth on any other."""
-        root, third, _, seventh = self._harmony.chord_tones(bar, Chords.SEVENTH_CHORD)
+        root, third, _, seventh = self.chord_tones(
+            self._harmony, bar, Chords.SEVENTH_CHORD
+        )
         if (third - root, seventh - root) == (4, 10):
             return Chords.ROOTLESS_THIRTEENTH
         return Chords.ROOTLESS_NINTH
@@ -339,7 +341,7 @@ class Keys(Gate, RootPitch, Phrased, GatedVoice):
         harmony = self._harmony
         tones = [
             tone + harmony.key - self.register_pitch_class
-            for tone in harmony.chord_tones(bar, self.shape(bar))
+            for tone in self.chord_tones(harmony, bar, self.shape(bar))
         ]
         tones.sort()
         # each inversion (the lowest note moved up an octave, repeatedly) put

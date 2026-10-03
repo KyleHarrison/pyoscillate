@@ -24,9 +24,8 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
-from pyoscillate.theory.phrase import BassLines
+from pyoscillate.theory.phrase import BassLines, Progressions
 from pyoscillate.theory.pitch import Note
-from pyoscillate.theory.progression import Progressions
 
 
 class LofiRack(Rack):
@@ -45,9 +44,8 @@ class LofiRack(Rack):
     # bar from the shared clock, so they change chord together regardless of
     # their own Rate sliders; `keys.Keys` stacks a rootless ninth on the
     # same chord each bar (see keys.py)
-    harmony = Harmony(
-        key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1
-    )
+    harmony = Harmony(key=Note.KEY_C)
+    progression = Progressions.JAZZ_TURNAROUND
 
     # the kick group is declared first so strings and bass can duck off it;
     # `layout` below sets the display order

@@ -27,7 +27,7 @@ from pyo.lib.generators import SuperSaw
 from pyoscillate.clock import Clock, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
+from pyoscillate.patches.common import ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.fx import Comb, Disperse, Flood
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chords
@@ -44,7 +44,7 @@ FILTER_Q = 0.7
 GAIN = 0.16
 
 
-class Strings(Gate, Flood, Disperse, Comb, RootPitch, Phrased, GatedVoice):
+class Strings(Gate, Flood, Disperse, Comb, ChordRoot, Phrased, GatedVoice):
     """Supersaw ensemble pad, re-opening once per bar on the rack's chord.
     See the module docstring and `AGENTS.md` for the synthesis approach."""
 
@@ -89,7 +89,7 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Phrased, GatedVoice):
     # `COLOUR_TONE_VARIANTS` entry the colour voice is currently on
     _colour_interval: int
 
-    root_freq = RootPitch.root_freq.replace(
+    root_freq = ChordRoot.root_freq.replace(
         help_text="Moves the ensemble up or down; low sits warm and covered under the melody, high moves it closer to the surface.",
     )
 

@@ -19,7 +19,15 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.params import Param, choice_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.phrase import Phrase, PhraseMode, PhraseRole, Phrases, Rhythms
+from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.phrase import (
+    Phrase,
+    PhraseMode,
+    PhraseRole,
+    Phrases,
+    Progressions,
+    Rhythms,
+)
 from pyoscillate.theory.pitch import Note
 
 
@@ -313,22 +321,26 @@ class Phrased(GatedVoice):
         """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
         return self.schedule(self.selected_phrase.division, self.rate, context.clock)
 
-    def evolution_choices(self) -> tuple[Phrase, ...]:
+    def evolution_choices(self) -> tuple[Any, ...]:
         """Every phrase the dropdown offers, for the listener to tick."""
         catalog = type(self).phrase.catalog
         assert catalog is not None
-        return tuple(catalog.members())
+        return (*super().evolution_choices(), *catalog.members())
 
-    def evolution_seed(self) -> tuple[Phrase, ...]:
+    def evolution_seed(self) -> tuple[Any, ...]:
         """Only the starting phrase is ticked until a rack or listener ticks
         more."""
-        return (self.selected_phrase,)
+        return (*super().evolution_seed(), self.selected_phrase)
 
     def on_evolve(self, index: int) -> None:
         """Move the `phrase` dropdown to the next ticked phrase after the one
         playing (the first when it isn't ticked); a no-op with fewer than two
         ticked."""
-        chosen = self.evolution.choices
+        super().on_evolve(index)
+        catalog = type(self).phrase.catalog
+        assert catalog is not None
+        own = set(catalog.members())
+        chosen = tuple(choice for choice in self.evolution.choices if choice in own)
         if len(chosen) < 2:
             return
         current = self.selected_phrase
@@ -339,8 +351,82 @@ class Phrased(GatedVoice):
         """Play `phrase` from the shared clock's position, moving to its grid
         if it needs a different one."""
         if phrase.mode is PhraseMode.POOL_INDEX:
-            raise ValueError(f"{phrase.id} needs a note pool; play it with play_pattern")
+            raise ValueError(
+                f"{phrase.id} needs a note pool; play it with play_pattern"
+            )
+        if phrase.mode is PhraseMode.CHORD_ROOT:
+            raise ValueError(
+                f"{phrase.id} is a progression; select it with `progression`"
+            )
         self.play_pattern(phrase.division, phrase.cycle, phrase.values)
+
+
+class Progressive(Patch):
+    """Opt-in add-on for a voice whose pitch follows the chords: the
+    `progression` dropdown picks which chord changes it plays against, from
+    the same shared phrase catalogs as `Phrased` (a progression is a phrase
+    whose steps are bars). The progression lives on this patch, not on the
+    rack, so the patch can evolve through progressions on its own timer; a
+    rack keeps its chord-following patches on the same chords by seeding each
+    with the same one and, if they evolve, the same bars and choices. Read it
+    through `chord_freq`, `chord_offset` and `chord_tones`, passing the
+    rack's `Harmony`. Mix it in ahead of the voice base: `class Bass(Gate,
+    Progressive, Phrased, GatedVoice)`."""
+
+    progression = choice_param(
+        Phrases.for_roles(PhraseRole.PROGRESSION),
+        Progressions.STATIC,
+        "Picks the chord changes the voice follows, one chord root per bar or run of "
+        "bars; chord-following voices on the same progression change chord together.",
+        label="Progression",
+    )
+
+    @property
+    def selected_progression(self) -> Phrase:
+        """The `Phrase` the `progression` dropdown currently names."""
+        catalog = type(self).progression.catalog
+        assert catalog is not None
+        return catalog.by_index(int(self.progression))
+
+    def chord_offset(self, harmony: Harmony, bar: int) -> int:
+        """Semitones above the key of the chord root sounding in `bar`."""
+        return harmony.chord_offset(bar, self.selected_progression)
+
+    def chord_freq(self, harmony: Harmony, centre: float, bar: int) -> float:
+        """The root of `bar`'s chord in the octave nearest `centre` Hz."""
+        return harmony.chord_freq(centre, bar, self.selected_progression)
+
+    def chord_tones(self, harmony: Harmony, bar: int, shape: Chord) -> tuple[int, ...]:
+        """`shape` stacked on `bar`'s chord, as semitones above the key."""
+        return harmony.chord_tones(bar, shape, self.selected_progression)
+
+    def evolution_choices(self) -> tuple[Any, ...]:
+        """Every progression the dropdown offers, for the listener to tick."""
+        catalog = type(self).progression.catalog
+        assert catalog is not None
+        return (*super().evolution_choices(), *catalog.members())
+
+    def evolution_seed(self) -> tuple[Any, ...]:
+        """Only the starting progression is ticked until a rack or listener
+        ticks more."""
+        return (*super().evolution_seed(), self.selected_progression)
+
+    def on_evolve(self, index: int) -> None:
+        """Move the `progression` dropdown to the next ticked progression
+        after the one playing (the first when it isn't ticked); a no-op with
+        fewer than two ticked. It lands on the bar line the evolve timer
+        shares with the clock, so patches with the same bars and choices
+        change chord together."""
+        super().on_evolve(index)
+        catalog = type(self).progression.catalog
+        assert catalog is not None
+        own = set(catalog.members())
+        chosen = tuple(choice for choice in self.evolution.choices if choice in own)
+        if len(chosen) < 2:
+            return
+        current = self.selected_progression
+        position = chosen.index(current) if current in chosen else -1
+        self.progression = chosen[(position + 1) % len(chosen)]
 
 
 @dataclass(eq=False)
@@ -691,8 +777,7 @@ class Echo(Patch):
 
 class RootPitch(Patch):
     """Opt-in `Register` slider: the voice's root pitch (`root_freq`, snapped
-    to equal-tempered notes) and `root_at()`, the root of the rack's chord
-    nearest to it. A patch sets its own range, default and wording with
+    to equal-tempered notes). A patch sets its own range, default and wording with
     `root_freq = RootPitch.root_freq.replace(minimum=..., maximum=...,
     default=..., help_text=...)`. Mix it in ahead of the voice base:
     `class Lead(RootPitch, GatedVoice)`. A slider that must also move a
@@ -711,10 +796,16 @@ class RootPitch(Patch):
         scale="note",
     )
 
+
+class ChordRoot(RootPitch, Progressive):
+    """`RootPitch` for a voice that follows the chords: `root_at()` is the
+    root of the progression's chord nearest the `root_freq` Register. Mix it
+    in where `RootPitch` would go."""
+
     def root_at(self, bar_index: int) -> float:
         """The sounding chord's root in the octave nearest `root_freq`; call
         after `build()` has set `self.harmony`."""
-        return self.harmony.chord_freq(self.root_freq, bar_index)
+        return self.chord_freq(self.harmony, self.root_freq, bar_index)
 
 
 @dataclass(eq=False)

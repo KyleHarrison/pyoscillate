@@ -18,14 +18,14 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Phrased
+from pyoscillate.patches.common import Phrased, Progressive
 from pyoscillate.patches.drums.base import DROP, DrumVoice
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.phrase import Fills, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
-class Tom(Phrased, DrumVoice):
+class Tom(Progressive, Phrased, DrumVoice):
     """Pitched tom playing a sparse two-bar fill on the current chord.
 
     The fill follows the chord rather than only the key: the rack's chords
@@ -192,8 +192,10 @@ class Tom(Phrased, DrumVoice):
         step = self._step()
         if step.hit:
             chord_ratio = (
-                self.harmony.chord_freq(self.body_freq, self._clock.bar_index)
+                self.chord_freq(self.harmony, self.body_freq, self._clock.bar_index)
                 / self.body_freq
             )
-            self.tuning.value = chord_ratio * Note.semitone_ratio(self.tune + step.value)
+            self.tuning.value = chord_ratio * Note.semitone_ratio(
+                self.tune + step.value
+            )
             self.strike()

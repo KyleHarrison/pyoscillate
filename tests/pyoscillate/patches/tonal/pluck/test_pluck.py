@@ -4,7 +4,7 @@ from pyoscillate.analysis.features import features
 from pyoscillate.analysis.render import render
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.tonal.pluck.pluck import PluckHook
-from pyoscillate.theory.phrase import Hooks
+from pyoscillate.theory.phrase import Hooks, Progressions
 from pyoscillate.theory.pitch import Note
 
 
@@ -46,7 +46,8 @@ class PluckHookTests(unittest.TestCase):
 
     def test_hook_tracks_diatonic_chord_triads_in_upper_register(self) -> None:
         patch = PluckHook()
-        patch.harmony = Harmony(key=Note.KEY_C, progression=(2, 7, 0, 9))
+        patch.harmony = Harmony(key=Note.KEY_C)
+        patch.progression = Progressions.JAZZ_TURNAROUND
         expected_roots = (Note.D4, Note.G4, Note.C4, Note.A4)
 
         for bar_index, expected in enumerate(expected_roots):

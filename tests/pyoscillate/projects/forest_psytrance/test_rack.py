@@ -39,9 +39,12 @@ class ForestPsytranceRackTests(unittest.TestCase):
             self.assertEqual(len(lead.evolution.choices), 2)
 
     def test_harmony_stays_on_f_and_leans_on_the_flat_second(self) -> None:
-        harmony = ForestPsytranceRack().harmony
+        rack = ForestPsytranceRack()
 
-        roots = [harmony.chord_freq(Note.F1, bar) for bar in range(8)]
+        roots = [
+            rack.harmony.chord_freq(Note.F1, bar, rack.bass_forest.selected_progression)
+            for bar in range(8)
+        ]
 
         for root, expected in zip(roots, [Note.F1] * 6 + [Note.Fs1] * 2):
             self.assertAlmostEqual(root, expected, delta=0.01)

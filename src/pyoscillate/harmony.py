@@ -4,20 +4,24 @@ import math
 from dataclasses import dataclass
 
 from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.phrase.base import Phrase
 from pyoscillate.theory.pitch import Note
-from pyoscillate.theory.progression import Progression
 from pyoscillate.theory.scale import Scale, Scales
 
 
 @dataclass(eq=False)
 class Harmony:
-    """A rack's key and chord progression, which its pitched patches read so
-    the bass, chords and pitched percussion change chord together.
+    """A rack's key and scale, which its pitched patches read so the bass,
+    chords and pitched percussion play in one key.
 
     Each `Rack` owns one (a fresh copy per rack instance, since the Flet key
-    and progression controls mutate it) and hands it to every patch through
+    control mutates it) and hands it to every patch through
     `BuildContext.harmony`; a patch that has no use for harmony ignores it.
 
+    The chord changes are not here: each chord-following patch holds its own
+    progression (a `Phrase`, see `Progressive`) and passes it to the lookups
+    below, so a patch can evolve through progressions on its own timer. Racks
+    seed every such patch with the same one to keep them on the same chord.
     The current chord is looked up from a bar number - pass
     `clock.bar_index` - never from a patch's own step counter. A patch's
     step count depends on its rate slider and on when it was started, so
@@ -34,11 +38,6 @@ class Harmony:
 
     # pitch class of the tonic, 0 = C ... 11 = B
     key: int = Note.KEY_A
-    # the chord changes: a named `Progression`, or chord roots (semitones
-    # above the key, one per bar) for changes the table doesn't name. Read
-    # the roots through `roots`.
-    progression: Progression | tuple[int, ...] = (0,)
-    bars_per_chord: int = 1
     # the scale `quantise` snaps to and `voice` reads by default; None means
     # no scale is set and `quantise` leaves pitches alone
     scale: Scale | None = None
@@ -62,40 +61,37 @@ class Harmony:
         rack's, else major - as semitones above the chord root."""
         return (scale or self.scale or Scales.MAJOR).voice(shape, root_degree)
 
-    @property
-    def roots(self) -> tuple[int, ...]:
-        """The progression's chord roots, semitones above the key, one per
-        bar."""
-        if isinstance(self.progression, Progression):
-            return self.progression.roots
-        return self.progression
+    @staticmethod
+    def chord_offset(bar: int, progression: Phrase) -> int:
+        """Semitones above the key of the chord root `progression` has
+        sounding in `bar`."""
+        return progression.chord_root(bar)
 
-    def chord_offset(self, bar: int) -> int:
-        """Semitones above the key of the chord root sounding in `bar`."""
-        index = (bar // self.bars_per_chord) % len(self.roots)
-        return self.roots[index]
-
-    def chord_tones(self, bar: int, shape: Chord) -> tuple[int, ...]:
-        """`shape` stacked on the chord sounding in `bar`, as semitones above
-        the key. The stack is read from the scale (the rack's, else major) at
-        the chord root's degree, so the same shape comes out minor on a ii and
-        major on a I without the progression naming chord qualities."""
+    def chord_tones(
+        self, bar: int, shape: Chord, progression: Phrase
+    ) -> tuple[int, ...]:
+        """`shape` stacked on the chord `progression` has sounding in `bar`, as
+        semitones above the key. The stack is read from the scale (the rack's,
+        else major) at the chord root's degree, so the same shape comes out
+        minor on a ii and major on a I without the progression naming chord
+        qualities."""
         scale = self.scale or Scales.MAJOR
-        return scale.voice(shape, scale.degree(self.chord_offset(bar)))
+        return scale.voice(shape, scale.degree(self.chord_offset(bar, progression)))
 
     def key_freq(self, centre: float) -> float:
         """The tonic nearest `centre` Hz."""
         return self.nearest(self.key, centre)
 
-    def chord_freq(self, centre: float, bar: int) -> float:
-        """The root of `bar`'s chord, in the octave nearest `centre` Hz.
+    def chord_freq(self, centre: float, bar: int, progression: Phrase) -> float:
+        """The root of `progression`'s chord in `bar`, in the octave nearest
+        `centre` Hz.
 
         Snapping to the nearest octave, instead of adding the progression's
         offsets on top of a fixed root, keeps each voice in its own register
         whatever the key: every root lands within a tritone of `centre`, so
         a progression like A-D-G-E never climbs out of the part's range.
         """
-        return self.nearest(self.key + self.chord_offset(bar), centre)
+        return self.nearest(self.key + self.chord_offset(bar, progression), centre)
 
     @staticmethod
     def nearest(pitch_class: int, centre: float) -> float:

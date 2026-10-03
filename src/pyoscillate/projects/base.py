@@ -13,6 +13,8 @@ from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
 from pyoscillate.controller import GroupController, GroupRuntime, Slot
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
+from pyoscillate.patches.common import Progressive
+from pyoscillate.theory.phrase import Phrase, Progressions
 
 
 class Rack(ABC):
@@ -36,9 +38,13 @@ class Rack(ABC):
     # the master output's starting level and safety ceiling
     master_output_default: ClassVar[float] = 0.8
     master_output_max: ClassVar[float] = 1.0
-    # the declared key and progression; every rack gets its own copy in
-    # `__init__`, since the Flet key control mutates it
+    # the declared key; every rack gets its own copy in `__init__`, since the
+    # Flet key control mutates it
     harmony: Harmony = Harmony()
+    # the chord changes every chord-following patch (a `Progressive`) starts on,
+    # so bass, chords and the like change chord together; a `Slot` that sets its
+    # own `progression` keeps it, and each patch can evolve from here
+    progression: ClassVar[Phrase] = Progressions.STATIC
 
     def __init__(self) -> None:
         self.harmony = replace(self.harmony)
@@ -53,6 +59,9 @@ class Rack(ABC):
             )
         slots = list(dict.fromkeys(slot for group in declared for slot in group.slots))
         self._patches: dict[Slot[Any], Patch] = {slot: slot.bind() for slot in slots}
+        for slot, patch in self._patches.items():
+            if isinstance(patch, Progressive) and "progression" not in slot.values:
+                patch.progression = self.progression
         self._groups: dict[GroupController, GroupRuntime] = {}
         for group in declared:
             group.bind(self._patches, self._groups)

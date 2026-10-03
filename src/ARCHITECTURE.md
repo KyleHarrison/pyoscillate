@@ -30,8 +30,10 @@ duplicated inside them:
 - `clock.py` (`Clock`, `NoteDivision`) — the shared tick source a patch
   schedules against; `NoteDivision` is the fixed vocabulary of musical
   subdivisions a rate control can move through.
-- `harmony.py` (`Harmony`) — rack-level key and chord progression, looked up
-  by bar index so every pitched patch changes chord together.
+- `harmony.py` (`Harmony`) — rack-level key and scale. Chord changes are a
+  patch's own `progression` (a `Phrase`, via `Progressive`), looked up by bar
+  index; a rack seeds every chord-following patch with the same one so they
+  change chord together, and each can evolve through progressions.
 - `analysis/` — offline/runtime audio analysis (feature extraction,
   rendering) that consumes the library to inspect/validate output; not part
   of the patch runtime itself.

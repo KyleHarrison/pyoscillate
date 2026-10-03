@@ -72,7 +72,7 @@ from pyoscillate.analysis.features import (
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.keys import keys
-from pyoscillate.theory.progression import Progressions
+from pyoscillate.theory.phrase import Progressions
 
 MODULE = "pyoscillate.patches.tonal.keys.keys"
 BPM = 120
@@ -92,11 +92,10 @@ def _render(seconds: float = 3.2, **params: float) -> Render:
     # time measured on one chord is not the same on another
     return render(
         MODULE,
-        params,
+        {"progression": Progressions.index_of(Progressions.JAZZ_TURNAROUND), **params},
         seconds=seconds,
         bpm=BPM,
         key=0,
-        progression=Progressions.JAZZ_TURNAROUND.roots,
     )
 
 

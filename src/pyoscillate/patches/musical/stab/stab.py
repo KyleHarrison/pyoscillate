@@ -15,7 +15,7 @@ from pyo.lib.triggers import TrigEnv
 from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
-from pyoscillate.patches.common import Gate, GatedVoice, Phrased
+from pyoscillate.patches.common import Gate, GatedVoice, Phrased, Progressive
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.theory.chord import Chords
 from pyoscillate.theory.phrase import PhraseRole, Rhythms
@@ -23,7 +23,7 @@ from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.scale import Scale, Scales
 
 
-class Stab(Gate, Phrased, GatedVoice):
+class Stab(Gate, Progressive, Phrased, GatedVoice):
     """Offbeat minor-seventh chord stab, following `harmony`'s current-bar
     chord. Style variants subclass this and override `table()` for their
     own oscillator table, plus the profile attributes below; the rest of
@@ -181,8 +181,8 @@ class Stab(Gate, Phrased, GatedVoice):
             Osc(
                 self.oscillator_table,
                 freq=Note.transpose(
-                    self.harmony.chord_freq(
-                        self.register_centre, context.clock.bar_index
+                    self.chord_freq(
+                        self.harmony, self.register_centre, context.clock.bar_index
                     ),
                     12 * self.octave + interval,
                 ),
@@ -215,7 +215,9 @@ class Stab(Gate, Phrased, GatedVoice):
     def next_step(self) -> None:
         if self._step().hit:
             chord_root = Note.transpose(
-                self.harmony.chord_freq(self.register_centre, self._clock.bar_index),
+                self.chord_freq(
+                    self.harmony, self.register_centre, self._clock.bar_index
+                ),
                 12 * self.octave,
             )
             for index, (oscillator, interval) in enumerate(

@@ -25,13 +25,14 @@ import flet as ft
 from pyoscillate.clock import Clock
 from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
+from pyoscillate.patches.common import Progressive
 from pyoscillate.patches.evolve import Evolution
 from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
+from pyoscillate.theory.phrase import Progressions
 from pyoscillate.theory.pitch import Note
-from pyoscillate.theory.progression import Progression, Progressions
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -1296,28 +1297,34 @@ class PatchRackApp:
         self._set_key(int(e.control.value))
         e.page.update()
 
+    def _progressive_patches(self) -> list[Progressive]:
+        """Every patch in the rack that follows chord changes."""
+        return [
+            panel.patch
+            for panel in self.panels.values()
+            if isinstance(panel.patch, Progressive)
+        ]
+
     def _progression_value(self) -> str | None:
-        """The dropdown value for the rack's chord roots; None (blank) when
-        the rack's own progression isn't one of the named presets."""
-        progression = self.rack.harmony.progression
-        if isinstance(progression, Progression):
-            return str(Progressions.index_of(progression))
+        """The dropdown value for the progression every chord-following patch
+        is on; None (blank) when they differ, as after one evolves."""
+        chosen = {patch.selected_progression for patch in self._progressive_patches()}
+        if len(chosen) == 1:
+            return str(Progressions.index_of(chosen.pop()))
         return None
 
-    def _progression_preset(self) -> dict[str, str]:
-        """The preset entry for a named progression; empty for a rack's own."""
-        progression = self.rack.harmony.progression
-        if isinstance(progression, Progression):
-            return {"progression": progression.id}
-        return {}
-
     def _handle_progression(self, e: ft.ControlEvent) -> None:
-        # patches read the progression on each note, so no rebuild is needed
+        # patches read their progression on each note, so no rebuild is needed
         self._set_progression(int(e.control.value))
         e.page.update()
 
     def _set_progression(self, index: int) -> None:
-        self.rack.harmony.progression = Progressions.by_index(index)
+        """Put every chord-following patch on `Progressions` member `index`."""
+        progression = Progressions.by_index(index)
+        for patch in self._progressive_patches():
+            patch.progression = progression
+            param = type(patch).progression
+            self.panels[patch.name]._show(param, param.read(patch))
         self.progression_dropdown.value = str(index)
 
     def _set_key(self, pitch_class: int) -> None:
@@ -1357,6 +1364,8 @@ class PatchRackApp:
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
             moving = [panel.refresh_live() for panel in self.panels.values()]
+            # an evolving patch can move off the shared progression
+            self.progression_dropdown.value = self._progression_value()
             if any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
@@ -1446,6 +1455,7 @@ class PatchRackApp:
         rack_values = preset.get(RACK_PRESET_KEY, {})
         if rack_values.get("key") in Note.NAMES:
             self._set_key(Note.NAMES.index(rack_values["key"]))
+        # presets saved before each patch held its own progression
         if rack_values.get("progression") in Progressions.ids():
             self._set_progression(Progressions.ids().index(rack_values["progression"]))
         control_values = rack_values.get("controls", {})
@@ -1469,7 +1479,6 @@ class PatchRackApp:
         }
         values[RACK_PRESET_KEY] = {
             "key": Note.NAMES[self.rack.harmony.key],
-            **self._progression_preset(),
             "controls": {
                 control.path: control.group.values[control.control]
                 for control in self.control_sliders

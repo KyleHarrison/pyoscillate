@@ -20,11 +20,11 @@ from pyoscillate.theory.phrase import (
     PhraseMode,
     PhraseRole,
     Phrases,
+    Progressions,
     Rhythms,
 )
 from pyoscillate.theory.phrase.arp import ArpOrders
 from pyoscillate.theory.phrase.walk import Walks
-from pyoscillate.theory.progression import Progressions
 from pyoscillate.theory.scale import Scales
 
 
@@ -134,6 +134,7 @@ class CatalogTests(unittest.TestCase):
                 *Leads.members(),
                 *Fills.members(),
                 *Hooks.members(),
+                *Progressions.members(),
             ),
         )
 
