@@ -2,7 +2,6 @@
 """Patch definitions for the dark, slowed-and-reverbed lofi rack."""
 
 from pyoscillate.controller import (
-    EvolvingGroup,
     GroupControl,
     GroupController,
     ParamControl,
@@ -14,6 +13,7 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.texture.noise import noise
 from pyoscillate.patches.tonal.bass import hover as bass
@@ -22,6 +22,7 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.pluck import pluck
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory.phrase import Hooks, Rhythms
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import Progressions
 
@@ -37,12 +38,15 @@ class SlowedReverbRack(Rack):
     # The lofi strings follow this vamp; Keys stacks its voicings on the same chords.
     # Its white-note pitch collection also preserves the rack's E-Phrygian
     # colour, while E remains a common tone for the wash underneath it.
-    harmony = Harmony(key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1)
+    harmony = Harmony(
+        key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1
+    )
 
     # The kick is declared first so the pad can duck off it; `layout` below
     # sets the display order.
     kick_lofi = Slot(
         kick.KickLofi,
+        evolve=Evolve(8, (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL)),
         level=0.4,
         drive=0.2,
         punch=0.8,
@@ -51,10 +55,11 @@ class SlowedReverbRack(Rack):
         rate=-1,
         volume=0.3,
     )
-    kick_group = EvolvingGroup("Kick", (kick_lofi,), bars=8)
+    kick_group = GroupController("Kick", (kick_lofi,))
 
     lead_strings = Slot(
         strings.Strings,
+        evolve=Evolve(8),
         root_freq=Note.F3,
         brightness=3900,
         attack=2.15,
@@ -66,6 +71,7 @@ class SlowedReverbRack(Rack):
     )
     lead_keys = Slot(
         keys.Keys,
+        evolve=Evolve(8),
         root_freq=Note.E3,
         bark=5.0,
         bite=0.3,
@@ -89,6 +95,7 @@ class SlowedReverbRack(Rack):
     )
     pad_wash = Slot(
         wash.SoundscapeWash,
+        evolve=Evolve(16),
         sidechains=(SidechainSource(kick_group, depth=0.15, release=0.3),),
         root_freq=Note.E2,
         detune=0.45,
@@ -104,7 +111,13 @@ class SlowedReverbRack(Rack):
         delay_feedback=0.7,
         volume=0.5,
     )
-    hook_pluck = Slot(pluck.PluckHook, root_freq=Note.E3, rate=-1, volume=0.4)
+    hook_pluck = Slot(
+        pluck.PluckHook,
+        evolve=Evolve(8, (Hooks.SPARSE_HOOK, Hooks.FULL_HOOK)),
+        root_freq=Note.E3,
+        rate=-1,
+        volume=0.4,
+    )
     texture_dust = Slot(
         noise.NoiseDust,
         brightness=1200,
@@ -116,6 +129,7 @@ class SlowedReverbRack(Rack):
     )
     hat_lofi = Slot(
         hat.GrooveLofi,
+        evolve=Evolve(8, (Rhythms.HAT_LOFI, Rhythms.HAT_LOFI_FULL)),
         level=0.06,
         cutoff=3500,
         metal=0.1,
@@ -224,12 +238,11 @@ class SlowedReverbRack(Rack):
         (lead_lift, pad_lift, hook_lift),
     )
 
-    lead_group = EvolvingGroup(
+    lead_group = GroupController(
         "Lead",
         (lead_strings, lead_keys),
         "Choose strings or keys to give the wash harmony and pulse.",
         controls=(lead_lift,),
-        bars=8,
     )
     # foreground: carries ~87% of the reference's RMS - see
     # `bass.hover.BassHover`'s own long reverb tail and breathing swell, which
@@ -238,8 +251,8 @@ class SlowedReverbRack(Rack):
     # a static, dark reverberant pad bed under the bass - reused unmodified
     # from `tonal/drone`'s existing wash style, just re-tuned dark and distant
     # (see README.md's mapping table)
-    pad_group = EvolvingGroup("Pad", (pad_wash,), controls=(pad_lift,), bars=16)
-    hook_group = EvolvingGroup("Hook", (hook_pluck,), controls=(hook_lift,), bars=8)
+    pad_group = GroupController("Pad", (pad_wash,), controls=(pad_lift,))
+    hook_group = GroupController("Hook", (hook_pluck,), controls=(hook_lift,))
     # the section-arrival layers: its own `lift` moves each inner group's
     # `lift`, which keeps the per-patch mapping with the group that owns it
     arrival_group = GroupController(
@@ -252,7 +265,7 @@ class SlowedReverbRack(Rack):
     # sibling's own atmosphere layer, darkened further to match this brief's
     # ~850 Hz mix-wide rolloff
     texture_group = GroupController("Texture", (texture_dust,))
-    hat_group = EvolvingGroup("Hi-hat", (hat_lofi,), bars=8)
+    hat_group = GroupController("Hi-hat", (hat_lofi,))
     layout = (
         arrival_group,
         bass_group,

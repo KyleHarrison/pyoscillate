@@ -17,7 +17,7 @@ echo smears each phrase into the next.
   instead of locking it. Plays a short, syncopated, sliding groove.
 
 Both play a two-bar phrase in semitones above the rack's current chord root,
-and `on_evolve` alternates between two phrase variants.
+and its evolution can rotate between phrase variants.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.phrase import Leads, Phrase, PhraseRole
+from pyoscillate.theory.phrase import Leads, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -94,10 +94,6 @@ class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
         help_text="Picks the line that is played, as pitches above the current chord; every pitched voice draws "
         "on the same shared lines.",
     )
-
-    # the lines `on_evolve` rotates through, the first playing
-    # first; each style supplies its own
-    variants: ClassVar[tuple[Phrase, ...]]
 
     # the graph, assigned by build(); finish() retains every one of them
     pitch: SigTo
@@ -315,11 +311,6 @@ class LeadFm(Gate, RootPitch, Phrased, GatedVoice):
             self.amp.mul = self._accent
             self.trigger.play()
 
-    def on_evolve(self, index: int) -> None:
-        """Rotate which of `variants` is playing; called rarely (tens of
-        bars) by the rack's `EvolvingGroup`, never by the clock."""
-        self.phrase = self.variants[index % len(self.variants)]
-
 
 class LeadFmWind(LeadFm):
     """Hollow, reed-like FM lead playing a sparse, floating phrase of long
@@ -334,7 +325,6 @@ class LeadFmWind(LeadFm):
     length = LeadFm.length.replace(default=3.0)
     glide = LeadFm.glide.replace(default=0.09)
     breath = LeadFm.breath.replace(default=0.45)
-    variants = (Leads.WIND_DRIFT, Leads.WIND_DRIFT_B)
     phrase = LeadFm.phrase.replace(default=Leads.WIND_DRIFT)
 
 
@@ -349,5 +339,4 @@ class LeadFmSwirl(LeadFm):
     swirl_bars = 1.0
     drift_bars = 2.0
     length = LeadFm.length.replace(default=0.9)
-    variants = (Leads.SWIRL_GROOVE, Leads.SWIRL_GROOVE_B)
     phrase = LeadFm.phrase.replace(default=Leads.SWIRL_GROOVE)

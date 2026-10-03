@@ -33,7 +33,10 @@ class ForestPsytranceRackTests(unittest.TestCase):
     def test_leads_evolve_on_their_own_timer(self) -> None:
         rack = ForestPsytranceRack()
 
-        self.assertEqual([group.title for group in rack.evolving_groups], ["Leads"])
+        for lead in (rack.lead_wind, rack.lead_swirl):
+            self.assertTrue(lead.evolution.enabled)
+            self.assertEqual(lead.evolution.bars, 8)
+            self.assertEqual(len(lead.evolution.choices), 2)
 
     def test_harmony_stays_on_f_and_leans_on_the_flat_second(self) -> None:
         harmony = ForestPsytranceRack().harmony

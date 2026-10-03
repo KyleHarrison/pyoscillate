@@ -15,6 +15,7 @@ from pyo.lib.server import Server
 
 from pyoscillate.clock import Clock
 from pyoscillate.harmony import Harmony
+from pyoscillate.patches.evolve import Evolution, Evolve
 from pyoscillate.patches.params import Param
 from pyoscillate.patches.sweep import ParamSweep, Sweep
 from pyoscillate.tempo import Tempo
@@ -203,6 +204,7 @@ class Patch(ABC):
             raise TypeError(
                 f"{type(self).__name__} has no parameter(s) {sorted(values)}"
             )
+        self.evolution = Evolution(self)
 
     @property
     def built(self) -> bool:
@@ -309,13 +311,38 @@ class Patch(ABC):
     def build(self, context: BuildContext) -> Patch: ...
 
     def on_evolve(self, index: int) -> None:
-        """Hook for a rack-level `EvolvingGroup`: called live, every N
-        bars, on each patch currently playing in a watched group. `index` is
-        the group's own fire count. A no-op by default; deliberately not a
-        `Param` - no slider, no preset entry, not user-facing - a plain live
-        method call driven by the group's timer instead of a widget. An
-        override owns its own index wraparound (e.g. `index %
-        len(self.SOMETHING)`)."""
+        """Hook for the patch's own `Evolution`: called live, every N bars
+        while the listener (or the rack) has evolution enabled and the patch
+        is playing. `index` is the number of times it has fired since the
+        patch started. A no-op by default; deliberately not a `Param` - no
+        slider, not a preset value - just a plain live method call driven by
+        the evolution timer. An override owns its own index wraparound (e.g.
+        `index % len(self.SOMETHING)`); overriding it is what makes a patch
+        `evolvable`."""
+
+    @property
+    def evolvable(self) -> bool:
+        """Whether this patch has anything to evolve: it overrides
+        `on_evolve`."""
+        return type(self).on_evolve is not Patch.on_evolve
+
+    def evolution_choices(self) -> tuple[Any, ...]:
+        """Everything the listener can tick to take part in evolution (a
+        phrased patch's phrases); empty when the patch's evolution has no
+        choices to tick."""
+        return ()
+
+    def evolution_seed(self) -> tuple[Any, ...]:
+        """The choices ticked before a rack or listener says otherwise."""
+        return ()
+
+    def evolution_order(self, chosen: tuple[Any, ...]) -> tuple[Any, ...]:
+        """`chosen` in the order `evolution_choices()` lists them."""
+        return tuple(item for item in self.evolution_choices() if item in chosen)
+
+    def declare_evolution(self, evolve: Evolve) -> None:
+        """Start the given evolution enabled, before the patch is built."""
+        self.evolution.declare(evolve)
 
     def _duck(self) -> None:
         """Duck this patch's voice off each declared sidechain group's
@@ -327,9 +354,10 @@ class Patch(ABC):
                 self.voice = self.voice * duck
                 self.retain(follower, duck)
 
-    def start(self, tempo: Tempo | None = None) -> Patch:
+    def start(self, tempo: Tempo | None = None, clock: Clock | None = None) -> Patch:
         """Play the built graph. Given the rack `tempo`, enabled sweeps run
-        too, one cycle per their bars."""
+        too, one cycle per their bars; given the rack `clock`, an enabled
+        evolution fires on its bar lines."""
         self.tempo = tempo
         self._duck()
         # `volume` boosts *before* Compress, not after: Compress's own mul
@@ -363,6 +391,7 @@ class Patch(ABC):
         self._playing = True
         for sweep in self.sweeps.values():
             sweep.run()
+        self.evolution.run(clock)
         return self
 
     def stop(self) -> Patch:
@@ -371,6 +400,7 @@ class Patch(ABC):
         self._playing = False
         for sweep in self.sweeps.values():
             sweep.halt()
+        self.evolution.halt()
         self.sequencer.stop()
         self._fade.value = 0.0
         # delay the hard stop until the fade above has finished ramping to

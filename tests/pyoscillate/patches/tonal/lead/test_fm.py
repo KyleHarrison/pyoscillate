@@ -69,6 +69,7 @@ from pyoscillate.analysis.features import features, spectral_centroid, to_db
 from pyoscillate.analysis.render import Render, render
 from pyoscillate.patches.base import PATCH_OUTPUT_CEILING
 from pyoscillate.patches.tonal.lead import fm
+from pyoscillate.theory.phrase import Leads
 
 MODULE = "pyoscillate.patches.tonal.lead.fm"
 STYLES = ("wind", "swirl")
@@ -104,18 +105,21 @@ def _rms_db(samples: np.ndarray) -> float:
 
 class FmLeadDataTests(unittest.TestCase):
     def test_phrases_stay_in_the_scale_and_inside_the_cycle(self) -> None:
-        for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
-            for melody in lead.variants:
+        for lead, melodies in (
+            (fm.LeadFmWind, (Leads.WIND_DRIFT, Leads.WIND_DRIFT_B)),
+            (fm.LeadFmSwirl, (Leads.SWIRL_GROOVE, Leads.SWIRL_GROOVE_B)),
+        ):
+            for melody in melodies:
                 with self.subTest(lead=lead.__name__):
                     self.assertTrue(set(melody.values.values()) <= PHRYGIAN)
                     self.assertTrue(
                         all(0 <= step < melody.cycle for step in melody.values)
                     )
 
-    def test_every_style_has_a_phrase_to_evolve_to(self) -> None:
+    def test_every_style_offers_a_phrase_to_evolve_to(self) -> None:
         for lead in (fm.LeadFmWind, fm.LeadFmSwirl):
             with self.subTest(lead=lead.__name__):
-                self.assertGreaterEqual(len(lead.variants), 2)
+                self.assertGreaterEqual(len(lead().evolution_choices()), 2)
 
 
 class FmLeadHealthTests(unittest.TestCase):

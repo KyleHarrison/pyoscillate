@@ -14,7 +14,7 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Gate, GatedVoice, Phrased, RootPitch
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Hooks, Phrase, PhraseRole
+from pyoscillate.theory.phrase import Hooks, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -31,11 +31,6 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
-    # the figures `on_evolve` rotates through, sparsest first
-    variants: ClassVar[tuple[Phrase, ...]] = (
-        Hooks.SPARSE_HOOK,
-        Hooks.FULL_HOOK,
-    )
     triads: ClassVar[dict[int, tuple[int, int, int]]] = {
         0: (0, 4, 7),
         2: (0, 3, 7),
@@ -104,9 +99,6 @@ class Pluck(Gate, RootPitch, Phrased, GatedVoice):
         root = self.root_at(bar_index)
         triad = self.triads.get(degree, (0, 4, 7))
         return Note.transpose(root, 12 + triad[tone_index])
-
-    def on_evolve(self, index: int) -> None:
-        self.phrase = self.variants[index % len(self.variants)]
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()

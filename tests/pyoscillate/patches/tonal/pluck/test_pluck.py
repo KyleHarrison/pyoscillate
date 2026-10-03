@@ -34,12 +34,15 @@ class PluckHookTests(unittest.TestCase):
         patch._base_division = PluckHook.base_division
 
         # the patch isn't built, so apply the dropdown's control by hand
-        patch.on_evolve(0)
+        patch.evolution.set_choice(Hooks.FULL_HOOK, True)
         patch.use_phrase(patch.selected_phrase)
         self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
-        patch.on_evolve(1)
+        patch.on_evolve(0)
         patch.use_phrase(patch.selected_phrase)
         self.assertEqual(self.hit_steps(patch), set(Hooks.FULL_HOOK.values))
+        patch.on_evolve(1)
+        patch.use_phrase(patch.selected_phrase)
+        self.assertEqual(self.hit_steps(patch), set(Hooks.SPARSE_HOOK.values))
 
     def test_hook_tracks_diatonic_chord_triads_in_upper_register(self) -> None:
         patch = PluckHook()

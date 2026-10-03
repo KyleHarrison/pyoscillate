@@ -2,7 +2,6 @@
 """Patch definitions for the clock-locked forest-psytrance rack."""
 
 from pyoscillate.controller import (
-    EvolvingGroup,
     FanOut,
     GroupControl,
     GroupController,
@@ -15,10 +14,12 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.tonal.bass import groove as bass
 from pyoscillate.patches.tonal.lead import fm
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory.phrase import Leads
 from pyoscillate.theory.pitch import Note
 
 
@@ -104,16 +105,17 @@ class ForestPsytranceRack(Rack):
 
     lead_wind = Slot(
         fm.LeadFmWind,
+        evolve=Evolve(8, (Leads.WIND_DRIFT, Leads.WIND_DRIFT_B)),
         root_freq=Note.F4,
     )
     lead_swirl = Slot(
         fm.LeadFmSwirl,
+        evolve=Evolve(8, (Leads.SWIRL_GROOVE, Leads.SWIRL_GROOVE_B)),
         root_freq=Note.F4,
     )
-    lead_group = EvolvingGroup(
+    lead_group = GroupController(
         "Leads",
         (lead_wind, lead_swirl),
         "Windy, psychedelic FM melodies; the phrase changes every 8 bars.",
-        bars=8,
     )
     layout = (kick_group, bass_group, hat_group, lead_group)

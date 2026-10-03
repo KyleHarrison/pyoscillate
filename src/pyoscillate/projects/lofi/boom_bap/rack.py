@@ -2,7 +2,6 @@
 """Patch definitions for the clock-locked lofi beats-to-study-to rack."""
 
 from pyoscillate.controller import (
-    EvolvingGroup,
     FanOut,
     GroupControl,
     GroupController,
@@ -16,6 +15,7 @@ from pyoscillate.patches.common import PitchBend
 from pyoscillate.patches.drums.hat import groove as hat
 from pyoscillate.patches.drums.kick import kick
 from pyoscillate.patches.drums.snare import snare
+from pyoscillate.patches.evolve import Evolve
 from pyoscillate.patches.params import SliderSpec
 from pyoscillate.patches.pitched_percussion.bell import bell
 from pyoscillate.patches.texture.noise import noise
@@ -24,6 +24,7 @@ from pyoscillate.patches.tonal.keys import keys
 from pyoscillate.patches.tonal.lead import lead
 from pyoscillate.patches.tonal.strings import strings
 from pyoscillate.projects.base import Rack
+from pyoscillate.theory.phrase import BassLines
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import Progressions
 
@@ -44,39 +45,44 @@ class LofiRack(Rack):
     # bar from the shared clock, so they change chord together regardless of
     # their own Rate sliders; `keys.Keys` stacks a rootless ninth on the
     # same chord each bar (see keys.py)
-    harmony = Harmony(key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1)
+    harmony = Harmony(
+        key=Note.KEY_C, progression=Progressions.JAZZ_TURNAROUND, bars_per_chord=1
+    )
 
     # the kick group is declared first so strings and bass can duck off it;
     # `layout` below sets the display order
     kick_lofi = Slot(kick.KickLofi)
     kick_group = GroupController("Kick", (kick_lofi,))
 
-    lead_muted_keys = Slot(lead.LeadMutedKeys)
-    lead_keys = Slot(keys.Keys)
+    lead_muted_keys = Slot(lead.LeadMutedKeys, evolve=Evolve(32))
+    lead_keys = Slot(keys.Keys, evolve=Evolve(32))
     # a light, "invisible mix help" duck off the kick, not an audible EDM
     # pump - the lofi genre's own subtler take on the deep-house sidechain
     # move (see drums/kick/AGENTS.md's "Sidechaining" reference)
     pad_strings = Slot(
         strings.Strings,
+        evolve=Evolve(16),
         sidechains=(SidechainSource(kick_group, depth=0.15, release=0.25),),
     )
     bass_conversation = Slot(
         bass.BassConversation,
+        evolve=Evolve(8, (BassLines.BASS_CONVERSATION, BassLines.BASS_CONVERSATION_B)),
         sidechains=(SidechainSource(kick_group, depth=0.25, release=0.2),),
     )
     bass_muted = Slot(
         bass.BassMuted,
+        evolve=Evolve(8, (BassLines.BASS_MUTED, BassLines.BASS_MUTED_B)),
         sidechains=(SidechainSource(kick_group, depth=0.25, release=0.2),),
     )
 
     # lead melody: the rack's foreground - either the family's own sparse,
     # rest-heavy pentatonic motif (a "muted pluck") or the existing FM
     # electric piano's close-voiced comping, reused unmodified.
-    # `bars=32` alternates which inversion `keys.Keys` is voicing, live-
-    # adjustable from this group's own UI sliders (see flet/base.py's
-    # `PatchGroup`) - see docs/todos/rack-linking-next.md
+    # `Evolve(32)` alternates which inversion `keys.Keys` is voicing, live-
+    # adjustable from each patch's own Evolve controls (see flet/base.py's
+    # `PatchPanel`) - see docs/todos/rack-linking-next.md
     # "Energy" sliders - the manual counterpart to the clock-triggered
-    # `on_evolve` rotations, see docs/todos/rack-linking-next.md. Each control
+    # per-patch evolution, see docs/todos/rack-linking-next.md. Each control
     # sweeps its style's own `Param` slider range, so the mapping tracks a range
     # if it's ever retuned. The outer `energy` below moves all three together.
     lead_energy = GroupControl(
@@ -183,26 +189,24 @@ class LofiRack(Rack):
         (lead_energy, strings_energy, bass_energy),
     )
 
-    lead_group = EvolvingGroup(
+    lead_group = GroupController(
         "Lead Melody",
         (lead_muted_keys, lead_keys),
         controls=(lead_energy,),
-        bars=32,
     )
     # strings: soft, sustained harmonic accompaniment behind the lead.
-    # `bars=16` rotates the colour voice between a 9th and a 13th
+    # `Evolve(16)` rotates the colour voice between a 9th and a 13th
     # (see strings.py's `COLOUR_TONE_VARIANTS`)
-    strings_group = EvolvingGroup(
-        "Strings", (pad_strings,), controls=(strings_energy,), bars=16
+    strings_group = GroupController(
+        "Strings", (pad_strings,), controls=(strings_energy,)
     )
     # bass: sparse, thumpy, four-bar phrase with an occasional offbeat
     # re-entry (`BassLines.BASS_CONVERSATION`), or the original one-bar muted
-    # groove. `bars=8` rotates each style's own `variants` melodies
-    bass_group = EvolvingGroup(
+    # groove. `Evolve(8)` rotates each style's own two melodies
+    bass_group = GroupController(
         "Bass",
         (bass_conversation, bass_muted),
         controls=(bass_energy, bass_slide, bass_accent),
-        bars=8,
     )
     # high register call-and-response: a soft FM bell, tuned high and
     # sparse. The rack has no cross-patch event bus for the bell to

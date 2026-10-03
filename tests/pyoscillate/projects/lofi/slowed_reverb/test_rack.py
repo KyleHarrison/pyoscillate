@@ -5,6 +5,7 @@ from pyoscillate.patches.drums.hat.groove import GrooveLofi
 from pyoscillate.patches.drums.kick.kick import KickLofi
 from pyoscillate.patches.tonal.drone.wash import SoundscapeWash
 from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
+from pyoscillate.theory.phrase import Rhythms
 from pyoscillate.theory.pitch import Note
 
 
@@ -122,11 +123,22 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
 
     def test_section_evolution_is_wired_to_live_pad_and_groove_groups(self) -> None:
         rack = SlowedReverbRack()
-        bars = {group.title: group.bars for group in rack.evolving_groups}
+        bars = {
+            name: patch.evolution.bars
+            for name, patch in {
+                "strings": rack.lead_strings,
+                "keys": rack.lead_keys,
+                "pad": rack.pad_wash,
+                "hook": rack.hook_pluck,
+                "kick": rack.kick_lofi,
+                "hat": rack.hat_lofi,
+            }.items()
+            if patch.evolution.enabled
+        }
 
         self.assertEqual(
             bars,
-            {"Lead": 8, "Pad": 16, "Hook": 8, "Kick": 8, "Hi-hat": 8},
+            {"strings": 8, "keys": 8, "pad": 16, "hook": 8, "kick": 8, "hat": 8},
         )
 
         pad_patch = SoundscapeWash(chorus_depth=2.1, delay_feedback=0.7)
@@ -136,26 +148,27 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
         self.assertAlmostEqual(pad_patch.chorus_depth_sig.value, 2.52)
         self.assertAlmostEqual(pad_patch.delay_feedback_sig.value, 0.77)
 
-        kick_patch = KickLofi()
+        kick_patch = rack.kick_lofi
         kick_patch._clock = SimpleNamespace(tick=8)
         kick_patch._division = SimpleNamespace(steps=1)
         kick_patch._base_division = KickLofi.base_division
+        self.assertIs(kick_patch.selected_phrase, Rhythms.KICK_LOFI)
         # the patch isn't built, so apply the dropdown's control by hand
-        kick_patch.on_evolve(0)
         kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertFalse(kick_patch._step().hit)
-        kick_patch.on_evolve(1)
+        kick_patch.on_evolve(0)
+        self.assertIs(kick_patch.selected_phrase, Rhythms.KICK_LOFI_FULL)
         kick_patch.use_phrase(kick_patch.selected_phrase)
         self.assertEqual(kick_patch._step().value, 0.45)
 
-        hat_patch = GrooveLofi()
+        hat_patch = rack.hat_lofi
         hat_patch._clock = SimpleNamespace(tick=2)
         hat_patch._division = SimpleNamespace(steps=1)
         hat_patch._base_division = GrooveLofi.base_division
-        hat_patch.on_evolve(0)
         hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertFalse(hat_patch._step().hit)
-        hat_patch.on_evolve(1)
+        hat_patch.on_evolve(0)
+        self.assertIs(hat_patch.selected_phrase, Rhythms.HAT_LOFI_FULL)
         hat_patch.use_phrase(hat_patch.selected_phrase)
         self.assertEqual(hat_patch._step().value, 0.25)
         self.assertNotIn(2, hat_patch.selected_phrase.open_steps)

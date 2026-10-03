@@ -5,6 +5,6 @@ A spacious 70 BPM ambient rack that layers chaotic and filter-swept pads, a detu
 ## Groups and controls
 
 - **Atmosphere** (*Intensity*) holds the three layers; its slider moves each layer's own slider.
-- **Soundscapes** (*Drift*): an `EvolvingGroup` that rotates the wash's chorus and echo every 16 bars.
+- **Soundscapes** (*Drift*): a group whose wash patch evolves (`Evolve(16)`), rotating its chorus and echo every 16 bars.
 - **Mid Voices** (*Shimmer*): raises each voice's FM index.
 - **Bass** (*Depth*): opens the sub filters and deepens the swell and rumble.

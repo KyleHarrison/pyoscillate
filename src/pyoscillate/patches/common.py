@@ -313,6 +313,28 @@ class Phrased(GatedVoice):
         """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
         return self.schedule(self.selected_phrase.division, self.rate, context.clock)
 
+    def evolution_choices(self) -> tuple[Phrase, ...]:
+        """Every phrase the dropdown offers, for the listener to tick."""
+        catalog = type(self).phrase.catalog
+        assert catalog is not None
+        return tuple(catalog.members())
+
+    def evolution_seed(self) -> tuple[Phrase, ...]:
+        """Only the starting phrase is ticked until a rack or listener ticks
+        more."""
+        return (self.selected_phrase,)
+
+    def on_evolve(self, index: int) -> None:
+        """Move the `phrase` dropdown to the next ticked phrase after the one
+        playing (the first when it isn't ticked); a no-op with fewer than two
+        ticked."""
+        chosen = self.evolution.choices
+        if len(chosen) < 2:
+            return
+        current = self.selected_phrase
+        position = chosen.index(current) if current in chosen else -1
+        self.phrase = chosen[(position + 1) % len(chosen)]
+
     def use_phrase(self, phrase: Phrase) -> None:
         """Play `phrase` from the shared clock's position, moving to its grid
         if it needs a different one."""

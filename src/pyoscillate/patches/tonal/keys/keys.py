@@ -245,10 +245,12 @@ class Keys(Gate, RootPitch, Phrased, GatedVoice):
         )
 
     def on_evolve(self, index: int) -> None:
-        """Alternate which inversion is voicing the shared chords; called
-        rarely (tens of bars) by a rack-level `GroupController`, never by
-        the clock directly. Owns its own wraparound, per `on_evolve`'s
-        contract - there's no shared numeric range to clamp against."""
+        """Alternate which inversion is voicing the shared chords, then
+        advance the ticked phrase; called rarely (tens of bars) by the
+        patch's own `Evolution`, never by the clock directly. Owns its own
+        wraparound, per `on_evolve`'s contract - there's no shared numeric
+        range to clamp against."""
+        super().on_evolve(index)
         self._inversion = index % 2
 
     def build(self, context: BuildContext) -> Patch:

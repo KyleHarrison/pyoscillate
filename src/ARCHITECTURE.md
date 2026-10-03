@@ -125,7 +125,7 @@ by every patch module, not specific to any one family.
 ## `projects/`: racks
 
 `projects/<name>/rack.py` declares one Flet app as class attributes of a
-`Rack` subclass: `GroupController`/`EvolvingGroup` groups of `Slot`s (each a
+`Rack` subclass: `GroupController` groups of `Slot`s (each a
 patch class plus starting `Param` values and sidechains). Groups nest (a
 group's members are `Slot`s and inner groups) and own their sliders as
 `GroupControl`s, whose targets are a `SlotTarget` (exact `Slot`, `ParamControl`s

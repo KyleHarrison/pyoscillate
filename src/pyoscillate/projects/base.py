@@ -10,7 +10,7 @@ from dataclasses import replace
 from typing import Any, ClassVar
 
 from pyoscillate.clock import DEFAULT_TICKS_PER_BAR
-from pyoscillate.controller import EvolvingRuntime, GroupController, GroupRuntime, Slot
+from pyoscillate.controller import GroupController, GroupRuntime, Slot
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import Patch
 
@@ -19,7 +19,7 @@ class Rack(ABC):
     """A project's patches and groups plus the engine config to run them.
 
     A subclass sets the class attributes below and declares
-    `GroupController`/`EvolvingGroup`s of `Slot`s (and of inner groups, which
+    `GroupController`s of `Slot`s (and of inner groups, which
     nest in the display) in its class body - top-level groups in the order
     they are declared, unless `layout` lists a different order (needed when a
     sidechain points at a group declared later in the display). The same
@@ -61,12 +61,6 @@ class Rack(ABC):
         nested = {inner for group in declared for inner in group.descendants()}
         top_level = self.layout or tuple(g for g in declared if g not in nested)
         self.groups = tuple(self._groups[group] for group in top_level)
-        self.evolving_groups = tuple(
-            nested_group
-            for group in self.groups
-            for nested_group in group.walk()
-            if isinstance(nested_group, EvolvingRuntime)
-        )
 
     def patch_for(self, slot: Slot[Any]) -> Patch:
         """This rack's bound patch for `slot`."""

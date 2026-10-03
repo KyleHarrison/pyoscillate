@@ -23,8 +23,9 @@ from pyo.lib.server import Server
 
 import flet as ft
 from pyoscillate.clock import Clock
-from pyoscillate.controller import EvolvingRuntime, GroupControl, GroupRuntime
+from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
+from pyoscillate.patches.evolve import Evolution
 from pyoscillate.patches.params import Param, SliderSpec
 from pyoscillate.patches.sweep import Sweep
 from pyoscillate.projects.base import Rack
@@ -250,6 +251,109 @@ class SweepRow:
         e.page.update()
 
 
+class EvolveRow:
+    """The evolve view of one patch: a toggle that switches its `Evolution`
+    on, how many bars pass between changes, a bar that fills towards the next
+    change, and (for a patch with choices, such as phrases) a checkbox per
+    choice saying which take part. Reads and writes the patch's `Evolution`;
+    holds no values of its own."""
+
+    BARS_MAX = Evolution.MAX_BARS
+
+    def __init__(self, evolution: Evolution) -> None:
+        self.evolution = evolution
+        self.toggle = ft.IconButton(
+            icon=ft.Icons.AUTORENEW,
+            icon_size=18,
+            tooltip="Change on its own every few bars",
+            on_click=self._handle_toggle,
+        )
+        self.bars_text = ft.Text("", color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
+        self.bars_slider = ft.Slider(
+            min=Evolution.MIN_BARS,
+            max=self.BARS_MAX,
+            divisions=self.BARS_MAX - Evolution.MIN_BARS,
+            value=evolution.bars,
+            active_color=ACCENT,
+            inactive_color="#31403D",
+            on_change=self._handle_bars,
+        )
+        self.countdown = ft.ProgressBar(
+            value=0, color=ACCENT, bgcolor="#31403D", bar_height=6, border_radius=3
+        )
+        self.countdown_text = ft.Text("", color=MUTED, size=11)
+        self.checkboxes: list[tuple[Any, ft.Checkbox]] = [
+            (
+                choice,
+                ft.Checkbox(
+                    label=choice.label,
+                    value=choice in evolution.choices,
+                    active_color=ACCENT,
+                    on_change=lambda e, choice=choice: self._handle_choice(choice, e),
+                ),
+            )
+            for choice in evolution.patch.evolution_choices()
+        ]
+        controls: list[ft.Control] = [
+            ft.Row(
+                controls=[
+                    ft.Text("Changes every", color=MUTED, size=12),
+                    self.bars_text,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            self.bars_slider,
+            self.countdown,
+            self.countdown_text,
+        ]
+        if self.checkboxes:
+            controls.append(ft.Text("Take part in the rotation", color=MUTED, size=12))
+            controls.append(
+                ft.Column(
+                    controls=[box for _, box in self.checkboxes],
+                    spacing=0,
+                    scroll=ft.ScrollMode.AUTO,
+                    height=min(len(self.checkboxes), 6) * 36,
+                )
+            )
+        self.evolve_view = ft.Column(controls=controls, spacing=2)
+        self.show()
+
+    def show(self) -> None:
+        """Bring every control in line with the evolution's settings."""
+        evolution = self.evolution
+        self.toggle.selected = evolution.enabled
+        self.toggle.icon_color = ACCENT if evolution.enabled else MUTED
+        self.evolve_view.visible = evolution.enabled
+        self.bars_slider.value = evolution.bars
+        self.bars_text.value = f"{evolution.bars} bars"
+        for choice, box in self.checkboxes:
+            box.value = choice in evolution.choices
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Fill the bar to where the clock is between changes."""
+        evolution = self.evolution
+        self.countdown.value = evolution.progress
+        if evolution.running:
+            self.countdown_text.value = f"Next change in {evolution.bars_left:.1f} bars"
+        else:
+            self.countdown_text.value = "Starts when the patch is playing"
+
+    def _handle_toggle(self, e: ft.ControlEvent) -> None:
+        self.evolution.set_enabled(not self.evolution.enabled)
+        self.show()
+        e.page.update()
+
+    def _handle_bars(self, e: ft.ControlEvent) -> None:
+        self.evolution.configure(float(e.control.value))
+        self.bars_text.value = f"{self.evolution.bars} bars"
+        e.page.update()
+
+    def _handle_choice(self, choice: Any, e: ft.ControlEvent) -> None:
+        self.evolution.set_choice(choice, bool(e.control.value))
+
+
 class PatchPanel:
     """One patch's live controls: an enable switch plus one slider per
     `Param` (volume included).
@@ -273,6 +377,7 @@ class PatchPanel:
         self._dropdowns: dict[Param, ft.Dropdown] = {}
         self._category_dropdowns: dict[Param, ft.Dropdown] = {}
         self.sweep_rows: dict[Param, SweepRow] = {}
+        self.evolve_row = EvolveRow(patch.evolution) if patch.evolvable else None
 
         self.switch = ft.Switch(
             value=False,
@@ -409,10 +514,12 @@ class PatchPanel:
                                 spacing=2,
                                 expand=True,
                             ),
+                            *([self.evolve_row.toggle] if self.evolve_row else []),
                             self.switch,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
+                    *([self.evolve_row.evolve_view] if self.evolve_row else []),
                     ft.ResponsiveRow(controls=rows, spacing=12, run_spacing=4),
                 ],
                 spacing=8,
@@ -429,14 +536,25 @@ class PatchPanel:
             self._show(param, param.read(self.patch))
         for sweep_row in self.sweep_rows.values():
             sweep_row.show()
+        if self.evolve_row:
+            self.evolve_row.show()
 
-    def refresh_sweeps(self) -> bool:
-        """Move every live sweep marker; whether any sweep is running."""
+    def refresh_live(self) -> bool:
+        """Move every live marker - each running sweep's dot, the evolve
+        countdown - and show any value the patch changed by itself (the
+        phrase an evolution moved to); whether anything is running."""
         running = False
         for sweep_row in self.sweep_rows.values():
             if sweep_row.sweep.running:
                 sweep_row.refresh()
                 running = True
+        if self.evolve_row and self.patch.evolution.running:
+            self.evolve_row.refresh()
+            for param in self._dropdowns:
+                value = param.read(self.patch)
+                if self._dropdowns[param].value != str(int(value)):
+                    self._show(param, value)
+            running = True
         return running
 
     def _show(self, param: Param, value: float) -> None:
@@ -518,7 +636,7 @@ class PatchPanel:
         )
         if rebuild:
             self.patch.build(self.context)
-            self.patch.start(self.context.tempo)
+            self.patch.start(self.context.tempo, self.context.clock)
             self._built_values = {
                 param: param.read(self.patch) for param in self.patch.rebuild_params
             }
@@ -537,6 +655,13 @@ class PatchPanel:
                     "bars": sweep.bars,
                 }
                 for param, sweep in self.patch.sweeps.items()
+            }
+        if self.evolve_row:
+            evolution = self.patch.evolution
+            preset["evolve"] = {
+                "enabled": evolution.enabled,
+                "bars": evolution.bars,
+                "choices": [choice.id for choice in evolution.choices],
             }
         return preset
 
@@ -576,11 +701,17 @@ class PatchPanel:
                 )
                 sweep.set_enabled(bool(saved["enabled"]))
                 self.sweep_rows[param].show()
+        saved_evolve = data.get("evolve")
+        if self.evolve_row and saved_evolve is not None:
+            evolution = self.patch.evolution
+            known = {choice.id: choice for choice in self.patch.evolution_choices()}
+            evolution.configure(float(saved_evolve["bars"]))
+            evolution.choices = self.patch.evolution_order(
+                tuple(known[i] for i in saved_evolve["choices"] if i in known)
+            )
+            evolution.set_enabled(bool(saved_evolve["enabled"]))
+            self.evolve_row.show()
         self._apply()
-
-
-GROUP_CONTROLLER_BARS_MAX = 64
-GROUP_CONTROLLER_REPEAT_MAX = 16
 
 
 class GroupControlSlider:
@@ -649,11 +780,9 @@ class GroupControlSlider:
 
 class PatchGroup:
     """Titled group control that gates a row of related patch panels and any
-    nested `PatchGroup`s, plus the group's own `GroupControl` sliders and (for
-    an `EvolvingRuntime`) the live sliders for its own interval/repeat - the
-    group-level evolution timer described in `controller.py`, distinct from
-    any patch's own parameters. Switching a group off silences everything
-    inside it, nested groups included."""
+    nested `PatchGroup`s, plus the group's own `GroupControl` sliders.
+    Switching a group off silences everything inside it, nested groups
+    included."""
 
     def __init__(
         self,
@@ -697,90 +826,8 @@ class PatchGroup:
         )
         self.control = self._build_control()
 
-    def _controller_row(
-        self, label: str, help_text: str, text: ft.Text, slider: ft.Slider
-    ) -> ft.Container:
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[ft.Text(label, color=TEXT, size=14), text],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    slider,
-                    ft.Text(help_text, color=MUTED, size=11),
-                ],
-                spacing=2,
-            ),
-            col={"xs": 12, "md": 6},
-            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
-        )
-
-    def _evolution_rows(self, group: EvolvingRuntime) -> list[ft.Container]:
-        bars_text = ft.Text(
-            f"{group.bars}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        bars_slider = ft.Slider(
-            min=1,
-            max=GROUP_CONTROLLER_BARS_MAX,
-            divisions=GROUP_CONTROLLER_BARS_MAX - 1,
-            value=group.bars,
-            active_color=ACCENT,
-            inactive_color="#31403D",
-            on_change=lambda e: self._handle_bars(group, bars_text, e),
-        )
-        repeat_text = ft.Text(
-            f"{group.repeat}", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        repeat_slider = ft.Slider(
-            min=1,
-            max=GROUP_CONTROLLER_REPEAT_MAX,
-            divisions=GROUP_CONTROLLER_REPEAT_MAX - 1,
-            value=group.repeat,
-            active_color=ACCENT,
-            inactive_color="#31403D",
-            on_change=lambda e: self._handle_repeat(group, repeat_text, e),
-        )
-        return [
-            self._controller_row(
-                "Evolve every (bars)",
-                "How many bars pass before this group's evolution moves on.",
-                bars_text,
-                bars_slider,
-            ),
-            self._controller_row(
-                "Repeat",
-                "How many times each step repeats before advancing to the next.",
-                repeat_text,
-                repeat_slider,
-            ),
-        ]
-
-    def _handle_bars(
-        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
-    ) -> None:
-        value = round(float(e.control.value))
-        group.set_bars(value)
-        text.value = f"{value}"
-        e.page.update()
-
-    def _handle_repeat(
-        self, group: EvolvingRuntime, text: ft.Text, e: ft.ControlEvent
-    ) -> None:
-        value = round(float(e.control.value))
-        group.set_repeat(value)
-        text.value = f"{value}"
-        e.page.update()
-
     def _build_control(self) -> ft.Control:
-        controller_rows = [
-            *(slider.control_view for slider in self.control_sliders),
-            *(
-                self._evolution_rows(self.group_def)
-                if isinstance(self.group_def, EvolvingRuntime)
-                else []
-            ),
-        ]
+        controller_rows = [slider.control_view for slider in self.control_sliders]
 
         patch_columns = []
         panel_column = (
@@ -1290,8 +1337,6 @@ class PatchRackApp:
         tempo = Tempo(bpm=self.bpm)
         self.clock = Clock(tempo, ticks_per_bar=self.rack.ticks_per_bar)
         self.clock.start()
-        for group in self.rack.evolving_groups:
-            group.start(self.clock)
         context = BuildContext(tempo, self.clock, self.rack.harmony)
         self.context = context
         self.running = True
@@ -1311,7 +1356,7 @@ class PatchRackApp:
         """While the engine runs, move every live sweep marker ~10 times a
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
-            moving = [panel.refresh_sweeps() for panel in self.panels.values()]
+            moving = [panel.refresh_live() for panel in self.panels.values()]
             if any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
@@ -1326,8 +1371,6 @@ class PatchRackApp:
             group.set_engine_ready(False)
         for panel in self.panels.values():
             panel.engine_stopped()
-        for group in self.rack.evolving_groups:
-            group.stop()
         self.clock.stop()
         self.server.stop()
         self.server.shutdown()
@@ -1353,9 +1396,6 @@ class PatchRackApp:
         first if it is stopped)."""
         for panel in self.panels.values():
             panel.engine_stopped()
-        if self.running:
-            for group in self.rack.evolving_groups:
-                group.stop()
         key = self.rack.harmony.key
         rack, catalog_dir = self.variants[name]()
         rack.harmony.key = key
@@ -1372,8 +1412,6 @@ class PatchRackApp:
         self.pause_button.icon = ft.Icons.PAUSE
         if self.running:
             self.context = BuildContext(self.context.tempo, self.clock, rack.harmony)
-            for group in rack.evolving_groups:
-                group.start(self.clock)
             for panel in self.panels.values():
                 panel.engine_started(self.context)
             for group in self.groups:
@@ -1409,9 +1447,7 @@ class PatchRackApp:
         if rack_values.get("key") in Note.NAMES:
             self._set_key(Note.NAMES.index(rack_values["key"]))
         if rack_values.get("progression") in Progressions.ids():
-            self._set_progression(
-                Progressions.ids().index(rack_values["progression"])
-            )
+            self._set_progression(Progressions.ids().index(rack_values["progression"]))
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
             if control.path in control_values:

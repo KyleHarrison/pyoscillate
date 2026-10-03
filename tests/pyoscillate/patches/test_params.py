@@ -54,7 +54,20 @@ class NoteHelperTests(unittest.TestCase):
 
     def test_every_note_is_a_plain_float_in_tune(self):
         # pyo type-checks arguments exactly, so a note must be a bare float
-        pitch_classes = ("C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B")
+        pitch_classes = (
+            "C",
+            "Cs",
+            "D",
+            "Ds",
+            "E",
+            "F",
+            "Fs",
+            "G",
+            "Gs",
+            "A",
+            "As",
+            "B",
+        )
         for octave in range(11):
             for index, pitch_class in enumerate(pitch_classes):
                 name = f"{pitch_class}{octave}"

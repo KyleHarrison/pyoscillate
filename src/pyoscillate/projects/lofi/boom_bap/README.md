@@ -54,11 +54,11 @@ rootless ninth on each bar's root (see `keys.py`), so changing the rack's key
 or progression - including from the Progression dropdown, whose presets are
 `Progression`'s `.roots` - changes what it plays with no hand-syncing.
 
-The "Lead Melody" `GroupController` (in `rack.py`, `bars=32`) rotates which
-voicing set `Keys` is comping (voicing set 1, then back to set 0, ...) via
-`on_evolve` — the harmony itself never changes, only which inversion voices
-it. The group's own UI panel (see `flet/base.py`'s `PatchGroup`) exposes this
-controller's interval and repeat as live sliders, so the rotation speed is
+The `Keys` slot (in `rack.py`, `Evolve(32)`) rotates which voicing set it is
+comping (voicing set 1, then back to set 0, ...) via `on_evolve` — the
+harmony itself never changes, only which inversion voices it. The patch's own
+UI panel (see `flet/base.py`'s `EvolveRow`) exposes its interval as a live
+slider with a countdown to the next change, so the rotation speed is
 adjustable instead of fixed.
 
 ## What this rack does not attempt

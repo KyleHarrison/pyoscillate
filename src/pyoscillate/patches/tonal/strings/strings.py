@@ -215,10 +215,11 @@ class Strings(Gate, Flood, Disperse, Comb, RootPitch, Phrased, GatedVoice):
 
     def on_evolve(self, index: int) -> None:
         """Rotate which `COLOUR_TONE_VARIANTS` interval the colour voice is
-        on; called rarely (tens of bars) by a rack-level `GroupController`,
-        never by the clock directly - see `Keys.on_evolve`. Takes effect on
-        the next `next_step()`, not immediately, so the colour tone never
-        jumps mid-chord."""
+        on, then advance the ticked phrase; called rarely (tens of bars) by
+        the patch's own `Evolution`, never by the clock directly - see
+        `Keys.on_evolve`. Takes effect on the next `next_step()`, not
+        immediately, so the colour tone never jumps mid-chord."""
+        super().on_evolve(index)
         self._colour_interval = self.COLOUR_TONE_VARIANTS[
             index % len(self.COLOUR_TONE_VARIANTS)
         ]

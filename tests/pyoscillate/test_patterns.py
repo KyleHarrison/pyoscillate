@@ -245,8 +245,6 @@ class RoleTests(unittest.TestCase):
                 for phrase in catalog.members():
                     self.assertTrue(set(cls.phrase_roles) & set(phrase.roles))
                 self.assertIsInstance(catalog.by_index(int(cls.phrase.default)), Phrase)
-                for variant in getattr(cls, "variants", ()):
-                    self.assertIn(variant, catalog.members())
         self.assertGreater(checked, 10)
 
     def test_a_drum_does_not_offer_a_bass_line(self) -> None:

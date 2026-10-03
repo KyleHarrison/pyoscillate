@@ -125,9 +125,7 @@ class DeepHousePatchSmokeTests(unittest.TestCase):
                     patch.stop()
 
     def test_chord_retains_native_trigger_graph(self) -> None:
-        patch = stab.StabVelvet().build(
-            BuildContext(self.tempo, self.clock, Harmony())
-        )
+        patch = stab.StabVelvet().build(BuildContext(self.tempo, self.clock, Harmony()))
         resource_types = [type(resource).__name__ for resource in patch.resources]
 
         self.assertIn("Trig", resource_types)

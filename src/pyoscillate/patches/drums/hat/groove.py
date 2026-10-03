@@ -27,7 +27,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 # carrier (Hz), modulator ratio, index - inharmonic ratios keep the sidebands
 # from lining up into a pitch, so the cluster reads as metal, not a tone
@@ -207,8 +207,6 @@ class GrooveLofi(Groove):
     title = "Hat - Lofi"
     summary = "Soft, filtered boom-bap hat pattern with MPC swing and ghost notes."
     phrase = Groove.phrase.replace(default=Rhythms.HAT_LOFI)
-    # the rhythms `on_evolve` rotates through
-    variants: ClassVar[tuple[Phrase, ...]] = (Rhythms.HAT_LOFI, Rhythms.HAT_LOFI_FULL)
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     # closes the hat's high-passed edge down into a duller, muffled top end
     lowpass_cutoff: ClassVar[float] = 6000.0
@@ -232,6 +230,3 @@ class GrooveLofi(Groove):
         self.lowpassed = Biquad(self.filtered, freq=self.lowpass_cutoff, q=0.7, type=0)
         self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
         return self.shaper
-
-    def on_evolve(self, index: int) -> None:
-        self.phrase = self.variants[index % len(self.variants)]

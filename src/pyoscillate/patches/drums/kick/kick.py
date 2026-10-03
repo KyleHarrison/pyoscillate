@@ -25,7 +25,7 @@ from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.drums.base import DROP, RhythmDrum
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.phrase import Phrase, PhraseRole, Rhythms
+from pyoscillate.theory.phrase import PhraseRole, Rhythms
 
 
 class Kick(RhythmDrum):
@@ -222,8 +222,6 @@ class KickLofi(Kick):
     )
     base_division: ClassVar[NoteDivision] = NoteDivision.THIRTYSECOND
     phrase = Kick.phrase.replace(default=Rhythms.KICK_LOFI)
-    # the rhythms `on_evolve` rotates through
-    variants: ClassVar[tuple[Phrase, ...]] = (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL)
     # closes the kick down from the shaper's grittier top end into a muffled,
     # cushioned thump
     lowpass_cutoff: ClassVar[float] = 1100.0
@@ -242,6 +240,3 @@ class KickLofi(Kick):
     def voice_output(self) -> PyoObject:
         self.lowpassed = Biquad(self.shaper, freq=self.lowpass_cutoff, q=0.7, type=0)
         return self.lowpassed
-
-    def on_evolve(self, index: int) -> None:
-        self.phrase = self.variants[index % len(self.variants)]
