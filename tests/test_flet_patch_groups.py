@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from unittest import mock
 from unittest.mock import MagicMock
 
 import flet as ft
@@ -15,7 +16,14 @@ from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
 from pyoscillate.projects.psyambient.rack import PsyambientRack
 from pyoscillate.theory.phrase import Hooks, Rhythms
 from pyoscillate.theory.progression import Progressions
-from src.flet.base import PatchGroup, PatchPanel, PatchRackApp, slider_ticks
+from src.flet.base import (
+    ACCENT,
+    MUTED,
+    PatchGroup,
+    PatchPanel,
+    PatchRackApp,
+    slider_ticks,
+)
 
 
 class _StubPatch(Patch):
@@ -70,6 +78,7 @@ class GroupedChoiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.voice = _StubPatch()
         self.panel = PatchPanel(self.voice)
+        self.panel.build_body()
 
     def test_a_large_catalog_gets_a_category_dropdown(self) -> None:
         category = self.panel._category_dropdowns[_StubPatch.test_phrase]
@@ -170,7 +179,7 @@ class PatchGroupTests(unittest.TestCase):
         group_content = group_tile.controls[0].content
         self.assertIsInstance(group_content.controls[-1], ft.ResponsiveRow)
         patch_column = group_content.controls[-1].controls[0]
-        self.assertEqual(patch_column.col, {"xs": 12, "md": 12})
+        self.assertEqual(patch_column.col, 12)
 
         patch_content = self.panel.control.content
         self.assertIsInstance(patch_content, ft.Column)
@@ -188,9 +197,43 @@ class PatchGroupTests(unittest.TestCase):
         line, help_text = row.content.controls
 
         self.assertIs(line.controls[1], self.panel._sliders[param])
-        self.assertEqual(line.controls[0].content.tooltip, param.spec.help_text)
+        name, info = line.controls[0].content.controls
+        self.assertIsNone(name.tooltip)
+        self.assertEqual(info.icon, ft.Icons.INFO_OUTLINE)
         self.assertEqual(help_text.value, param.spec.help_text)
         self.assertFalse(help_text.visible)
+
+    def test_info_icon_shows_and_hides_only_its_own_description(self) -> None:
+        first = self.panel._slider_row(_StubPatch.test_value)
+        second = self.panel._slider_row(_StubPatch.test_value)
+        info = first.content.controls[0].controls[0].content.controls[1]
+        shown = first.content.controls[1]
+        other = second.content.controls[1]
+
+        with (
+            mock.patch.object(ft.Text, "update"),
+            mock.patch.object(ft.IconButton, "update"),
+        ):
+            info.on_click(None)
+            self.assertTrue(shown.visible)
+            self.assertFalse(other.visible)
+            self.assertEqual(info.icon_color, ACCENT)
+            info.on_click(None)
+
+        self.assertFalse(shown.visible)
+        self.assertEqual(info.icon_color, MUTED)
+
+    def test_descriptions_toggle_also_lights_the_info_icons(self) -> None:
+        row = self.panel._slider_row(_StubPatch.test_value)
+        info = row.content.controls[0].controls[0].content.controls[1]
+
+        self.panel.help.show(True)
+        self.assertEqual(info.icon_color, ACCENT)
+        self.panel.help.show(False)
+        self.assertEqual(info.icon_color, MUTED)
+
+    def test_flet_does_not_diff_the_whole_page_after_every_handler(self) -> None:
+        self.assertFalse(ft.context.auto_update_enabled())
 
     def test_descriptions_toggle_shows_every_help_text(self) -> None:
         row = self.panel._slider_row(_StubPatch.test_value)

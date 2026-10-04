@@ -126,6 +126,7 @@ class SweepPresetTests(unittest.TestCase):
 
     def test_a_sweepable_param_gets_a_sweep_row(self):
         panel = PatchPanel(_Voice())
+        panel.build_body()
         self.assertEqual(list(panel.sweep_rows), [_Voice.amount])
 
 

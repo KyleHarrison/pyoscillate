@@ -157,6 +157,9 @@ class GroupController:
     # the directly listed slots are alternative styles of one role: the Flet
     # panel shows a dropdown to pick which one is on screen (and playing)
     alternatives: bool = False
+    # the directly listed slots are a catalogue: the Flet panel shows a tickbox
+    # menu, and only the ticked slots get a panel (off until switched on)
+    selectable: bool = False
 
     def __post_init__(self) -> None:
         slots = set(self.slots)
@@ -226,6 +229,7 @@ class GroupController:
             slot_patches={slot: patches[slot] for slot in self.slots},
             own_patches=tuple(patches[slot] for slot in self.own_slots),
             alternatives=self.alternatives,
+            selectable=self.selectable,
         )
 
     @overload
@@ -253,6 +257,7 @@ class GroupRuntime:
     slot_patches: dict[Slot[Any], Patch] = field(default_factory=dict)
     own_patches: tuple[Patch, ...] = ()
     alternatives: bool = False
+    selectable: bool = False
     values: dict[GroupControl, float] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:

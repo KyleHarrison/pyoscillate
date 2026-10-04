@@ -46,8 +46,9 @@ class AnalysisPlot:
     def _handle_resize(self, e: cv.CanvasResizeEvent) -> None:
         self.width = float(e.width)
 
-    def draw(self, points: Points) -> None:
-        """Show `points`; an empty frame leaves just the idle baseline."""
+    def draw(self, points: Points, send: bool = True) -> None:
+        """Show `points`; an empty frame leaves just the idle baseline. `send`
+        False only sets the shapes, for a plot that is off the page."""
         scale_x = self.width / LiveAnalyser.WIDTH
         scale_y = self.HEIGHT / LiveAnalyser.HEIGHT
         baseline = self.HEIGHT / 2 if not self.log_freq_axis else self.HEIGHT - 1
@@ -78,6 +79,8 @@ class AnalysisPlot:
                 )
             )
         self.canvas.shapes = shapes
+        if not send:
+            return
         # repaint just this canvas; a full `page.update()` per frame is what
         # made the UI lag while parameters were being changed
         try:
@@ -110,14 +113,19 @@ class AnalysisView:
             spacing=4,
         )
 
-    def show(self, wave: Points, spectrum: Points, live: bool) -> None:
+    def show(
+        self, wave: Points, spectrum: Points, live: bool, send: bool = True
+    ) -> None:
+        """Show a frame, or the idle plots when not `live`. `send` False only
+        sets the controls, for a view that is off the page."""
         self.live = live
-        self.wave.draw(wave if live else [])
-        self.spectrum.draw(spectrum if live else [])
+        self.wave.draw(wave if live else [], send)
+        self.spectrum.draw(spectrum if live else [], send)
         note = self.live_note if live else self.IDLE_NOTE
         if self.note.value != note:
             self.note.value = note
-            try:
-                self.note.update()
-            except RuntimeError:
-                pass
+            if send:
+                try:
+                    self.note.update()
+                except RuntimeError:
+                    pass

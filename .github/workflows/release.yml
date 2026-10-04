@@ -61,18 +61,9 @@ jobs:
         run: git push origin "$TAG"
 
   build-windows:
-    name: Build ${{ matrix.app }} (Windows)
+    name: Build master rack (Windows)
     needs: bump
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app:
-          - deep_house
-          - forest_psytrance
-          - lofi
-          - psyambient
-          - slowed_reverb
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,12 +75,12 @@ jobs:
         run: uv sync --locked --python 3.11
 
       - name: Build executable
-        run: uv run --python 3.11 python scripts/build_exe.py ${{ matrix.app }}
+        run: uv run --python 3.11 python scripts/build_exe.py master_rack
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.app }}
-          path: dist/${{ matrix.app }}.exe
+          name: windows-exe
+          path: dist/master_rack.exe
           if-no-files-found: error
 
   build-macos:
@@ -109,27 +100,21 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --python 3.11
 
-      # flet pack clears dist/ on every run, so each bundle is moved out
-      # before the next app is built
-      - name: Build apps
-        run: |
-          mkdir bundle
-          for app in deep_house forest_psytrance lofi psyambient slowed_reverb; do
-            uv run --python 3.11 python scripts/build_exe.py "$app"
-            ls dist
-            mv "dist/${app}.app" bundle/
-          done
+      - name: Build app
+        run: uv run --python 3.11 python scripts/build_exe.py master_rack
 
-      # ditto keeps the symlinks and permissions inside each .app bundle
-      - name: Zip apps
+      # hdiutil packs the .app into a compressed disk image
+      - name: Create dmg
         env:
           TAG: ${{ needs.bump.outputs.tag }}
-        run: ditto -c -k --keepParent bundle "pyoscillate-${TAG}-macos.zip"
+        run: |
+          hdiutil create -volname master_rack -srcfolder dist/master_rack.app \
+            -ov -format UDZO "master_rack-${TAG}-macos.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-apps
-          path: pyoscillate-*-macos.zip
+          name: macos-dmg
+          path: master_rack-*-macos.dmg
           if-no-files-found: error
 
   publish:
@@ -151,7 +136,7 @@ jobs:
           TAG: ${{ needs.bump.outputs.tag }}
         run: git push origin "HEAD:main"
 
-      - name: Create GitHub release with app bundles
+      - name: Create GitHub release with master rack installers
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS: ${{ needs.bump.outputs.previous }}
@@ -161,12 +146,8 @@ jobs:
           if git rev-parse -q --verify "refs/tags/${PREVIOUS}" >/dev/null; then
             START_ARGS=(--notes-start-tag "$PREVIOUS")
           fi
-          mkdir windows
-          for exe in exes/*/*.exe; do
-            mv "$exe" windows/
-          done
-          zip -r "pyoscillate-${TAG}-windows.zip" windows
-          FILES=("pyoscillate-${TAG}-windows.zip" exes/macos-apps/*.zip)
+          mv exes/windows-exe/master_rack.exe "master_rack-${TAG}-windows.exe"
+          FILES=("master_rack-${TAG}-windows.exe" exes/macos-dmg/*.dmg)
           gh release create "$TAG" "${FILES[@]}" \
             --title "$TAG" \
             --generate-notes \

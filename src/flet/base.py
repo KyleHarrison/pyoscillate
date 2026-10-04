@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import sys
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -55,9 +58,20 @@ ERROR = "#FF8A80"
 # colliding with a patch name
 RACK_PRESET_KEY = "_rack"
 
+# Flet runs a page-wide diff after every event handler that did not call
+# `.update()` itself, and the diff walks every control in the rack (about 87 ms
+# for the master rack), so a scroll or hover event would stall the event loop.
+# Every handler here updates just the controls it changed. This sets the
+# process-wide default, so it must run before any session exists: here, on
+# import, not inside `main` (each event handler runs in its own task context).
+ft.context.disable_auto_update()
+
 Preset = dict[str, dict[str, Any]]
 
-LABEL_WIDTH = 130
+# a control's name, with room beside it for its info icon
+LABEL_WIDTH = 150
+INFO_SIZE = 16
+INFO_WIDTH = 24
 VALUE_WIDTH = 56
 # the width of the sweep toggle, kept as an empty slot on a row with none so
 # every value readout lines up
@@ -70,43 +84,83 @@ SUMMARY_VALUES = 3
 
 
 class HelpTexts:
-    """The explanatory prose under controls. Every description is a tooltip on
-    its label; this registry also makes the same prose show inline, for all of
-    its texts at once, when the page's "Descriptions" toggle is on."""
+    """The explanatory prose under controls. Each description is hidden until
+    its info icon is clicked, which shows or hides that one text; the page's
+    "Descriptions" toggle shows or hides every one of its texts at once."""
 
     def __init__(self, shown: bool = False) -> None:
         self.shown = shown
         self._texts: list[ft.Text] = []
+        self._buttons: list[ft.IconButton] = []
 
     def text(self, content: str, size: int = 12) -> ft.Text:
         text = ft.Text(content, color=MUTED, size=size, visible=self.shown)
         self._texts.append(text)
         return text
 
+    def info(self, note: ft.Text) -> ft.IconButton:
+        """An info icon that shows or hides `note`, one of this registry's
+        texts."""
+        button = ft.IconButton(
+            icon=ft.Icons.INFO_OUTLINE,
+            icon_size=INFO_SIZE,
+            icon_color=self._icon_color(note.visible),
+            width=INFO_WIDTH,
+            height=INFO_WIDTH,
+            padding=0,
+        )
+        button.on_click = lambda e: self._toggle(note, button)
+        self._buttons.append(button)
+        return button
+
+    def label(
+        self, name: str, description: str, width: float = LABEL_WIDTH
+    ) -> tuple[ft.Container, ft.Text]:
+        """A control's name in a fixed-width column, ending in the info icon
+        for `description`, and that description's text, which goes under the
+        control's row."""
+        note = self.text(description)
+        label = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text(
+                        name,
+                        color=TEXT,
+                        size=14,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        expand=True,
+                    ),
+                    self.info(note),
+                ],
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            width=width,
+        )
+        return label, note
+
+    @staticmethod
+    def _icon_color(open: bool) -> str:
+        return ACCENT if open else MUTED
+
+    def _toggle(self, note: ft.Text, button: ft.IconButton) -> None:
+        note.visible = not note.visible
+        button.icon_color = self._icon_color(note.visible)
+        note.update()
+        button.update()
+
     def show(self, shown: bool) -> None:
         self.shown = shown
         for text in self._texts:
             text.visible = shown
+        for button in self._buttons:
+            button.icon_color = self._icon_color(shown)
 
 
 def slider_ticks(spec: SliderSpec) -> int | None:
     """The tick count a slider draws: only a coarse one gets dots."""
     return spec.divisions if spec.divisions <= TICKS_MAX else None
-
-
-def label_text(text: str, help_text: str) -> ft.Container:
-    """A control's name in a fixed-width column, its description as tooltip."""
-    return ft.Container(
-        content=ft.Text(
-            text,
-            color=TEXT,
-            size=14,
-            tooltip=help_text,
-            max_lines=1,
-            overflow=ft.TextOverflow.ELLIPSIS,
-        ),
-        width=LABEL_WIDTH,
-    )
 
 
 def value_text(text: str) -> ft.Text:
@@ -185,12 +239,15 @@ class SweepRow:
     # trail, so the rate of change reads straight off the slider
     TRAIL_SECONDS = 0.6
     TRAIL_CLEAR = "#00F4F7F6"
+    # a marker that moved less than this many pixels is not repainted
+    MIN_MOVE = 0.5
 
     def __init__(self, sweep: Sweep, plain_slider: ft.Slider) -> None:
         self.sweep = sweep
         self.plain_slider = plain_slider
         self.width = 0.0
         self._last_position = 0.0
+        self._trail_rising: bool | None = None
         spec = sweep.param.spec
         self.toggle = ft.IconButton(
             icon=ft.Icons.WAVES,
@@ -299,35 +356,59 @@ class SweepRow:
             self.band.width = band_width
         self.refresh()
 
-    def refresh(self) -> None:
+    def refresh(self) -> list[ft.Control]:
         """Move the dot to where the running sweep is between the limits, with
         a trail behind it as long as the distance it covers in
-        `TRAIL_SECONDS`."""
+        `TRAIL_SECONDS`; the controls that moved, for the caller to repaint."""
         sweep = self.sweep
         shown = sweep.enabled and sweep.running and self.width > 0
-        self.dot.visible = self.trail.visible = shown
+        changed: list[ft.Control] = []
+        if self.dot.visible != shown:
+            self.dot.visible = self.trail.visible = shown
+            changed += [self.dot, self.trail]
         if not shown:
-            return
+            return changed
         position = sweep.position
         rising = position >= self._last_position
         self._last_position = position
         x = self._x(sweep.value_at(position))
-        self.dot.left = x - self.DOT / 2
+        left = x - self.DOT / 2
+        if abs(left - (self.dot.left or 0.0)) >= self.MIN_MOVE:
+            self.dot.left = left
+            self._mark(changed, self.dot)
         span = self._x(sweep.high) - self._x(sweep.low)
         assert sweep.patch.tempo is not None
         seconds = sweep.bars * sweep.patch.tempo.bar
         length = min(span, 2 * span / seconds * self.TRAIL_SECONDS)
-        self.trail.width = length
-        self.trail.left = x - length if rising else x
-        self.trail.gradient = ft.LinearGradient(
-            begin=ft.Alignment.CENTER_LEFT,
-            end=ft.Alignment.CENTER_RIGHT,
-            colors=[self.TRAIL_CLEAR, TEXT] if rising else [TEXT, self.TRAIL_CLEAR],
-        )
+        trail_left = x - length if rising else x
+        if rising != self._trail_rising:
+            self._trail_rising = rising
+            self.trail.gradient = ft.LinearGradient(
+                begin=ft.Alignment.CENTER_LEFT,
+                end=ft.Alignment.CENTER_RIGHT,
+                colors=(
+                    [self.TRAIL_CLEAR, TEXT] if rising else [TEXT, self.TRAIL_CLEAR]
+                ),
+            )
+            self._mark(changed, self.trail)
+        if (
+            abs(length - (self.trail.width or 0.0)) >= self.MIN_MOVE
+            or abs(trail_left - (self.trail.left or 0.0)) >= self.MIN_MOVE
+        ):
+            self.trail.width = length
+            self.trail.left = trail_left
+            self._mark(changed, self.trail)
+        return changed
+
+    @staticmethod
+    def _mark(changed: list[ft.Control], control: ft.Control) -> None:
+        if control not in changed:
+            changed.append(control)
 
     def _handle_size(self, e: ft.LayoutSizeChangeEvent) -> None:
         self.width = e.width
         self._place()
+        self.track.update()
 
     def _handle_toggle(self, e: ft.ControlEvent) -> None:
         self.sweep.set_enabled(not self.sweep.enabled)
@@ -410,7 +491,8 @@ class EvolveSection:
         self._rows: dict[Any, tuple[ft.MenuItemButton, ft.Icon, ft.Text]] = {}
         self._bulk: list[ft.MenuItemButton] = []
         summary = self._summary()
-        line: list[ft.Control] = [label_text(evolution.label, summary)]
+        label, note = help.label(evolution.label, summary)
+        line: list[ft.Control] = [label]
         if evolution.options:
             line.append(self._build_menu(grouped))
         line += [ft.Container(expand=True), self.mode]
@@ -421,7 +503,7 @@ class EvolveSection:
                     spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                help.text(summary),
+                note,
                 self.timeline.control,
                 self.evolve_view,
             ],
@@ -529,17 +611,26 @@ class EvolveSection:
         else:
             self.menu_label.value = current.label
 
-    def refresh(self) -> None:
+    def refresh(self) -> list[ft.Control]:
         """Fill the bar to where the clock is between changes, and follow the
-        choice an evolution moved to."""
+        choice an evolution moved to; the controls that changed, for the
+        caller to repaint."""
         evolution = self.evolution
+        changed: list[ft.Control] = []
         if evolution.running:
-            self.countdown_text.value = f"Next change in {evolution.bars_left:.1f} bars"
+            countdown = f"Next change in {evolution.bars_left:.1f} bars"
         else:
-            self.countdown_text.value = "Starts when the patch is playing"
+            countdown = "Starts when the patch is playing"
+        if self.countdown_text.value != countdown:
+            self.countdown_text.value = countdown
+            changed.append(self.countdown_text)
+        redrawn = self.timeline.redraw()
         if evolution.options and evolution.current is not self._shown_current:
             self._show_choices()
-        self.timeline.redraw()
+            # the menu's marks and label, the blocks and the countdown all
+            # moved: repaint the section as one
+            return [self.control]
+        return changed + redrawn
 
     def _handle_mode(self, e: ft.ControlEvent) -> None:
         self.evolution.set_enabled("evolve" in e.control.selected)
@@ -598,13 +689,19 @@ class PatchPanel:
         analysis: bool = False,
     ) -> None:
         self.patch = patch
-        # opt-in; allocated only while the tile is expanded and playing
+        # opt-in; the analyser allocates only while the tile is expanded and
+        # playing, and the graphs are drawn with the body
         self.analyser = LiveAnalyser() if analysis else None
-        self.analysis_view = AnalysisView() if analysis else None
-        if self.analysis_view is not None:
-            self.analysis_view.control.on_size_change = self._handle_graphs_size
+        self.analysis_view: AnalysisView | None = None
         self.help = help or HelpTexts()
         self.expanded = False
+        # the body (sliders, evolve sections, graphs) is made when the tile
+        # first opens, so a tile nobody has opened is just its header; state
+        # lives on the patch, which the body reads when it is made
+        self.built = False
+        # whether the tile is in the page's control tree; one a group has
+        # taken out (a removed patch) keeps its controls but is never painted
+        self.mounted = True
         self.enabled = False
         self.context: BuildContext
         # where the tile sits on the page, for the pinned graphs (see
@@ -617,6 +714,8 @@ class PatchPanel:
         self.graphs_height = 0.0
         self.origin: tuple[float, float] | None = None
         self._origin_scroll = 0.0
+        # told when this tile changes size, which moves every tile after it
+        self.layout_changed: Callable[[], None] = lambda: None
         self.last_frames: tuple[Points, Points] = ([], [])
         self._engine_ready = False
         self._group_enabled = True
@@ -631,15 +730,7 @@ class PatchPanel:
         self.sweep_rows: dict[Param, SweepRow] = {}
         # one section per thing the patch evolves; a dropdown they rotate shows
         # in its section, not in the parameter grid
-        self.evolve_rows = [
-            EvolveSection(
-                evolution,
-                self._pick_option,
-                grouped=bool(evolution.axis) and self._is_grouped(evolution.axis.spec),
-                help=self.help,
-            )
-            for evolution in patch.evolutions
-        ]
+        self.evolve_rows: list[EvolveSection] = []
         self._evolved_params = {
             evolution.axis.origin for evolution in patch.evolutions if evolution.axis
         }
@@ -665,7 +756,13 @@ class PatchPanel:
         self.graphs_height = float(e.height)
 
     def _handle_tile_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        resized = (self.tile_width, self.tile_height) != (
+            float(e.width),
+            float(e.height),
+        )
         self.tile_width, self.tile_height = float(e.width), float(e.height)
+        if resized:
+            self.layout_changed()
 
     def _handle_hover(self, e: ft.PointerEvent) -> None:
         if e.global_position is None or e.local_position is None:
@@ -682,6 +779,20 @@ class PatchPanel:
         if self.origin is None:
             return None
         return self.origin[1] - (self.scroll_source() - self._origin_scroll)
+
+    def forget_origin(self) -> None:
+        """Drop the pointer-measured origin, which a layout change made stale."""
+        self.origin = None
+
+    def on_screen(self, top: float, bottom: float, margin: float = 0.0) -> bool:
+        """Whether the tile may be within the page's `top`..`bottom` band, give
+        or take `margin`. True while its position is unknown (no pointer has
+        been over it, or the layout moved since), so it is never frozen for
+        want of a measurement."""
+        tile_top = self.tile_top()
+        if tile_top is None or self.tile_height <= 0 or bottom <= top:
+            return True
+        return tile_top + self.tile_height > top - margin and tile_top < bottom + margin
 
     # -- UI construction -------------------------------------------------
 
@@ -731,11 +842,8 @@ class PatchPanel:
         )
         self._dropdowns[param] = dropdown
         dropdowns.append(dropdown)
-        return compact_row(
-            label_text(spec.description, spec.help_text),
-            dropdowns,
-            [self.help.text(spec.help_text)],
-        )
+        label, note = self.help.label(spec.description, spec.help_text)
+        return compact_row(label, dropdowns, [note])
 
     @staticmethod
     def _dense_dropdown(
@@ -772,7 +880,8 @@ class PatchPanel:
             on_change=lambda e, param=param: self._handle_slider(param, e),
         )
         self._sliders[param] = slider
-        below: list[ft.Control] = [self.help.text(spec.help_text)]
+        label, note = self.help.label(spec.description, spec.help_text)
+        below: list[ft.Control] = [note]
         if param.sweep:
             sweep_row = SweepRow(self.patch.sweep_for(param), slider)
             self.sweep_rows[param] = sweep_row
@@ -780,11 +889,10 @@ class PatchPanel:
             below.append(sweep_row.sweep_view)
         else:
             controls = [slider, readout, ft.Container(width=TOGGLE_WIDTH)]
-        return compact_row(
-            label_text(spec.description, spec.help_text), controls, below
-        )
+        return compact_row(label, controls, below)
 
     def _build_control(self) -> ft.Control:
+        """The tile with its header and an empty body; `build_body` fills it."""
         shown = [
             param
             for param in self.patch.params
@@ -793,28 +901,24 @@ class PatchPanel:
         # a child sits in a group under its parent's slider, so it neither
         # counts toward nor lands in the main/advanced split on its own
         self._children = self._group_children(shown)
-        top = [param for param in shown if not self._is_child(param)]
-        advanced = [param for param in top if param.spec.advanced]
+        self._top = [param for param in shown if not self._is_child(param)]
+        advanced = [param for param in self._top if param.spec.advanced]
         # one lone fine-tuning slider is not worth an expander
-        if len(advanced) < 2 or len(advanced) == len(top):
+        if len(advanced) < 2 or len(advanced) == len(self._top):
             advanced = []
-        main = self._rows_with_groups([p for p in top if p not in advanced])
-        body: list[ft.Control] = [
-            *([self.analysis_view.control] if self.analysis_view else []),
-            *[section.control for section in self.evolve_rows],
-            ft.ResponsiveRow(controls=main, spacing=12, run_spacing=4),
-        ]
-        if advanced:
-            body += self._more_controls(advanced)
+        self._advanced = advanced
         # choices read too long for a one-line readout: only the sliders do
         self.summary_params = [
-            param for param in top if param not in advanced and not param.spec.options
+            param
+            for param in self._top
+            if param not in advanced and not param.spec.options
         ][:SUMMARY_VALUES]
         self.summary = ft.Text(
             "", color=MUTED, size=12, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS
         )
         self.chevron = ft.Icon(ft.Icons.EXPAND_MORE, color=MUTED)
-        self.body = ft.Column(controls=body, spacing=8)
+        title_note = self.help.text(self.patch.summary)
+        self.body = ft.Column(controls=[], spacing=8)
         header = ft.Container(
             on_size_change=self._handle_header_size,
             content=ft.Row(
@@ -822,14 +926,20 @@ class PatchPanel:
                     self.chevron,
                     ft.Column(
                         controls=[
-                            ft.Text(
-                                self.patch.title,
-                                color=TEXT,
-                                weight=ft.FontWeight.BOLD,
-                                tooltip=self.patch.summary,
+                            ft.Row(
+                                controls=[
+                                    ft.Text(
+                                        self.patch.title,
+                                        color=TEXT,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    self.help.info(title_note),
+                                ],
+                                spacing=0,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             self.summary,
-                            self.help.text(self.patch.summary),
+                            title_note,
                         ],
                         spacing=2,
                         expand=True,
@@ -849,6 +959,34 @@ class PatchPanel:
         )
         self.set_expanded(self.expanded)
         return control
+
+    def build_body(self) -> None:
+        """Make the sliders, evolve sections and graphs from the patch's
+        current values; once, the first time the tile opens."""
+        if self.built:
+            return
+        self.built = True
+        if self.analyser is not None:
+            self.analysis_view = AnalysisView()
+            self.analysis_view.control.on_size_change = self._handle_graphs_size
+        self.evolve_rows = [
+            EvolveSection(
+                evolution,
+                self._pick_option,
+                grouped=bool(evolution.axis) and self._is_grouped(evolution.axis.spec),
+                help=self.help,
+            )
+            for evolution in self.patch.evolutions
+        ]
+        main = self._rows_with_groups([p for p in self._top if p not in self._advanced])
+        body: list[ft.Control] = [
+            *([self.analysis_view.control] if self.analysis_view else []),
+            *[section.control for section in self.evolve_rows],
+            ft.ResponsiveRow(controls=main, spacing=12, run_spacing=4),
+        ]
+        if self._advanced:
+            body += self._more_controls(self._advanced)
+        self.body.controls = body
 
     def _group_children(self, shown: list[Param]) -> dict[Param, list[Param]]:
         """The shown params grouped under each shown parent, keyed by the
@@ -931,52 +1069,86 @@ class PatchPanel:
         """Show every control of this tile, or fold it to its header and a
         line of its main values."""
         self.expanded = expanded
+        if expanded:
+            self.build_body()
         self.body.visible = expanded
+        if expanded:
+            # the animation loop skips a folded tile; catch its markers up
+            self.refresh_live()
         self.summary.visible = not expanded
         self.chevron.icon = ft.Icons.EXPAND_MORE if expanded else ft.Icons.CHEVRON_RIGHT
         self._refresh_summary()
 
-    def _refresh_summary(self) -> None:
-        self.summary.value = " · ".join(
+    def _refresh_summary(self) -> bool:
+        """Rewrite the folded summary line; whether its text changed."""
+        text = " · ".join(
             f"{param.spec.description} {param.spec.format(param.read(self.patch))}"
             for param in self.summary_params
         )
+        changed = self.summary.value != text
+        self.summary.value = text
+        return changed
 
     def _handle_toggle(self, e: ft.ControlEvent) -> None:
         self.set_expanded(not self.expanded)
-        e.page.update()
+        # the tile holds everything the toggle changed, a freshly made body
+        # included
+        self.control.update()
 
-    def sync_sliders(self) -> None:
+    def set_mounted(self, mounted: bool) -> None:
+        """Note that a group put this tile into the page's tree or took it out.
+        A tile that is out is never painted, and its scope is released."""
+        self.mounted = mounted
+        self.forget_origin()
+        if not mounted:
+            if self.analyser is not None:
+                self.analyser.detach()
+            if self.analysis_view is not None:
+                self.analysis_view.show([], [], live=False, send=False)
+        self.layout_changed()
+
+    def sync_sliders(self) -> list[ft.Control]:
         """Move every slider to its parameter's current value - for values
-        changed from outside this panel, e.g. a rack macro."""
+        changed from outside this panel, e.g. a rack macro; the controls that
+        changed and are on screen, for the caller to repaint. A folded tile
+        repaints only its summary: its body catches up on the next page-wide
+        update, which opening the tile makes."""
+        changed: list[ft.Control] = []
         for param in self.patch.params:
-            self._show(param, param.read(self.patch))
+            changed.extend(self._show_value(param, param.read(self.patch)))
         for sweep_row in self.sweep_rows.values():
             sweep_row.show()
         for section in self.evolve_rows:
             section.show()
+        if not self.expanded or not self.mounted:
+            changed = []
+        if self._refresh_summary() and self.summary.visible and self.mounted:
+            changed.append(self.summary)
+        return changed
 
-    def refresh_live(self) -> bool:
+    def refresh_live(self) -> list[ft.Control]:
         """Move every live marker - each running sweep's dot, the evolve
-        countdown - and show any value the patch changed by itself (the
-        phrase an evolution moved to); whether anything is running."""
-        running = False
+        countdown and playhead - and show any value the patch changed by
+        itself (the phrase an evolution moved to); the controls that changed,
+        for the caller to repaint."""
+        changed: list[ft.Control] = []
         for sweep_row in self.sweep_rows.values():
             if sweep_row.sweep.running:
-                sweep_row.refresh()
-                running = True
+                changed += sweep_row.refresh()
         for section in self.evolve_rows:
             if section.evolution.ticking:
-                section.refresh()
-                running = True
-        return running
+                changed += section.refresh()
+        return changed
 
-    def refresh_analysis(self) -> bool:
+    def refresh_analysis(self, on_screen: bool = True) -> bool:
         """Keep this patch's scope on its current output while the tile is
-        open and the patch plays, otherwise release it; whether it redrew."""
+        open and in view and the patch plays, otherwise release it; whether it
+        redrew."""
         if self.analyser is None or self.analysis_view is None:
             return False
-        output = self.patch.output if self.expanded else None
+        if not self.mounted:
+            return False
+        output = self.patch.output if self.expanded and on_screen else None
         signals = () if output is None else (output,)
         if not self.analyser.monitors(signals):
             self.analyser.detach()
@@ -993,26 +1165,46 @@ class PatchPanel:
         self._show_value(param, value)
         self._refresh_summary()
 
-    def _show_value(self, param: Param, value: float) -> None:
+    def _show_value(self, param: Param, value: float) -> list[ft.Control]:
+        """Show `value` for `param`; the controls whose display changed. A
+        tile with no body yet has nothing to show: its body reads the patch
+        when it is made."""
+        if not self.built:
+            return []
         if param.origin in self._evolved_params:
             # its dropdown lives in an evolve section, which shows the value
+            changed: list[ft.Control] = []
             for section in self.evolve_rows:
                 axis = section.evolution.axis
                 if axis is not None and axis.origin is param.origin:
                     section.show()
-            return
+                    changed.append(section.control)
+            return changed
         if param in self._dropdowns:
+            dropdown = self._dropdowns[param]
+            changed = []
             if param in self._category_dropdowns:
                 category = param.spec.option_categories[int(value)]
-                self._category_dropdowns[param].value = category
-                self._dropdowns[param].options = self._item_options(
-                    param.spec, category
-                )
-            self._dropdowns[param].value = str(int(value))
-            return
-        self._sliders[param].value = param.spec.to_position(value)
-        self._value_texts[param].value = param.spec.format(value)
-        self._show_group(param, value)
+                category_dropdown = self._category_dropdowns[param]
+                if category_dropdown.value != category:
+                    changed.append(category_dropdown)
+                category_dropdown.value = category
+                dropdown.options = self._item_options(param.spec, category)
+            if dropdown.value != str(int(value)) or changed:
+                changed.append(dropdown)
+            dropdown.value = str(int(value))
+            return changed
+        slider, text = self._sliders[param], self._value_texts[param]
+        position, label = param.spec.to_position(value), param.spec.format(value)
+        changed = []
+        if slider.value != position:
+            changed.append(slider)
+        if text.value != label:
+            changed.append(text)
+        slider.value, text.value = position, label
+        if (group := self._show_group(param, value)) is not None:
+            changed.append(group)
+        return changed
 
     # -- engine lifecycle --------------------------------------------------
 
@@ -1119,14 +1311,14 @@ class PatchPanel:
                 }
                 for param, sweep in self.patch.sweeps.items()
             }
-        if self.evolve_rows:
+        if self.patch.evolutions:
             preset["evolve"] = {
-                self._evolve_key(section.evolution): {
-                    "enabled": section.evolution.enabled,
-                    "bars": section.evolution.bars,
-                    "choices": [choice.id for choice in section.evolution.choices],
+                self._evolve_key(evolution): {
+                    "enabled": evolution.enabled,
+                    "bars": evolution.bars,
+                    "choices": [choice.id for choice in evolution.choices],
                 }
-                for section in self.evolve_rows
+                for evolution in self.patch.evolutions
             }
         return preset
 
@@ -1171,14 +1363,14 @@ class PatchPanel:
                     float(saved["low"]), float(saved["high"]), float(saved["bars"])
                 )
                 sweep.set_enabled(bool(saved["enabled"]))
-                self.sweep_rows[param].show()
+                if param in self.sweep_rows:
+                    self.sweep_rows[param].show()
         saved_evolve = data.get("evolve")
         if saved_evolve is not None:
             # a preset saved before each dropdown had its own timer holds one
             # entry for all of them
             legacy = "enabled" in saved_evolve
-            for section in self.evolve_rows:
-                evolution = section.evolution
+            for evolution in self.patch.evolutions:
                 saved = (
                     saved_evolve
                     if legacy
@@ -1192,20 +1384,25 @@ class PatchPanel:
                 if ticked:
                     evolution.choices = evolution.order(ticked)
                 evolution.set_enabled(bool(saved["enabled"]))
-                section.show()
+                section = next(
+                    (r for r in self.evolve_rows if r.evolution is evolution), None
+                )
+                if section is not None:
+                    section.show()
         self._apply()
 
 
 class GroupControlSlider:
     """A group `GroupControl`'s slider and value readout. `on_change` runs
-    after a move so the page can refresh every slider the push reached."""
+    after a move so the page can refresh every slider the push reached, and
+    returns the controls that changed."""
 
     def __init__(
         self,
         group: GroupRuntime,
         control: GroupControl,
         path: str,
-        on_change: Callable[[], None],
+        on_change: Callable[[], list[ft.Control]],
         help: HelpTexts | None = None,
     ) -> None:
         self.group = group
@@ -1226,25 +1423,37 @@ class GroupControlSlider:
             expand=True,
             on_change=self._handle_change,
         )
+        label, note = (help or HelpTexts()).label(spec.description, spec.help_text)
         self.control_view = compact_row(
-            label_text(spec.description, spec.help_text),
+            label,
             [self.slider, self.text, ft.Container(width=TOGGLE_WIDTH)],
-            [(help or HelpTexts()).text(spec.help_text)],
+            [note],
         )
 
-    def show(self) -> None:
-        """Move the slider to the amount its group last applied."""
+    def show(self) -> list[ft.Control]:
+        """Move the slider to the amount its group last applied; the controls
+        that changed."""
         value = self.group.values[self.control]
+        label = self.control.slider.format(value)
+        changed = []
+        if self.slider.value != value:
+            changed.append(self.slider)
+        if self.text.value != label:
+            changed.append(self.text)
         self.slider.value = value
-        self.text.value = self.control.slider.format(value)
+        self.text.value = label
+        return changed
 
-    def set_value(self, value: float) -> None:
+    def set_value(self, value: float) -> list[ft.Control]:
+        """Apply `value` to the group; the controls the push changed."""
         self.group.apply(self.control, value)
-        self.on_change()
+        return self.on_change()
 
     def _handle_change(self, e: ft.ControlEvent) -> None:
-        self.set_value(float(e.control.value))
-        e.page.update()
+        changed = self.set_value(float(e.control.value))
+        # only what changed: a page-wide update diffs the whole tree on every
+        # drag event
+        e.page.update(*dict.fromkeys([self.slider, self.text, *changed]))
 
 
 class PatchGroup:
@@ -1260,7 +1469,7 @@ class PatchGroup:
         children: Sequence[PatchGroup] = (),
         *,
         path: str = "",
-        on_control_change: Callable[[], None] = lambda: None,
+        on_control_change: Callable[[], list[ft.Control]] = list,
         help: HelpTexts | None = None,
     ) -> None:
         self.group_def = group_def
@@ -1275,13 +1484,20 @@ class PatchGroup:
         self._parent_enabled = True
         self._engine_ready = False
         # for a group of alternative styles, only the selected panel is shown
-        self._alternatives = group_def.alternatives and len(panels) > 1
+        self._selectable = group_def.selectable
+        self._alternatives = (
+            group_def.alternatives and len(panels) > 1 and not self._selectable
+        )
         self._selected = panels[0] if panels else None
-        # a tile that is alone in its group opens with the group; several side
-        # by side fold to a header each
-        for panel in panels:
-            panel.set_expanded(self._alternatives or len(panels) == 1)
+        # a tile that is alone in its group opens when it first shows; several
+        # side by side fold to a header each
+        self._open_on_mount = bool(self._alternatives) or len(panels) == 1
         self._boxes: dict[PatchPanel, ft.Container] = {}
+        # a selectable group shows only the panels the user has added
+        self.added: set[PatchPanel] = set()
+        self._add_rows: dict[PatchPanel, ft.MenuItemButton] = {}
+        self._add_icons: dict[PatchPanel, ft.Icon] = {}
+        self.add_label = ft.Text("", color=TEXT, size=14)
         self.style_dropdown = ft.Dropdown(
             label="Style",
             options=[
@@ -1304,19 +1520,12 @@ class PatchGroup:
         controller_rows = [slider.control_view for slider in self.control_sliders]
 
         patch_columns = []
-        panel_column = (
-            12
-            if self._alternatives or len(self.panels) == 1 or len(self.panels) > 2
-            else 6
-        )
         for panel in self.panels:
-            box = ft.Container(
-                content=panel.region,
-                col={"xs": 12, "md": panel_column},
-                visible=not self._alternatives or panel is self._selected,
-            )
+            box = ft.Container(col=12)
             self._boxes[panel] = box
             patch_columns.append(box)
+        self._show_boxes()
+        self.grid = ft.ResponsiveRow(controls=patch_columns, spacing=12, run_spacing=12)
 
         return ft.Container(
             content=ft.ExpansionTile(
@@ -1340,11 +1549,8 @@ class PatchGroup:
                                     else []
                                 ),
                                 *([self.style_dropdown] if self._alternatives else []),
-                                ft.ResponsiveRow(
-                                    controls=patch_columns,
-                                    spacing=12,
-                                    run_spacing=12,
-                                ),
+                                *([self._build_add_menu()] if self._selectable else []),
+                                self.grid,
                                 *(child.control for child in self.children),
                             ],
                             spacing=12,
@@ -1360,6 +1566,77 @@ class PatchGroup:
             margin=ft.margin.Margin(left=0, top=0, right=0, bottom=8),
         )
 
+    def _build_add_menu(self) -> ft.MenuBar:
+        """The tickbox menu of every patch the group offers: ticking one adds
+        its panel to the grid, unticking removes it."""
+        for panel in self.panels:
+            icon = ft.Icon(ft.Icons.CHECK_BOX_OUTLINE_BLANK, size=18, color=ACCENT)
+            self._add_icons[panel] = icon
+            self._add_rows[panel] = ft.MenuItemButton(
+                content=ft.Text(panel.patch.title, color=TEXT),
+                leading=icon,
+                close_on_click=False,
+                on_click=lambda e, panel=panel: self._handle_add(panel, e),
+            )
+        self._show_added()
+        self.add_menu = ft.MenuBar(
+            controls=[
+                ft.SubmenuButton(
+                    content=self.add_label,
+                    leading=ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=MUTED),
+                    controls=list(self._add_rows.values()),
+                )
+            ],
+            style=ft.MenuStyle(bgcolor=PANEL),
+        )
+        return self.add_menu
+
+    def _is_shown(self, panel: PatchPanel) -> bool:
+        """Whether the group puts `panel` on the page now: a selectable group
+        shows the ones added, one of alternatives the selected style."""
+        if self._selectable:
+            return panel in self.added
+        if self._alternatives:
+            return panel is self._selected
+        return True
+
+    def _show_boxes(self) -> None:
+        """Put each shown panel in its box and take the others out of the
+        tree, so a panel nobody can see costs the page nothing. A panel's
+        controls are made when it first shows."""
+        for panel, box in self._boxes.items():
+            shown = self._is_shown(panel)
+            if shown and not panel.built:
+                panel.set_expanded(self._open_on_mount)
+            box.content = panel.region if shown else None
+            box.visible = shown
+            if panel.mounted != shown:
+                panel.set_mounted(shown)
+
+    def _show_added(self) -> None:
+        for panel, icon in self._add_icons.items():
+            icon.icon = (
+                ft.Icons.CHECK_BOX
+                if panel in self.added
+                else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+            )
+        self.add_label.value = f"Add patches · {len(self.added)} of {len(self.panels)}"
+
+    def set_added(self, added: set[PatchPanel]) -> None:
+        """Show exactly `added`; a removed panel is switched off. Adding never
+        switches a panel on."""
+        for panel in self.panels:
+            if panel not in added:
+                panel.apply_enabled(False)
+        self.added = set(added) & set(self.panels)
+        self._show_added()
+        self._show_boxes()
+
+    def _handle_add(self, panel: PatchPanel, e: ft.ControlEvent) -> None:
+        self.set_added(self.added ^ {panel})
+        # the grid gained or lost a tile, and the menu's ticks and label moved
+        e.page.update(self.grid, self.add_menu)
+
     def _select(self, panel: PatchPanel) -> None:
         """Show `panel` in place of the selected one, handing the playing
         state over so a running group switches style without a gap."""
@@ -1369,8 +1646,7 @@ class PatchGroup:
         was_on = current.enabled
         current.apply_enabled(False)
         self._selected = panel
-        for each, box in self._boxes.items():
-            box.visible = each is panel
+        self._show_boxes()
         self.style_dropdown.value = str(self.panels.index(panel))
         panel.apply_enabled(was_on)
 
@@ -1380,6 +1656,8 @@ class PatchGroup:
 
     def reveal_enabled(self) -> None:
         """After values were loaded from outside, show the style that is on."""
+        if self._selectable:
+            self.set_added(self.added | {p for p in self.panels if p.enabled})
         if self._alternatives:
             on = next((p for p in self.panels if p.enabled), None)
             if on is not None:
@@ -1387,8 +1665,7 @@ class PatchGroup:
 
     def _select_shown(self, panel: PatchPanel) -> None:
         self._selected = panel
-        for each, box in self._boxes.items():
-            box.visible = each is panel
+        self._show_boxes()
         self.style_dropdown.value = str(self.panels.index(panel))
 
     def walk(self) -> list[PatchGroup]:
@@ -1424,6 +1701,15 @@ class PatchRackApp:
     behind both the single-patch `patch` app and the multi-patch rack
     apps."""
 
+    # the animation loop's frame length, and how long the last frame took on the
+    # event loop (to stay well under the length)
+    FRAME_SECONDS = 0.1
+    # set this environment variable to print, once a second, the frame count
+    # and mean/max event-loop time per frame, so a regression in update scope
+    # shows up as numbers
+    TIMING_ENV = "PYOSCILLATE_UI_TIMING"
+    TIMING_REPORT_SECONDS = 1.0
+
     def __init__(
         self,
         page: ft.Page,
@@ -1447,6 +1733,8 @@ class PatchRackApp:
         self.variant = variant
         self.scroll_pixels = 0.0
         self.list_top = 0.0
+        self.viewport_height = 0.0
+        self.frame_seconds = 0.0
         self.server: Server
         self.clock: Clock
         self.context: BuildContext
@@ -1603,15 +1891,18 @@ class PatchRackApp:
 
     def _build_view(self) -> None:
         def inline(name: str, tip: str, slider: ft.Slider, readout: ft.Text):
+            label, note = self.help.label(name, tip, width=64 + INFO_WIDTH)
             return ft.Container(
-                content=ft.Row(
+                content=ft.Column(
                     controls=[
-                        ft.Text(name, color=TEXT, size=14, tooltip=tip, width=64),
-                        slider,
-                        readout,
+                        ft.Row(
+                            controls=[label, slider, readout],
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        note,
                     ],
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=0,
                 ),
                 col={"xs": 12, "md": 6},
             )
@@ -1704,6 +1995,7 @@ class PatchRackApp:
         header.on_size_change = self._handle_header_size
         for panel in self.panels.values():
             panel.scroll_source = lambda: self.scroll_pixels
+            panel.layout_changed = self._forget_origins
         # a copy of the open tile's graphs, floated over the list while the
         # tile's own are scrolled off the top and the tile is still in view
         self.pinned_view = AnalysisView()
@@ -1748,8 +2040,15 @@ class PatchRackApp:
     def _handle_header_size(self, e: ft.LayoutSizeChangeEvent) -> None:
         self.list_top = float(e.height)
 
+    def _forget_origins(self) -> None:
+        """A tile changed size, so every tile's measured origin is stale; each
+        is measured again when the pointer next passes over it."""
+        for panel in self.panels.values():
+            panel.forget_origin()
+
     def _handle_scroll(self, e: ft.OnScrollEvent) -> None:
         self.scroll_pixels = float(e.pixels)
+        self.viewport_height = float(e.viewport_dimension)
         self._place_pinned()
 
     def _place_pinned(self) -> None:
@@ -1762,6 +2061,7 @@ class PatchRackApp:
             tile_top = panel.tile_top()
             if (
                 not panel.expanded
+                or not panel.mounted
                 or panel.analysis_view is None
                 or not panel.analysis_view.live
                 or tile_top is None
@@ -1791,13 +2091,16 @@ class PatchRackApp:
         self.pinned.top, self.pinned.left, self.pinned.width = top, left, width
         self.pinned.update()
 
-    def sync_panels(self) -> None:
+    def sync_panels(self) -> list[ft.Control]:
         """Refresh every slider from its patch and group, after values changed
-        outside the panels (a group control push)."""
+        outside the panels (a group control push); the controls that changed,
+        for the caller to repaint."""
+        changed: list[ft.Control] = []
         for panel in self.panels.values():
-            panel.sync_sliders()
+            changed.extend(panel.sync_sliders())
         for slider in self.control_sliders:
-            slider.show()
+            changed.extend(slider.show())
+        return changed
 
     # -- engine lifecycle --------------------------------------------------
 
@@ -1840,7 +2143,7 @@ class PatchRackApp:
         self.master_output_text.value = f"{self.master_output:.2f}"
         if self.running:
             self.server.setAmp(self.master_output)
-        e.page.update()
+        e.page.update(self.master_output_slider, self.master_output_text)
 
     def _handle_bpm(self, e: ft.ControlEvent) -> None:
         self.bpm = float(round(e.control.value))
@@ -1852,7 +2155,7 @@ class PatchRackApp:
             for panel in self.panels.values():
                 if panel.patch.built:
                     panel.patch.retempo()
-        e.page.update()
+        e.page.update(self.bpm_slider, self.bpm_text)
 
     def _handle_key(self, e: ft.ControlEvent) -> None:
         self._set_key(int(e.control.value))
@@ -1922,22 +2225,55 @@ class PatchRackApp:
 
     async def _animate_sweeps(self) -> None:
         """While the engine runs, move every live sweep marker ~10 times a
-        second; the sweeps themselves run in pyo, this only draws them."""
+        second; the sweeps themselves run in pyo, this only draws them. Only
+        the controls that moved are sent, and only for tiles that are open and
+        in view; a tile that is not catches up when it is opened or scrolled
+        back."""
+        timing = bool(os.environ.get(self.TIMING_ENV))
+        frames: list[float] = []
+        reported = time.perf_counter()
         while self.running:
-            for panel in self.panels.values():
-                # only an open tile's controls are on screen, and only its own
-                # subtree is diffed - never the whole page
-                if panel.refresh_live() and panel.expanded:
-                    panel.body.update()
-                panel.refresh_analysis()
-            if self.pinned_panel is not None:
-                self.pinned_view.show(*self.pinned_panel.last_frames, live=True)
-            # an evolving patch can move off the shared progression
-            progression = self._progression_value()
-            if self.progression_dropdown.value != progression:
-                self.progression_dropdown.value = progression
-                self.progression_dropdown.update()
-            await asyncio.sleep(0.1)
+            self.frame_seconds = await self._animate_frame()
+            if timing:
+                frames.append(self.frame_seconds)
+                if time.perf_counter() - reported >= self.TIMING_REPORT_SECONDS:
+                    print(
+                        f"[ui] {len(frames)} frames, "
+                        f"mean {sum(frames) / len(frames) * 1000:.1f} ms, "
+                        f"max {max(frames) * 1000:.1f} ms",
+                        file=sys.stderr,
+                    )
+                    frames.clear()
+                    reported = time.perf_counter()
+            await asyncio.sleep(max(0.0, self.FRAME_SECONDS - self.frame_seconds))
+
+    async def _animate_frame(self) -> float:
+        """Draw one frame; the seconds of event-loop time it took."""
+        started = time.perf_counter()
+        top = self.list_top
+        bottom = top + self.viewport_height
+        margin = self.viewport_height
+        for panel in list(self.panels.values()):
+            if not self.running:
+                break
+            if not panel.expanded or not panel.mounted:
+                panel.refresh_analysis(False)  # releases its scope
+                continue
+            on_screen = panel.on_screen(top, bottom, margin)
+            if on_screen:
+                for control in panel.refresh_live():
+                    control.update()
+            panel.refresh_analysis(on_screen)
+            # let handlers and the socket send have a turn between tiles
+            await asyncio.sleep(0)
+        if self.pinned_panel is not None:
+            self.pinned_view.show(*self.pinned_panel.last_frames, live=True)
+        # an evolving patch can move off the shared progression
+        progression = self._progression_value()
+        if self.progression_dropdown.value != progression:
+            self.progression_dropdown.value = progression
+            self.progression_dropdown.update()
+        return time.perf_counter() - started
 
     def _stop_engine(self) -> None:
         if not self.running:
@@ -2027,6 +2363,17 @@ class PatchRackApp:
         # presets saved before each patch held its own progression
         if rack_values.get("progression") in Progressions.ids():
             self._set_progression(Progressions.ids().index(rack_values["progression"]))
+        if "added" in rack_values:
+            for top in self.groups:
+                for group in top.walk():
+                    if group.group_def.selectable:
+                        group.set_added(
+                            {
+                                panel
+                                for panel in group.panels
+                                if panel.patch.name in rack_values["added"]
+                            }
+                        )
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
             if control.path in control_values:
@@ -2065,6 +2412,14 @@ class PatchRackApp:
         }
         values[RACK_PRESET_KEY] = {
             "key": Note.NAMES[self.rack.harmony.key],
+            "added": [
+                panel.patch.name
+                for top in self.groups
+                for group in top.walk()
+                if group.group_def.selectable
+                for panel in group.panels
+                if panel in group.added
+            ],
             "controls": {
                 control.path: control.group.values[control.control]
                 for control in self.control_sliders
