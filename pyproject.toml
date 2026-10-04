@@ -1,6 +1,6 @@
 [project]
 name = "pyoscillate"
-version = "0.5.0"
+version = "0.6.0"
 description = "Agentic Pyo DSP patches played live as a modular synthesizer through a Flet GUI"
 readme = "README.md"
 license = "MIT"
