@@ -41,6 +41,8 @@ class SliderSpec:
     description: str
     help_text: str
     scale: Literal["linear", "note", "cutoff"] = "linear"
+    # a fine-tuning parameter: a UI may keep it behind a "More" expander
+    advanced: bool = False
     # named choices for a stepped parameter: the value is an index into
     # these, and a UI shows a dropdown instead of a slider
     options: tuple[str, ...] = ()
@@ -130,6 +132,9 @@ class Param:
     `patch.punch = 1.2`, sliders and presets hold the `Param`, and nothing
     looks a parameter up by its string name.
 
+    `advanced=True` marks a fine-tuning parameter a UI may tuck behind a
+    "More" expander, leaving the few that shape the sound in front.
+
     `sweep=True` lets a patch instance drive the parameter with a bouncing
     low/high sweep instead of a fixed value (see `patches/sweep.py`); it
     needs a live control (or a `live()` signal) and is meaningless for a
@@ -148,6 +153,7 @@ class Param:
         scale: Literal["linear", "note", "cutoff"] = "linear",
         rebuild: bool = False,
         sweep: bool = False,
+        advanced: bool = False,
         options: tuple[str, ...] = (),
         option_ids: tuple[str, ...] = (),
         option_categories: tuple[str, ...] = (),
@@ -171,6 +177,7 @@ class Param:
             "scale": scale,
             "rebuild": rebuild,
             "sweep": sweep,
+            "advanced": advanced,
             "options": options,
             "option_ids": option_ids,
             "option_categories": option_categories,
@@ -187,6 +194,7 @@ class Param:
             "scale": scale,
             "rebuild": rebuild,
             "sweep": sweep,
+            "advanced": advanced,
             "options": options,
             "option_ids": option_ids,
             "option_categories": option_categories,

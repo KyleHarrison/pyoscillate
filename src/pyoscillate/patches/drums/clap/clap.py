@@ -103,6 +103,7 @@ class Clap(RhythmDrum):
         "Length of the noisy tail after the burst; short is dry and crisp, long reads like a small room "
         "around the clap.",
         sweep=True,
+        advanced=True,
     )
     def decay(self, value: float) -> None:
         self._reshape()

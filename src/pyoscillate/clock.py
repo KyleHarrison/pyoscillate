@@ -8,9 +8,9 @@ from pyo.lib.pattern import Pattern
 
 from pyoscillate.tempo import Tempo
 
-# default raw ticks per bar (a 32nd note in 4/4) when a project's rack
+# default raw ticks per bar (a 128th note in 4/4) when a project's rack
 # doesn't configure `Clock.ticks_per_bar` itself - see that field's docstring
-DEFAULT_TICKS_PER_BAR = 32
+DEFAULT_TICKS_PER_BAR = 128
 
 
 class NoteDivision(IntEnum):

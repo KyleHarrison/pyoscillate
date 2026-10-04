@@ -30,7 +30,7 @@ class ForestPsytranceRack(Rack):
     leads - see README.md for the brief behind each choice."""
 
     bpm = 160
-    ticks_per_bar = 512
+    ticks_per_bar = 128
     # F Phrygian: a static F vamp that leans on the b2 (Gb) for the last two
     # bars of every eight-bar cycle
     harmony = Harmony(key=Note.KEY_F)

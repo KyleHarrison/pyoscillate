@@ -52,6 +52,7 @@ class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Drift speed",
         "How fast the pad's timbre wanders; lower is slower and more hypnotic, higher feels more restless.",
         sweep=True,
+        advanced=True,
     )
     def chaos_speed(self, value: float) -> None:
         self.chaos_speed_sig.value = value
@@ -65,6 +66,7 @@ class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "How unpredictable the wander is; higher feels more psychedelic and alive, lower stays closer to "
         "a steady tone.",
         sweep=True,
+        advanced=True,
     )
     def chaos_amount(self, value: float) -> None:
         self.chaos_amount_sig.value = value
@@ -98,5 +100,5 @@ class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
             mul=0.2,
         )
         self.reverb = self.add_reverb(self.fm_voice)
-        self.output = self.add_echo(self.reverb)
-        return self.finish(self.add_gate(self.output, context))
+        self.bed = self.add_echo(self.reverb)
+        return self.finish(self.add_gate(self.bed, context))

@@ -94,6 +94,7 @@ class Groove(RhythmDrum):
         "Metal",
         "Blends from a soft, breathy noise hat toward a clangy, metallic drum-machine hat.",
         sweep=True,
+        advanced=True,
     )
     def metal(self, value: float) -> None:
         self.source.voice = value

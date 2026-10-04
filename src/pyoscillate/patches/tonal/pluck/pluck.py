@@ -85,6 +85,7 @@ class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
         "Brightness decay",
         "Shortens or lengthens the bright attack; a shorter value makes each note softer sooner.",
         sweep=True,
+        advanced=True,
     )
     def brightness_decay(self, value: float) -> None:
         self.brightness_env.dur = value

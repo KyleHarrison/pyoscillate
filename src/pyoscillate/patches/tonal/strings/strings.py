@@ -126,6 +126,7 @@ class Strings(Gate, Flood, Disperse, Comb, ChordRoot, Phrased, GatedVoice):
         "How long the chord lingers once the bar turns over; short changes cleanly, long blurs into the "
         "next chord.",
         sweep=True,
+        advanced=True,
     )
     def release(self, value: float) -> None:
         self.amp_env.setRelease(value)
@@ -139,6 +140,7 @@ class Strings(Gate, Flood, Disperse, Comb, ChordRoot, Phrased, GatedVoice):
         "How far the ensemble's inner voices drift from the centre pitch; low is a tight, almost single "
         "string, high is a wide, shimmering section.",
         sweep=True,
+        advanced=True,
     )
     def spread(self, value: float) -> None:
         for saw in (*self.chord_saws, self.colour_saw):

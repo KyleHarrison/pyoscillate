@@ -22,6 +22,7 @@ from pyo.lib._core import PyoError
 from pyo.lib.server import Server
 
 import flet as ft
+from pyoscillate.analysis.live import LiveAnalyser
 from pyoscillate.clock import Clock
 from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
@@ -33,6 +34,8 @@ from pyoscillate.projects.base import Rack
 from pyoscillate.tempo import Tempo
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import Progressions
+from src.flet.analysis import AnalysisView
+from src.flet.timeline import EvolveTimeline
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
@@ -51,6 +54,92 @@ ERROR = "#FF8A80"
 RACK_PRESET_KEY = "_rack"
 
 Preset = dict[str, dict[str, Any]]
+
+LABEL_WIDTH = 130
+VALUE_WIDTH = 56
+# the width of the sweep toggle, kept as an empty slot on a row with none so
+# every value readout lines up
+TOGGLE_WIDTH = 32
+# a slider with more steps than this draws no tick dots: they blur into a line
+# and the move handler snaps the value anyway
+TICKS_MAX = 12
+# the first few main values a collapsed patch tile reads out
+SUMMARY_VALUES = 3
+
+
+class HelpTexts:
+    """The explanatory prose under controls. Every description is a tooltip on
+    its label; this registry also makes the same prose show inline, for all of
+    its texts at once, when the page's "Descriptions" toggle is on."""
+
+    def __init__(self, shown: bool = False) -> None:
+        self.shown = shown
+        self._texts: list[ft.Text] = []
+
+    def text(self, content: str, size: int = 12) -> ft.Text:
+        text = ft.Text(content, color=MUTED, size=size, visible=self.shown)
+        self._texts.append(text)
+        return text
+
+    def show(self, shown: bool) -> None:
+        self.shown = shown
+        for text in self._texts:
+            text.visible = shown
+
+
+def slider_ticks(spec: SliderSpec) -> int | None:
+    """The tick count a slider draws: only a coarse one gets dots."""
+    return spec.divisions if spec.divisions <= TICKS_MAX else None
+
+
+def label_text(text: str, help_text: str) -> ft.Container:
+    """A control's name in a fixed-width column, its description as tooltip."""
+    return ft.Container(
+        content=ft.Text(
+            text,
+            color=TEXT,
+            size=14,
+            tooltip=help_text,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        ),
+        width=LABEL_WIDTH,
+    )
+
+
+def value_text(text: str) -> ft.Text:
+    """A right-aligned value readout of fixed width."""
+    return ft.Text(
+        text,
+        color=ACCENT,
+        size=13,
+        weight=ft.FontWeight.BOLD,
+        width=VALUE_WIDTH,
+        text_align=ft.TextAlign.RIGHT,
+    )
+
+
+def compact_row(
+    label: ft.Control,
+    controls: Sequence[ft.Control],
+    below: Sequence[ft.Control] = (),
+) -> ft.Container:
+    """One parameter on one line - label, then `controls` - with whatever goes
+    `below` it (inline description, sweep view). Half width on a wide page."""
+    return ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[label, *controls],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                *below,
+            ],
+            spacing=0,
+        ),
+        col={"xs": 12, "md": 6},
+    )
 
 
 class PresetStore:
@@ -105,8 +194,12 @@ class SweepRow:
             icon=ft.Icons.WAVES,
             icon_size=18,
             tooltip="Sweep between a low and a high",
+            width=TOGGLE_WIDTH,
+            height=TOGGLE_WIDTH,
             on_click=self._handle_toggle,
         )
+        # takes the plain slider's room while the range slider is below
+        self.filler = ft.Container(expand=True, visible=False)
         self.range_text = ft.Text("", color=ACCENT, size=13, weight=ft.FontWeight.BOLD)
         self.range_slider = ft.RangeSlider(
             min=spec.minimum,
@@ -185,6 +278,7 @@ class SweepRow:
         self.toggle.selected = sweep.enabled
         self.toggle.icon_color = ACCENT if sweep.enabled else MUTED
         self.plain_slider.visible = not sweep.enabled
+        self.filler.visible = sweep.enabled
         self.sweep_view.visible = sweep.enabled
         self.range_slider.start_value = sweep.low
         self.range_slider.end_value = sweep.high
@@ -253,10 +347,10 @@ class SweepRow:
 
 
 class EvolveSection:
-    """One bordered section for one `Evolution` of a patch: a Hold/Evolve
-    selector, a menu of the choices (for a dropdown axis such as the phrase or
-    progression), how many bars pass between changes and a bar that fills
-    towards the next one. The menu is the axis's dropdown and its checklist in
+    """One line for one `Evolution` of a patch: its name, a menu of the
+    choices (for a dropdown axis such as the phrase or progression) and a
+    Hold/Evolve selector; while evolving, a second line sets how many bars pass
+    between changes and a bar fills towards the next one. The menu is the axis's dropdown and its checklist in
     one: in Hold mode a row picks that choice, in Evolve mode a row ticks it
     into the rotation and the menu stays open. Reads and writes the
     `Evolution`; holds no values of its own."""
@@ -270,6 +364,7 @@ class EvolveSection:
         pick: Callable[[Param, int], None],
         *,
         grouped: bool,
+        help: HelpTexts,
     ) -> None:
         self.evolution = evolution
         self._pick = pick
@@ -293,9 +388,7 @@ class EvolveSection:
             inactive_color="#31403D",
             on_change=self._handle_bars,
         )
-        self.countdown = ft.ProgressBar(
-            value=0, color=ACCENT, bgcolor="#31403D", bar_height=6, border_radius=3
-        )
+        self.timeline = EvolveTimeline(evolution)
         self.countdown_text = ft.Text("", color=MUTED, size=11)
         self.evolve_view = ft.Column(
             controls=[
@@ -307,7 +400,6 @@ class EvolveSection:
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
                 self.bars_slider,
-                self.countdown,
                 self.countdown_text,
             ],
             spacing=2,
@@ -315,32 +407,23 @@ class EvolveSection:
         self.menu_label = ft.Text("", color=TEXT, size=14)
         self._rows: dict[Any, tuple[ft.MenuItemButton, ft.Icon, ft.Text]] = {}
         self._bulk: list[ft.MenuItemButton] = []
-        controls: list[ft.Control] = [
-            ft.Row(
-                controls=[
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                evolution.label, color=TEXT, weight=ft.FontWeight.BOLD
-                            ),
-                            ft.Text(self._summary(), color=MUTED, size=12),
-                        ],
-                        spacing=2,
-                        expand=True,
-                    ),
-                    self.mode,
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            )
-        ]
+        summary = self._summary()
+        line: list[ft.Control] = [label_text(evolution.label, summary)]
         if evolution.options:
-            controls.append(self._build_menu(grouped))
-        controls.append(self.evolve_view)
-        self.control = ft.Container(
-            content=ft.Column(controls=controls, spacing=6),
-            border=ft.Border.all(1, "#31403D"),
-            border_radius=8,
-            padding=10,
+            line.append(self._build_menu(grouped))
+        line += [ft.Container(expand=True), self.mode]
+        self.control = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=line,
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                help.text(summary),
+                self.timeline.control,
+                self.evolve_view,
+            ],
+            spacing=4,
         )
         self.show()
 
@@ -403,6 +486,9 @@ class EvolveSection:
         evolution = self.evolution
         self.mode.selected = ["evolve" if evolution.enabled else "hold"]
         self.evolve_view.visible = evolution.enabled
+        # a dropdown's timeline also shows the held choice; the patch's own
+        # hook has nothing to draw until it evolves
+        self.timeline.control.visible = evolution.axis is not None or evolution.enabled
         self.bars_slider.value = evolution.bars
         self.bars_text.value = f"{evolution.bars} bars"
         for item in self._bulk:
@@ -445,13 +531,13 @@ class EvolveSection:
         """Fill the bar to where the clock is between changes, and follow the
         choice an evolution moved to."""
         evolution = self.evolution
-        self.countdown.value = evolution.progress
         if evolution.running:
             self.countdown_text.value = f"Next change in {evolution.bars_left:.1f} bars"
         else:
             self.countdown_text.value = "Starts when the patch is playing"
         if evolution.options and evolution.current is not self._shown_current:
             self._show_choices()
+        self.timeline.redraw()
 
     def _handle_mode(self, e: ft.ControlEvent) -> None:
         self.evolution.set_enabled("evolve" in e.control.selected)
@@ -461,6 +547,7 @@ class EvolveSection:
     def _handle_bars(self, e: ft.ControlEvent) -> None:
         self.evolution.configure(float(e.control.value))
         self.bars_text.value = f"{self.evolution.bars} bars"
+        self.timeline.redraw()
         e.page.update()
 
     def _handle_choice(self, choice: Any, e: ft.ControlEvent) -> None:
@@ -473,6 +560,7 @@ class EvolveSection:
         elif evolution.axis is not None:
             self._pick(evolution.axis, evolution.options.index(choice))
         self._show_choices()
+        self.timeline.redraw()
         e.page.update()
 
     def _handle_bulk(self, ticked: bool, e: ft.ControlEvent) -> None:
@@ -482,6 +570,7 @@ class EvolveSection:
             evolution.options if ticked else evolution.order((evolution.current,))
         )
         self._show_choices()
+        self.timeline.redraw()
         e.page.update()
 
 
@@ -496,8 +585,19 @@ class PatchPanel:
     rebuild (a `rebuild` parameter changed since the last build).
     """
 
-    def __init__(self, patch: Patch) -> None:
+    def __init__(
+        self,
+        patch: Patch,
+        *,
+        help: HelpTexts | None = None,
+        analysis: bool = False,
+    ) -> None:
         self.patch = patch
+        # opt-in; allocated only while the tile is expanded and playing
+        self.analyser = LiveAnalyser() if analysis else None
+        self.analysis_view = AnalysisView() if analysis else None
+        self.help = help or HelpTexts()
+        self.expanded = False
         self.enabled = False
         self.context: BuildContext
         self._engine_ready = False
@@ -515,6 +615,7 @@ class PatchPanel:
                 evolution,
                 self._pick_option,
                 grouped=bool(evolution.axis) and self._is_grouped(evolution.axis.spec),
+                help=self.help,
             )
             for evolution in patch.evolutions
         ]
@@ -555,36 +656,48 @@ class PatchPanel:
 
     def _option_row(self, param: Param) -> ft.Container:
         """A named-choice parameter: a dropdown whose value is the index, or
-        for a long grouped list a category dropdown over an item dropdown."""
+        for a long grouped list a category dropdown beside an item dropdown."""
         spec = param.spec
         index = int(param.read(self.patch))
-        controls: list[ft.Control] = [
-            ft.Text(spec.description, color=TEXT, size=14),
-            ft.Text(spec.help_text, color=MUTED, size=12),
-        ]
+        dropdowns: list[ft.Control] = []
         if self._is_grouped(spec):
             categories = tuple(dict.fromkeys(spec.option_categories))
-            category_dropdown = ft.Dropdown(
-                options=[ft.dropdown.Option(key=name) for name in categories],
-                value=spec.option_categories[index],
-                on_select=lambda e, param=param: self._handle_category(param, e),
+            category_dropdown = self._dense_dropdown(
+                [ft.dropdown.Option(key=name) for name in categories],
+                spec.option_categories[index],
+                lambda e, param=param: self._handle_category(param, e),
             )
             self._category_dropdowns[param] = category_dropdown
-            controls.append(category_dropdown)
+            dropdowns.append(category_dropdown)
             item_options = self._item_options(spec, spec.option_categories[index])
         else:
             item_options = self._item_options(spec)
-        dropdown = ft.Dropdown(
-            options=item_options,
-            value=str(index),
-            on_select=lambda e, param=param: self._handle_option(param, e),
+        dropdown = self._dense_dropdown(
+            item_options,
+            str(index),
+            lambda e, param=param: self._handle_option(param, e),
         )
         self._dropdowns[param] = dropdown
-        controls.append(dropdown)
-        return ft.Container(
-            content=ft.Column(controls=controls, spacing=2),
-            col={"xs": 12, "md": 6},
-            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+        dropdowns.append(dropdown)
+        return compact_row(
+            label_text(spec.description, spec.help_text),
+            dropdowns,
+            [self.help.text(spec.help_text)],
+        )
+
+    @staticmethod
+    def _dense_dropdown(
+        options: list[ft.dropdown.Option],
+        value: str,
+        on_select: Callable[[ft.ControlEvent], None],
+    ) -> ft.Dropdown:
+        return ft.Dropdown(
+            options=options,
+            value=value,
+            dense=True,
+            text_size=13,
+            expand=True,
+            on_select=on_select,
         )
 
     def _slider_row(self, param: Param) -> ft.Container:
@@ -592,88 +705,136 @@ class PatchPanel:
         if spec.options:
             return self._option_row(param)
         value = param.read(self.patch)
-        value_text = ft.Text(
-            spec.format(value), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
-        self._value_texts[param] = value_text
+        readout = value_text(spec.format(value))
+        self._value_texts[param] = readout
         # the track runs in the spec's position space (semitones for a note
         # slider), so its ticks are what the slider can actually produce
         slider = ft.Slider(
             min=spec.to_position(spec.minimum),
             max=spec.to_position(spec.maximum),
-            divisions=spec.divisions,
+            divisions=slider_ticks(spec),
             value=spec.to_position(value),
             active_color=ACCENT,
             inactive_color="#31403D",
+            expand=True,
             on_change=lambda e, param=param: self._handle_slider(param, e),
         )
         self._sliders[param] = slider
-        header = [ft.Text(spec.description, color=TEXT, size=14), value_text]
-        body: list[ft.Control] = [slider]
+        below: list[ft.Control] = [self.help.text(spec.help_text)]
         if param.sweep:
             sweep_row = SweepRow(self.patch.sweep_for(param), slider)
             self.sweep_rows[param] = sweep_row
-            header = [
-                ft.Text(spec.description, color=TEXT, size=14),
-                ft.Row(
-                    controls=[value_text, sweep_row.toggle],
-                    spacing=0,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-            ]
-            body.append(sweep_row.sweep_view)
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=header,
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Text(spec.help_text, color=MUTED, size=12),
-                    *body,
-                ],
-                spacing=2,
-            ),
-            col={"xs": 12, "md": 6},
-            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+            controls = [slider, sweep_row.filler, readout, sweep_row.toggle]
+            below.append(sweep_row.sweep_view)
+        else:
+            controls = [slider, readout, ft.Container(width=TOGGLE_WIDTH)]
+        return compact_row(
+            label_text(spec.description, spec.help_text), controls, below
         )
 
     def _build_control(self) -> ft.Control:
-        rows = [
-            self._slider_row(param)
+        shown = [
+            param
             for param in self.patch.params
             if param.origin not in self._evolved_params
         ]
-        return ft.Container(
-            content=ft.Column(
+        advanced = [param for param in shown if param.spec.advanced]
+        # one lone fine-tuning slider is not worth an expander
+        if len(advanced) < 2 or len(advanced) == len(shown):
+            advanced = []
+        main = [self._slider_row(param) for param in shown if param not in advanced]
+        body: list[ft.Control] = [
+            *([self.analysis_view.control] if self.analysis_view else []),
+            *[section.control for section in self.evolve_rows],
+            ft.ResponsiveRow(controls=main, spacing=12, run_spacing=4),
+        ]
+        if advanced:
+            body += self._more_controls(advanced)
+        # choices read too long for a one-line readout: only the sliders do
+        self.summary_params = [
+            param for param in shown if param not in advanced and not param.spec.options
+        ][:SUMMARY_VALUES]
+        self.summary = ft.Text(
+            "", color=MUTED, size=12, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS
+        )
+        self.chevron = ft.Icon(ft.Icons.EXPAND_MORE, color=MUTED)
+        self.body = ft.Column(controls=body, spacing=8)
+        header = ft.Container(
+            content=ft.Row(
                 controls=[
-                    ft.Row(
+                    self.chevron,
+                    ft.Column(
                         controls=[
-                            ft.Column(
-                                controls=[
-                                    ft.Text(
-                                        self.patch.title,
-                                        color=TEXT,
-                                        weight=ft.FontWeight.BOLD,
-                                    ),
-                                    ft.Text(self.patch.summary, color=MUTED, size=12),
-                                ],
-                                spacing=2,
-                                expand=True,
+                            ft.Text(
+                                self.patch.title,
+                                color=TEXT,
+                                weight=ft.FontWeight.BOLD,
+                                tooltip=self.patch.summary,
                             ),
-                            self.switch,
+                            self.summary,
+                            self.help.text(self.patch.summary),
                         ],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=2,
+                        expand=True,
                     ),
-                    *[section.control for section in self.evolve_rows],
-                    ft.ResponsiveRow(controls=rows, spacing=12, run_spacing=4),
+                    self.switch,
                 ],
-                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
+            on_click=self._handle_toggle,
+            ink=True,
+        )
+        control = ft.Container(
+            content=ft.Column(controls=[header, self.body], spacing=8),
             bgcolor=TILE_BG,
             border_radius=8,
-            padding=12,
+            padding=ft.padding.Padding(left=8, top=8, right=12, bottom=8),
         )
+        self.set_expanded(self.expanded)
+        return control
+
+    def _more_controls(self, advanced: list[Param]) -> list[ft.Control]:
+        """The fine-tuning sliders, behind a toggle that names how many."""
+        rows = ft.ResponsiveRow(
+            controls=[self._slider_row(param) for param in advanced],
+            spacing=12,
+            run_spacing=4,
+            visible=False,
+        )
+
+        def toggle(e: ft.ControlEvent) -> None:
+            rows.visible = not rows.visible
+            e.control.content = ft.Text(
+                "Fewer" if rows.visible else f"More ({len(advanced)})",
+                color=ACCENT,
+                size=13,
+            )
+            e.page.update()
+
+        button = ft.TextButton(
+            content=ft.Text(f"More ({len(advanced)})", color=ACCENT, size=13),
+            on_click=toggle,
+        )
+        return [button, rows]
+
+    def set_expanded(self, expanded: bool) -> None:
+        """Show every control of this tile, or fold it to its header and a
+        line of its main values."""
+        self.expanded = expanded
+        self.body.visible = expanded
+        self.summary.visible = not expanded
+        self.chevron.icon = ft.Icons.EXPAND_MORE if expanded else ft.Icons.CHEVRON_RIGHT
+        self._refresh_summary()
+
+    def _refresh_summary(self) -> None:
+        self.summary.value = " · ".join(
+            f"{param.spec.description} {param.spec.format(param.read(self.patch))}"
+            for param in self.summary_params
+        )
+
+    def _handle_toggle(self, e: ft.ControlEvent) -> None:
+        self.set_expanded(not self.expanded)
+        e.page.update()
 
     def sync_sliders(self) -> None:
         """Move every slider to its parameter's current value - for values
@@ -695,12 +856,33 @@ class PatchPanel:
                 sweep_row.refresh()
                 running = True
         for section in self.evolve_rows:
-            if section.evolution.running:
+            if section.evolution.ticking:
                 section.refresh()
                 running = True
         return running
 
+    def refresh_analysis(self) -> bool:
+        """Keep this patch's scope on its current output while the tile is
+        open and the patch plays, otherwise release it; whether it redrew."""
+        if self.analyser is None or self.analysis_view is None:
+            return False
+        output = self.patch.output if self.expanded else None
+        signals = () if output is None else (output,)
+        if not self.analyser.monitors(signals):
+            self.analyser.detach()
+            if output is not None:
+                self.analyser.attach(output)
+        if output is None and not self.analysis_view.live:
+            return False
+        wave, spectrum = self.analyser.snapshot()
+        self.analysis_view.show(wave, spectrum, live=output is not None)
+        return True
+
     def _show(self, param: Param, value: float) -> None:
+        self._show_value(param, value)
+        self._refresh_summary()
+
+    def _show_value(self, param: Param, value: float) -> None:
         if param.origin in self._evolved_params:
             # its dropdown lives in an evolve section, which shows the value
             for section in self.evolve_rows:
@@ -732,6 +914,8 @@ class PatchPanel:
         self.switch.disabled = True
         self.enabled = False
         self.switch.value = False
+        if self.analyser is not None:
+            self.analyser.detach()
         self.patch.stop()
 
     def set_group_enabled(self, enabled: bool) -> None:
@@ -749,7 +933,11 @@ class PatchPanel:
     def _handle_slider(self, param: Param, e: ft.ControlEvent) -> None:
         value = param.spec.from_position(float(e.control.value))
         param.write(self.patch, value)
+        # a slider without ticks lands where it was dragged: pull it onto the
+        # value it actually produces
+        e.control.value = param.spec.to_position(value)
         self._value_texts[param].value = param.spec.format(value)
+        self._refresh_summary()
         self._apply()
         e.page.update()
 
@@ -772,6 +960,7 @@ class PatchPanel:
 
     def _handle_option(self, param: Param, e: ft.ControlEvent) -> None:
         param.write(self.patch, float(e.control.value))
+        self._refresh_summary()
         self._apply()
         e.page.update()
 
@@ -899,6 +1088,7 @@ class GroupControlSlider:
         control: GroupControl,
         path: str,
         on_change: Callable[[], None],
+        help: HelpTexts | None = None,
     ) -> None:
         self.group = group
         self.control = control
@@ -907,35 +1097,21 @@ class GroupControlSlider:
         self.path = f"{path}/{control.slider.name}"
         self.on_change = on_change
         spec = control.slider
-        self.text = ft.Text(
-            spec.format(spec.default), color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
+        self.text = value_text(spec.format(spec.default))
         self.slider = ft.Slider(
             min=spec.minimum,
             max=spec.maximum,
-            divisions=spec.divisions,
+            divisions=slider_ticks(spec),
             value=spec.default,
             active_color=ACCENT,
             inactive_color="#31403D",
+            expand=True,
             on_change=self._handle_change,
         )
-        self.control_view = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(spec.description, color=TEXT, size=14),
-                            self.text,
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    self.slider,
-                    ft.Text(spec.help_text, color=MUTED, size=11),
-                ],
-                spacing=2,
-            ),
-            col={"xs": 12, "md": 6},
-            padding=ft.padding.Padding(left=0, top=4, right=0, bottom=4),
+        self.control_view = compact_row(
+            label_text(spec.description, spec.help_text),
+            [self.slider, self.text, ft.Container(width=TOGGLE_WIDTH)],
+            [(help or HelpTexts()).text(spec.help_text)],
         )
 
     def show(self) -> None:
@@ -967,13 +1143,14 @@ class PatchGroup:
         *,
         path: str = "",
         on_control_change: Callable[[], None] = lambda: None,
+        help: HelpTexts | None = None,
     ) -> None:
         self.group_def = group_def
         self.panels = panels
         self.children = list(children)
         self.path = f"{path}/{group_def.title}" if path else group_def.title
         self.control_sliders = [
-            GroupControlSlider(group_def, control, self.path, on_control_change)
+            GroupControlSlider(group_def, control, self.path, on_control_change, help)
             for control in group_def.controls
         ]
         self.enabled = True
@@ -982,6 +1159,10 @@ class PatchGroup:
         # for a group of alternative styles, only the selected panel is shown
         self._alternatives = group_def.alternatives and len(panels) > 1
         self._selected = panels[0] if panels else None
+        # a tile that is alone in its group opens with the group; several side
+        # by side fold to a header each
+        for panel in panels:
+            panel.set_expanded(self._alternatives or len(panels) == 1)
         self._boxes: dict[PatchPanel, ft.Container] = {}
         self.style_dropdown = ft.Dropdown(
             label="Style",
@@ -1050,15 +1231,15 @@ class PatchGroup:
                             ],
                             spacing=12,
                         ),
-                        padding=ft.padding.Padding(left=16, top=8, right=16, bottom=16),
+                        padding=ft.padding.Padding(left=0, top=8, right=0, bottom=8),
                     )
                 ],
             ),
             bgcolor=PANEL,
             border=ft.Border.all(1, "#2A3A36"),
             border_radius=8,
-            padding=16,
-            margin=ft.margin.Margin(left=0, top=0, right=0, bottom=12),
+            padding=12,
+            margin=ft.margin.Margin(left=0, top=0, right=0, bottom=8),
         )
 
     def _select(self, panel: PatchPanel) -> None:
@@ -1134,8 +1315,13 @@ class PatchRackApp:
         catalog_dir: Path,
         variants: dict[str, Callable[[], tuple[Rack, Path]]] | None = None,
         variant: str | None = None,
+        analysis: bool = True,
     ) -> None:
         self.page = page
+        self.analysis = analysis
+        # each patch panel draws its own scope while open (see
+        # `PatchPanel.refresh_analysis`); there is no master one, since every
+        # live graph is more UI work competing with the audio thread
         self.title = title
         self.subtitle = subtitle
         self.rack = rack
@@ -1166,40 +1352,48 @@ class PatchRackApp:
             disabled=True,
             on_click=self._handle_pause,
         )
-        self.master_output_text = ft.Text(
-            f"{self.master_output:.2f}",
-            color=ACCENT,
-            size=13,
-            weight=ft.FontWeight.BOLD,
-        )
+        self.master_output_text = value_text(f"{self.master_output:.2f}")
         self.master_output_slider = ft.Slider(
             min=0,
             max=rack.master_output_max,
-            divisions=20,
             value=self.master_output,
             active_color=ACCENT,
             inactive_color="#31403D",
+            expand=True,
             on_change=self._handle_master_output,
         )
-        self.bpm_text = ft.Text(
-            f"{self.bpm:g} BPM", color=ACCENT, size=13, weight=ft.FontWeight.BOLD
-        )
+        self.bpm_text = value_text(f"{self.bpm:g} BPM")
         self.bpm_slider = ft.Slider(
             min=BPM_MIN,
             max=BPM_MAX,
-            divisions=BPM_MAX - BPM_MIN,
             value=min(max(self.bpm, BPM_MIN), BPM_MAX),
             active_color=ACCENT,
             inactive_color="#31403D",
+            expand=True,
             on_change=self._handle_bpm,
         )
         self.preset_dropdown = ft.Dropdown(
             label="Preset",
             options=[ft.dropdown.Option(name) for name in self.preset_store.names()],
+            dense=True,
             expand=True,
         )
         self.preset_name_field = ft.TextField(
-            label="Save as", value="my_preset", expand=True
+            label="Save as", value="my_preset", width=320, autofocus=True
+        )
+        self.save_dialog = ft.AlertDialog(
+            title=ft.Text("Save preset"),
+            content=self.preset_name_field,
+            actions=[
+                ft.TextButton("Cancel", on_click=self._close_save_dialog),
+                ft.TextButton("Save", on_click=self._confirm_save),
+            ],
+        )
+        self.help_button = ft.IconButton(
+            icon=ft.Icons.INFO_OUTLINE,
+            icon_color=MUTED,
+            tooltip="Show a description under every control",
+            on_click=self._handle_help,
         )
         self.key_dropdown = ft.Dropdown(
             label="Key",
@@ -1208,7 +1402,8 @@ class PatchRackApp:
                 for pitch_class, name in enumerate(Note.NAMES)
             ],
             value=str(rack.harmony.key),
-            width=140,
+            dense=True,
+            width=110,
             on_select=self._handle_key,
         )
 
@@ -1219,7 +1414,8 @@ class PatchRackApp:
                 for i, name in enumerate(Progressions.labels())
             ],
             value=self._progression_value(),
-            width=180,
+            dense=True,
+            width=220,
             on_select=self._handle_progression,
         )
 
@@ -1227,6 +1423,7 @@ class PatchRackApp:
             label="Style",
             options=[ft.dropdown.Option(name) for name in self.variants],
             value=variant,
+            dense=True,
             width=180,
             on_select=self._handle_variant,
         )
@@ -1238,7 +1435,15 @@ class PatchRackApp:
         """Make `rack` the live rack: one panel per patch and the group views."""
         self.rack = rack
         patches = [patch for group in rack.groups for patch in group.patches]
-        self.panels = {patch.name: PatchPanel(patch) for patch in patches}
+        self.help = HelpTexts(getattr(self, "help", HelpTexts()).shown)
+        self.panels = {
+            patch.name: PatchPanel(
+                patch,
+                help=self.help,
+                analysis=self.analysis,
+            )
+            for patch in patches
+        }
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
         self.groups = [self._patch_group(group) for group in rack.groups]
@@ -1258,6 +1463,7 @@ class PatchRackApp:
             [self._patch_group(child, here) for child in group.children],
             path=path,
             on_control_change=self.sync_panels,
+            help=self.help,
         )
 
     # -- page setup ------------------------------------------------------
@@ -1276,6 +1482,20 @@ class PatchRackApp:
         self.page.on_close = self.close
 
     def _build_view(self) -> None:
+        def inline(name: str, tip: str, slider: ft.Slider, readout: ft.Text):
+            return ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Text(name, color=TEXT, size=14, tooltip=tip, width=64),
+                        slider,
+                        readout,
+                    ],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                col={"xs": 12, "md": 6},
+            )
+
         rack_controls: list[ft.Control] = [
             ft.Row(
                 controls=[
@@ -1284,6 +1504,7 @@ class PatchRackApp:
                     self.pause_button,
                     self.key_dropdown,
                     self.progression_dropdown,
+                    self.help_button,
                 ],
                 alignment=ft.MainAxisAlignment.END,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1294,63 +1515,30 @@ class PatchRackApp:
             ft.Row(
                 controls=[
                     self.preset_dropdown,
-                    ft.Button("Load", on_click=self._load_preset),
+                    ft.TextButton("Load", on_click=self._load_preset),
+                    ft.TextButton(
+                        "Save",
+                        icon=ft.Icons.SAVE,
+                        on_click=self._open_save_dialog,
+                    ),
                 ],
                 spacing=8,
             ),
-            ft.Row(
+            ft.ResponsiveRow(
                 controls=[
-                    self.preset_name_field,
-                    ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save_preset),
+                    inline(
+                        "Master",
+                        f"Safety-capped at {self.rack.master_output_max:.2f}; "
+                        f"starts at {self.rack.master_output_default:.2f}.",
+                        self.master_output_slider,
+                        self.master_output_text,
+                    ),
+                    inline("Tempo", "Beats per minute", self.bpm_slider, self.bpm_text),
                 ],
-                spacing=8,
+                spacing=12,
+                run_spacing=4,
             ),
         ]
-        level_controls: list[ft.Control] = []
-        level_controls.append(
-            ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Row(
-                            controls=[
-                                ft.Text("Master output", color=TEXT, size=14),
-                                self.master_output_text,
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        self.master_output_slider,
-                        ft.Text(
-                            f"Safety-capped at {self.rack.master_output_max:.2f}; starts at {self.rack.master_output_default:.2f}.",
-                            color=MUTED,
-                            size=11,
-                        ),
-                    ],
-                    spacing=2,
-                ),
-                col={"xs": 12, "md": 6},
-            )
-        )
-        level_controls.append(
-            ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Row(
-                            controls=[
-                                ft.Text("Tempo", color=TEXT, size=14),
-                                self.bpm_text,
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        self.bpm_slider,
-                    ],
-                    spacing=2,
-                ),
-                col={"xs": 12, "md": 6},
-            )
-        )
-        rack_controls.append(
-            ft.ResponsiveRow(controls=level_controls, spacing=12, run_spacing=8)
-        )
         header = ft.Container(
             content=ft.ResponsiveRow(
                 controls=[
@@ -1365,7 +1553,7 @@ class PatchRackApp:
                                 ),
                                 ft.Text(
                                     self.subtitle,
-                                    size=28,
+                                    size=20,
                                     color=TEXT,
                                     weight=ft.FontWeight.BOLD,
                                 ),
@@ -1376,14 +1564,14 @@ class PatchRackApp:
                         col={"xs": 12, "lg": 5},
                     ),
                     ft.Container(
-                        content=ft.Column(controls=rack_controls, spacing=8),
+                        content=ft.Column(controls=rack_controls, spacing=4),
                         col={"xs": 12, "lg": 7},
                     ),
                 ],
                 spacing=24,
-                run_spacing=16,
+                run_spacing=8,
             ),
-            padding=28,
+            padding=ft.padding.Padding(left=28, top=16, right=28, bottom=12),
             bgcolor="#121D1B",
         )
         group_list = ft.ListView(
@@ -1450,14 +1638,16 @@ class PatchRackApp:
         self.page.update()
 
     def _handle_master_output(self, e: ft.ControlEvent) -> None:
-        self.master_output = float(e.control.value)
+        self.master_output = round(float(e.control.value), 2)
+        e.control.value = self.master_output
         self.master_output_text.value = f"{self.master_output:.2f}"
         if self.running:
             self.server.setAmp(self.master_output)
         e.page.update()
 
     def _handle_bpm(self, e: ft.ControlEvent) -> None:
-        self.bpm = float(e.control.value)
+        self.bpm = float(round(e.control.value))
+        e.control.value = self.bpm
         self.bpm_text.value = f"{self.bpm:g} BPM"
         if self.running:
             self.context.tempo.set_bpm(self.bpm)
@@ -1538,8 +1728,11 @@ class PatchRackApp:
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
             moving = [panel.refresh_live() for panel in self.panels.values()]
+            for panel in self.panels.values():
+                panel.refresh_analysis()
             # an evolving patch can move off the shared progression
             self.progression_dropdown.value = self._progression_value()
+            # scopes repaint their own canvases, so they don't need a page update
             if any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
@@ -1643,6 +1836,23 @@ class PatchRackApp:
             for group in top.walk():
                 group.reveal_enabled()
         self.page.update()
+
+    def _handle_help(self, e: ft.ControlEvent) -> None:
+        """Show or hide the description under every control."""
+        self.help.show(not self.help.shown)
+        self.help_button.icon_color = ACCENT if self.help.shown else MUTED
+        self.page.update()
+
+    def _open_save_dialog(self, e: ft.ControlEvent) -> None:
+        self.page.show_dialog(self.save_dialog)
+
+    def _close_save_dialog(self, e: ft.ControlEvent) -> None:
+        self.page.pop_dialog()
+
+    def _confirm_save(self, e: ft.ControlEvent) -> None:
+        if (self.preset_name_field.value or "").strip():
+            self._save_preset(e)
+            self.page.pop_dialog()
 
     def _save_preset(self, e: ft.ControlEvent) -> None:
         name = (self.preset_name_field.value or "").strip()

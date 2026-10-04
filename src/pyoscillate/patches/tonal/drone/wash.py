@@ -71,6 +71,7 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Spreads the oscillators apart in pitch; higher makes the wash thicker and hazier, lower keeps it "
         "cleaner and more focused.",
         sweep=True,
+        advanced=True,
     )
     def detune(self, value: float) -> None:
         self.detune_sig.value = value
@@ -84,6 +85,7 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Balances how much of the detuned layers come through versus the centered tone; higher leans "
         "further into the thick, chorused character.",
         sweep=True,
+        advanced=True,
     )
     def detune_bal(self, value: float) -> None:
         self.detune_bal_sig.value = value
@@ -96,6 +98,7 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Instability",
         "Adds slow pitch wobble; higher makes the wash feel more alive and unstable, lower keeps it steadier.",
         sweep=True,
+        advanced=True,
     )
     def pitch_drift(self, value: float) -> None:
         self.pitch_drift_sig.value = value
@@ -121,6 +124,7 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Chorus density",
         "Adds more layered repeats to the chorus effect for a denser, more swirling texture.",
         sweep=True,
+        advanced=True,
     )
     def chorus_feedback(self, value: float) -> None:
         self.chorus_feedback_sig.value = value
@@ -134,6 +138,7 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         "Blends how much of the chorused signal is heard versus the dry tone; higher leans further into "
         "the wide, shimmering effect.",
         sweep=True,
+        advanced=True,
     )
     def chorus_bal(self, value: float) -> None:
         self.chorus_bal_sig.value = value
@@ -180,8 +185,8 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         )
         self.reverb = self.add_reverb(self.chorused)
         self.echo = self.add_echo(self.reverb)
-        self.output = self.reverb + self.echo * 0.3
-        return self.finish(self.add_gate(self.output, context))
+        self.bed = self.reverb + self.echo * 0.3
+        return self.finish(self.add_gate(self.bed, context))
 
     def on_evolve(self, index: int) -> None:
         depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[

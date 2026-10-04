@@ -117,6 +117,7 @@ class Canon(SeededDraws, Reverb, Patch):
         "Sets voice B's pitch offset from voice A; wider intervals separate the two voices more clearly, "
         "narrower blends them together.",
         rebuild=True,
+        advanced=True,
     )
 
     note_duration = Param(

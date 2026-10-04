@@ -30,7 +30,7 @@ class SlowedReverbRackDefaultsTests(unittest.TestCase):
             },
             "keys": {
                 "root_freq": Note.E3,
-                "bark": 5.0,
+                "bark": 2.5,
                 "bite": 0.3,
                 "decay": 3.1,
                 "tremolo": 0.85,

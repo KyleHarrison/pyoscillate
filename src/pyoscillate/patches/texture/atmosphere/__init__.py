@@ -73,6 +73,7 @@ class Atmosphere(Gate, Reverb, GatedVoice):
         "Sets how quickly the arpeggio steps; lower values race by breathlessly, higher values stretch "
         "it into a slower, more spacious pattern.",
         rebuild=True,
+        advanced=True,
     )
 
     @Param(

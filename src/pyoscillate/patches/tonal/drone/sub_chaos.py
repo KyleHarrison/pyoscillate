@@ -64,6 +64,7 @@ class BassChaos(Gate, RootPitch, ContinuousVoice):
         "How quickly the pitch wanders; slower feels like a slow-breathing organism, faster feels more "
         "agitated and unstable.",
         sweep=True,
+        advanced=True,
     )
     def chaos_speed(self, value: float) -> None:
         self.chaos_speed_sig.value = value
@@ -77,6 +78,7 @@ class BassChaos(Gate, RootPitch, ContinuousVoice):
         "How unpredictable the pitch wander is; higher feels more restless and alive, lower stays closer "
         "to a steady drone.",
         sweep=True,
+        advanced=True,
     )
     def chaos_amount(self, value: float) -> None:
         self.chaos_amount_sig.value = value
@@ -90,6 +92,7 @@ class BassChaos(Gate, RootPitch, ContinuousVoice):
         "How far the pitch strays from center; wider feels more organic and unsettled, narrower keeps it "
         "closer to a fixed note.",
         sweep=True,
+        advanced=True,
     )
     def drift_range(self, value: float) -> None:
         self.drift_range_sig.value = value
@@ -139,7 +142,7 @@ class BassChaos(Gate, RootPitch, ContinuousVoice):
 
         self.sub_table = HarmTable(SUB_HARMONICS)
         self.sub_osc = Osc(table=self.sub_table, freq=self.pitch_chaos, mul=0.5)
-        self.output = MoogLP(
+        self.bed = MoogLP(
             self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
         )
-        return self.finish(self.add_gate(self.output, context))
+        return self.finish(self.add_gate(self.bed, context))

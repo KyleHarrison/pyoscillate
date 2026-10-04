@@ -135,18 +135,43 @@ class Evolution:
             self._division = None
 
     @property
+    def ticking(self) -> bool:
+        """Whether the clock is moving through the interval: while the patch
+        plays, evolving or holding, so a hold can still show where an
+        evolution would land."""
+        return self._clock is not None and self.patch.playing
+
+    @property
     def progress(self) -> float:
         """How far through the current interval the clock is (0 just changed,
-        approaching 1 as the next change nears); 0 when not running."""
-        if self._division is None or self._clock is None:
+        approaching 1 as the next change nears); 0 when not ticking."""
+        if not self.ticking:
             return 0.0
-        steps = self._division.steps
+        assert self._clock is not None
+        steps = self._clock.bar * self.bars
         return (self._clock.tick % steps) / steps
 
     @property
     def bars_left(self) -> float:
         """Bars until the next change; the full interval when not running."""
         return self.bars * (1 - self.progress)
+
+    def rotation(self, count: int) -> tuple[Any, ...]:
+        """The choice playing now followed by what `advance` will move to
+        next, `count` in all, wrapping; just the one playing when fewer than
+        two are ticked or the evolution is off. Empty for the patch's own
+        hook, which has no choices."""
+        if self.axis is None:
+            return ()
+        current = self.current
+        if not self.enabled or len(self.choices) < 2:
+            return (current,)
+        position = self.choices.index(current) if current in self.choices else -1
+        following = (
+            self.choices[(position + step) % len(self.choices)]
+            for step in range(1, count)
+        )
+        return (current, *following)
 
     def _fire(self) -> None:
         if self.axis is None:
