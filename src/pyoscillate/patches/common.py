@@ -539,6 +539,7 @@ class Gate(Patch):
         "Pulse length",
         "How much of each step the sound stays open; short is clipped and staccato, long is nearly "
         "held.",
+        parent=gate,
     )
     def gate_length(self, value: float) -> None:
         self.retime_gate()
@@ -551,6 +552,7 @@ class Gate(Patch):
         "Pulse density",
         "How many of the steps play; full pulses on every step, lower drops steps at random (the same "
         "ones for a given Pattern).",
+        parent=gate,
     )
     gate_seed = Param(
         0,
@@ -560,6 +562,7 @@ class Gate(Patch):
         "Pattern",
         "Picks which steps drop out when Pulse density is below full; each number is a different "
         "rhythm.",
+        parent=gate,
     )
 
     @Param(
@@ -568,6 +571,7 @@ class Gate(Patch):
         0,
         "Pulse rate",
         "Speeds the pulses up or slows them down in whole note divisions from sixteenth notes.",
+        parent=gate,
     )
     def gate_rate(self, value: float) -> None:
         self._gate_pulse.steps = self._gate_pulse.clock.ticks_for_rate(

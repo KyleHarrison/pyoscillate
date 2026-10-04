@@ -135,6 +135,11 @@ class Param:
     `advanced=True` marks a fine-tuning parameter a UI may tuck behind a
     "More" expander, leaving the few that shape the sound in front.
 
+    `parent=` names another `Param` this one only matters under (the Gate's
+    depth for its pulse settings): a UI tucks it into a group under the
+    parent's slider, shown only while the parent is above its minimum. A
+    child is still an ordinary `Param` for presets, racks and sweeps.
+
     `sweep=True` lets a patch instance drive the parameter with a bouncing
     low/high sweep instead of a fixed value (see `patches/sweep.py`); it
     needs a live control (or a `live()` signal) and is meaningless for a
@@ -154,6 +159,7 @@ class Param:
         rebuild: bool = False,
         sweep: bool = False,
         advanced: bool = False,
+        parent: Param | None = None,
         options: tuple[str, ...] = (),
         option_ids: tuple[str, ...] = (),
         option_categories: tuple[str, ...] = (),
@@ -199,6 +205,7 @@ class Param:
             "option_ids": option_ids,
             "option_categories": option_categories,
             "catalog": catalog,
+            "parent": parent,
         }
         self.control = control
         # the catalog a choice parameter's options come from, if any
@@ -206,6 +213,9 @@ class Param:
         self.rebuild = rebuild
         # whether each patch instance may sweep this parameter (see `Sweep`)
         self.sweep = sweep
+        # the `Param` this one is grouped under in a UI, if any; compare with
+        # `.origin`, since a style may `replace` the parent
+        self.parent = parent
         self.name = ""
         self.spec: SliderSpec
         # the `Param` this one was `replace`d from (itself if never replaced),

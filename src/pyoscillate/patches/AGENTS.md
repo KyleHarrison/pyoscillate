@@ -392,6 +392,9 @@ sits on top of that as a second, independent chop.
   `gate_seed`, `gate_rate`), all live. The gate is always built; toggling it
   never rebuilds the patch. A rack enables it by constructor override
   (`Strings(gate=1.0)`), and `ParamSweep` can sweep its depth.
+  The four pulse settings declare `parent=gate`, so the Flet panel hides them in a
+  group under the Gate slider until its depth is above zero. Any `Param` can
+  take `parent=` the same way (compare parents by `.origin`).
 - `self.add_gate(source, context)` builds the `Trig`, table and `TrigEnv`,
   subscribes on the clock, and returns the gated signal. Call it in
   `build()` before `finish()`; `finish()` merges the gate's pulse with the

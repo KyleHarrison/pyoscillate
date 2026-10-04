@@ -605,6 +605,9 @@ class PatchPanel:
         self._built_values: dict[Param, float] = {}
         self._value_texts: dict[Param, ft.Text] = {}
         self._sliders: dict[Param, ft.Slider] = {}
+        # children grouped under each parent (by origin) and each group's box
+        self._children: dict[Param, list[Param]] = {}
+        self._groups: dict[Param, ft.Container] = {}
         self._dropdowns: dict[Param, ft.Dropdown] = {}
         self._category_dropdowns: dict[Param, ft.Dropdown] = {}
         self.sweep_rows: dict[Param, SweepRow] = {}
@@ -738,11 +741,15 @@ class PatchPanel:
             for param in self.patch.params
             if param.origin not in self._evolved_params
         ]
-        advanced = [param for param in shown if param.spec.advanced]
+        # a child sits in a group under its parent's slider, so it neither
+        # counts toward nor lands in the main/advanced split on its own
+        self._children = self._group_children(shown)
+        top = [param for param in shown if not self._is_child(param)]
+        advanced = [param for param in top if param.spec.advanced]
         # one lone fine-tuning slider is not worth an expander
-        if len(advanced) < 2 or len(advanced) == len(shown):
+        if len(advanced) < 2 or len(advanced) == len(top):
             advanced = []
-        main = [self._slider_row(param) for param in shown if param not in advanced]
+        main = self._rows_with_groups([p for p in top if p not in advanced])
         body: list[ft.Control] = [
             *([self.analysis_view.control] if self.analysis_view else []),
             *[section.control for section in self.evolve_rows],
@@ -752,7 +759,7 @@ class PatchPanel:
             body += self._more_controls(advanced)
         # choices read too long for a one-line readout: only the sliders do
         self.summary_params = [
-            param for param in shown if param not in advanced and not param.spec.options
+            param for param in top if param not in advanced and not param.spec.options
         ][:SUMMARY_VALUES]
         self.summary = ft.Text(
             "", color=MUTED, size=12, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS
@@ -793,10 +800,63 @@ class PatchPanel:
         self.set_expanded(self.expanded)
         return control
 
+    def _group_children(self, shown: list[Param]) -> dict[Param, list[Param]]:
+        """The shown params grouped under each shown parent, keyed by the
+        parent's `origin`. A param whose parent isn't shown stays ungrouped."""
+        origins = {param.origin for param in shown}
+        groups: dict[Param, list[Param]] = {}
+        for param in shown:
+            if param.parent is not None and param.parent.origin in origins:
+                groups.setdefault(param.parent.origin, []).append(param)
+        return groups
+
+    def _is_child(self, param: Param) -> bool:
+        return any(param in children for children in self._children.values())
+
+    def _rows_with_groups(self, params: list[Param]) -> list[ft.Control]:
+        """A row per param, each parent followed by its group of children,
+        which is open only while the parent is above its minimum."""
+        rows: list[ft.Control] = []
+        for param in params:
+            rows.append(self._slider_row(param))
+            children = self._children.get(param.origin)
+            if not children:
+                continue
+            group = ft.Container(
+                content=ft.ResponsiveRow(
+                    controls=[self._slider_row(child) for child in children],
+                    spacing=12,
+                    run_spacing=4,
+                ),
+                col=12,
+                padding=ft.padding.Padding(left=16, top=0, right=0, bottom=4),
+                border=ft.Border.only(left=ft.BorderSide(2, ACCENT)),
+                visible=self._group_open(param, param.read(self.patch)),
+            )
+            self._groups[param.origin] = group
+            rows.append(group)
+        return rows
+
+    @staticmethod
+    def _group_open(parent: Param, value: float) -> bool:
+        return value > parent.spec.minimum
+
+    def _show_group(self, param: Param, value: float) -> ft.Container | None:
+        """Open or close `param`'s group of children for `value`; the group
+        if its visibility changed, so the caller can repaint it."""
+        group = self._groups.get(param.origin)
+        if group is None:
+            return None
+        visible = self._group_open(param, value)
+        if group.visible == visible:
+            return None
+        group.visible = visible
+        return group
+
     def _more_controls(self, advanced: list[Param]) -> list[ft.Control]:
         """The fine-tuning sliders, behind a toggle that names how many."""
         rows = ft.ResponsiveRow(
-            controls=[self._slider_row(param) for param in advanced],
+            controls=self._rows_with_groups(advanced),
             spacing=12,
             run_spacing=4,
             visible=False,
@@ -901,6 +961,7 @@ class PatchPanel:
             return
         self._sliders[param].value = param.spec.to_position(value)
         self._value_texts[param].value = param.spec.format(value)
+        self._show_group(param, value)
 
     # -- engine lifecycle --------------------------------------------------
 
@@ -939,7 +1000,13 @@ class PatchPanel:
         self._value_texts[param].value = param.spec.format(value)
         self._refresh_summary()
         self._apply()
-        e.page.update()
+        # only what changed: a page-wide update diffs the whole tree on every
+        # drag event, on the thread that also draws the graphs
+        changed = [self._value_texts[param], self.summary]
+        if (group := self._show_group(param, value)) is not None:
+            changed.append(group)
+        for control in changed:
+            control.update()
 
     def _handle_category(self, param: Param, e: ft.ControlEvent) -> None:
         """Show the chosen category's items and select the first of them."""
@@ -1727,14 +1794,17 @@ class PatchRackApp:
         """While the engine runs, move every live sweep marker ~10 times a
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
-            moving = [panel.refresh_live() for panel in self.panels.values()]
             for panel in self.panels.values():
+                # only an open tile's controls are on screen, and only its own
+                # subtree is diffed - never the whole page
+                if panel.refresh_live() and panel.expanded:
+                    panel.body.update()
                 panel.refresh_analysis()
             # an evolving patch can move off the shared progression
-            self.progression_dropdown.value = self._progression_value()
-            # scopes repaint their own canvases, so they don't need a page update
-            if any(moving):
-                self.page.update()
+            progression = self._progression_value()
+            if self.progression_dropdown.value != progression:
+                self.progression_dropdown.value = progression
+                self.progression_dropdown.update()
             await asyncio.sleep(0.1)
 
     def _stop_engine(self) -> None:
