@@ -125,7 +125,7 @@ class BassDrone(Gate, RootPitch, ContinuousVoice):
         self.sub_osc = Osc(
             table=self.sub_table, freq=self.root_freq_sig, mul=self.swell
         )
-        self.output = MoogLP(
+        self.bed = MoogLP(
             self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
         )
-        return self.finish(self.add_gate(self.output, context))
+        return self.finish(self.add_gate(self.bed, context))

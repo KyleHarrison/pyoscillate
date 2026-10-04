@@ -78,6 +78,12 @@ class AnalysisPlot:
                 )
             )
         self.canvas.shapes = shapes
+        # repaint just this canvas; a full `page.update()` per frame is what
+        # made the UI lag while parameters were being changed
+        try:
+            self.canvas.update()
+        except RuntimeError:
+            pass  # not on the page yet
 
 
 class AnalysisView:
@@ -108,4 +114,10 @@ class AnalysisView:
         self.live = live
         self.wave.draw(wave if live else [])
         self.spectrum.draw(spectrum if live else [])
-        self.note.value = self.live_note if live else self.IDLE_NOTE
+        note = self.live_note if live else self.IDLE_NOTE
+        if self.note.value != note:
+            self.note.value = note
+            try:
+                self.note.update()
+            except RuntimeError:
+                pass

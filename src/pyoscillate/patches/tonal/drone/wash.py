@@ -185,8 +185,8 @@ class SoundscapeWash(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
         )
         self.reverb = self.add_reverb(self.chorused)
         self.echo = self.add_echo(self.reverb)
-        self.output = self.reverb + self.echo * 0.3
-        return self.finish(self.add_gate(self.output, context))
+        self.bed = self.reverb + self.echo * 0.3
+        return self.finish(self.add_gate(self.bed, context))
 
     def on_evolve(self, index: int) -> None:
         depth_scale, feedback_scale = self.EVOLUTION_VARIANTS[

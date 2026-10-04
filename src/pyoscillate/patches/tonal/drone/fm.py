@@ -100,5 +100,5 @@ class SoundscapeFm(Gate, Reverb, Echo, RootPitch, ContinuousVoice):
             mul=0.2,
         )
         self.reverb = self.add_reverb(self.fm_voice)
-        self.output = self.add_echo(self.reverb)
-        return self.finish(self.add_gate(self.output, context))
+        self.bed = self.add_echo(self.reverb)
+        return self.finish(self.add_gate(self.bed, context))

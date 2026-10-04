@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -26,11 +28,37 @@ STOP_FADE = 0.2
 # Absolute peak cap for a single patch before it reaches the shared hardware
 # output. The Flet rack adds a separate, capped master gain for the sum.
 PATCH_OUTPUT_CEILING = 0.18
+# seconds a Python thread may hold the GIL before another waiting thread (the
+# audio thread) is given it; CPython's default is 0.005
+AUDIO_SWITCH_INTERVAL = 0.0005
+# Frames per audio buffer (23 ms at 44.1 kHz). Pyo's default of 256 (5.8 ms)
+# leaves no slack for the audio thread's Python callbacks (the clock) when the
+# UI is busy; 1024 trades a little latency for crackle-free playback.
+AUDIO_BUFFER_SIZE = 1024
+# The compressor engages just under the ceiling (in dB), so the hard `Clip`
+# after it is only a safety net: with the threshold above the ceiling the
+# compressor never acted and every overshoot was square-clipped (a harsh,
+# intermittent crackle).
+PATCH_COMPRESS_THRESH = 20 * math.log10(PATCH_OUTPUT_CEILING) - 3
 
 
-def start_server(*, nchnls: int = 2, audio: str = "portaudio") -> Server:
-    """Start a Pyo server or raise before any audio objects can be built."""
+def start_server(
+    *,
+    nchnls: int = 2,
+    audio: str = "portaudio",
+    buffersize: int = AUDIO_BUFFER_SIZE,
+) -> Server:
+    """Start a Pyo server or raise before any audio objects can be built.
+    `buffersize` is in frames."""
+    # Pyo runs the shared `Clock`'s Python callback inside the audio thread, so
+    # the audio thread needs the GIL every tick. With CPython's default 5 ms
+    # switch interval, a UI thread busy in pure Python (a Flet repaint, canvas
+    # graphs) keeps it for up to 5 ms - nearly a whole 5.8 ms buffer - and the
+    # buffer underruns: an intermittent crackle that grows with UI work.
+    # Handing the GIL over every 0.5 ms keeps the audio thread's wait short.
+    sys.setswitchinterval(AUDIO_SWITCH_INTERVAL)
     server = Server(nchnls=nchnls, duplex=0, audio=audio)
+    server.setBufferSize(buffersize)
     try:
         server.boot()
         if not server.getIsBooted():
@@ -404,7 +432,11 @@ class Patch(ABC):
         # at its normal level.
         boosted = self.voice * self.volume_signal
         compressed = Compress(
-            boosted, thresh=-1, ratio=10, risetime=0.001, falltime=0.05
+            boosted,
+            thresh=PATCH_COMPRESS_THRESH,
+            ratio=20,
+            risetime=0.0005,
+            falltime=0.08,
         )
         limited = Clip(
             compressed,

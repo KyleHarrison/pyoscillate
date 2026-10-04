@@ -1319,14 +1319,9 @@ class PatchRackApp:
     ) -> None:
         self.page = page
         self.analysis = analysis
-        # a master scope over the sum of the playing patches; each panel adds
-        # its own while open (see `PatchPanel.refresh_analysis`)
-        self.analyser = LiveAnalyser() if analysis else None
-        self.analysis_view = (
-            AnalysisView("Sum of playing patches, left channel, before master gain")
-            if analysis
-            else None
-        )
+        # each patch panel draws its own scope while open (see
+        # `PatchPanel.refresh_analysis`); there is no master one, since every
+        # live graph is more UI work competing with the audio thread
         self.title = title
         self.subtitle = subtitle
         self.rack = rack
@@ -1445,8 +1440,7 @@ class PatchRackApp:
             patch.name: PatchPanel(
                 patch,
                 help=self.help,
-                # one patch: the master scope is already that patch's
-                analysis=self.analysis and len(patches) > 1,
+                analysis=self.analysis,
             )
             for patch in patches
         }
@@ -1585,21 +1579,10 @@ class PatchRackApp:
             spacing=0,
             expand=True,
         )
-        analysis = (
-            [
-                ft.Container(
-                    content=self.analysis_view.control,
-                    padding=ft.padding.Padding(left=28, top=0, right=28, bottom=8),
-                )
-            ]
-            if self.analysis_view
-            else []
-        )
         self.page.add(
             ft.Column(
                 controls=[
                     header,
-                    *analysis,
                     ft.Container(
                         content=group_list,
                         padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
@@ -1745,33 +1728,14 @@ class PatchRackApp:
         second; the sweeps themselves run in pyo, this only draws them."""
         while self.running:
             moving = [panel.refresh_live() for panel in self.panels.values()]
-            moving += [panel.refresh_analysis() for panel in self.panels.values()]
+            for panel in self.panels.values():
+                panel.refresh_analysis()
             # an evolving patch can move off the shared progression
             self.progression_dropdown.value = self._progression_value()
-            if self._refresh_analysis() or any(moving):
+            # scopes repaint their own canvases, so they don't need a page update
+            if any(moving):
                 self.page.update()
             await asyncio.sleep(0.1)
-
-    def _refresh_analysis(self) -> bool:
-        """Reconcile the master scope with the patches playing now (the set
-        changes on every enable, rebuild, stop or style swap) and redraw;
-        whether the view changed."""
-        if self.analyser is None or self.analysis_view is None:
-            return False
-        outputs = [
-            output
-            for panel in self.panels.values()
-            if (output := panel.patch.output) is not None
-        ]
-        if not self.analyser.monitors(outputs):
-            self.analyser.detach()
-            if outputs:
-                self.analyser.attach_sum(outputs)
-        if not outputs and not self.analysis_view.live:
-            return False
-        wave, spectrum = self.analyser.snapshot()
-        self.analysis_view.show(wave, spectrum, live=bool(outputs))
-        return True
 
     def _stop_engine(self) -> None:
         if not self.running:
@@ -1779,8 +1743,6 @@ class PatchRackApp:
         self.running = False
         self.paused = False
         self._paused_panels = set()
-        if self.analyser is not None:
-            self.analyser.detach()
         for group in self.groups:
             group.set_engine_ready(False)
         for panel in self.panels.values():
@@ -1788,8 +1750,6 @@ class PatchRackApp:
         self.clock.stop()
         self.server.stop()
         self.server.shutdown()
-        if self.analysis_view is not None:
-            self.analysis_view.show([], [], live=False)
         self.status.value = "Engine stopped"
         self.status.color = MUTED
         self.engine_button.text = "Start engine"

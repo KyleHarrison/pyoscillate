@@ -1,54 +1,59 @@
 """Bounded live waveform/spectrum frames of one running signal, for a display.
 
-Pyo's `Scope` and `Spectrum` call back with lists of `(x, y)` display
-coordinates (not PCM samples or calibrated FFT bins), bounded by the
-`WIDTH` x `HEIGHT` viewport below. Callbacks only store the newest frame
-under a lock; the UI copies it out with `snapshot()` on its own schedule.
+Frames are `(x, y)` display points bounded by the `WIDTH` x `HEIGHT` viewport
+below (y down), not PCM samples or calibrated FFT bins.
+
+Nothing here runs Python on the audio thread. Pyo's own `Scope` and `Spectrum`
+call back into Python from inside the audio callback, so whenever the UI
+thread holds the GIL (a Flet repaint, say) the audio thread waits for it and
+the buffer underruns - a sharp, intermittent crackle. Instead a `TableRec`
+records the signal into a table entirely in C, and `snapshot()` - called from
+the UI thread on its own schedule - reads the finished table, then re-arms the
+recorder for the next frame.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from functools import partial
-from threading import Lock
 
-from pyo import Mix, PyoObject
-from pyo.lib.analysis import Scope, Spectrum
+import numpy as np
+from pyo import Mix, NewTable, PyoObject, TableRec
 
 Points = list[tuple[float, float]]
 
 
 class LiveAnalyser:
-    """One `Scope` + `Spectrum` pair on the left stream of a signal.
+    """One recorded frame of the left stream of a signal, turned into a
+    waveform and a spectrum on demand.
 
-    Neither analyser calls `.out()`, so attaching one never changes what is
-    heard. At most one pair is live at a time: `attach()` retires the previous
-    pair first.
+    Never calls `.out()`, so attaching one never changes what is heard. At
+    most one signal is monitored at a time: `attach()` retires the previous
+    recorder first.
     """
 
     WIDTH = 256
     HEIGHT = 100
     WAVE_SECONDS = 0.05
-    # explicit `setGain`: passing gain to the constructor does not scale
+    # the waveform is amplified for display only
     WAVE_GAIN = 5.0
     FFT_SIZE = 2048
-    POLL_SECONDS = 0.1
     LOW_FREQ = 20.0
     HIGH_FREQ = 20000.0
-    # retired analysers kept referenced for this many later attaches/detaches
+    # spectrum floor (dB below full scale) drawn as the bottom of the plot
+    FLOOR_DB = -90.0
+    # retired recorders kept referenced for this many later attaches/detaches
     # so their native streams outlive the stop request
     RETIRED_KEPT = 4
 
     def __init__(self) -> None:
-        self._lock = Lock()
-        self._generation = 0
         self._wave: Points = []
         self._spectrum: Points = []
         self._inputs: tuple[PyoObject, ...] = ()
         self._source: PyoObject | None = None
         self._left: PyoObject | None = None
-        self._scope: Scope | None = None
-        self._fft: Spectrum | None = None
+        self._table: NewTable | None = None
+        self._recorder: TableRec | None = None
+        self._rate = 44100.0
         self._retired: list[tuple[object, ...]] = []
 
     def monitors(self, signals: Sequence[PyoObject]) -> bool:
@@ -75,53 +80,61 @@ class LiveAnalyser:
         self._inputs = (signal,) if inputs is None else inputs
         self._source = signal
         self._left = signal[0]
-        generation = self._generation
-        self._scope = Scope(
-            self._left,
-            length=self.WAVE_SECONDS,
-            function=partial(self._on_wave, generation),
-        )
-        self._scope.setWidth(self.WIDTH)
-        self._scope.setHeight(self.HEIGHT)
-        self._scope.setGain(self.WAVE_GAIN)
-        self._fft = Spectrum(
-            self._left,
-            size=self.FFT_SIZE,
-            function=partial(self._on_spectrum, generation),
-        )
-        self._fft.setWidth(self.WIDTH)
-        self._fft.setHeight(self.HEIGHT)
-        self._fft.setLowFreq(self.LOW_FREQ)
-        self._fft.setHighFreq(self.HIGH_FREQ)
-        self._fft.setFscaling(True)
-        self._fft.setMscaling(True)
-        self._fft.polltime(self.POLL_SECONDS)
+        self._rate = float(signal.getServer().getSamplingRate())
+        # long enough for the FFT window and the waveform's span
+        frames = max(self.FFT_SIZE, int(self.WAVE_SECONDS * self._rate))
+        self._table = NewTable(length=frames / self._rate)
+        self._recorder = TableRec(self._left, self._table, fadetime=0)
+        self._recorder.play()
 
     def detach(self) -> None:
-        """Stop and forget the current analysers; late callbacks are ignored."""
-        with self._lock:
-            self._generation += 1
-            self._wave = []
-            self._spectrum = []
-        if self._scope is not None and self._fft is not None:
-            self._scope.stop()
-            self._fft.stop()
-            self._retired.append((self._scope, self._fft, self._left, self._source))
+        """Stop and forget the current recorder."""
+        self._wave = []
+        self._spectrum = []
+        if self._recorder is not None and self._table is not None:
+            self._recorder.stop()
+            self._retired.append(
+                (self._recorder, self._table, self._left, self._source)
+            )
             del self._retired[: -self.RETIRED_KEPT]
-        self._scope = self._fft = self._left = self._source = None
+        self._recorder = self._table = self._left = self._source = None
         self._inputs = ()
 
     def snapshot(self) -> tuple[Points, Points]:
-        """Copies of the newest waveform and spectrum frames (empty if none)."""
-        with self._lock:
-            return list(self._wave), list(self._spectrum)
+        """The newest waveform and spectrum frames (empty if none yet).
 
-    def _on_wave(self, generation: int, data: list[Points]) -> None:
-        with self._lock:
-            if generation == self._generation and data:
-                self._wave = list(data[0])
+        Reads the frame the recorder has finished since the last call and
+        starts the next one. Call it from the UI thread, a few times a second:
+        the recording takes well under that (one FFT window), so a frame is
+        always complete by the next call.
+        """
+        if self._recorder is None or self._table is None:
+            return [], []
+        samples = np.asarray(self._table.getTable(), dtype=np.float64)
+        self._recorder.play()
+        if samples.size and np.any(samples):
+            self._wave = self._waveform(samples)
+            self._spectrum = self._spectrum_of(samples)
+        return list(self._wave), list(self._spectrum)
 
-    def _on_spectrum(self, generation: int, data: list[Points]) -> None:
-        with self._lock:
-            if generation == self._generation and data:
-                self._spectrum = list(data[0])
+    def _waveform(self, samples: np.ndarray) -> Points:
+        span = int(self.WAVE_SECONDS * self._rate)
+        window = samples[:span]
+        picks = np.linspace(0, window.size - 1, self.WIDTH).astype(int)
+        levels = np.clip(window[picks] * self.WAVE_GAIN, -1.0, 1.0)
+        ys = self.HEIGHT / 2 - levels * self.HEIGHT / 2
+        return [(float(x), float(y)) for x, y in zip(range(self.WIDTH), ys)]
+
+    def _spectrum_of(self, samples: np.ndarray) -> Points:
+        window = samples[: self.FFT_SIZE]
+        if window.size < self.FFT_SIZE:
+            window = np.pad(window, (0, self.FFT_SIZE - window.size))
+        magnitude = np.abs(np.fft.rfft(window * np.hanning(self.FFT_SIZE)))
+        # a full-scale sine reads 0 dB (a Hann window's gain is 1/2)
+        decibels = 20 * np.log10(magnitude / (self.FFT_SIZE / 4) + 1e-12)
+        freqs = np.fft.rfftfreq(self.FFT_SIZE, 1 / self._rate)
+        log_freqs = np.geomspace(self.LOW_FREQ, self.HIGH_FREQ, self.WIDTH)
+        shown = np.interp(log_freqs, freqs, decibels)
+        height = np.clip((shown - self.FLOOR_DB) / -self.FLOOR_DB, 0.0, 1.0)
+        ys = self.HEIGHT - height * self.HEIGHT
+        return [(float(x), float(y)) for x, y in zip(range(self.WIDTH), ys)]

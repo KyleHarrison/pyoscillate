@@ -35,7 +35,7 @@ Grounded in `music-theory/references/genres/electronic-edm.md` (trance/EDM tempo
 
 ## Shared constants (the rack will use)
 
-- `bpm = 160`, `ticks_per_bar = 512` (the default timing resolution used by the deep-house rack).
+- `bpm = 160`, `ticks_per_bar = 128` (the default timing resolution, shared with the deep-house rack).
 - `harmony = Harmony(key=F)` and `progression = Progressions.PSY_VAMP` (i-i-i-bII, two bars each); `F` (pitch class 5) is added to `harmony.py` next to `A` and `C`.
 - Register anchors from `theory/notes`: bass around `F1`, lead around `F4`.
 - Sidechain: the bass ducks off the kick group (`depth` ~0.5, `release` ~0.1 s, inside one 16th) so the two do not stack on the beat.

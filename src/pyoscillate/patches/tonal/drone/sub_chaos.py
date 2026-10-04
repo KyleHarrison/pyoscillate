@@ -142,7 +142,7 @@ class BassChaos(Gate, RootPitch, ContinuousVoice):
 
         self.sub_table = HarmTable(SUB_HARMONICS)
         self.sub_osc = Osc(table=self.sub_table, freq=self.pitch_chaos, mul=0.5)
-        self.output = MoogLP(
+        self.bed = MoogLP(
             self.sub_osc, freq=self.filter_base_sig, res=self.filter_res_sig
         )
-        return self.finish(self.add_gate(self.output, context))
+        return self.finish(self.add_gate(self.bed, context))

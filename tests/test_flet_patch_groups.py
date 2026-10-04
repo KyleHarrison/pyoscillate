@@ -230,10 +230,9 @@ class PatchGroupTests(unittest.TestCase):
         self.assertFalse(page.window.full_screen)
         self.assertTrue(page.window.maximized)
         root = page.add.call_args.args[0]
-        # header, master scope, group list
-        self.assertEqual(len(root.controls), 3)
+        # header, group list (no master scope)
+        self.assertEqual(len(root.controls), 2)
         header = root.controls[0]
-        self.assertTrue(self._contains_control(root.controls[1], app.analysis_view.control))
         self.assertIsInstance(header.content, ft.ResponsiveRow)
         right_column = header.content.controls[1]
         for control in (
@@ -245,7 +244,7 @@ class PatchGroupTests(unittest.TestCase):
         ):
             self.assertTrue(self._contains_control(right_column, control))
 
-    def test_analysis_is_per_panel_in_racks_and_off_when_disabled(self) -> None:
+    def test_analysis_is_per_panel_and_off_when_disabled(self) -> None:
         with TemporaryDirectory() as catalog_dir:
             rack = PatchRackApp(
                 MagicMock(), "L", "t", LofiRack(), catalog_dir=Path(catalog_dir)
@@ -258,12 +257,10 @@ class PatchGroupTests(unittest.TestCase):
                 catalog_dir=Path(catalog_dir),
                 analysis=False,
             )
-        self.assertIsNotNone(rack.analyser)
+        self.assertFalse(hasattr(rack, "analyser"))
         self.assertTrue(all(p.analyser for p in rack.panels.values()))
-        self.assertIsNone(off.analyser)
         self.assertTrue(all(p.analyser is None for p in off.panels.values()))
         # nothing playing: no analyser is allocated and nothing redraws
-        self.assertFalse(rack._refresh_analysis())
         self.assertFalse(any(p.refresh_analysis() for p in rack.panels.values()))
 
     def _slowed_reverb_app(self, catalog_dir: str) -> PatchRackApp:

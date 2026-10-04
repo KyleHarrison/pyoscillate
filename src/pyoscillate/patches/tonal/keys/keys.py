@@ -91,6 +91,10 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
     # strike; the loudest chord in the slider ranges peaks at ~5 x gain x
     # volume, 0.16 at the default volume, under the output ceiling
     gain: ClassVar[float] = 0.04
+    # the tine's highest sideband stays under this (Hz): past it FM folds back
+    # below Nyquist as inharmonic aliasing, a harsh crackle on every strike
+    # at high Bark. Each note's index is capped from its own pitch.
+    tine_ceiling: ClassVar[float] = 16000
     # under the lowest note (Register 110, four semitones down: 87 Hz)
     subsonic: ClassVar[float] = 20
     # tape wow-and-flutter LFO rate (Hz) - slow and unrhythmic, unlike the
@@ -243,9 +247,17 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
                 for velocity in self.velocities
             ]
         )
-        self.tine_index.mul = _per_note(
-            [self.bark * velocity**2 for velocity in self.velocities]
-        )
+        # sidebands reach (index + 1) x modulator frequency, so the largest
+        # alias-free index is ceiling / modulator - 1 (never below 0)
+        self.tine_index.mul = [
+            min(
+                self.bark * velocity**2,
+                max(self.tine_ceiling / (self.tine_ratio * freq) - 1, 0),
+            )
+            for velocity, freq in zip(
+                (v for v in self.velocities for _ in range(NOTES)), self.freqs
+            )
+        ]
 
     def on_evolve(self, index: int) -> None:
         """Alternate which inversion is voicing the shared chords, then

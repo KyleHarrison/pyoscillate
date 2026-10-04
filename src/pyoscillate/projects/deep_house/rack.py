@@ -36,7 +36,7 @@ class DeepHouseRack(Rack):
     # this project's own tempo and clock timing resolution - other projects set
     # their own values instead of sharing a static default from `pyoscillate.clock`
     bpm = 132
-    ticks_per_bar = 512
+    ticks_per_bar = 128
     # the rack's shared key and the progression every harmonic patch (bass,
     # chords, tom) starts on, so they re-root on the same chord on the same bar.
     # i-iv-bVII-v as parallel minor sevenths - the deep-house "chord memory"
