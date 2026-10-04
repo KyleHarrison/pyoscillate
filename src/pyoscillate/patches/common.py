@@ -519,6 +519,9 @@ class Gate(Patch):
     _gate_pulse: Pulse
     _gate_tempo: Tempo
     _gated: bool
+    # which of the GATE_STEPS pulses play, for the (seed, density) in the key
+    _gate_mask: tuple[bool, ...] = ()
+    _gate_mask_key: tuple[float, float] | None = None
 
     gate = Param(
         0.0,
@@ -623,11 +626,22 @@ class Gate(Patch):
 
     def gate_hit(self, index: int) -> bool:
         """Whether pulse `index` plays: the same answer for a given Pattern
-        and density, so the rhythm repeats every cycle."""
-        draw = random.Random(self.gate_seed * self.GATE_STEPS + index).random()
-        return draw < self.gate_density
+        and density, so the rhythm repeats every cycle. The draws are made
+        once per (Pattern, density), not on every pulse."""
+        key = (self.gate_seed, self.gate_density)
+        if key != self._gate_mask_key:
+            self._gate_mask = tuple(
+                random.Random(self.gate_seed * self.GATE_STEPS + step).random()
+                < self.gate_density
+                for step in range(self.GATE_STEPS)
+            )
+            self._gate_mask_key = key
+        return self._gate_mask[index]
 
     def next_gate_step(self) -> None:
+        # at depth 0 the gate is open whatever the pulses do, so skip them
+        if self.gate_amount_sig.value <= 0:
+            return
         index = self._gate_pulse.index(self.GATE_STEPS)
         if self.gate_hit(index):
             self.gate_trigger.play()

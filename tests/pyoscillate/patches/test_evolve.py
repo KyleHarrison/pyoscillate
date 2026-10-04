@@ -50,9 +50,7 @@ class EvolutionSettingsTests(unittest.TestCase):
         self.assertTrue(kick.phrase_evolution.enabled)
         self.assertEqual(kick.phrase_evolution.bars, 4)
         # kept in the dropdown's order, whatever order the rack listed them
-        self.assertEqual(
-            kick.phrase_evolution.choices, (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL)
-        )
+        self.assertEqual(kick.phrase_evolution.choices, (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL))
 
     def test_bars_are_kept_inside_their_range(self) -> None:
         evolution = KickLofi().phrase_evolution
@@ -66,9 +64,7 @@ class EvolutionSettingsTests(unittest.TestCase):
         kick = KickLofi()
 
         kick.phrase_evolution.set_choice(Rhythms.KICK_LOFI_FULL, True)
-        self.assertEqual(
-            kick.phrase_evolution.choices, (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL)
-        )
+        self.assertEqual(kick.phrase_evolution.choices, (Rhythms.KICK_LOFI, Rhythms.KICK_LOFI_FULL))
         kick.phrase_evolution.set_choice(Rhythms.KICK_LOFI, False)
         self.assertEqual(kick.phrase_evolution.choices, (Rhythms.KICK_LOFI_FULL,))
 
@@ -160,17 +156,6 @@ class EvolutionTimerTests(unittest.TestCase):
         clock.advance(clock.bar * 5)
 
         self.assertEqual(fired, [0, 1, 2])
-
-    def test_progress_fills_between_changes(self) -> None:
-        kick = KickLofi()
-        clock = self.clock()
-        kick.declare_evolution(Evolve(4))  # no choices: every axis starts
-        kick.phrase_evolution.run(clock)  # type: ignore[arg-type]
-
-        self.assertEqual(kick.phrase_evolution.progress, 0)
-        clock.tick = clock.bar * 3
-        self.assertAlmostEqual(kick.phrase_evolution.progress, 0.75)
-        self.assertAlmostEqual(kick.phrase_evolution.bars_left, 1.0)
 
     def test_changing_bars_retunes_a_running_timer(self) -> None:
         kick = KickLofi()

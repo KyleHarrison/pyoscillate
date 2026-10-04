@@ -32,6 +32,11 @@ defers every musical choice to the patches' own defaults.
   silences it. Adding never switches a patch on.
 - Patches are discovered, not listed: a new patch module appears in the rack
   without editing it. Patch `name`s must be unique across the repo.
+- A patch's panel only enters the page when it is added, and its sliders are
+  only made when its tile first opens, so the page stays small however many
+  patches the rack offers. A patch that was never added still keeps its
+  settings: presets and group controls reach it, and its sliders show those
+  values when it is added and opened.
 - Presets save which patches are added alongside each patch's settings.
 
 Run: `uv run flet run src/flet/master_rack/app.py`

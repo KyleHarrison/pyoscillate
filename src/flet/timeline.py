@@ -44,6 +44,8 @@ class EvolveTimeline:
     MARKER_Y = 80
     BLOCK_GAP = 4
     MAX_BLOCKS = 4
+    # a playhead that moved less than this many pixels is not repainted
+    MIN_MOVE = 1.0
     # the widest a bar's tick label may be crowded: label every Nth bar
     LABEL_STEPS: ClassVar[tuple[int, ...]] = (1, 2, 4, 8, 16, 32)
     MIN_LABEL_SPACING = 20
@@ -68,6 +70,7 @@ class EvolveTimeline:
         self.width = float(self.FALLBACK_WIDTH)
         self._drawn: tuple[Any, ...] | None = None
         self._block_width = 0.0
+        self._playhead_x: float | None = None
         self.blocks = cv.Canvas(shapes=[], height=self.HEIGHT, expand=True)
         self.playhead = cv.Canvas(
             shapes=[],
@@ -97,11 +100,13 @@ class EvolveTimeline:
         self.width = float(e.width)
         self.redraw()
         self.blocks.update()
+        self.playhead.update()
 
     # -- drawing -----------------------------------------------------------
 
-    def redraw(self) -> None:
-        """Lay the blocks out again if what they show has changed."""
+    def redraw(self) -> list[ft.Control]:
+        """Lay the blocks out again if what they show has changed; the
+        canvases that changed, for the caller to repaint."""
         evolution = self.evolution
         count = self._block_count()
         choices = evolution.rotation(count) or (None,)
@@ -111,17 +116,29 @@ class EvolveTimeline:
             evolution.enabled,
             round(self.width),
         )
+        changed: list[ft.Control] = []
         if signature != self._drawn:
             self._drawn = signature
             self.blocks.shapes = self._draw_blocks(choices)
-        self.refresh()
+            changed.append(self.blocks)
+            # the block width may have changed under the playhead
+            self._playhead_x = None
+        return changed + self.refresh()
 
-    def refresh(self) -> None:
-        """Move the playhead to where the clock is in the playing block."""
-        shapes: list[cv.Shape] = []
+    def refresh(self) -> list[ft.Control]:
+        """Move the playhead to where the clock is in the playing block; the
+        playhead's canvas if it moved by at least a pixel (or appeared or
+        went), for the caller to repaint."""
         evolution = self.evolution
-        if evolution.ticking:
-            x = evolution.progress * self._block_width
+        x = evolution.progress * self._block_width if evolution.ticking else None
+        if x is None or self._playhead_x is None:
+            if x == self._playhead_x:
+                return []
+        elif abs(x - self._playhead_x) < self.MIN_MOVE:
+            return []
+        self._playhead_x = x
+        shapes: list[cv.Shape] = []
+        if x is not None:
             shapes.append(
                 cv.Line(
                     x,
@@ -132,6 +149,7 @@ class EvolveTimeline:
                 )
             )
         self.playhead.shapes = shapes
+        return [self.playhead]
 
     def _draw_blocks(self, choices: tuple[Any, ...]) -> list[cv.Shape]:
         count = len(choices)

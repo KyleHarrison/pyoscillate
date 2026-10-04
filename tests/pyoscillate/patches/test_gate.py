@@ -6,6 +6,8 @@ pulse pattern itself is checked without one."""
 
 import unittest
 from functools import cache
+from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 
@@ -68,6 +70,45 @@ class GatePatternTests(unittest.TestCase):
         self.assertNotEqual(
             [first.gate_hit(i) for i in steps], [other.gate_hit(i) for i in steps]
         )
+
+    def test_the_pattern_is_drawn_once_not_on_every_pulse(self) -> None:
+        patch = Strings(gate_density=0.5, gate_seed=3)
+        with mock.patch("pyoscillate.patches.common.random.Random") as draws:
+            draws.return_value.random.return_value = 0.0
+            for _ in range(3):
+                for i in range(Gate.GATE_STEPS):
+                    patch.gate_hit(i)
+        self.assertEqual(draws.call_count, Gate.GATE_STEPS)
+
+    def test_changing_the_pattern_or_density_redraws_it(self) -> None:
+        patch = Strings(gate_density=0.5, gate_seed=3)
+        steps = range(Gate.GATE_STEPS)
+        before = [patch.gate_hit(i) for i in steps]
+        patch.gate_seed = 4
+        reseeded = [patch.gate_hit(i) for i in steps]
+        patch.gate_seed = 3
+        self.assertNotEqual(before, reseeded)
+        self.assertEqual(before, [patch.gate_hit(i) for i in steps])
+        patch.gate_density = 1.0
+        self.assertTrue(all(patch.gate_hit(i) for i in steps))
+
+    def _pulsed(self, depth: float) -> list[bool]:
+        """Run one cycle of gate steps against stubs; whether each fired."""
+        patch = Strings(gate_density=1.0)
+        fired: list[bool] = []
+        step = iter(range(Gate.GATE_STEPS))
+        patch._gate_pulse = SimpleNamespace(index=lambda steps: next(step))  # type: ignore[assignment]
+        patch.gate_amount_sig = SimpleNamespace(value=depth)  # type: ignore[assignment]
+        patch.gate_trigger = SimpleNamespace(play=lambda: fired.append(True))  # type: ignore[assignment]
+        for _ in range(Gate.GATE_STEPS):
+            patch.next_gate_step()
+        return fired
+
+    def test_a_closed_depth_skips_every_pulse(self) -> None:
+        self.assertEqual(self._pulsed(0.0), [])
+
+    def test_any_depth_above_zero_fires_the_pulses(self) -> None:
+        self.assertEqual(len(self._pulsed(0.3)), Gate.GATE_STEPS)
 
     def test_the_gate_is_off_by_default(self) -> None:
         for patch_class in (Strings, SoundscapeWash):
