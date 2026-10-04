@@ -22,7 +22,7 @@ from pyo.lib._core import PyoError
 from pyo.lib.server import Server
 
 import flet as ft
-from pyoscillate.analysis.live import LiveAnalyser
+from pyoscillate.analysis.live import LiveAnalyser, Points
 from pyoscillate.clock import Clock
 from pyoscillate.controller import GroupControl, GroupRuntime
 from pyoscillate.patches.base import BuildContext, Patch, start_server
@@ -39,6 +39,8 @@ from src.flet.timeline import EvolveTimeline
 
 ACCENT = "#00A896"
 BACKGROUND = "#101716"
+# until the pinned graphs' real height has been measured
+PINNED_FALLBACK_HEIGHT = 130
 PANEL = "#182220"
 TILE_BG = "#1D2B28"
 TEXT = "#F4F7F6"
@@ -585,6 +587,9 @@ class PatchPanel:
     rebuild (a `rebuild` parameter changed since the last build).
     """
 
+    # the tile's own padding above its header (see `_build_control`)
+    TILE_PADDING = 8
+
     def __init__(
         self,
         patch: Patch,
@@ -596,10 +601,23 @@ class PatchPanel:
         # opt-in; allocated only while the tile is expanded and playing
         self.analyser = LiveAnalyser() if analysis else None
         self.analysis_view = AnalysisView() if analysis else None
+        if self.analysis_view is not None:
+            self.analysis_view.control.on_size_change = self._handle_graphs_size
         self.help = help or HelpTexts()
         self.expanded = False
         self.enabled = False
         self.context: BuildContext
+        # where the tile sits on the page, for the pinned graphs (see
+        # `tile_top`): its measured size, and its last pointer-measured origin
+        # with the list's scroll offset at that moment
+        self.scroll_source: Callable[[], float] = lambda: 0.0
+        self.tile_width = 0.0
+        self.tile_height = 0.0
+        self.header_height = 0.0
+        self.graphs_height = 0.0
+        self.origin: tuple[float, float] | None = None
+        self._origin_scroll = 0.0
+        self.last_frames: tuple[Points, Points] = ([], [])
         self._engine_ready = False
         self._group_enabled = True
         self._built_values: dict[Param, float] = {}
@@ -633,6 +651,37 @@ class PatchPanel:
             disabled=True,
         )
         self.control = self._build_control()
+        self.control.on_size_change = self._handle_tile_size
+        # a pointer over the tile gives its exact position on the page; the
+        # list's scroll offset then carries it until the next pointer move
+        self.region = ft.GestureDetector(
+            content=self.control, on_hover=self._handle_hover, hover_interval=100
+        )
+
+    def _handle_header_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        self.header_height = float(e.height)
+
+    def _handle_graphs_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        self.graphs_height = float(e.height)
+
+    def _handle_tile_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        self.tile_width, self.tile_height = float(e.width), float(e.height)
+
+    def _handle_hover(self, e: ft.PointerEvent) -> None:
+        if e.global_position is None or e.local_position is None:
+            return
+        self.origin = (
+            e.global_position.x - e.local_position.x,
+            e.global_position.y - e.local_position.y,
+        )
+        self._origin_scroll = self.scroll_source()
+
+    def tile_top(self) -> float | None:
+        """The tile's top edge on the page now, or None until a pointer has
+        been over it."""
+        if self.origin is None:
+            return None
+        return self.origin[1] - (self.scroll_source() - self._origin_scroll)
 
     # -- UI construction -------------------------------------------------
 
@@ -767,6 +816,7 @@ class PatchPanel:
         self.chevron = ft.Icon(ft.Icons.EXPAND_MORE, color=MUTED)
         self.body = ft.Column(controls=body, spacing=8)
         header = ft.Container(
+            on_size_change=self._handle_header_size,
             content=ft.Row(
                 controls=[
                     self.chevron,
@@ -935,6 +985,7 @@ class PatchPanel:
         if output is None and not self.analysis_view.live:
             return False
         wave, spectrum = self.analyser.snapshot()
+        self.last_frames = (wave, spectrum)
         self.analysis_view.show(wave, spectrum, live=output is not None)
         return True
 
@@ -1260,7 +1311,7 @@ class PatchGroup:
         )
         for panel in self.panels:
             box = ft.Container(
-                content=panel.control,
+                content=panel.region,
                 col={"xs": 12, "md": panel_column},
                 visible=not self._alternatives or panel is self._selected,
             )
@@ -1394,6 +1445,8 @@ class PatchRackApp:
         self.rack = rack
         self.variants = variants or {}
         self.variant = variant
+        self.scroll_pixels = 0.0
+        self.list_top = 0.0
         self.server: Server
         self.clock: Clock
         self.context: BuildContext
@@ -1645,14 +1698,45 @@ class PatchRackApp:
             controls=[group.control for group in self.groups],
             spacing=0,
             expand=True,
+            on_scroll=self._handle_scroll,
+            scroll_interval=16,
         )
+        header.on_size_change = self._handle_header_size
+        for panel in self.panels.values():
+            panel.scroll_source = lambda: self.scroll_pixels
+        # a copy of the open tile's graphs, floated over the list while the
+        # tile's own are scrolled off the top and the tile is still in view
+        self.pinned_view = AnalysisView()
+        self.pinned = ft.Container(
+            content=self.pinned_view.control,
+            bgcolor=PANEL,
+            border=ft.Border.all(1, "#2A3A36"),
+            border_radius=8,
+            padding=4,
+            shadow=ft.BoxShadow(blur_radius=12, color="#99000000"),
+            visible=False,
+            top=0,
+            left=0,
+        )
+        self.pinned_panel: PatchPanel | None = None
         self.page.add(
             ft.Column(
                 controls=[
                     header,
-                    ft.Container(
-                        content=group_list,
-                        padding=ft.padding.Padding(left=28, top=0, right=28, bottom=0),
+                    ft.Stack(
+                        controls=[
+                            ft.Container(
+                                content=group_list,
+                                padding=ft.padding.Padding(
+                                    left=28, top=0, right=28, bottom=0
+                                ),
+                                left=0,
+                                right=0,
+                                top=0,
+                                bottom=0,
+                            ),
+                            self.pinned,
+                        ],
                         expand=True,
                     ),
                 ],
@@ -1660,6 +1744,52 @@ class PatchRackApp:
                 expand=True,
             )
         )
+
+    def _handle_header_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        self.list_top = float(e.height)
+
+    def _handle_scroll(self, e: ft.OnScrollEvent) -> None:
+        self.scroll_pixels = float(e.pixels)
+        self._place_pinned()
+
+    def _place_pinned(self) -> None:
+        """Float the graphs of the open tile that has scrolled past its own
+        copy, sliding them out with the tile's bottom edge; hide them
+        otherwise."""
+        target: PatchPanel | None = None
+        top = left = width = 0.0
+        for panel in self.panels.values():
+            tile_top = panel.tile_top()
+            if (
+                not panel.expanded
+                or panel.analysis_view is None
+                or not panel.analysis_view.live
+                or tile_top is None
+                or panel.tile_height <= 0
+            ):
+                continue
+            view_top = tile_top - self.list_top
+            graphs = panel.graphs_height or PINNED_FALLBACK_HEIGHT
+            if view_top + PatchPanel.TILE_PADDING + panel.header_height >= 0:
+                continue  # its own graphs are still on screen
+            slide = view_top + panel.tile_height - graphs - PatchPanel.TILE_PADDING
+            if slide <= -graphs:
+                continue
+            target = panel
+            top = min(0.0, slide)
+            assert panel.origin is not None
+            left, width = panel.origin[0], panel.tile_width
+            break
+        if target is None:
+            if self.pinned.visible:
+                self.pinned.visible = False
+                self.pinned_panel = None
+                self.pinned.update()
+            return
+        self.pinned_panel = target
+        self.pinned.visible = True
+        self.pinned.top, self.pinned.left, self.pinned.width = top, left, width
+        self.pinned.update()
 
     def sync_panels(self) -> None:
         """Refresh every slider from its patch and group, after values changed
@@ -1800,6 +1930,8 @@ class PatchRackApp:
                 if panel.refresh_live() and panel.expanded:
                     panel.body.update()
                 panel.refresh_analysis()
+            if self.pinned_panel is not None:
+                self.pinned_view.show(*self.pinned_panel.last_frames, live=True)
             # an evolving patch can move off the shared progression
             progression = self._progression_value()
             if self.progression_dropdown.value != progression:
