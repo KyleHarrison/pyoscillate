@@ -1275,13 +1275,21 @@ class PatchGroup:
         self._parent_enabled = True
         self._engine_ready = False
         # for a group of alternative styles, only the selected panel is shown
-        self._alternatives = group_def.alternatives and len(panels) > 1
+        self._selectable = group_def.selectable
+        self._alternatives = (
+            group_def.alternatives and len(panels) > 1 and not self._selectable
+        )
         self._selected = panels[0] if panels else None
         # a tile that is alone in its group opens with the group; several side
         # by side fold to a header each
         for panel in panels:
             panel.set_expanded(self._alternatives or len(panels) == 1)
         self._boxes: dict[PatchPanel, ft.Container] = {}
+        # a selectable group shows only the panels the user has added
+        self.added: set[PatchPanel] = set()
+        self._add_rows: dict[PatchPanel, ft.MenuItemButton] = {}
+        self._add_icons: dict[PatchPanel, ft.Icon] = {}
+        self.add_label = ft.Text("", color=TEXT, size=14)
         self.style_dropdown = ft.Dropdown(
             label="Style",
             options=[
@@ -1305,7 +1313,9 @@ class PatchGroup:
 
         patch_columns = []
         panel_column = (
-            12
+            6
+            if self._selectable
+            else 12
             if self._alternatives or len(self.panels) == 1 or len(self.panels) > 2
             else 6
         )
@@ -1313,7 +1323,9 @@ class PatchGroup:
             box = ft.Container(
                 content=panel.region,
                 col={"xs": 12, "md": panel_column},
-                visible=not self._alternatives or panel is self._selected,
+                visible=panel is self._selected
+                if self._alternatives
+                else not self._selectable,
             )
             self._boxes[panel] = box
             patch_columns.append(box)
@@ -1340,6 +1352,7 @@ class PatchGroup:
                                     else []
                                 ),
                                 *([self.style_dropdown] if self._alternatives else []),
+                                *([self._build_add_menu()] if self._selectable else []),
                                 ft.ResponsiveRow(
                                     controls=patch_columns,
                                     spacing=12,
@@ -1359,6 +1372,55 @@ class PatchGroup:
             padding=12,
             margin=ft.margin.Margin(left=0, top=0, right=0, bottom=8),
         )
+
+    def _build_add_menu(self) -> ft.MenuBar:
+        """The tickbox menu of every patch the group offers: ticking one adds
+        its panel to the grid, unticking removes it."""
+        for panel in self.panels:
+            icon = ft.Icon(ft.Icons.CHECK_BOX_OUTLINE_BLANK, size=18, color=ACCENT)
+            self._add_icons[panel] = icon
+            self._add_rows[panel] = ft.MenuItemButton(
+                content=ft.Text(panel.patch.title, color=TEXT),
+                leading=icon,
+                close_on_click=False,
+                tooltip=panel.patch.summary,
+                on_click=lambda e, panel=panel: self._handle_add(panel, e),
+            )
+        self._show_added()
+        return ft.MenuBar(
+            controls=[
+                ft.SubmenuButton(
+                    content=self.add_label,
+                    leading=ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=MUTED),
+                    controls=list(self._add_rows.values()),
+                )
+            ],
+            style=ft.MenuStyle(bgcolor=PANEL),
+        )
+
+    def _show_added(self) -> None:
+        for panel, icon in self._add_icons.items():
+            icon.icon = (
+                ft.Icons.CHECK_BOX
+                if panel in self.added
+                else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+            )
+        for panel, box in self._boxes.items():
+            box.visible = panel in self.added
+        self.add_label.value = f"Add patches · {len(self.added)} of {len(self.panels)}"
+
+    def set_added(self, added: set[PatchPanel]) -> None:
+        """Show exactly `added`; a removed panel is switched off. Adding never
+        switches a panel on."""
+        for panel in self.panels:
+            if panel not in added:
+                panel.apply_enabled(False)
+        self.added = set(added) & set(self.panels)
+        self._show_added()
+
+    def _handle_add(self, panel: PatchPanel, e: ft.ControlEvent) -> None:
+        self.set_added(self.added ^ {panel})
+        e.page.update()
 
     def _select(self, panel: PatchPanel) -> None:
         """Show `panel` in place of the selected one, handing the playing
@@ -1380,6 +1442,8 @@ class PatchGroup:
 
     def reveal_enabled(self) -> None:
         """After values were loaded from outside, show the style that is on."""
+        if self._selectable:
+            self.set_added(self.added | {p for p in self.panels if p.enabled})
         if self._alternatives:
             on = next((p for p in self.panels if p.enabled), None)
             if on is not None:
@@ -2027,6 +2091,17 @@ class PatchRackApp:
         # presets saved before each patch held its own progression
         if rack_values.get("progression") in Progressions.ids():
             self._set_progression(Progressions.ids().index(rack_values["progression"]))
+        if "added" in rack_values:
+            for top in self.groups:
+                for group in top.walk():
+                    if group.group_def.selectable:
+                        group.set_added(
+                            {
+                                panel
+                                for panel in group.panels
+                                if panel.patch.name in rack_values["added"]
+                            }
+                        )
         control_values = rack_values.get("controls", {})
         for control in self.control_sliders:
             if control.path in control_values:
@@ -2065,6 +2140,14 @@ class PatchRackApp:
         }
         values[RACK_PRESET_KEY] = {
             "key": Note.NAMES[self.rack.harmony.key],
+            "added": [
+                panel.patch.name
+                for top in self.groups
+                for group in top.walk()
+                if group.group_def.selectable
+                for panel in group.panels
+                if panel in group.added
+            ],
             "controls": {
                 control.path: control.group.values[control.control]
                 for control in self.control_sliders
