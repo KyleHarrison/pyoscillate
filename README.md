@@ -2,39 +2,57 @@
 
 Agentic DSP patches for Pyo, played live as a modular synthesizer through a Flet GUI.
 
-Pyoscillate is a small toolkit for assembling reusable audio voices into a live modular performance environment. The core idea is simple: build synth components as expressive, tweakable building blocks, wire them into a rack, and play that rack in real time from a Flet app while a shared clock keeps everything in sync.
+![Master rack running with several patches and groups active](docs/images/master-rack.png)
 
-This project is meant for a workflow where sound design and patching feel more like a live instrument than a static script. You prototype a voice, expose its musical controls, route it into a rack alongside other voices, and shape the whole rig from the GUI's switches and sliders.
+*The master rack with drum and musical patches on. Open patches show a live waveform and spectrum, and Evolve is cycling patterns and chord progressions.*
 
-## What this project does
+Pyoscillate is built for **agentic music development from DSP fundamentals**. An AI agent doesn't pick presets or trigger samples. It reasons from musical intent down to oscillators, envelopes, filters and delay lines, then writes the Pyo patches, wires them into a rack on a shared clock, and checks the result by measuring rendered audio. You play and tune the rack live from a Flet app.
 
-Pyoscillate helps you:
+## How it works
 
-- design custom Pyo-based synth voices and effects
-- compose racks of patches that share a tempo and timing grid
-- perform and tweak those racks live in a Flet modular-synth GUI
-- prototype modular-synth ideas as live, audible building blocks
-- save and reload whole-rack presets for quick recall and iteration
+- **Patches:** each `Patch` is a small module with its own sound and `Param`s (volume included), which are the only handles to its settings.
+- **Shared timing:** one clock and tempo keep every voice locked together.
+- **Racks:** a project's `Rack` holds patches as typed `Slot`s, grouped by nestable `GroupController`s (`src/pyoscillate/projects/{project}/rack.py`). Nothing is looked up by string name.
+- **GUI:** `src/flet/base.py` renders each patch as a panel with an enable switch, sliders and a volume control, all driving one rack, clock and audio engine.
+- **Presets:** saved as JSON from the GUI into each app's `presets/` folder (created on demand, none committed).
 
-The emphasis is on rapid exploration: small patches, live auditioning, fast tuning, and compositional experimentation in context.
+## From one prompt to a playable rack
 
-## Core ideas
+You type one sentence: **"Create a new project for a classic techno sound"**. Instruction files route it, step by step:
 
-### Modular voice design
+```
+Your prompt
+   │
+   ▼
+AGENTS.md ─────────── "A new project? Follow the new-project workflow."
+   │
+   ▼
+music-theory skill ── What is classic techno?  (tempo, kick pattern, harmony, form)
+   │
+   ▼
+pyo-music skill ───── What should it sound like, and what DSP makes that sound?
+   │
+   ▼
+projects/AGENTS.md ── Write the plan (README) first, then reuse or build patches, then wire the rack
+   │
+   ▼
+patches/AGENTS.md ─── How every patch must be built
+   │
+   ▼
+Playable rack in the Flet app
+```
 
-Each patch behaves like a small module in a larger synth rig: it has its own sound, its own motion, and its own controllable parameters, while still fitting into a shared system.
+| Step | File | Job |
+| --- | --- | --- |
+| Route | [AGENTS.md](AGENTS.md) | Picks the path and forbids jumping from a word ("dark") straight to a Pyo object |
+| Musical meaning | [music-theory skill](.claude/skills/music-theory/SKILL.md) | Turns "classic techno" into tempo, rhythm, harmony and structure |
+| Sonic meaning | [pyo-music skill](.claude/skills/pyo-music/SKILL.md) | Turns the musical brief into sound behaviour and DSP building blocks |
+| Plan and build | [projects/AGENTS.md](src/pyoscillate/projects/AGENTS.md) | README first, reuse existing patches, then wire the rack |
+| Patch rules | [patches/AGENTS.md](src/pyoscillate/patches/AGENTS.md) | The contract every patch follows, plus a per-family file (for example [kick](src/pyoscillate/patches/drums/kick/AGENTS.md)) |
 
-### Shared timing
+### Responding to feedback
 
-Rather than treating every patch as an isolated loop, the system is designed to let multiple voices lock into a common rhythmic reference. That makes layered textures feel coherent even when each element has its own character.
-
-### Flet rack GUI
-
-The Flet app is the main interface. Each project defines a rack of `Patch` instances grouped by `GroupController` (in `src/pyoscillate/projects/{project}/rack.py`), and the shared app layer in `src/flet/base.py` renders every patch as a panel with an enable switch, musical parameter sliders, and a volume slider, all driving one shared rack, clock, and audio engine. Everything is wired statically: a rack holds its patches and groups as typed attributes, a `Param` object is the only handle to a setting (volume included), and group sliders (nestable, so an outer group can move inner ones) are `GroupControl`s that assign parameters directly.
-
-### Preset-driven exploration
-
-A rack can be tuned, saved, and reloaded as a whole from the GUI. Presets are JSON files saved from the GUI into each app's `presets/` folder (created on demand; none are committed), which keeps experimentation fluid while preserving interesting combinations of modulation, timing, and tone.
+Say "the kick is too boomy" and the agent goes back through the same chain. It translates the word into something measurable with [timbre-descriptors.md](.claude/skills/pyo-music/references/timbre-descriptors.md), renders the patch offline to measure it ([tests/AGENTS.md](tests/AGENTS.md)), changes one thing, and measures again. Settings are `Param`s, so you can also tweak them live in the GUI and save a preset.
 
 ## Installation
 
@@ -70,49 +88,56 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-## Quick start
+## Run the master rack
 
-Launch a rack from the project root. For the deep-house rack in a browser:
-
-```bash
-uv run flet run --web --port 8551 src/flet/deep_house/app.py
-```
-
-Open http://127.0.0.1:8551 (for example in the VS Code browser), start the audio engine, and switch patches on.
-
-Other racks live alongside it under `src/flet/` (`forest_psytrance`, `lofi`, `slowed_reverb`, `psyambient`). Drop `--web --port ...` to open a rack as a desktop window instead.
-
-## Build macOS dist
+The master rack (`src/flet/master_rack/app.py`) is the main app. From the project root:
 
 ```bash
-uv run flet pack main.py \
-  --name FMSoundscape \
-  --product-name "FM Soundscape" \
-  --bundle-id com.kyleharrison.fmsoundscape \
-  --yes
+uv run master-rack
 ```
+
+This opens a desktop window and writes a timestamped crash log to `logs/` (last 20 kept). Add `--debug` for verbose logging, or `--log-dir PATH` to change where logs go. A log without a "clean shutdown" line means a hard crash.
+
+To run it in a browser instead:
+
+```bash
+uv run flet run --web --port 8561 src/flet/master_rack/app.py
+```
+
+Then open http://127.0.0.1:8561. If the port is taken, pick another; a stale app can keep answering on it.
+
+In the app:
+
+1. Click **Start engine**. Each page load starts stopped, with no patches added.
+2. Expand a group and use **Add patches**, then flip a patch's switch on.
+3. Expand a patch for its waveform, spectrum and sliders. Set a pattern or chord progression to **Evolve** to cycle through the ticked options every N bars.
+
+Other racks live under `src/flet/` (`deep_house`, `forest_psytrance`, `lofi`, `slowed_reverb`, `psyambient`); run them with `uv run flet run src/flet/<rack>/app.py`.
+
+## Build a standalone app
+
+```bash
+uv run python scripts/build_exe.py master_rack
+```
+
+The executable lands in `dist/`. The Release GitHub Action does the same and attaches the macOS dmg and Windows exe to a release.
 
 ## Typical workflow
 
 A typical session looks like this:
 
-1. launch a project's Flet rack
-2. start the audio engine and set the shared tempo
-3. switch voices on and audition each one in context
-4. shape each voice with its musical sliders while the rack plays
-5. save useful combinations as presets for later recall
-6. edit patch modules or the rack definition, then relaunch to hear the change
+1. launch the master rack and start the audio engine
+2. set the shared tempo and switch voices on
+3. shape each voice with its sliders while the rack plays
+4. save useful combinations as presets
+5. edit patch modules or the rack definition, then relaunch
 
 ## Debugging patches
 
 Play any single patch module on its own with `uv run flet run src/flet/patch/app.py -- <module> [param=value ...]`, or render and measure one offline with `uv run python -m pyoscillate.analysis <module> --set name=value`. Both build the patch with a full `BuildContext` (tempo, clock, harmony), so a failing lifecycle stage shows up in isolation.
 
-## Why it exists
-
-Pyoscillate is for building musical systems with a procedural, agentic mindset: small, composable pieces of DSP that can be tested, tuned, and combined into something larger. It is a tool for exploring how synth components behave when they are treated as modules in an interactive rack rather than fixed one-off patches.
-
 ## License
 
 Released under the [MIT License](LICENSE). Pyoscillate depends on [Pyo](https://github.com/belangeo/pyo), which is LGPL-3.0; if you bundle Pyo in a distributed build, include its licence notice.
 
-This project is under active development and is intended as a creative coding environment for experimentation with Pyo, DSP, and live modular sound design through a Flet GUI.
+Under active development: a creative coding environment for Pyo, DSP and live modular sound design.
