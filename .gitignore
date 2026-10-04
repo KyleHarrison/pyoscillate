@@ -11,3 +11,6 @@ wheels/
 *.DS_Store
 *.mp3
 .vscode/
+
+# Per-run crash logs from the master-rack command
+logs/
