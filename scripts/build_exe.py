@@ -37,6 +37,9 @@ def main() -> None:
             "--distpath", str(ROOT / "dist"),
             f"--pyinstaller-build-args=--paths={ROOT}",
             "--pyinstaller-build-args=--collect-all=pyo",
+            # the master rack finds patches with pkgutil at runtime, which
+            # PyInstaller's static import analysis can't see
+            "--pyinstaller-build-args=--collect-submodules=pyoscillate.patches",
             "--yes",
         ]  # fmt: skip
         presets = app_dir / "presets"
