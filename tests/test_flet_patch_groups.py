@@ -259,7 +259,7 @@ class PatchGroupTests(unittest.TestCase):
         self.assertFalse(self.panel.body.visible)
         self.assertIn("Test value 0.5", self.panel.summary.value)
 
-    def test_rack_wide_controls_are_in_header_right_column(self) -> None:
+    def test_rack_wide_controls_are_in_one_card_in_the_header(self) -> None:
         with TemporaryDirectory() as catalog_dir:
             page = MagicMock()
             app = PatchRackApp(
@@ -276,16 +276,62 @@ class PatchGroupTests(unittest.TestCase):
         # header, group list (no master scope)
         self.assertEqual(len(root.controls), 2)
         header = root.controls[0]
-        self.assertIsInstance(header.content, ft.ResponsiveRow)
-        right_column = header.content.controls[1]
+        title_row, rack_card = header.content.controls
         for control in (
-            app.engine_button,
-            app.pause_button,
+            app.mixer.mute_button,
+            app.mixer.top,
             app.preset_dropdown,
             app.key_dropdown,
+            app.progression_dropdown,
             app.master_output_slider,
+            app.bpm_slider,
+            app.mixer.control,
         ):
-            self.assertTrue(self._contains_control(right_column, control))
+            self.assertTrue(self._contains_control(rack_card, control))
+        self.assertTrue(self._contains_control(title_row, app.status))
+
+    def test_a_disconnected_session_stops_the_engine(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            page = MagicMock()
+            app = PatchRackApp(
+                page, "Lofi Rack", "Test rack", LofiRack(), Path(catalog_dir)
+            )
+        app.server, app.clock = MagicMock(), MagicMock()
+        app.running = True
+
+        page.on_disconnect(MagicMock())
+
+        self.assertFalse(app.running)
+        app.server.shutdown.assert_called_once()
+        app.clock.stop.assert_called_once()
+
+    def test_an_orphaned_app_stops_its_engine_and_exits(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = PatchRackApp(
+                MagicMock(), "Lofi Rack", "Test rack", LofiRack(), Path(catalog_dir)
+            )
+        app.server, app.clock = MagicMock(), MagicMock()
+        app.running = True
+
+        with (
+            mock.patch("src.flet.base.time.sleep"),
+            mock.patch("src.flet.base.os.getppid", return_value=1),
+            mock.patch("src.flet.base.os._exit") as exit_process,
+        ):
+            app._exit_when_orphaned(parent=4242)
+
+        self.assertFalse(app.running)
+        exit_process.assert_called_once_with(0)
+
+    def test_engine_starts_by_itself_and_has_no_start_button(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            page = MagicMock()
+            app = PatchRackApp(
+                page, "Lofi Rack", "Test rack", LofiRack(), Path(catalog_dir)
+            )
+
+        page.run_task.assert_called_once_with(app._autostart)
+        self.assertFalse(hasattr(app, "engine_button"))
 
     def test_analysis_is_per_panel_and_off_when_disabled(self) -> None:
         with TemporaryDirectory() as catalog_dir:
@@ -377,40 +423,71 @@ class PatchGroupTests(unittest.TestCase):
         self.assertFalse(pad.switch.disabled)
         self.assertFalse(panel.switch.disabled)
 
-    def test_pause_resumes_only_patches_that_were_enabled(self) -> None:
-        with TemporaryDirectory() as catalog_dir:
-            page = MagicMock()
-            app = PatchRackApp(
-                page,
-                "Lofi Rack",
-                "Test rack",
-                LofiRack(),
-                catalog_dir=Path(catalog_dir),
-            )
-
-        app.server = MagicMock()
-        app.running = True
-        enabled_names = list(app.panels)[:2]
-        for name in enabled_names:
-            app.panels[name].enabled = True
-            app.panels[name].switch.value = True
-        for panel in app.panels.values():
-            panel._apply = MagicMock()
-
-        app.toggle_pause()
-
-        self.assertEqual(app._paused_panels, set(enabled_names))
-        self.assertTrue(all(not panel.enabled for panel in app.panels.values()))
-        self.assertEqual(app.pause_button.text, "Start")
-
-        app.panels[list(app.panels)[-1]].enabled = True
-        app.toggle_pause()
-
-        self.assertEqual(
-            {name for name, panel in app.panels.items() if panel.enabled},
-            set(enabled_names),
+    def _mixer_app(self, catalog_dir: str) -> PatchRackApp:
+        app = PatchRackApp(
+            MagicMock(), "Lofi Rack", "Test rack", LofiRack(), Path(catalog_dir)
         )
-        self.assertEqual(app.pause_button.text, "Pause")
+        # there is no real page to repaint
+        app.mixer.attached = False
+        return app
+
+    def _switch_on(self, app: PatchRackApp, count: int) -> list[PatchPanel]:
+        panels = list(app.panels.values())[:count]
+        for panel in panels:
+            panel._engine_ready = True
+            panel.enabled = True
+            panel._apply_graph = MagicMock()
+        app.mixer.refresh()
+        return panels
+
+    def test_master_leads_the_mixer_and_tempo_sits_with_the_selectors(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._mixer_app(catalog_dir)
+
+        self.assertTrue(
+            self._contains_control(app.mixer.master_slot, app.master_output_slider)
+        )
+        self.assertFalse(self._contains_control(app.mixer.control, app.bpm_slider))
+
+    def test_mute_all_zeroes_active_patches_and_unmute_restores_them(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._mixer_app(catalog_dir)
+        first, second = self._switch_on(app, 2)
+        first.patch.volume = 0.7
+        second.patch.volume = 0.3
+        mixer = app.mixer
+
+        mixer._handle_mute(MagicMock())
+
+        self.assertTrue(mixer.muted)
+        self.assertEqual((first.patch.volume, second.patch.volume), (0.0, 0.0))
+        self.assertEqual(mixer.mute_button.content, "Unmute")
+
+        # one patch can be brought up on its own while the rest stay silent
+        mixer._volumes[first].write(first.patch, 0.5)
+        mixer._handle_mute(MagicMock())
+
+        self.assertFalse(mixer.muted)
+        self.assertEqual((first.patch.volume, second.patch.volume), (0.7, 0.3))
+        self.assertEqual(mixer.mute_button.content, "Mute all")
+
+    def test_a_patch_switched_on_while_muted_starts_silent(self) -> None:
+        with TemporaryDirectory() as catalog_dir:
+            app = self._mixer_app(catalog_dir)
+        self._switch_on(app, 1)
+        mixer = app.mixer
+        mixer._handle_mute(MagicMock())
+        late = list(app.panels.values())[1]
+        late.patch.volume = 0.4
+        late._engine_ready = True
+        late.enabled = True
+        late._apply_graph = MagicMock()
+
+        mixer.refresh()
+
+        self.assertEqual(late.patch.volume, 0.0)
+        mixer._handle_mute(MagicMock())
+        self.assertEqual(late.patch.volume, 0.4)
 
     def test_psyambient_declares_conceptual_groups(self) -> None:
         (atmosphere,) = PsyambientRack().groups

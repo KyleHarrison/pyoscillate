@@ -16,6 +16,7 @@ import asyncio
 import json
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -716,6 +717,9 @@ class PatchPanel:
         self._origin_scroll = 0.0
         # told when this tile changes size, which moves every tile after it
         self.layout_changed: Callable[[], None] = lambda: None
+        # told when the tile's playing state or any value may have changed (the
+        # header mixer follows it)
+        self.state_changed: Callable[[], None] = lambda: None
         self.last_frames: tuple[Points, Points] = ([], [])
         self._engine_ready = False
         self._group_enabled = True
@@ -924,6 +928,7 @@ class PatchPanel:
             content=ft.Row(
                 controls=[
                     self.chevron,
+                    self.switch,
                     ft.Column(
                         controls=[
                             ft.Row(
@@ -944,7 +949,6 @@ class PatchPanel:
                         spacing=2,
                         expand=True,
                     ),
-                    self.switch,
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -1221,6 +1225,7 @@ class PatchPanel:
         if self.analyser is not None:
             self.analyser.detach()
         self.patch.stop()
+        self.state_changed()
 
     def set_group_enabled(self, enabled: bool) -> None:
         self._group_enabled = enabled
@@ -1280,8 +1285,17 @@ class PatchPanel:
         self.switch.value = enabled
         self._apply()
 
+    @property
+    def active(self) -> bool:
+        """Whether the patch is switched on and nothing above it silences it."""
+        return self.enabled and self._engine_ready and self._group_enabled
+
     def _apply(self) -> None:
-        if not (self.enabled and self._engine_ready and self._group_enabled):
+        self._apply_graph()
+        self.state_changed()
+
+    def _apply_graph(self) -> None:
+        if not self.active:
             self.patch.stop()
             return
 
@@ -1695,6 +1709,231 @@ class PatchGroup:
         e.page.update()
 
 
+class Mixer:
+    """The rack's levels, in two parts the app places: `top`, the master
+    slider (set by the app into `master_slot`) beside **Mute all**, and
+    `control`, one volume slider per active patch in rack order, laid out in
+    as many columns as fit. Each slider is the patch's own `volume` `Param`,
+    so it stays in step with the slider in the patch's tile in both
+    directions.
+
+    **Mute all** drops every active patch to zero and remembers where each
+    was; a patch can then be raised on its own, and unmuting puts every patch
+    back where it was."""
+
+    ROW_HEIGHT = 28
+    MAX_ROWS = 3
+    # the narrowest a patch's row may be, and the gap between rows side by side
+    COLUMN_WIDTH = 340
+    GAP = 24
+
+    def __init__(
+        self, panels: Sequence[PatchPanel], on_resize: Callable[[], None]
+    ) -> None:
+        self.panels = list(panels)
+        self.on_resize = on_resize
+        self.shown: list[PatchPanel] = []
+        self.muted = False
+        # each patch's volume from before the mute
+        self._saved: dict[PatchPanel, float] = {}
+        self._volumes = {
+            panel: next(p for p in panel.patch.params if p.name == "volume")
+            for panel in self.panels
+        }
+        self._sliders: dict[PatchPanel, ft.Slider] = {}
+        self._texts: dict[PatchPanel, ft.Text] = {}
+        self._rows: dict[PatchPanel, ft.Row] = {}
+        self.summary = ft.Text("", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
+        self.width = 3 * self.COLUMN_WIDTH
+        self.columns = 3
+        self.grid = ft.Row(controls=[], wrap=True, spacing=self.GAP, run_spacing=0)
+        self.rows = ft.Column(
+            controls=[self.grid], spacing=0, scroll=ft.ScrollMode.AUTO
+        )
+        self.body = ft.Container(
+            content=self.rows,
+            height=self.ROW_HEIGHT,
+            visible=False,
+        )
+        self.master_slot = ft.Row(expand=True)
+        self.mute_button = ft.Button(
+            "Mute all",
+            icon=ft.Icons.VOLUME_UP,
+            height=30,
+            on_click=self._handle_mute,
+        )
+        self.top = ft.Row(
+            controls=[self.master_slot, self.mute_button],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        # always in the tree, so it reports the width the columns divide up
+        self.control = ft.Container(
+            content=ft.Column(controls=[self.summary, self.body], spacing=4),
+            on_size_change=self._handle_size,
+        )
+        self.attached = False
+        self._show_summary()
+
+    def _row(self, panel: PatchPanel) -> ft.Row:
+        if panel not in self._rows:
+            param = self._volumes[panel]
+            spec = param.spec
+            text = value_text(spec.format(param.read(panel.patch)))
+            text.width = 40
+            slider = ft.Slider(
+                min=spec.to_position(spec.minimum),
+                max=spec.to_position(spec.maximum),
+                divisions=slider_ticks(spec),
+                value=spec.to_position(param.read(panel.patch)),
+                active_color=ACCENT,
+                inactive_color="#31403D",
+                expand=True,
+                padding=ft.padding.Padding(left=0, top=0, right=0, bottom=0),
+                on_change=lambda e, panel=panel: self._handle_slider(panel, e),
+            )
+            self._sliders[panel], self._texts[panel] = slider, text
+            self._rows[panel] = ft.Row(
+                controls=[
+                    ft.Text(
+                        panel.patch.title,
+                        color=TEXT,
+                        size=12,
+                        width=130,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        tooltip=panel.patch.title,
+                    ),
+                    slider,
+                    text,
+                ],
+                spacing=8,
+                height=self.ROW_HEIGHT,
+                width=self._item_width(),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        return self._rows[panel]
+
+    def _item_width(self) -> float:
+        return (self.width - self.GAP * (self.columns - 1)) / self.columns
+
+    def _fit(self) -> None:
+        """Size the grid to the columns that fit and the rows that are shown."""
+        rows = -(-len(self.shown) // self.columns)
+        self.body.height = max(1, min(rows, self.MAX_ROWS)) * self.ROW_HEIGHT
+        for row in self._rows.values():
+            row.width = self._item_width()
+
+    def _handle_size(self, e: ft.LayoutSizeChangeEvent) -> None:
+        width = float(e.width)
+        columns = max(
+            1, min(4, int((width + self.GAP) // (self.COLUMN_WIDTH + self.GAP)))
+        )
+        if (width, columns) == (self.width, self.columns):
+            return
+        self.width, self.columns = width, columns
+        self._fit()
+        self.grid.update()
+        self.body.update()
+        self.on_resize()
+
+    def _show_summary(self) -> bool:
+        text = f"MIXER · {len(self.shown)} ACTIVE"
+        if not self.shown:
+            text += " · switch a patch on to mix it here"
+        changed = self.summary.value != text
+        self.summary.value = text
+        return changed
+
+    def _show_values(self) -> list[ft.Control]:
+        """Move each shown slider to its patch's volume; those that moved."""
+        changed: list[ft.Control] = []
+        for panel in self.shown:
+            spec = self._volumes[panel].spec
+            value = self._volumes[panel].read(panel.patch)
+            slider, text = self._sliders[panel], self._texts[panel]
+            position, label = spec.to_position(value), spec.format(value)
+            if slider.value != position:
+                changed.append(slider)
+            if text.value != label:
+                changed.append(text)
+            slider.value, text.value = position, label
+        return changed
+
+    def _set_volume(self, panel: PatchPanel, value: float) -> list[ft.Control]:
+        """Give `panel`'s patch `value`; the tile's controls that changed."""
+        self._volumes[panel].write(panel.patch, value)
+        return panel.sync_sliders()
+
+    def _show_mute(self) -> list[ft.Control]:
+        button = self.mute_button
+        content = "Unmute" if self.muted else "Mute all"
+        changed = button.content != content
+        button.content = content
+        button.icon = ft.Icons.VOLUME_OFF if self.muted else ft.Icons.VOLUME_UP
+        button.bgcolor = ERROR if self.muted else None
+        button.color = "#2B0A07" if self.muted else None
+        return [button] if changed else []
+
+    def refresh(self) -> list[ft.Control]:
+        """Follow the patches that are active now and their volumes; the
+        controls that changed, for the caller to repaint."""
+        active = [panel for panel in self.panels if panel.active]
+        changed: list[ft.Control] = []
+        if self.muted:
+            # a patch that comes on while muted starts silent too
+            for panel in active:
+                if panel not in self._saved:
+                    self._saved[panel] = self._volumes[panel].read(panel.patch)
+                    changed += self._set_volume(panel, 0.0)
+        if active != self.shown:
+            self.shown = active
+            self.grid.controls = [self._row(p) for p in active]
+            self._fit()
+            self.body.visible = bool(active)
+            changed += [self.grid, self.body]
+        changed += self._show_values()
+        if self._show_summary():
+            changed.append(self.summary)
+        changed += self._show_mute()
+        return changed
+
+    def update(self) -> None:
+        """Repaint what `refresh` changed, once the mixer is on the page."""
+        changed = self.refresh()
+        if self.attached and changed:
+            for control in changed:
+                control.update()
+            if self.body in changed:
+                self.on_resize()
+
+    def _handle_mute(self, e: ft.ControlEvent) -> None:
+        changed: list[ft.Control] = []
+        if self.muted:
+            for panel, volume in self._saved.items():
+                changed += self._set_volume(panel, volume)
+            self._saved = {}
+            self.muted = False
+        else:
+            self.muted = True
+            # `refresh` saves and silences every active patch
+        changed += self.refresh()
+        if self.attached:
+            for control in dict.fromkeys(changed):
+                control.update()
+
+    def _handle_slider(self, panel: PatchPanel, e: ft.ControlEvent) -> None:
+        param = self._volumes[panel]
+        value = param.spec.from_position(float(e.control.value))
+        param.write(panel.patch, value)
+        e.control.value = param.spec.to_position(value)
+        self._texts[panel].value = param.spec.format(value)
+        # the tile's own volume slider follows
+        changed = [self._texts[panel], *panel.sync_sliders()]
+        for control in changed:
+            control.update()
+
+
 class PatchRackApp:
     """A scrollable page of `PatchPanel`s for one `Rack`, sharing one Pyo
     `Server`, one clock, and one JSON preset catalog - the generic shape
@@ -1709,6 +1948,8 @@ class PatchRackApp:
     # shows up as numbers
     TIMING_ENV = "PYOSCILLATE_UI_TIMING"
     TIMING_REPORT_SECONDS = 1.0
+    # how often the app checks that the process that started it is still there
+    ORPHAN_CHECK_SECONDS = 2.0
 
     def __init__(
         self,
@@ -1739,26 +1980,15 @@ class PatchRackApp:
         self.clock: Clock
         self.context: BuildContext
         self.running = False
-        self.paused = False
-        self._paused_panels: set[str] = set()
         self.master_output = rack.master_output_default
         self.bpm = rack.bpm
         self.preset_store = PresetStore(catalog_dir)
         self._bind_rack(rack)
 
-        self.status = ft.Text("Engine stopped", color=MUTED, size=13)
-        self.engine_button = ft.Button(
-            "Start engine",
-            icon=ft.Icons.POWER_SETTINGS_NEW,
-            bgcolor=ACCENT,
-            color="#07110F",
-            on_click=self._handle_engine,
-        )
-        self.pause_button = ft.Button(
-            "Pause",
-            icon=ft.Icons.PAUSE,
-            disabled=True,
-            on_click=self._handle_pause,
+        self.status = ft.Text("Starting engine...", color=MUTED, size=12)
+        # the engine starts by itself; this only shows if that failed
+        self.retry_button = ft.TextButton(
+            "Retry", icon=ft.Icons.REFRESH, visible=False, on_click=self._handle_retry
         )
         self.master_output_text = value_text(f"{self.master_output:.2f}")
         self.master_output_slider = ft.Slider(
@@ -1784,7 +2014,8 @@ class PatchRackApp:
             label="Preset",
             options=[ft.dropdown.Option(name) for name in self.preset_store.names()],
             dense=True,
-            expand=True,
+            width=160,
+            on_select=self._load_preset,
         )
         self.preset_name_field = ft.TextField(
             label="Save as", value="my_preset", width=320, autofocus=True
@@ -1811,7 +2042,7 @@ class PatchRackApp:
             ],
             value=str(rack.harmony.key),
             dense=True,
-            width=110,
+            width=80,
             on_select=self._handle_key,
         )
 
@@ -1823,7 +2054,7 @@ class PatchRackApp:
             ],
             value=self._progression_value(),
             dense=True,
-            width=220,
+            width=170,
             on_select=self._handle_progression,
         )
 
@@ -1832,12 +2063,13 @@ class PatchRackApp:
             options=[ft.dropdown.Option(name) for name in self.variants],
             value=variant,
             dense=True,
-            width=180,
+            width=170,
             on_select=self._handle_variant,
         )
 
         self._configure_page()
         self._build_view()
+        self.page.run_task(self._autostart)
 
     def _bind_rack(self, rack: Rack) -> None:
         """Make `rack` the live rack: one panel per patch and the group views."""
@@ -1855,6 +2087,9 @@ class PatchRackApp:
         if len(self.panels) != len(patches):
             raise ValueError("Patch names must be unique across rack groups")
         self.groups = [self._patch_group(group) for group in rack.groups]
+        self.mixer = Mixer(list(self.panels.values()), self._forget_origins)
+        for panel in self.panels.values():
+            panel.state_changed = self.mixer.update
         self.control_sliders = [
             slider
             for top in self.groups
@@ -1887,101 +2122,122 @@ class PatchRackApp:
         self.page.window.height = 900
         self.page.window.min_width = 420
         self.page.window.min_height = 600
+        self.page.on_disconnect = self._handle_disconnect
+        self.page.on_connect = self._handle_connect
         self.page.on_close = self.close
 
     def _build_view(self) -> None:
-        def inline(name: str, tip: str, slider: ft.Slider, readout: ft.Text):
+        def level(name: str, tip: str, slider: ft.Slider, readout: ft.Text):
+            """A named slider with its readout and, when help is shown, its
+            description beneath."""
             label, note = self.help.label(name, tip, width=64 + INFO_WIDTH)
-            return ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Row(
-                            controls=[label, slider, readout],
-                            spacing=8,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        note,
-                    ],
-                    spacing=0,
-                ),
-                col={"xs": 12, "md": 6},
+            return ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[label, slider, readout],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    note,
+                ],
+                spacing=0,
             )
 
-        rack_controls: list[ft.Control] = [
-            ft.Row(
-                controls=[
-                    *([self.variant_dropdown] if self.variants else []),
-                    self.engine_button,
-                    self.pause_button,
-                    self.key_dropdown,
-                    self.progression_dropdown,
-                    self.help_button,
-                ],
-                alignment=ft.MainAxisAlignment.END,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                wrap=True,
-                spacing=8,
-                run_spacing=8,
-            ),
-            ft.Row(
-                controls=[
-                    self.preset_dropdown,
-                    ft.TextButton("Load", on_click=self._load_preset),
-                    ft.TextButton(
-                        "Save",
-                        icon=ft.Icons.SAVE,
-                        on_click=self._open_save_dialog,
-                    ),
-                ],
-                spacing=8,
-            ),
-            ft.ResponsiveRow(
-                controls=[
-                    inline(
-                        "Master",
-                        f"Safety-capped at {self.rack.master_output_max:.2f}; "
-                        f"starts at {self.rack.master_output_default:.2f}.",
-                        self.master_output_slider,
-                        self.master_output_text,
-                    ),
-                    inline("Tempo", "Beats per minute", self.bpm_slider, self.bpm_text),
-                ],
-                spacing=12,
-                run_spacing=4,
-            ),
+        # the master level leads the mixer's top row, beside Mute all
+        self.mixer.master_slot.controls = [
+            ft.Container(
+                content=level(
+                    "Master",
+                    f"Safety-capped at {self.rack.master_output_max:.2f}; "
+                    f"starts at {self.rack.master_output_default:.2f}.",
+                    self.master_output_slider,
+                    self.master_output_text,
+                ),
+                bgcolor="#1F3733",
+                border=ft.Border.all(1, ACCENT),
+                border_radius=8,
+                padding=ft.padding.Padding(left=10, top=2, right=6, bottom=2),
+                expand=True,
+            )
         ]
-        header = ft.Container(
-            content=ft.ResponsiveRow(
+        tempo = level("Tempo", "Beats per minute", self.bpm_slider, self.bpm_text)
+        selectors = ft.Row(
+            controls=[
+                *([self.variant_dropdown] if self.variants else []),
+                self.key_dropdown,
+                self.progression_dropdown,
+                self.preset_dropdown,
+                ft.IconButton(
+                    icon=ft.Icons.SAVE,
+                    icon_color=ACCENT,
+                    tooltip="Save preset",
+                    on_click=self._open_save_dialog,
+                ),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            wrap=True,
+            spacing=8,
+            run_spacing=8,
+        )
+        # every rack-wide control sits in one card: one row of what to play,
+        # the tempo and the master level (two rows when narrow), then the
+        # per-patch levels across its width
+        rack_card = ft.Container(
+            content=ft.Column(
                 controls=[
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Text(
-                                    self.title.upper(),
-                                    size=12,
-                                    color=ACCENT,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                ft.Text(
-                                    self.subtitle,
-                                    size=20,
-                                    color=TEXT,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                self.status,
-                            ],
-                            spacing=3,
-                        ),
-                        col={"xs": 12, "lg": 5},
+                    ft.ResponsiveRow(
+                        controls=[
+                            ft.Container(content=selectors, col={"xs": 12, "xl": 5}),
+                            ft.Container(
+                                content=tempo, col={"xs": 12, "md": 5, "xl": 3}
+                            ),
+                            ft.Container(
+                                content=self.mixer.top, col={"xs": 12, "md": 7, "xl": 4}
+                            ),
+                        ],
+                        spacing=16,
+                        run_spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    ft.Container(
-                        content=ft.Column(controls=rack_controls, spacing=4),
-                        col={"xs": 12, "lg": 7},
-                    ),
+                    self.mixer.control,
                 ],
-                spacing=24,
-                run_spacing=8,
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
+            bgcolor=PANEL,
+            border=ft.Border.all(1, "#2A3A36"),
+            border_radius=10,
+            padding=12,
+        )
+        title_row = ft.Row(
+            controls=[
+                ft.Column(
+                    controls=[
+                        ft.Text(
+                            self.title.upper(),
+                            size=12,
+                            color=ACCENT,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            self.subtitle,
+                            size=20,
+                            color=TEXT,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    ],
+                    spacing=2,
+                    expand=True,
+                ),
+                self.status,
+                self.retry_button,
+                self.help_button,
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=8,
+        )
+        header = ft.Container(
+            content=ft.Column(controls=[title_row, rack_card], spacing=10),
             padding=ft.padding.Padding(left=28, top=16, right=28, bottom=12),
             bgcolor="#121D1B",
         )
@@ -1993,6 +2249,7 @@ class PatchRackApp:
             scroll_interval=16,
         )
         header.on_size_change = self._handle_header_size
+        self.mixer.attached = True
         for panel in self.panels.values():
             panel.scroll_source = lambda: self.scroll_pixels
             panel.layout_changed = self._forget_origins
@@ -2100,41 +2357,18 @@ class PatchRackApp:
             changed.extend(panel.sync_sliders())
         for slider in self.control_sliders:
             changed.extend(slider.show())
+        changed.extend(self.mixer.refresh())
         return changed
 
     # -- engine lifecycle --------------------------------------------------
 
-    def _handle_engine(self, e: ft.ControlEvent) -> None:
-        self.toggle_engine()
-
-    def toggle_engine(self) -> None:
-        if self.running:
-            self._stop_engine()
-        else:
-            self._start_engine()
+    async def _autostart(self) -> None:
+        """Start the engine once the page is up; the rack has no start button."""
+        self._start_engine()
         self.page.update()
 
-    def _handle_pause(self, e: ft.ControlEvent) -> None:
-        self.toggle_pause()
-
-    def toggle_pause(self) -> None:
-        if not self.running:
-            return
-        if not self.paused:
-            self._paused_panels = {
-                name for name, panel in self.panels.items() if panel.enabled
-            }
-            for panel in self.panels.values():
-                panel.apply_enabled(False)
-            self.paused = True
-            self.pause_button.text = "Start"
-            self.pause_button.icon = ft.Icons.PLAY_ARROW
-        else:
-            for name, panel in self.panels.items():
-                panel.apply_enabled(name in self._paused_panels)
-            self.paused = False
-            self.pause_button.text = "Pause"
-            self.pause_button.icon = ft.Icons.PAUSE
+    def _handle_retry(self, e: ft.ControlEvent) -> None:
+        self._start_engine()
         self.page.update()
 
     def _handle_master_output(self, e: ft.ControlEvent) -> None:
@@ -2202,6 +2436,7 @@ class PatchRackApp:
         except (OSError, PyoError, RuntimeError) as error:
             self.status.value = f"Audio error: {error}"
             self.status.color = ERROR
+            self.retry_button.visible = True
             return
         self.server = server
         self.server.setAmp(self.master_output)
@@ -2219,9 +2454,10 @@ class PatchRackApp:
 
         self.status.value = "Engine running"
         self.status.color = ACCENT
-        self.engine_button.text = "Stop engine"
-        self.engine_button.icon = ft.Icons.STOP
-        self.pause_button.disabled = False
+        self.retry_button.visible = False
+        threading.Thread(
+            target=self._exit_when_orphaned, args=(os.getppid(),), daemon=True
+        ).start()
 
     async def _animate_sweeps(self) -> None:
         """While the engine runs, move every live sweep marker ~10 times a
@@ -2279,8 +2515,6 @@ class PatchRackApp:
         if not self.running:
             return
         self.running = False
-        self.paused = False
-        self._paused_panels = set()
         for group in self.groups:
             group.set_engine_ready(False)
         for panel in self.panels.values():
@@ -2290,11 +2524,6 @@ class PatchRackApp:
         self.server.shutdown()
         self.status.value = "Engine stopped"
         self.status.color = MUTED
-        self.engine_button.text = "Start engine"
-        self.engine_button.icon = ft.Icons.POWER_SETTINGS_NEW
-        self.pause_button.text = "Pause"
-        self.pause_button.icon = ft.Icons.PAUSE
-        self.pause_button.disabled = True
 
     # -- style variants ----------------------------------------------------
 
@@ -2321,9 +2550,6 @@ class PatchRackApp:
         self.preset_dropdown.value = None
         self._bind_rack(rack)
         self.progression_dropdown.value = self._progression_value()
-        self.paused = False
-        self.pause_button.text = "Pause"
-        self.pause_button.icon = ft.Icons.PAUSE
         if self.running:
             self.context = BuildContext(self.context.tempo, self.clock, rack.harmony)
             for panel in self.panels.values():
@@ -2433,6 +2659,29 @@ class PatchRackApp:
         self.status.value = f"Saved preset '{name}'"
         self.status.color = ACCENT
         self.page.update()
+
+    def _exit_when_orphaned(self, parent: int) -> None:
+        """`flet run` starts this app as a child process, so killing the CLI
+        leaves the app behind, still playing. While the engine runs, watch for
+        the parent going away, then stop the engine and exit."""
+        while self.running:
+            time.sleep(self.ORPHAN_CHECK_SECONDS)
+            if os.getppid() != parent:
+                self._stop_engine()
+                os._exit(0)
+
+    def _handle_disconnect(self, e: ft.ControlEvent) -> None:
+        """The browser tab closed or lost its connection: nobody is listening,
+        so stop the audio engine rather than play on until the session
+        expires."""
+        self._stop_engine()
+
+    def _handle_connect(self, e: ft.ControlEvent) -> None:
+        """The browser came back to the same session: start the engine again
+        (patches come back switched off)."""
+        if not self.running:
+            self._start_engine()
+            self.page.update()
 
     def close(self, e: ft.ControlEvent) -> None:
         self._stop_engine()

@@ -108,7 +108,7 @@ Then open http://127.0.0.1:8561. If the port is taken, pick another; a stale app
 
 In the app:
 
-1. Click **Start engine**. Each page load starts stopped, with no patches added.
+1. The engine starts by itself; each page load begins with no patches added. The mixer in the header holds **Master** and a volume slider per active patch; **Mute all** drops every patch to zero (raise one to hear it alone) and unmuting restores them.
 2. Expand a group and use **Add patches**, then flip a patch's switch on.
 3. Expand a patch for its waveform, spectrum and sliders. Set a pattern or chord progression to **Evolve** to cycle through the ticked options every N bars.
 

@@ -17,7 +17,7 @@ sleep 10; curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8561   
 
 - The README's `8551` is often already held by a stale `deep_house` app. Flet then crashes with `address already in use` and `curl` to that port still answers from the old app, so use a different port.
 - The audio engine runs server-side in Python (pyo), so it works with a headless browser.
-- Each page load is a new session and starts with the engine stopped and no patches added.
+- Each page load is a new session; the engine starts by itself and no patches are added.
 
 ## 2. Headless Chrome with a CDP port, and the driver
 
@@ -43,9 +43,9 @@ Chrome stays open between driver calls, so page state (the Flet session) persist
 
 ## 4. Layout cheat sheet (1280 px wide, master rack)
 
-- Header: Start engine `(618, 40)`; Pause `(750, 40)`; Master slider thumb at 0.80 is `(778, 144)`.
+- Header (rack card, 1280 px): one row of Key, Progression, Preset, save, Tempo, Master (tinted) and **Mute all** `(1180, 114)`, all vertically centred. Below it the mixer lists one slider row per active patch, three columns wide (a one-line caption while nothing is active). Patch tiles have their on/off switch just right of the chevron (`x≈126`). There is no start button: the engine starts on load, and group cards start at y≈194 (lower once patches are active). Below 1200 px wide the row wraps to two.
 - Group cards start at y=180, about 100 px apart when collapsed. Chevron at `x=1203`; the group switch at `x=87` switches the whole group.
-- Expanded group: "Add patches" button at `(90, group_y + 60)`. Menu items are 40 px apart. A newly added patch row appears about 70 px below the button, with its enable switch at `x=1197` and its expand chevron at `x=61`.
+- Expanded group: "Add patches" button at `(90, group_y + 60)`. Menu items are 40 px apart. A newly added patch row appears about 70 px below the button, with its enable switch at `x≈126` (beside the name) and its expand chevron at `x=74`.
 - Expanded patch: waveform and spectrum graphs, then a Pattern row (dropdown, plus a Hold/Evolve segment with Evolve at `x≈1195`). In Evolve, the dropdown ticks which patterns cycle ("2 of 4"), and a timeline and a "Changes every N bars" slider appear. Chord-following patches (Musical, for example "Chord Stab - Velvet") also get a Progression row with its own Hold/Evolve and tick list.
 - Header Key/Progression dropdowns are single-select and only enabled when a chord-following patch exists. Evolving several progressions is done per patch, not in the header.
 - Waveform/spectrum graphs of one-shot drums are flat between hits. For a README shot, expand a sustained patch (for example "Noise - Air") or capture several frames and keep one where the kick is firing.
