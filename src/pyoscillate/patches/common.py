@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 from pyo import PyoObject
 from pyo.lib.controls import SigTo
 from pyo.lib.effects import Delay, Freeverb
-from pyo.lib.filters import Hilbert
+from pyo.lib.filters import Hilbert, Reson
 from pyo.lib.generators import Sine
 from pyo.lib.tables import ExpTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
@@ -711,6 +711,47 @@ class Reverb(Patch):
             damp=self.live(cls.reverb_damp),
             bal=self.live(cls.reverb_bal),
         )
+
+
+class Body(Patch):
+    """Opt-in resonant body for a struck or bowed string: `Body` blends in a
+    bank of resonators (the air in the box, the top plate and its next modes)
+    that the string excites, so a thin string sounds as though it is inside a
+    wooden box. A patch lists the frequencies and sharpness of its resonances
+    in `body_modes` / `body_q` and calls `self.add_body(source)` from `build()`
+    (an instrument with no body leaves `body_modes` empty and does not call it).
+    Mix it in ahead of the voice base: `class Mandolin(Body, PluckedString)`.
+    """
+
+    # the body's loudest resonances (Hz) and how sharply each rings
+    body_modes: ClassVar[tuple[float, ...]] = ()
+    body_q: ClassVar[tuple[float, ...]] = ()
+    # trims the resonators so Body at 1 adds about as much as the string alone
+    body_trim: ClassVar[float] = 1.0
+
+    body_bank: PyoObject
+    body_sum: PyoObject
+    body_voiced: PyoObject
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.6,
+        "Body",
+        "How much the instrument's hollow body rings with the string; low is thin and dry, like a "
+        "pickup, high is a full, woody resonance.",
+        sweep=True,
+    )
+    def body(self, value: float) -> None:
+        self.body_sum.mul = value * self.body_trim
+
+    def add_body(self, source: PyoObject) -> PyoObject:
+        """The string `source` plus its body resonances; call from `build()`."""
+        self.body_bank = Reson(source, freq=list(self.body_modes), q=list(self.body_q))
+        self.body_sum = self.body_bank.mix(1)
+        self.body_voiced = source + self.body_sum
+        return self.body_voiced
 
 
 class Echo(Patch):

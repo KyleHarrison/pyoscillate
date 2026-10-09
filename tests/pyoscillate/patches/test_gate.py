@@ -162,6 +162,8 @@ class RemainingGateTests(unittest.TestCase):
         ("pyoscillate.patches.tonal.lead.lead", "brass"),
         ("pyoscillate.patches.tonal.lead.fm", "wind"),
         ("pyoscillate.patches.tonal.pluck.pluck", ""),
+        ("pyoscillate.patches.tonal.pluck.guitar", "acoustic"),
+        ("pyoscillate.patches.tonal.pluck.guitar", "electric"),
         ("pyoscillate.patches.tonal.keys.keys", ""),
         ("pyoscillate.patches.musical.stab.stab", "velvet"),
         ("pyoscillate.patches.musical.arp.arp", ""),

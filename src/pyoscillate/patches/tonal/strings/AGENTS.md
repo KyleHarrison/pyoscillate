@@ -43,8 +43,8 @@ Supersaw ensemble (`strings.py`):
 Classic string-machine, not implemented yet:
     several individually-retained detuned `SawTable`/`Osc` voices per note instead of one `SuperSaw` call each, for independent per-voice control (e.g. a slow individual drift LFO per oscillator) beyond what `SuperSaw`'s single `detune` argument exposes
 
-Bowed physical-model strings, not implemented yet:
-    a bowed/friction excitation model rather than a detuned-oscillator ensemble, for a soloistic rather than section sound - closer to a real bowed instrument's noisy attack transient
+Bowed solo strings (`bowed.py`: violin, viola, cello, double bass, hurdy-gurdy, riti):
+    the plucked-string waveguide (`pluck/string.py`) driven continuously by a bow instead of struck once. The bow is a sawtooth at the note's pitch plus rosin noise, rolled off by Brightness and shaped by an attack/release envelope; the loop resonates around it and a `Body` adds the box. Vibrato, glide and a Legato control (how far a note is held toward the next, a slur when fully held) make it a phrased solo line. It approximates a bow by a forced sawtooth, not the stick-slip friction of a bow on a string, so it has no bow-change noise, scratch or pressure-dependent pitch; treat it as the voice of the instrument, not a model of the bowing.
 
 ## Boundaries
 

@@ -1,8 +1,8 @@
 # Master Rack
 
 A catalogue rack rather than a song: every concrete patch under
-`src/pyoscillate/patches/` is available, grouped by its category directory
-(Drums, Tonal, Texture, ...). It is a sketchpad for auditioning and layering
+`src/pyoscillate/patches/` is available, grouped the way the directories are
+(Drums > Kick, Hat, ...; Tonal > Bass > FM, Pluck, Strings, ...). It is a sketchpad for auditioning and layering
 any patch together without writing a project first.
 
 ## Musical brief
@@ -20,14 +20,18 @@ defers every musical choice to the patches' own defaults.
 
 | Concept | Patch family | Status |
 | --- | --- | --- |
-| "Every patch, by category" | each concrete `Patch` subclass found under a category directory of `patches/` | reused as-is, discovered at import time |
-| "Pick which patches are in the rack" | a `GroupController(selectable=True)` per category | new group mode: tickbox menu adds/removes panels |
+| "Every patch, by directory" | each concrete `Patch` subclass found under `patches/`, in a group per directory nested like the directories | reused as-is, discovered at import time |
+| "Pick which patches are in the rack" | a `GroupController(selectable=True)` for every directory that holds patches itself | new group mode: tickbox menu adds/removes panels |
 | "Adding does not play" | the panel's own enable switch stays off | unchanged |
 
 ## Behaviour
 
-- One top-level group per category directory, in alphabetical order.
-- Each group's tickbox menu lists every patch of that category. Ticking adds
+- One top-level group per category directory, in alphabetical order, with a
+  nested group for each subdirectory (`tonal/bass/fm` is Tonal > Bass > FM).
+  A directory with no patches of its own (Drums, Tonal) is just a container for
+  its subgroups; its summary counts every patch below it.
+- Each group's tickbox menu lists the patches directly in its directory (not
+  those of its subgroups). Ticking adds
   its panel to a two-column grid inside the group; unticking removes it and
   silences it. Adding never switches a patch on.
 - Patches are discovered, not listed: a new patch module appears in the rack

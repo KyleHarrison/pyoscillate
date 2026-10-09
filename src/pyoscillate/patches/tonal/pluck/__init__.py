@@ -1,5 +1,8 @@
-"""Pluck patch family: clocked, articulated pitched voices."""
+"""Pluck patch family: clocked, articulated pitched voices.
 
-from pyoscillate.patches.tonal.pluck import pluck
+`pluck` is the FM pluck; `string` is the Karplus-Strong base the plucked
+instruments share (`guitar`, `folk`, `harp`, `sitar`)."""
 
-__all__ = ["pluck"]
+from pyoscillate.patches.tonal.pluck import folk, guitar, harp, pluck, sitar, string
+
+__all__ = ["folk", "guitar", "harp", "pluck", "sitar", "string"]

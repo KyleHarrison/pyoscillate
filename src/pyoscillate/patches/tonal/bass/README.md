@@ -68,3 +68,12 @@ oscillator/filter graph itself is their own. `fm/` and `funk/` have patches
 (see their `AGENTS.md`); `acid/` and `reese/` are still placeholders. A plain
 sub or harmonic bass stays in the shared core as a profile, because sub is a
 register, not a family.
+
+## Standup bass
+
+`standup.py` is the one bass voice that is not an oscillator graph: it is a
+`PluckedString` (see `patches/tonal/pluck/string.py`, a Karplus-Strong string)
+with a bass line from the shared catalog as its pitches. It lives here because
+it is a gated, low-register note line, and uses the string family's base
+because a plucked upright's character is the string and its body, not a filtered
+oscillator.
