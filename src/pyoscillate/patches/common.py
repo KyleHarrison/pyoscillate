@@ -11,7 +11,8 @@ from pyo.lib._core import Sig
 from pyo.lib.controls import Adsr, SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import Hilbert, Reson
-from pyo.lib.generators import Sine
+from pyo.lib.generators import Noise, Sine
+from pyo.lib.randoms import Randi
 from pyo.lib.tables import ExpTable, LinTable
 from pyo.lib.triggers import Trig, TrigEnv
 
@@ -1125,6 +1126,11 @@ class Held(Gate, ChordRoot, Phrased, GatedVoice):
         """A hit was just handed to the voices: a style with something else to
         retune or trigger per note does it here."""
 
+    def on_attack(self) -> None:
+        """A note was just started afresh, not slurred into one still held: a
+        style with an articulation (a tongued burst, a scoop) triggers it here,
+        so a slur has none. Called after `on_note()`."""
+
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
@@ -1203,6 +1209,7 @@ class Held(Gate, ChordRoot, Phrased, GatedVoice):
         if self._release_tick is None:
             self.note_env.play()
             self.vibrato_swell.play()
+            self.on_attack()
         self._release_tick = self._clock.tick + self.hold_ticks(step.index)
 
     def finish(self, voice: PyoObject, **kwargs: Any) -> Patch:
@@ -1230,6 +1237,101 @@ class Ensemble(Held):
     )
     def spread(self, value: float) -> None:
         self.detune.value = self.detune_ratios(value)
+
+
+class Breathed(Reverb, Held):
+    """A held voice with what any blown or sung voice has beside its pitch:
+    breath, a little unsteadiness in the pitch, and a room (`Reverb`). It
+    leaves two things to the style: the `source` (what is excited) and the
+    `tract` (what shapes it). `Singer` (vocals) and `Wind` (woodwinds) are
+    this with a mouth and a pipe."""
+
+    # the loudest breath noise gets next to the tone, and the widest the pitch
+    # wanders (as a fraction of the pitch) at full Unsteadiness
+    breath_max: ClassVar[float] = 0.5
+    drift_max: ClassVar[float] = 0.012
+    # how fast the pitch wanders (Hz): slow and irregular, a human's drift
+    drift_rate: ClassVar[float] = 3.0
+    # seconds the breath and drift take to follow a new setting
+    level_glide: ClassVar[float] = 0.05
+
+    breath_level: SigTo
+    breath_gain: PyoObject
+    breath_noise: Noise
+    source: PyoObject
+    drift_depth: SigTo
+    drift_noise: Randi
+    drift_ratio: PyoObject
+    wandering_pitch: PyoObject
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.15,
+        "Breath",
+        "How much air rides on the voice; none is a clean, pure tone, a little is a soft, intimate breath, a lot is a hushed, whispery voice.",
+        sweep=True,
+    )
+    def breath(self, value: float) -> None:
+        self.breath_level.value = value * self.breath_max
+
+    @Param(
+        0,
+        1,
+        0.05,
+        0.3,
+        "Unsteadiness",
+        "How much the pitch wanders by itself; none is a rock-steady, machine-exact note, a little is a living, human voice, a lot is a wavering, unsure one.",
+        sweep=True,
+    )
+    def unsteadiness(self, value: float) -> None:
+        self.drift_depth.value = value * self.drift_max
+
+    def modulation(self) -> PyoObject:
+        """The vibrato and the pitch's slow random wander."""
+        self.drift_depth = SigTo(value=0, time=self.level_glide)
+        self.drift_noise = Randi(
+            min=-1,
+            max=1,
+            freq=[
+                self.drift_rate * (1 + self.vibrato_scatter * position)
+                for _ in range(self.note_count())
+                for position in self.copy_positions()
+            ],
+            mul=self.drift_depth,
+        )
+        self.drift_ratio = self.drift_noise + 1
+        self.wandering_pitch = self.vibrato_ratio * self.drift_ratio
+        return self.wandering_pitch
+
+    @classmethod
+    def section_trim(cls) -> float:
+        """The level each voice is trimmed to: the voices of a section add in
+        power, so a choir of ten is as loud as a soloist, not three times
+        louder."""
+        return 1 / cls.voice_count() ** 0.5
+
+    def make_source(self) -> PyoObject:
+        """What the voice is excited with, one stream per voice, silenced by
+        `voice_gain`. Supplied by a style."""
+        raise NotImplementedError
+
+    def make_tract(self, source: PyoObject, breath: PyoObject) -> PyoObject:
+        """The `source` and `breath` shaped into the voice, mixed to one
+        stream. Supplied by a style."""
+        raise NotImplementedError
+
+    def make_tone(self) -> PyoObject:
+        self.breath_level = SigTo(value=0, time=self.level_glide)
+        self.breath_gain = self.breath_level * self.voice_gain * self.section_trim()
+        self.breath_noise = Noise(mul=self.breath_gain)
+        self.source = self.make_source()
+        return self.make_tract(self.source, self.breath_noise)
+
+    def voice_stage(self, signal: PyoObject) -> PyoObject:
+        self.reverb = self.add_reverb(signal)
+        return self.reverb
 
 
 @dataclass(eq=False)

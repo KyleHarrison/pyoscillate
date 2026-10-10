@@ -61,7 +61,7 @@ class MasterRackUpdateScopeTests(unittest.TestCase):
 
     def test_an_unchanged_tree_diffs_quickly_and_to_nothing(self) -> None:
         started = time.perf_counter()
-        _, added, removed =ObjectPatch.from_diff(
+        _, added, removed = ObjectPatch.from_diff(
             self.root, self.root, control_cls=BaseControl, parent=None, path=[]
         )
         elapsed = time.perf_counter() - started

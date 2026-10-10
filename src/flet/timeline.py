@@ -15,6 +15,7 @@ tick.
 
 from __future__ import annotations
 
+import math
 from typing import Any, ClassVar
 
 import flet as ft
@@ -70,6 +71,7 @@ class EvolveTimeline:
         self.width = float(self.FALLBACK_WIDTH)
         self._drawn: tuple[Any, ...] | None = None
         self._block_width = 0.0
+        self._span = self.evolution.bars
         self._playhead_x: float | None = None
         self.blocks = cv.Canvas(shapes=[], height=self.HEIGHT, expand=True)
         self.playhead = cv.Canvas(
@@ -96,6 +98,15 @@ class EvolveTimeline:
             return 1
         return min(len(evolution.choices) + 1, self.MAX_BLOCKS)
 
+    def _span_of(self, choices: tuple[Any, ...]) -> int:
+        """The bars a block spans: the evolution interval, or for a held phrase
+        longer than that, the whole phrase so none of it is cut off."""
+        bars = self.evolution.bars
+        choice = choices[0]
+        if len(choices) == 1 and isinstance(choice, Phrase):
+            return max(bars, math.ceil(choice.cycle / choice.division))
+        return bars
+
     def _handle_resize(self, e: cv.CanvasResizeEvent) -> None:
         self.width = float(e.width)
         self.redraw()
@@ -115,6 +126,7 @@ class EvolveTimeline:
             evolution.bars,
             evolution.enabled,
             round(self.width),
+            self._span_of(choices),
         )
         changed: list[ft.Control] = []
         if signature != self._drawn:
@@ -130,7 +142,14 @@ class EvolveTimeline:
         playhead's canvas if it moved by at least a pixel (or appeared or
         went), for the caller to repaint."""
         evolution = self.evolution
-        x = evolution.progress * self._block_width if evolution.ticking else None
+        x = None
+        if evolution.ticking:
+            progress = (
+                evolution.progress
+                if self._span == evolution.bars
+                else evolution.progress_over(self._span)
+            )
+            x = progress * self._block_width
         if x is None or self._playhead_x is None:
             if x == self._playhead_x:
                 return []
@@ -153,6 +172,7 @@ class EvolveTimeline:
 
     def _draw_blocks(self, choices: tuple[Any, ...]) -> list[cv.Shape]:
         count = len(choices)
+        self._span = self._span_of(choices)
         gaps = self.BLOCK_GAP * (count - 1)
         self._block_width = (self.width - gaps) / count
         shapes: list[cv.Shape] = []
@@ -212,7 +232,7 @@ class EvolveTimeline:
     def _draw_phrase(self, phrase: Phrase, left: float, *, now: bool) -> list[cv.Shape]:
         """One dot per sounding step, the phrase repeating to fill the bars;
         a pitched phrase's dots sit higher for higher offsets."""
-        bars = self.evolution.bars
+        bars = self._span
         cycle_bars = phrase.cycle / phrase.division
         top, bottom = self.BODY_TOP + 6, self.BODY_BOTTOM - 6
         offsets = [step.offset for step in phrase.steps]
@@ -280,7 +300,7 @@ class EvolveTimeline:
     def _draw_ruler(self, left: float) -> list[cv.Shape]:
         """A tick per bar under the block, numbered every few bars so the
         labels never crowd."""
-        bars = self.evolution.bars
+        bars = self._span
         per_bar = self._block_width / bars
         label_every = next(
             (n for n in self.LABEL_STEPS if per_bar * n >= self.MIN_LABEL_SPACING),

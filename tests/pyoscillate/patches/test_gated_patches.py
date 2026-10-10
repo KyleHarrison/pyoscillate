@@ -64,6 +64,7 @@ GATED_PATCHES = {
     "pyoscillate.patches.tonal.vocal.solo": {"style": "female"},
     "pyoscillate.patches.tonal.vocal.solo#male": {"style": "male"},
     "pyoscillate.patches.tonal.vocal.whistling": {},
+    "pyoscillate.patches.tonal.woodwind.flute.flute": {},
     "pyoscillate.patches.transition.riser.riser": {"style": "noise"},
 }
 # -80 dBFS: comfortably above numerical noise, far below anything audible

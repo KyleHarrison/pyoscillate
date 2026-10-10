@@ -74,7 +74,7 @@ These are recognisable sound families, each defined by how the mechanism is comb
 
 - drums: kick, snare, clap, hat, cymbal, tom, percussion, shaker
 - pitched percussion: bell
-- tonal voices: bass (with acid, fm, funk, reese sub-families), pluck, lead, pad, drone, keys, strings, vocal
+- tonal voices: bass (with acid, fm, funk, reese sub-families), pluck, lead, pad, drone, keys, strings, vocal, woodwind
 - texture families: atmosphere, texture, rumble, noise
 - sample families: playback, breakbeat, grains
 - transition families: riser
@@ -107,7 +107,7 @@ questions, borrowed from modular practice, decide it:
 gated   → role decides: drums/, pitched_percussion/,
           tonal/bass (low-register note lines), tonal/lead, tonal/pluck,
           tonal/pad (sustained chords whose harmony changes on events),
-          tonal/keys, tonal/strings, tonal/vocal, sample/ (recorded source),
+          tonal/keys, tonal/strings, tonal/vocal, tonal/woodwind, sample/ (recorded source),
           transition/ (one-shot gestures that mark form)
 ungated → stable pitch centre → tonal/drone   (any register; "sub" is a register, not a family)
         → no pitch centre     → texture/      (noise, grains, chaos-as-timbre)
@@ -203,6 +203,8 @@ infer a rest from a magic value.
 
 - `common.Held` — a gated voice whose notes are *held*, not struck (organs,
   reeds, sung voices, bowed strings): see "Held voices" below.
+- `common.Breathed` — a `Held` voice with breath, a pitch drift and a room;
+  the shared base of `vocal.singer.Singer` and `woodwind.wind.Wind`.
 
 Both provide `finish(voice, *, resources=())`. `GatedVoice.finish` raises if `build()` never
 called `schedule()`.
@@ -446,8 +448,10 @@ everything about *when* and *at what pitch*, so a style only builds the tone:
   `self.held_pitch` (one stream per voice, note-major: stream `note * copies +
   copy`) and silenced by `self.voice_gain` (the notes not sounding are
   silenced, not removed). `voice_stage()` follows the enveloped tone (a
-  body, a room); `on_note()` is called on every hit; `modulation()` is
-  where a style multiplies in more pitch motion.
+  body, a room); `on_note()` is called on every hit and `on_attack()` only
+  on a note struck afresh (a slur into a held note skips it, so a tongue or
+  a scoop belongs there); `modulation()` is where a style multiplies in more
+  pitch motion.
 - A phrase with pitches plays one chord tone (a line); a chord rhythm plays
   `chord_shape` (a chord, `ChordRoot.chord_frequencies`); a line voice leaves
   `chord_shape` as `None`. `copies` repeats every note detuned (an ensemble,

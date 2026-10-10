@@ -26,7 +26,7 @@ A voice is a source and a filter. The vocal folds buzz at the pitch, a harmonica
 
 ## Held notes
 
-`common.Held` (see [patches/AGENTS.md](../../AGENTS.md)) owns everything about *when* and *at what pitch*, and `Singer` adds what a voice has: Breath, an Unsteadiness that wanders the pitch (slow random, a voice's own drift, which an ensemble gives every singer separately), and a room (`Reverb`). Vibrato is the singer's most characteristic motion: it is not there at the start of a note but grows in (Vibrato bloom), which is why a held note sounds sung rather than sampled. Legato is how far a note is held toward the next; a slur at full Legato, a gap below it.
+`common.Held` (see [patches/AGENTS.md](../../AGENTS.md)) owns everything about *when* and *at what pitch*, and `Singer` (the `common.Breathed` base it shares with `tonal/woodwind`) adds what a voice has: Breath, an Unsteadiness that wanders the pitch (slow random, a voice's own drift, which an ensemble gives every singer separately), and a room (`Reverb`). Vibrato is the singer's most characteristic motion: it is not there at the start of a note but grows in (Vibrato bloom), which is why a held note sounds sung rather than sampled. Legato is how far a note is held toward the next; a slur at full Legato, a gap below it.
 
 A line voice (the solo voices, the whistle) plays one chord tone at a time from a hook or lead phrase. A chord voice (the choir, the angels) plays every tone of a chord shape on a chord rhythm, one voice per tone. The unused voices of a chord voice are silenced by `voice_gain`.
 

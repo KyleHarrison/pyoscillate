@@ -145,10 +145,16 @@ class Evolution:
     def progress(self) -> float:
         """How far through the current interval the clock is (0 just changed,
         approaching 1 as the next change nears); 0 when not ticking."""
+        return self.progress_over(self.bars)
+
+    def progress_over(self, bars: int) -> float:
+        """How far through a span of `bars` bars the clock is, counted from the
+        clock's start; 0 when not ticking. A hold shows a whole long phrase
+        this way, wider than the evolution interval."""
         if not self.ticking:
             return 0.0
         assert self._clock is not None
-        steps = self._clock.bar * self.bars
+        steps = self._clock.bar * bars
         return (self._clock.tick % steps) / steps
 
     @property
