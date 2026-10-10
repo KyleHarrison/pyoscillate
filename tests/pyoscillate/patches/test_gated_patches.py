@@ -52,7 +52,18 @@ GATED_PATCHES = {
     "pyoscillate.patches.tonal.bass.fm.fm": {"style": "bark"},
     "pyoscillate.patches.tonal.bass.fm.fm#grit": {"style": "grit"},
     "pyoscillate.patches.tonal.bass.funk.funk": {},
+    "pyoscillate.patches.tonal.keys.accordion": {},
+    "pyoscillate.patches.tonal.keys.celeste": {},
     "pyoscillate.patches.tonal.keys.keys": {},
+    "pyoscillate.patches.tonal.keys.organ": {},
+    "pyoscillate.patches.tonal.keys.string_keys": {"style": "piano"},
+    "pyoscillate.patches.tonal.keys.string_keys#harpsichord": {"style": "harpsichord"},
+    "pyoscillate.patches.tonal.keys.string_keys#clavichord": {"style": "clavichord"},
+    "pyoscillate.patches.tonal.vocal.ensemble": {"style": "choir"},
+    "pyoscillate.patches.tonal.vocal.ensemble#angels": {"style": "angels"},
+    "pyoscillate.patches.tonal.vocal.solo": {"style": "female"},
+    "pyoscillate.patches.tonal.vocal.solo#male": {"style": "male"},
+    "pyoscillate.patches.tonal.vocal.whistling": {},
     "pyoscillate.patches.transition.riser.riser": {"style": "noise"},
 }
 # -80 dBFS: comfortably above numerical noise, far below anything audible

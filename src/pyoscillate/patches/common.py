@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from pyo import PyoObject
-from pyo.lib.controls import SigTo
+from pyo.lib._core import Sig
+from pyo.lib.controls import Adsr, SigTo
 from pyo.lib.effects import Delay, Freeverb
 from pyo.lib.filters import Hilbert, Reson
 from pyo.lib.generators import Sine
@@ -18,10 +19,11 @@ from pyoscillate.clock import Clock, Division, NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch, Sequencer
 from pyoscillate.patches.evolve import Evolution
-from pyoscillate.patches.params import Param, choice_param
+from pyoscillate.patches.params import Param, choice_param, rate_param
 from pyoscillate.tempo import Tempo
-from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.chord import Chord, Chords
 from pyoscillate.theory.phrase import (
+    Hooks,
     Phrase,
     PhraseMode,
     PhraseRole,
@@ -319,8 +321,14 @@ class Phrased(GatedVoice):
         return self.selected_phrase_at(self.phrase)
 
     def schedule_pattern(self, context: BuildContext) -> Division:
-        """Fire `next_step` on the chosen phrase's grid and the voice's `rate`."""
-        return self.schedule(self.selected_phrase.division, self.rate, context.clock)
+        """Fire `next_step` on the chosen phrase's grid and the voice's `rate`,
+        held inside the range that grid allows: the slider is sized for the
+        class's own `base_division`, and a phrase may sit on a coarser or
+        finer one."""
+        division = self.selected_phrase.division
+        minimum, maximum = context.clock.rate_limits(division)
+        rate = min(max(round(self.rate), minimum), maximum)
+        return self.schedule(division, rate, context.clock)
 
     @classmethod
     def evolution_axes(cls) -> tuple[Param, ...]:
@@ -746,6 +754,19 @@ class Body(Patch):
     def body(self, value: float) -> None:
         self.body_sum.mul = value * self.body_trim
 
+    @Param(
+        0.6,
+        1.6,
+        0.05,
+        1.0,
+        "Body size",
+        "How big the hollow body is; small is a tight, high, nasal box, large is a deep, boomy chest that moves the resonance down.",
+        sweep=True,
+        advanced=True,
+    )
+    def body_size(self, value: float) -> None:
+        self.body_bank.freq = [mode * value for mode in self.body_modes]
+
     def add_body(self, source: PyoObject) -> PyoObject:
         """The string `source` plus its body resonances; call from `build()`."""
         self.body_bank = Reson(source, freq=list(self.body_modes), q=list(self.body_q))
@@ -837,6 +858,378 @@ class ChordRoot(RootPitch, Progressive):
         """The sounding chord's root in the octave nearest `root_freq`; call
         after `build()` has set `self.harmony`."""
         return self.chord_freq(self.harmony, self.root_freq, bar_index)
+
+    def chord_frequencies(self, bar_index: int, shape: Chord) -> list[float]:
+        """The pitches of `shape` stacked on `bar_index`'s chord, lowest voice
+        first, rooted on the chord root nearest the Register (so a shape that
+        starts below its root, like a spread triad, reaches below it). Call
+        after `build()` has set `self.harmony`."""
+        root = self.root_at(bar_index)
+        anchor = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)[0]
+        return [
+            Note.transpose(root, tone - anchor)
+            for tone in self.chord_tones(self.harmony, bar_index, shape)
+        ]
+
+
+class Held(Gate, ChordRoot, Phrased, GatedVoice):
+    """Base for a voice whose notes are held rather than struck: a note starts
+    when a phrase says so, is held for `Legato` of the way to the next one,
+    and leaves over `Release`. Organs, reeds, voices and bowed strings are
+    all this; what differs is the tone.
+
+    A style supplies `make_tone()`, the summed signal of every sounding voice
+    read from `self.held_pitch`, and the `Param`s that are the instrument's
+    own. This base owns everything about *when* and *at what pitch*:
+
+    - the note envelope (`Attack`, `Release`) and the hold (`Legato`: at 0 a
+      note is clipped short, at 1 it holds until the next and a change of
+      pitch under a held note is a slur, not a new note). The note lifts on
+      the clock's own tick, a pulse of its own, so a hold is exact even when
+      the notes are a single step apart;
+    - the pitch: a glide between notes, and a vibrato that blooms in after
+      each note starts (`Vibrato`, `Vibrato speed`, `Vibrato bloom`);
+    - which notes sound: a phrase with pitches plays one note of the chord
+      (a line), a chord rhythm plays `chord_shape` (a chord), one stream per
+      note, and `copies` detuned copies of each (an ensemble, see `Ensemble`).
+      The voices not sounding are silenced by `voice_gain`.
+
+    The voices are pyo streams, note-major: stream `note * copies + copy`.
+    `held_pitch`, `voice_gain` and `detune` all have that many streams, so a
+    tone multiplies them in directly.
+    """
+
+    base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
+    # the chord a chord-rhythm phrase sounds, lowest voice first; None for a
+    # voice that only ever plays one note at a time
+    chord_shape: ClassVar[Chord | None] = None
+    # detuned copies of every note: the singers of a choir, the reeds of a
+    # musette. One is a single voice
+    copies: ClassVar[int] = 1
+    # seconds the vibrato takes to fade to a new depth
+    vibrato_glide: ClassVar[float] = 0.1
+    # how far apart the copies' vibratos run, as a fraction of the vibrato
+    # speed, so an ensemble's wobble is not in lockstep
+    vibrato_scatter: ClassVar[float] = 0.15
+    # seconds a voice takes to fade in or out when the chord changes size
+    gain_glide: ClassVar[float] = 0.02
+    # how much of the way to the next note a note is held at Legato 0: a short,
+    # clipped note, a quarter of the gap
+    staccato: ClassVar[float] = 0.25
+    # the envelope's decay: the note settles straight to full
+    note_decay: ClassVar[float] = 0.05
+
+    pitch: SigTo
+    voice_gain: SigTo
+    detune: Sig
+    vibrato_depth: SigTo
+    vibrato_swell: Adsr
+    vibrato_lfo: Sine
+    vibrato_wobble: PyoObject
+    vibrato_ratio: PyoObject
+    held_pitch: PyoObject
+    tone: PyoObject
+    note_env: Adsr
+    held: PyoObject
+    harmony: Harmony
+    # sequence state, kept on self like any step counter: the notes the voice
+    # is on, and the clock tick after which it lifts (None while it is up)
+    _notes: list[float]
+    _release_tick: int | None
+    _lift_pulse: Pulse
+
+    phrase_roles = (PhraseRole.HOOK, PhraseRole.LEAD)
+    phrase = Phrased.phrase.replace(
+        default=Hooks.SPARSE_HOOK,
+        help_text="Picks which notes are played and when, from a sparse figure to a flowing line; "
+        "every voice draws on the same shared patterns.",
+    )
+
+    @Param(
+        0.005,
+        2.0,
+        0.005,
+        0.05,
+        "Attack",
+        "How gradually each note swells in; short is a crisp, immediate start, long is a slow bloom.",
+        sweep=True,
+    )
+    def attack(self, value: float) -> None:
+        self.note_env.attack = value
+
+    @Param(
+        0.03,
+        3.0,
+        0.01,
+        0.3,
+        "Release",
+        "How long the sound lingers once a note lets go; short stops cleanly, long lets it fade into the next.",
+        sweep=True,
+        advanced=True,
+    )
+    def release(self, value: float) -> None:
+        self.note_env.release = value
+        self.vibrato_swell.release = value
+
+    @Param(
+        0,
+        100,
+        1,
+        0,
+        "Vibrato",
+        "How far the pitch rocks around the note, in cents; none is steady and pure, a little is warm and human, a lot is a wide wobble.",
+        sweep=True,
+    )
+    def vibrato(self, value: float) -> None:
+        self.vibrato_depth.value = Note.semitone_ratio(value / 100) - 1
+
+    @Param(
+        2,
+        9,
+        0.1,
+        5.5,
+        "Vibrato speed",
+        "How fast the vibrato rocks, in cycles a second; slow is a lazy, languid sway, fast is a nervous shimmer.",
+        sweep=True,
+        advanced=True,
+    )
+    def vibrato_speed(self, value: float) -> None:
+        self.vibrato_lfo.freq = self.vibrato_rates(value)
+
+    @Param(
+        0.01,
+        2.0,
+        0.01,
+        0.01,
+        "Vibrato bloom",
+        "How long after a note starts the vibrato takes to grow in; short wobbles from the first instant, long holds the note straight and lets the vibrato bloom.",
+        sweep=True,
+        advanced=True,
+    )
+    def vibrato_bloom(self, value: float) -> None:
+        self.vibrato_swell.attack = value
+
+    @Param(
+        0,
+        0.3,
+        0.01,
+        0,
+        "Glide",
+        "Slides each note into the next over this many seconds; none is stepped and exact, long is a smeared, sliding line.",
+        sweep=True,
+        advanced=True,
+    )
+    def glide(self, value: float) -> None:
+        self.pitch.time = value
+
+    legato = Param(
+        0,
+        1,
+        0.05,
+        0.85,
+        "Legato",
+        "How long each note is held toward the next; at 0 every note is clipped short, at 1 it holds right up to the next note and the change is a slur.",
+        sweep=True,
+    )
+
+    rate = rate_param(
+        base_division,
+        "Halves or doubles the speed of the phrase for each step away from its own grid.",
+    )
+
+    @classmethod
+    def note_count(cls) -> int:
+        """How many notes can sound at once: the chord's, or one."""
+        return len(cls.chord_shape.offsets) if cls.chord_shape else 1
+
+    @classmethod
+    def voice_count(cls) -> int:
+        """How many pyo streams the voice has: every note, `copies` times."""
+        return cls.note_count() * cls.copies
+
+    @classmethod
+    def copy_positions(cls) -> list[float]:
+        """Where each copy sits across the ensemble, -1 to 1 (0 for one)."""
+        if cls.copies == 1:
+            return [0.0]
+        return [2 * copy / (cls.copies - 1) - 1 for copy in range(cls.copies)]
+
+    def voice_pitches(self, notes: list[float]) -> list[float]:
+        """`notes` (padded with their last by a short chord) as one pitch per
+        voice, every note repeated for its copies."""
+        padded = [*notes, *[notes[-1]] * (self.note_count() - len(notes))]
+        return [note for note in padded for _ in range(self.copies)]
+
+    def voice_gains(self, sounding: int) -> list[float]:
+        """One gain per voice: 1 for the notes that sound, 0 for the rest."""
+        return [
+            1.0 if note < sounding else 0.0
+            for note in range(self.note_count())
+            for _ in range(self.copies)
+        ]
+
+    def detune_ratios(self, cents: float) -> list[float]:
+        """One frequency ratio per voice: every note's copies spread across
+        `cents` either side of it (the middle copy of an odd count is in tune)."""
+        positions = self.copy_positions()
+        return [
+            Note.semitone_ratio(position * cents / 100)
+            for _ in range(self.note_count())
+            for position in positions
+        ]
+
+    def vibrato_rates(self, speed: float) -> list[float]:
+        """One vibrato speed per voice: `speed` Hz, each copy a little off it."""
+        positions = self.copy_positions()
+        return [
+            speed * (1 + self.vibrato_scatter * position)
+            for _ in range(self.note_count())
+            for position in positions
+        ]
+
+    def note_frequency(self, value: int, bar_index: int) -> float:
+        """The pitch a phrase step asks for in `bar_index`'s chord: for a
+        chord-tone phrase `value` indexes the chord's triad, otherwise it is
+        semitones above the chord root. Either way it is the octave of the
+        chord root nearest the Register."""
+        root = self.root_at(bar_index)
+        if self.selected_phrase.mode is PhraseMode.CHORD_TONE:
+            tones = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)
+            return Note.transpose(root, tones[value] - tones[0])
+        return Note.transpose(root, value)
+
+    def sounding(self, value: float, bar_index: int) -> list[float]:
+        """The notes one hit of the phrase plays: the whole chord for a chord
+        rhythm (a phrase with no pitches), otherwise the one note it names."""
+        if self.chord_shape and self.selected_phrase.mode is PhraseMode.NONE:
+            return self.chord_frequencies(bar_index, self.chord_shape)
+        return [self.note_frequency(int(value), bar_index)]
+
+    def modulation(self) -> PyoObject:
+        """The frequency multiplier the voices are modulated by: the vibrato.
+        A style with more (a random drift) multiplies it in here."""
+        return self.vibrato_ratio
+
+    def make_tone(self) -> PyoObject:
+        """The summed signal of every voice, read from `self.held_pitch` and
+        silenced by `self.voice_gain`. A style assigns every node it builds to
+        `self` (retaining lists with `self.retain`) and returns the mix."""
+        raise NotImplementedError
+
+    def voice_stage(self, signal: PyoObject) -> PyoObject:
+        """What follows the enveloped tone (a body, a reverb, a rotor); the
+        default leaves it as it is."""
+        return signal
+
+    def on_note(self, notes: list[float], bar_index: int) -> None:
+        """A hit was just handed to the voices: a style with something else to
+        retune or trigger per note does it here."""
+
+    def build(self, context: BuildContext) -> Patch:
+        self._reset()
+        self.harmony = context.harmony
+        self._release_tick = None
+        self._notes = self.sounding(0, context.clock.bar_index)
+
+        start = self.voice_pitches(self._notes)
+        self.pitch = SigTo(value=start, time=self.glide, init=start)
+        gains = self.voice_gains(len(self._notes))
+        self.voice_gain = SigTo(value=gains, time=self.gain_glide, init=gains)
+        self.detune = Sig(self.detune_ratios(0))
+
+        # the vibrato grows in after each note starts, then the voices are
+        # rocked by it
+        self.vibrato_depth = SigTo(value=0, time=self.vibrato_glide)
+        self.vibrato_swell = Adsr(
+            attack=self.vibrato_bloom, decay=0, sustain=1.0, release=self.release
+        )
+        self.vibrato_lfo = Sine(
+            freq=self.vibrato_rates(self.vibrato_speed), mul=self.vibrato_depth
+        )
+        self.vibrato_wobble = self.vibrato_lfo * self.vibrato_swell
+        self.vibrato_ratio = self.vibrato_wobble + 1
+        self.held_pitch = self.pitch * self.detune * self.modulation()
+
+        self.tone = self.make_tone()
+        self.note_env = Adsr(
+            attack=self.attack,
+            decay=self.note_decay,
+            sustain=1.0,
+            release=self.release,
+        )
+        self.held = self.tone * self.note_env
+        staged = self.voice_stage(self.held)
+
+        self.schedule_pattern(context)
+        self._lift_pulse = Pulse(context.clock, 1, self.check_lift)
+        return self.finish(self.add_gate(staged, context))
+
+    def steps_to_next_hit(self, index: int) -> int:
+        """Steps from step `index` to the phrase's next note, wrapping the cycle."""
+        phrase = self.selected_phrase
+        hits = sorted(step.at for step in phrase.steps)
+        later = [at - index for at in hits if at > index]
+        return later[0] if later else hits[0] + phrase.cycle - index
+
+    def hold_ticks(self, index: int) -> int:
+        """Clock ticks a note struck at step `index` is held: `Legato` of the
+        way to the phrase's next note, from `staccato` of it at 0 to all of it
+        at 1. Short of the next note's own tick below full Legato, so the note
+        lifts first; past it at full Legato, so the next note finds it still
+        held and slurs into it."""
+        gap = self.steps_to_next_hit(index) * self._division.steps
+        if self.legato >= 1:
+            return gap + 1
+        held = round(gap * (self.staccato + (1 - self.staccato) * self.legato))
+        return max(1, min(held, gap - 1))
+
+    def check_lift(self) -> None:
+        """Lift the note, on the tick its hold runs out."""
+        if self._release_tick is not None and self._clock.tick >= self._release_tick:
+            self.note_env.stop()
+            self.vibrato_swell.stop()
+            self._release_tick = None
+
+    def next_step(self) -> None:
+        step = self._step()
+        if not step.hit:
+            return
+        bar = self._clock.bar_index
+        self._notes = self.sounding(step.value, bar)
+        self.pitch.value = self.voice_pitches(self._notes)
+        self.voice_gain.value = self.voice_gains(len(self._notes))
+        self.on_note(self._notes, bar)
+        # a note still held is slurred into, not struck again
+        if self._release_tick is None:
+            self.note_env.play()
+            self.vibrato_swell.play()
+        self._release_tick = self._clock.tick + self.hold_ticks(step.index)
+
+    def finish(self, voice: PyoObject, **kwargs: Any) -> Patch:
+        """The voice base's `finish()`, then the lift pulse joins the voice's
+        own sequencer so both start and stop together."""
+        patch = super().finish(voice, **kwargs)
+        self.sequencer = SequencerGroup((self.sequencer, self._lift_pulse))
+        return patch
+
+
+class Ensemble(Held):
+    """Opt-in add-on for a held voice sung or played by several at once
+    (`Held.copies` above one): `Spread` detunes the copies of every note
+    against each other, from one fused voice to a wide, shimmering section.
+    Mix it in ahead of the voice base: `class Choir(Ensemble, Singer)`."""
+
+    @Param(
+        0,
+        50,
+        0.5,
+        12,
+        "Spread",
+        "How far the voices of the ensemble sit out of tune with each other, in cents; none fuses them into one voice, a little is a slow, living shimmer, a lot is a wide, loose crowd.",
+        sweep=True,
+    )
+    def spread(self, value: float) -> None:
+        self.detune.value = self.detune_ratios(value)
 
 
 @dataclass(eq=False)

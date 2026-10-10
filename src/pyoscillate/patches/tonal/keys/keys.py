@@ -1,6 +1,9 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.tonal.keys.keys
 """FM electric piano: a struck tine over a round body, comping a progression.
 
+`FmKeys` is the shared struck-FM keyboard; `Keys` is the electric piano, and
+`celeste.py` is another style of it.
+
 Each note is two FM pairs on the same carrier, both read from break-point
 envelopes (pyo example x10/01) whose reader frequency is 1/dur, so one set of
 tables fits any Decay:
@@ -64,12 +67,12 @@ def _per_note(per_slot: list[float]) -> list[float]:
     return [value for value in per_slot for _ in range(NOTES)]
 
 
-class Keys(Gate, ChordRoot, Phrased, GatedVoice):
-    """FM electric piano comping the rack's chord changes in a rhythm.
-    See the module docstring for the sonic detail."""
+class FmKeys(Gate, ChordRoot, Phrased, GatedVoice):
+    """Struck FM keyboard comping the rack's chord changes in a rhythm: the
+    shared shape of the electric piano and the celeste. A style sets the
+    ratios and times of its body and tine (see the module docstring for the
+    sonic detail) and gives every control its own starting value."""
 
-    title = "Keys (FM electric piano)"
-    summary = "Struck FM electric piano comping the rack's progression."
     volume = Patch.volume.replace(default=0.8)
     base_division: ClassVar[NoteDivision] = NoteDivision.SIXTEENTH
 
@@ -400,3 +403,11 @@ class Keys(Gate, ChordRoot, Phrased, GatedVoice):
             self.velocities[slot] = step.value
             self.apply_touch()
             self.triggers[slot].play()
+
+
+class Keys(FmKeys):
+    """FM electric piano comping the rack's chord changes in a rhythm: a round
+    body under a bright, brief tine ping, with an optional tremolo-amp throb."""
+
+    title = "Keys (FM electric piano)"
+    summary = "Struck FM electric piano comping the rack's progression."

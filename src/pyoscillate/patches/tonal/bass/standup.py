@@ -12,11 +12,12 @@ mellows quickly, which is what makes a walking line thump rather than sustain.
 from __future__ import annotations
 
 from pyo import PyoObject
+from pyo.lib.effects import Disto
 
 from pyoscillate.clock import NoteDivision
 from pyoscillate.patches.base import Patch
 from pyoscillate.patches.common import Body
-from pyoscillate.patches.params import rate_param
+from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.pluck.string import PluckedString
 from pyoscillate.theory.phrase import BassLines, PhraseRole, Phrases
 from pyoscillate.theory.pitch import Note
@@ -31,14 +32,18 @@ class StandupBass(Body, PluckedString):
 
     volume = Patch.volume.replace(default=0.9)
     base_division = NoteDivision.SIXTEENTH
-    # the flesh of a finger: a slow, soft strike
-    pluck_time = 0.008
     # a low string moves little air for its energy: heard at the same level as
     # the others it needs a much hotter pluck
     gain = 0.7
     # the body's loudest resonances: the air inside and its upper modes
     body_modes = (Note.A1, Note.E2, Note.B2)
     body_q = (6, 6, 7)
+    # the finger's noise is low and thumpy
+    click_freq = 900
+    # a quiet string sustains well below the other instruments'
+    string_peak = 0.15
+
+    grit: Disto
 
     phrase_roles = (PhraseRole.BASS,)
     phrase = PluckedString.phrase.replace(
@@ -56,10 +61,32 @@ class StandupBass(Body, PluckedString):
     brightness = PluckedString.brightness.replace(default=700)
     position = PluckedString.position.replace(default=0.3)
     body = Body.body.replace(default=0.6)
+    # the flesh of a finger: a slow, soft strike, played hard and with feeling
+    hardness = PluckedString.hardness.replace(default=0.15)
+    dynamics = PluckedString.dynamics.replace(default=0.7)
+    looseness = PluckedString.looseness.replace(default=0.3)
+    pick_noise = PluckedString.pick_noise.replace(
+        default=0.3,
+        help_text="How much of the finger you hear; none is only the string, high is the slap and thump of a hard-played walking line.",
+    )
     rate = rate_param(
         base_division,
         "Halves or doubles the speed of the line for each step away from its sixteenth-note grid.",
     )
 
+    @Param(
+        0,
+        1,
+        0.05,
+        0.25,
+        "Grit",
+        "How much the string growls against the fingerboard; none is a clean, round note, high is a gritty, rasping, overdriven growl.",
+        sweep=True,
+    )
+    def grit_amount(self, value: float) -> None:
+        # a bass string is quiet, so the growl needs a hard push to show
+        self.saturate(self.grit, value**0.5)
+
     def voice_stage(self, string: PyoObject) -> PyoObject:
-        return self.add_body(string)
+        self.grit = Disto(self.add_body(string), drive=0, slope=0.2)
+        return self.grit

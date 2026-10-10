@@ -33,7 +33,7 @@ class MasterRackTests(unittest.TestCase):
         tonal = _group(rack, "Tonal")
         self.assertEqual(
             [child.title for child in tonal.children],
-            ["Bass", "Drone", "Keys", "Lead", "Pluck", "Strings"],
+            ["Bass", "Drone", "Keys", "Lead", "Pluck", "Strings", "Vocal"],
         )
         bass = _group(rack, "Bass")
         self.assertEqual([child.title for child in bass.children], ["FM", "Funk"])

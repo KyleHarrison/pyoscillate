@@ -74,7 +74,7 @@ These are recognisable sound families, each defined by how the mechanism is comb
 
 - drums: kick, snare, clap, hat, cymbal, tom, percussion, shaker
 - pitched percussion: bell
-- tonal voices: bass (with acid, fm, funk, reese sub-families), pluck, lead, pad, drone, keys, strings
+- tonal voices: bass (with acid, fm, funk, reese sub-families), pluck, lead, pad, drone, keys, strings, vocal
 - texture families: atmosphere, texture, rumble, noise
 - sample families: playback, breakbeat, grains
 - transition families: riser
@@ -107,7 +107,7 @@ questions, borrowed from modular practice, decide it:
 gated   → role decides: drums/, pitched_percussion/,
           tonal/bass (low-register note lines), tonal/lead, tonal/pluck,
           tonal/pad (sustained chords whose harmony changes on events),
-          tonal/keys, tonal/strings, sample/ (recorded source),
+          tonal/keys, tonal/strings, tonal/vocal, sample/ (recorded source),
           transition/ (one-shot gestures that mark form)
 ungated → stable pitch centre → tonal/drone   (any register; "sub" is a register, not a family)
         → no pitch centre     → texture/      (noise, grains, chaos-as-timbre)
@@ -200,6 +200,9 @@ offset, `True` for a plain set), and is meaningless when `hit` is False. Test
 its level (velocity-as-structure: a value that rounds to 0 is a rest, anything
 else sets loudness) should still produce both fields, so callbacks never
 infer a rest from a magic value.
+
+- `common.Held` — a gated voice whose notes are *held*, not struck (organs,
+  reeds, sung voices, bowed strings): see "Held voices" below.
 
 Both provide `finish(voice, *, resources=())`. `GatedVoice.finish` raises if `build()` never
 called `schedule()`.
@@ -324,6 +327,13 @@ return self.finish(self.<output node>)
 - **Different behaviour**: factor the shared steps into the family class and
   give each style a hook method to override (e.g. `FmBass.tone()`). Hook
   methods assign their nodes to `self` too.
+- **A style must feel like itself, not like constants.** Where a family has
+  shared controls (the plucked strings' Hardness, Dynamics, Pick noise and so
+  on), each style gives them its own starting values and, unless it is
+  genuinely only a re-tuned neighbour, adds at least one control of its own.
+  A control two styles both need lives once on a mixin (`Courses`,
+  `Sympathy`, `Body`), never copied. The family's own `AGENTS.md` states how
+  far this goes for it (see `tonal/pluck/AGENTS.md`).
 
 ### Lifecycle
 
@@ -425,6 +435,37 @@ them without a rebuild:
   returns the frequency multiplier to multiply into the note pitch, and the
   voice must `play()` that trigger on every struck note. Default 0 is a clean
   attack.
+
+### Held voices
+
+A voice whose notes sound for as long as the key is down extends
+`common.Held` (a `Gate`, `ChordRoot`, `Phrased`, `GatedVoice`). It owns
+everything about *when* and *at what pitch*, so a style only builds the tone:
+
+- `make_tone()` returns the summed signal of every voice, read from
+  `self.held_pitch` (one stream per voice, note-major: stream `note * copies +
+  copy`) and silenced by `self.voice_gain` (the notes not sounding are
+  silenced, not removed). `voice_stage()` follows the enveloped tone (a
+  body, a room); `on_note()` is called on every hit; `modulation()` is
+  where a style multiplies in more pitch motion.
+- A phrase with pitches plays one chord tone (a line); a chord rhythm plays
+  `chord_shape` (a chord, `ChordRoot.chord_frequencies`); a line voice leaves
+  `chord_shape` as `None`. `copies` repeats every note detuned (an ensemble,
+  with the `Ensemble` mixin's Spread).
+- The shared `Param`s are Attack, Release, Vibrato, Vibrato speed, Vibrato
+  bloom (the vibrato grows in after each note), Glide and Legato. A note is
+  held `hold_ticks` long: Legato of the way to the next note, from
+  `staccato` of it at 0, to all of it at 1. At full Legato the next note finds
+  the old one still held and slurs into it. The lift is checked on every
+  clock tick by a pulse of its own, so a hold is exact even when the notes are
+  a single step apart.
+- A style declares only what is its own: `RankedKeys` (organ, accordion) a stack
+  of ranks, `Singer` (vocals) breath and drift. Each shared control gets its
+  own starting value with `.replace(default=...)`, as everywhere.
+
+`Phrased.schedule_pattern` holds the `rate` inside the range of the phrase's own
+grid, since a voice that offers phrases on several grids (a figure on eighths,
+a chord on bars) has a Rate slider sized for only one.
 
 ## Design rules
 
