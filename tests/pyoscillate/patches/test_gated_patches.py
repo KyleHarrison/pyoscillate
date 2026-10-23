@@ -64,12 +64,35 @@ GATED_PATCHES = {
     "pyoscillate.patches.tonal.keys.string_keys": {"style": "piano"},
     "pyoscillate.patches.tonal.keys.string_keys#harpsichord": {"style": "harpsichord"},
     "pyoscillate.patches.tonal.keys.string_keys#clavichord": {"style": "clavichord"},
+    "pyoscillate.patches.tonal.lead.synth": {"style": "solo"},
+    "pyoscillate.patches.tonal.lead.synth#lead": {"style": "lead"},
+    "pyoscillate.patches.tonal.lead.synth#slide": {"style": "slide"},
+    "pyoscillate.patches.tonal.lead.synth#sync": {"style": "sync"},
+    "pyoscillate.patches.tonal.lead.synth#pwm": {"style": "pwm"},
+    "pyoscillate.patches.tonal.lead.synth#trance5th": {"style": "trance5th"},
+    "pyoscillate.patches.tonal.pad.pad": {"style": "enceladus"},
+    "pyoscillate.patches.tonal.pad.pad#dreams": {"style": "dreams"},
+    "pyoscillate.patches.tonal.pad.pad#wash": {"style": "wash"},
     "pyoscillate.patches.tonal.vocal.ensemble": {"style": "choir"},
     "pyoscillate.patches.tonal.vocal.ensemble#angels": {"style": "angels"},
     "pyoscillate.patches.tonal.vocal.solo": {"style": "female"},
     "pyoscillate.patches.tonal.vocal.solo#male": {"style": "male"},
     "pyoscillate.patches.tonal.vocal.whistling": {},
     "pyoscillate.patches.tonal.woodwind.flute.flute": {},
+    "pyoscillate.patches.tonal.woodwind.flute.piccolo": {},
+    "pyoscillate.patches.tonal.woodwind.lip.natural": {"style": "shell"},
+    "pyoscillate.patches.tonal.woodwind.lip.natural#didgeridoo": {
+        "style": "didgeridoo"
+    },
+    "pyoscillate.patches.tonal.woodwind.reed.bagpipes": {},
+    "pyoscillate.patches.tonal.woodwind.reed.double": {"style": "oboe"},
+    "pyoscillate.patches.tonal.woodwind.reed.double#horn": {"style": "horn"},
+    "pyoscillate.patches.tonal.woodwind.reed.double#bassoon": {"style": "bassoon"},
+    "pyoscillate.patches.tonal.woodwind.reed.double#contrabassoon": {
+        "style": "contrabassoon"
+    },
+    "pyoscillate.patches.tonal.woodwind.reed.single": {"style": "clarinet"},
+    "pyoscillate.patches.tonal.woodwind.reed.single#bass": {"style": "bass"},
     "pyoscillate.patches.transition.riser.riser": {"style": "noise"},
 }
 # -80 dBFS: comfortably above numerical noise, far below anything audible

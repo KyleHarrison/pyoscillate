@@ -82,12 +82,18 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
     filter_resonance: ClassVar[float]
     filter_attack: ClassVar[float]
     filter_release: ClassVar[float]
+    # the filter envelope's decay (seconds) and the fraction of the held
+    # level it settles on
+    filter_decay: ClassVar[float] = 0.2
+    filter_sustain: ClassVar[float] = 1.0
     # amplitude envelope times (seconds); sustain is always full per the
     # cookbook recipes (100%) and exposed live via `sustain`
     amp_attack: ClassVar[float]
     amp_release: ClassVar[float]
     # resting saturation drive
     base_drive: ClassVar[float]
+    # the vibrato's speed (Hz)
+    vibrato_rate: ClassVar[float] = 5.0
 
     @Param(
         0,
@@ -160,8 +166,8 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
     pwm: LFO
     osc1_sharp: PyoObject
     osc2_sharp: PyoObject
-    osc1: LFO
-    osc2: LFO
+    osc1: PyoObject
+    osc2: PyoObject
     mixed: PyoObject
     filter_env: Adsr
     filtered: MoogLP
@@ -215,7 +221,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
     )
     def sustain(self, value: float) -> None:
         self.amp_env.setSustain(value)
-        self.filter_env.setSustain(value)
+        self.filter_env.setSustain(value * self.filter_sustain)
 
     @Param(
         0.0,
@@ -252,6 +258,18 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         current chord in the octave nearest `root_freq`."""
         return self.root_at(clock.bar_index)
 
+    def make_source(self) -> PyoObject:
+        """The two oscillators summed, from `osc1_freq` and `osc2_freq`; a
+        style that builds its tone another way overrides this."""
+        # a plain sine LFO, muted (mul=0) whenever a style has no PWM; a
+        # single always-built node keeps the graph identical across styles
+        self.pwm = LFO(freq=self.pwm_rate, type=3, sharp=0.5, mul=self.pwm_depth)
+        self.osc1_sharp = self.osc1_duty + self.pwm
+        self.osc2_sharp = self.osc2_duty + self.pwm
+        self.osc1 = LFO(freq=self.osc1_freq, sharp=self.osc1_sharp, type=PULSE_TYPE)
+        self.osc2 = LFO(freq=self.osc2_freq, sharp=self.osc2_sharp, type=PULSE_TYPE)
+        return (self.osc1 + self.osc2) * 0.5
+
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
@@ -266,7 +284,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
 
         self.detune_up = SigTo(value=1.0, time=0.05)
         self.detune_down = SigTo(value=1.0, time=0.05)
-        self.pitch_vibrato = LFO(freq=5.0, type=3, sharp=0.5, mul=0.0)
+        self.pitch_vibrato = LFO(freq=self.vibrato_rate, type=3, sharp=0.5, mul=0.0)
         self.bent_pitch = self.add_bend(self.trigger)
         self.osc1_freq = (
             self.pitch1 * self.bent_pitch * self.detune_down + self.pitch_vibrato
@@ -275,19 +293,12 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
             self.pitch2 * self.bent_pitch * self.detune_up + self.pitch_vibrato
         )
 
-        # a plain sine LFO, muted (mul=0) whenever a style has no PWM; a
-        # single always-built node keeps the graph identical across styles
-        self.pwm = LFO(freq=self.pwm_rate, type=3, sharp=0.5, mul=self.pwm_depth)
-        self.osc1_sharp = self.osc1_duty + self.pwm
-        self.osc2_sharp = self.osc2_duty + self.pwm
-        self.osc1 = LFO(freq=self.osc1_freq, sharp=self.osc1_sharp, type=PULSE_TYPE)
-        self.osc2 = LFO(freq=self.osc2_freq, sharp=self.osc2_sharp, type=PULSE_TYPE)
-        self.mixed = (self.osc1 + self.osc2) * 0.5
+        self.mixed = self.make_source()
 
         self.filter_env = Adsr(
             attack=self.filter_attack,
-            decay=0.2,
-            sustain=1.0,
+            decay=self.filter_decay,
+            sustain=self.filter_sustain,
             release=self.filter_release,
             mul=self.filter_env_depth,
             add=self.filter_base,

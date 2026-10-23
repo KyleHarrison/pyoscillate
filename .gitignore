@@ -14,3 +14,4 @@ wheels/
 
 # Per-run crash logs from the master-rack command
 logs/
+*.pdf

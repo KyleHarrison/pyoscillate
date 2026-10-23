@@ -54,6 +54,17 @@ Band-passed noise has a much higher crest factor than a sine, so a breath layer 
 
 FM leads live in `fm.py`; the pulse-subtractive leads in `lead.py` are a different topology and do not share its graph.
 
+## Subtractive synth leads
+
+`synth.py` holds `SynthLead`, a `Lead` whose two oscillators are chosen per style (saw, square or triangle, each its own pitch offset and level) and the six lead recipes of the cookbook as its styles: Mono Solo, New Age Lead, R&B Slide, Screaming Sync, Strings PWM and Trance 5th. The graph, controls and played line are `Lead`'s; only `make_source()` differs.
+
+- A square is a true pulse (a sawtooth minus itself delayed by the pulse width, `pad.pad.Wave`): `lead.py`'s pulse is pyo's type-4 `LFO`, which is no duty-cycle square.
+- The pulse width sways on a slow LFO shared by both oscillators (the recipes' "PW osc1, osc2").
+- Screaming Sync hard-syncs the second oscillator to a silent first (read from a table at the master's phase times the pitch ratio) and swings its pitch on a slow LFO.
+- Filter cutoffs are the cookbook's knob positions in Hz (20 Hz to 20 kHz on a log scale, kept under 10 kHz where `MoogLP` is stable); the envelope's travel is the Brightness slider.
+
+Left out: the recipes' unison voices and the string chorus and delay.
+
 ## What NOT to assume
 
 A lead should not be treated as a generic oscillator patch. It must be judged by how clearly it carries the melodic role: whether it remains intelligible, articulate, and expressive in context.
