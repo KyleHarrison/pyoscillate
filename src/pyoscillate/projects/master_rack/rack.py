@@ -139,3 +139,22 @@ def _build_rack() -> type[Rack]:
 
 
 MasterRack = _build_rack()
+
+
+def project_racks() -> dict[str, type[Rack]]:
+    """The preset projects the master rack can load, by display name."""
+    from pyoscillate.projects.deep_house.rack import DeepHouseRack
+    from pyoscillate.projects.dubstep.rack import DubstepRack
+    from pyoscillate.projects.forest_psytrance.rack import ForestPsytranceRack
+    from pyoscillate.projects.lofi.boom_bap.rack import LofiRack
+    from pyoscillate.projects.lofi.slowed_reverb.rack import SlowedReverbRack
+    from pyoscillate.projects.psyambient.rack import PsyambientRack
+
+    return {
+        "Deep House": DeepHouseRack,
+        "Dubstep": DubstepRack,
+        "Forest Psytrance": ForestPsytranceRack,
+        "Lofi Boom Bap": LofiRack,
+        "Psyambient": PsyambientRack,
+        "Slowed Reverb": SlowedReverbRack,
+    }

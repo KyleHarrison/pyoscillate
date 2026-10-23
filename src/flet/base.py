@@ -1964,6 +1964,7 @@ class PatchRackApp:
         variants: dict[str, Callable[[], tuple[Rack, Path]]] | None = None,
         variant: str | None = None,
         analysis: bool = True,
+        projects: dict[str, Callable[[], Rack]] | None = None,
     ) -> None:
         self.page = page
         self.analysis = analysis
@@ -1974,6 +1975,7 @@ class PatchRackApp:
         self.subtitle = subtitle
         self.rack = rack
         self.variants = variants or {}
+        self.projects = projects or {}
         self.variant = variant
         self.scroll_pixels = 0.0
         self.list_top = 0.0
@@ -2068,6 +2070,14 @@ class PatchRackApp:
             dense=True,
             width=170,
             on_select=self._handle_variant,
+        )
+
+        self.project_dropdown = ft.Dropdown(
+            label="Project",
+            options=[ft.dropdown.Option(name) for name in self.projects],
+            dense=True,
+            width=190,
+            on_select=self._handle_project,
         )
 
         self._configure_page()
@@ -2166,6 +2176,7 @@ class PatchRackApp:
         tempo = level("Tempo", "Beats per minute", self.bpm_slider, self.bpm_text)
         selectors = ft.Row(
             controls=[
+                *([self.project_dropdown] if self.projects else []),
                 *([self.variant_dropdown] if self.variants else []),
                 self.key_dropdown,
                 self.progression_dropdown,
@@ -2383,16 +2394,20 @@ class PatchRackApp:
         e.page.update(self.master_output_slider, self.master_output_text)
 
     def _handle_bpm(self, e: ft.ControlEvent) -> None:
-        self.bpm = float(round(e.control.value))
+        self._set_bpm(float(round(e.control.value)))
         e.control.value = self.bpm
-        self.bpm_text.value = f"{self.bpm:g} BPM"
+        e.page.update(self.bpm_slider, self.bpm_text)
+
+    def _set_bpm(self, bpm: float) -> None:
+        self.bpm = bpm
+        self.bpm_slider.value = min(max(bpm, BPM_MIN), BPM_MAX)
+        self.bpm_text.value = f"{bpm:g} BPM"
         if self.running:
-            self.context.tempo.set_bpm(self.bpm)
+            self.context.tempo.set_bpm(bpm)
             self.clock.retime()
             for panel in self.panels.values():
                 if panel.patch.built:
                     panel.patch.retempo()
-        e.page.update(self.bpm_slider, self.bpm_text)
 
     def _handle_key(self, e: ft.ControlEvent) -> None:
         self._set_key(int(e.control.value))
@@ -2586,6 +2601,10 @@ class PatchRackApp:
             self.status.color = ERROR
             self.page.update()
             return
+        self._apply_preset(preset)
+        self.page.update()
+
+    def _apply_preset(self, preset: dict[str, Any]) -> None:
         rack_values = preset.get(RACK_PRESET_KEY, {})
         if rack_values.get("key") in Note.NAMES:
             self._set_key(Note.NAMES.index(rack_values["key"]))
@@ -2613,7 +2632,43 @@ class PatchRackApp:
         for top in self.groups:
             for group in top.walk():
                 group.reveal_enabled()
+
+    # -- projects ------------------------------------------------------------
+
+    def _handle_project(self, e: ft.ControlEvent) -> None:
+        name = e.control.value
+        if name in self.projects:
+            self._load_project(name)
         self.page.update()
+
+    def _load_project(self, name: str) -> None:
+        """Set this rack to a project's settings: its tempo, key, scale and
+        progression, exactly its patches added and switched on, and each one's
+        values, sweeps and evolutions. Patches the project has that this rack
+        lacks are skipped; sidechains and the clock resolution stay this rack's."""
+        project = self.projects[name]()
+        preset: dict[str, Any] = {}
+        for patch in (p for group in project.groups for p in group.patches):
+            if patch.name not in self.panels:
+                continue
+            source = PatchPanel(patch, help=self.help)
+            source.enabled = True
+            preset[patch.name] = source.to_preset()
+        preset[RACK_PRESET_KEY] = {
+            "key": Note.NAMES[project.harmony.key],
+            "added": list(preset),
+        }
+        self._set_bpm(float(project.bpm))
+        self.rack.harmony.scale = project.harmony.scale
+        # every chord-following patch, switched on or not, starts on the
+        # project's progression; a patch's own saved one then overrides it
+        for patch in self._progressive_patches():
+            patch.progression = project.progression
+        self._apply_preset(preset)
+        self.progression_dropdown.value = self._progression_value()
+        self.preset_dropdown.value = None
+        self.status.value = f"Project '{name}' loaded"
+        self.status.color = ACCENT
 
     def _handle_help(self, e: ft.ControlEvent) -> None:
         """Show or hide the description under every control."""

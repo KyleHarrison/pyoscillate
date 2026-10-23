@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import flet as ft
-from pyoscillate.projects.master_rack.rack import MasterRack
+from pyoscillate.projects.master_rack.rack import MasterRack, project_racks
 from src.flet.base import PatchRackApp
 
 
@@ -14,6 +14,7 @@ def main(page: ft.Page) -> None:
         "Every patch, grouped by category - add what you want to hear",
         MasterRack(),
         catalog_dir=Path(__file__).parent / "presets",
+        projects=project_racks(),
     )
 
 
