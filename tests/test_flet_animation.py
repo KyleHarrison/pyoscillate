@@ -38,8 +38,8 @@ class _Evolution:
         self.ticking = True
         self.progress = 0.0
 
-    def rotation(self, count: int) -> tuple:
-        return ()
+    def lineup(self) -> tuple[tuple, int]:
+        return (), 0
 
 
 class SweepRowRefreshTests(unittest.TestCase):

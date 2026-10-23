@@ -299,13 +299,7 @@ class Phrased(GatedVoice):
             cls.phrase = narrowed
         super().__init_subclass__(**kwargs)
 
-    # the listener's hand-edited copy of the catalog phrase at that dropdown
-    # position; it plays in place of the catalog's until another is picked
-    _edited: tuple[int, Phrase] | None = None
-
     def _select_phrase(self, value: float) -> None:
-        if self._edited and self._edited[0] != int(value):
-            self._edited = None
         self.use_phrase(self.selected_phrase_at(value))
 
     phrase = choice_param(
@@ -318,24 +312,7 @@ class Phrased(GatedVoice):
 
     def selected_phrase_at(self, index: float) -> Phrase:
         """The `Phrase` at dropdown position `index` of the voice's catalog."""
-        if self._edited and self._edited[0] == int(index):
-            return self._edited[1]
-        catalog = type(self).phrase.catalog
-        assert catalog is not None
-        return catalog.by_index(int(index))
-
-    @property
-    def edited_phrase(self) -> Phrase | None:
-        """The listener's edit of the chosen phrase, if there is one."""
-        return self._edited[1] if self._edited else None
-
-    def edit_phrase(self, phrase: Phrase) -> None:
-        """Play `phrase`, the listener's edit of the one chosen, live. It holds
-        until another phrase is picked from the dropdown. A patch not built
-        yet only keeps it: the build's phrase control plays it."""
-        self._edited = (int(self.phrase), phrase)
-        if self.built:
-            self.use_phrase(phrase)
+        return self.choice_at(type(self).phrase, index)
 
     @property
     def selected_phrase(self) -> Phrase:
@@ -399,9 +376,7 @@ class Progressive(Patch):
     @property
     def selected_progression(self) -> ChordChanges:
         """The `ChordChanges` the `progression` dropdown currently names."""
-        catalog = type(self).progression.catalog
-        assert catalog is not None
-        return catalog.by_index(int(self.progression))
+        return self.choice_at(type(self).progression, self.progression)
 
     def chord_offset(self, harmony: Harmony, bar: int) -> int:
         """Semitones above the key of the chord root sounding in `bar`."""

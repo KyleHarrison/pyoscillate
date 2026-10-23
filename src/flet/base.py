@@ -588,6 +588,7 @@ class EvolveSection:
         if not evolution.options:
             return
         current = evolution.current
+        member = evolution.current_member
         self._shown_current = current
         for choice, (row, icon, label) in self._rows.items():
             if evolution.enabled:
@@ -599,11 +600,11 @@ class EvolveSection:
             else:
                 icon.icon = (
                     ft.Icons.RADIO_BUTTON_CHECKED
-                    if choice is current
+                    if choice is member
                     else ft.Icons.RADIO_BUTTON_UNCHECKED
                 )
             row.close_on_click = not evolution.enabled
-            label.weight = ft.FontWeight.BOLD if choice is current else None
+            label.weight = ft.FontWeight.BOLD if choice is member else None
         if evolution.enabled:
             self.menu_label.value = (
                 f"{len(evolution.choices)} of {len(evolution.options)}"
@@ -661,7 +662,9 @@ class EvolveSection:
         """All ticks every choice; None leaves just the one playing."""
         evolution = self.evolution
         evolution.choices = (
-            evolution.options if ticked else evolution.order((evolution.current,))
+            evolution.options
+            if ticked
+            else evolution.order((evolution.current_member,))
         )
         self._show_choices()
         self.timeline.redraw()

@@ -225,6 +225,9 @@ class Patch(ABC):
         self.tempo: Tempo | None = None
         self._built = False
         self._playing = False
+        # the listener's edited copies of dropdown choices, by dropdown name
+        # and the id of the catalog member each is an edit of
+        self._edits: dict[tuple[str, str], Any] = {}
         self._retired: tuple[Any, ...] = ()
         for param in self.params:
             param.write(self, values.pop(param.name, param.default))
@@ -238,6 +241,22 @@ class Patch(ABC):
         self.axis_evolutions: dict[Param, Evolution] = {
             axis: Evolution(self, axis) for axis in self.evolution_axes()
         }
+
+    def choice_at(self, axis: Param, index: float) -> Any:
+        """The catalog member at dropdown position `index` of `axis`, or the
+        listener's edited copy of it."""
+        assert axis.catalog is not None
+        member = axis.catalog.by_index(int(index))
+        return self._edits.get((axis.name, member.id), member)
+
+    def edit_choice(self, axis: Param, choice: Any) -> None:
+        """Keep `choice`, a copy of a member of `axis`'s catalog (same `id`)
+        with the listener's changes, in the member's place; it holds until
+        the patch is gone. A built patch runs the dropdown's control again, so
+        an edit to what is playing is heard at once."""
+        self._edits[(axis.name, choice.id)] = choice
+        if self._built:
+            axis.control(self, axis.read(self))
 
     @property
     def built(self) -> bool:

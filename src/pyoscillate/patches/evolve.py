@@ -57,7 +57,7 @@ class Evolution:
         self.bars = self.DEFAULT_BARS
         # the choices ticked to take part, in the axis's own order; only the
         # starting one until a rack or listener ticks more
-        self.choices: tuple[Any, ...] = (self.current,) if axis else ()
+        self.choices: tuple[Any, ...] = (self.current_member,) if axis else ()
         self._clock: Clock | None = None
         self._division: Division | None = None
         self._fires = 0
@@ -81,13 +81,28 @@ class Evolution:
         return self.axis.catalog.members()
 
     @property
-    def current(self) -> Any:
-        """The choice the axis's dropdown is on now."""
+    def current_member(self) -> Any:
+        """The catalog member the axis's dropdown is on now, as the dropdown
+        and the ticked `choices` know it."""
         assert self.axis is not None and self.axis.catalog is not None
-        edited = getattr(self.patch, "edited_phrase", None)
-        if edited is not None and self.axis is type(self.patch).phrase:
-            return edited
         return self.axis.catalog.by_index(int(self.axis.read(self.patch)))
+
+    @property
+    def current(self) -> Any:
+        """The choice the axis's dropdown is on now: its member, or the
+        listener's edited copy of it."""
+        return self.resolve(self.current_member)
+
+    def resolve(self, member: Any) -> Any:
+        """`member`, or the listener's edited copy of it."""
+        assert self.axis is not None
+        return self.patch._edits.get((self.axis.name, member.id), member)
+
+    def edit(self, choice: Any) -> None:
+        """Keep `choice`, an edited copy of one of this axis's members, in
+        that member's place."""
+        assert self.axis is not None
+        self.patch.edit_choice(self.axis, choice)
 
     def order(self, chosen: tuple[Any, ...]) -> tuple[Any, ...]:
         """`chosen` in the dropdown's order, dropping what it doesn't offer."""
@@ -165,22 +180,20 @@ class Evolution:
         """Bars until the next change; the full interval when not running."""
         return self.bars * (1 - self.progress)
 
-    def rotation(self, count: int) -> tuple[Any, ...]:
-        """The choice playing now followed by what `advance` will move to
-        next, `count` in all, wrapping; just the one playing when fewer than
-        two are ticked or the evolution is off. Empty for the patch's own
+    def lineup(self) -> tuple[tuple[Any, ...], int]:
+        """What the evolution plays through, in a fixed order, and where in it
+        the choice playing now is: the ticked choices in the dropdown's own
+        order (the playing one first when it is not ticked), so the line holds
+        still as `advance` moves along it. Just the one playing when fewer
+        than two are ticked or the evolution is off; empty for the patch's own
         hook, which has no choices."""
         if self.axis is None:
-            return ()
-        current = self.current
+            return (), 0
+        current = self.current_member
         if not self.enabled or len(self.choices) < 2:
-            return (current,)
-        position = self.choices.index(current) if current in self.choices else -1
-        following = (
-            self.choices[(position + step) % len(self.choices)]
-            for step in range(1, count)
-        )
-        return (current, *following)
+            return (self.resolve(current),), 0
+        members = self.choices if current in self.choices else (current, *self.choices)
+        return tuple(self.resolve(member) for member in members), members.index(current)
 
     def _fire(self) -> None:
         if self.axis is None:
@@ -196,6 +209,6 @@ class Evolution:
         choice picked by hand continues from there."""
         if self.axis is None or len(self.choices) < 2:
             return
-        current = self.current
+        current = self.current_member
         position = self.choices.index(current) if current in self.choices else -1
         self.axis.write(self.patch, self.choices[(position + 1) % len(self.choices)])
