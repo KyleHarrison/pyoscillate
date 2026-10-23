@@ -1,4 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.snare.snare
+#   style: lofi | halftime
 """Tone-and-rattle snare voice, plus a swung, softened lofi voice.
 
 Two layers share one trigger: a short sine body a little above the kick's
@@ -191,3 +192,16 @@ class SnareLofi(Snare):
         self.lowpassed = Biquad(self.source, freq=self.lowpass_cutoff, q=0.7, type=0)
         self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
         return self.shaper
+
+
+class SnareHalfTime(Snare):
+    """Heavy half-time snare: a fat body and a long rattle tail on beat 3
+    alone, the one backbeat of a dubstep bar."""
+
+    name = "snare_halftime"
+    summary = "Heavy, roomy half-time snare cracking on beat 3 of every bar."
+    phrase = Snare.phrase.replace(default=Rhythms.SNARE_HALF_TIME)
+    base_freq: ClassVar[float] = Note.E3
+    body_decay: ClassVar[float] = 0.14
+    body_level: ClassVar[float] = 0.8
+    decay = Snare.decay.replace(default=0.3)

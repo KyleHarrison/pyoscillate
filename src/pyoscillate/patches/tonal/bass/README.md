@@ -62,10 +62,11 @@ different generator or filter for a different bass role.
 `acid/`, `fm/`, `funk/` and `reese/` each need a different topology from
 `Bass.build`: a per-note filter envelope with accent/slide, FM with an
 index envelope, a gated two-oscillator voice whose filter envelope swells
-open on every note, and a detuned saw stack. All of them still subclass the
+open on every note, and a detuned saw stack (with a tempo-locked wobble
+LFO on its filter). All of them still subclass the
 shared `Bass` base for scheduling and chord-following (`chord_root`); only the
-oscillator/filter graph itself is their own. `fm/` and `funk/` have patches
-(see their `AGENTS.md`); `acid/` and `reese/` are still placeholders. A plain
+oscillator/filter graph itself is their own. `fm/`, `funk/` and `reese/` have patches
+(see their `AGENTS.md`); `acid/` is still a placeholder. A plain
 sub or harmonic bass stays in the shared core as a profile, because sub is a
 register, not a family.
 

@@ -64,3 +64,9 @@ class Progressions(Catalog):
         label="Psy vamp (i-i-i-bII, two bars each)",
         category="Modal",
     )
+    EPIC_MINOR = ChordChanges(
+        roots=(0, 8, 3, 10),
+        bars_per_chord=2,
+        label="Epic minor (i-bVI-bIII-bVII, two bars each)",
+        category="Minor",
+    )

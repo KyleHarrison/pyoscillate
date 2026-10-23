@@ -371,3 +371,50 @@ class Rhythms(Catalog):
         roles=(PhraseRole.CHORD_HIT, PhraseRole.CYMBAL),
         steps=(Step(0),),
     )
+    # dubstep half-time kick over two bars: beat 1 each bar, with a pickup on
+    # the "and" of 3 in the first bar and the "and" of 2 in the second
+    KICK_HALF_TIME = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Half-time kick: beat 1 with syncopated pickups",
+        mode=PhraseMode.NONE,
+        category="Half-time",
+        roles=(PhraseRole.KICK,),
+        steps=(
+            Step(0),
+            Step(10, accent=0.8),
+            Step(16),
+            Step(22, accent=0.75),
+        ),
+    )
+    # dubstep half-time snare: beat 3 only, a soft ghost leaning into the loop
+    SNARE_HALF_TIME = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Half-time snare: beat 3 of each bar",
+        mode=PhraseMode.NONE,
+        category="Half-time",
+        roles=(PhraseRole.SNARE,),
+        steps=(
+            Step(8),
+            Step(24),
+            Step(31, accent=0.3),
+        ),
+    )
+    # sparse offbeat hats: an open hat on the "and" of 3 choked by a ghost
+    HAT_HALF_TIME = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=16,
+        label="Half-time hats: sparse offbeats with an open hat on 3",
+        mode=PhraseMode.NONE,
+        category="Half-time",
+        roles=(PhraseRole.HAT,),
+        steps=(
+            Step(2, accent=0.8),
+            Step(4, accent=0.5),
+            Step(6, accent=0.8),
+            Step(10, accent=0.8, open=True),
+            Step(11, accent=0.35),
+            Step(14, accent=0.8),
+        ),
+    )

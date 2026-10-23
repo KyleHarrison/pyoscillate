@@ -136,3 +136,23 @@ class Leads(Catalog):
             Step(30, Interval.MINOR_SECOND),
         ),
     )
+    # slow held notes over two bars (one chord): a climb from the fifth to the
+    # octave and the ninth, then back down. Fifth, fourth, octave and ninth
+    # only, so the line sings over minor and major chords alike
+    ANTHEM = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Anthem: slow held notes climbing to the octave and ninth",
+        mode=PhraseMode.SEMITONES,
+        category="Anthem",
+        roles=(PhraseRole.LEAD,),
+        steps=(
+            Step(0, Interval.PERFECT_FIFTH, accent=0.9, length=7),
+            Step(8, Interval.PERFECT_FOURTH, accent=0.8, length=3),
+            Step(12, Interval.PERFECT_FIFTH, accent=0.8, length=3),
+            Step(16, Interval.OCTAVE, length=6),
+            Step(22, Interval.MAJOR_NINTH, accent=0.8, length=2),
+            Step(24, Interval.OCTAVE, accent=0.85, length=3),
+            Step(28, Interval.PERFECT_FIFTH, accent=0.75, length=3),
+        ),
+    )

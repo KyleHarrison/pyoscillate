@@ -267,3 +267,55 @@ class BassLines(Catalog):
             Step(15, Interval.MINOR_SEVENTH, accent=0.6, length=0.5),
         ),
     )
+    # dubstep drop over two bars (one chord): long held notes the wobble moves
+    # through, short stabs between them, and no note struck on the snare (beat 3).
+    # Only root, fifth, octave and fourth, so the line suits the minor and the
+    # major chords of the epic-minor progression alike
+    BASS_DROP = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Drop bass: held roots and short stabs, resting under the snare",
+        mode=PhraseMode.SEMITONES,
+        category="Half-time",
+        roles=(PhraseRole.BASS,),
+        steps=(
+            Step(0, Interval.UNISON, length=5),
+            Step(6, Interval.UNISON, accent=0.8, length=2),
+            Step(10, Interval.OCTAVE, accent=0.85, length=2),
+            Step(12, Interval.UNISON, accent=0.8, length=3),
+            Step(16, Interval.UNISON, length=6),
+            Step(22, Interval.PERFECT_FIFTH, accent=0.8, length=2),
+            Step(26, Interval.UNISON, accent=0.85, length=3),
+            Step(30, Interval.OCTAVE, accent=0.75, length=1.5),
+        ),
+    )
+    BASS_DROP_B = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Drop bass B: a three-beat held root, then a fifth and octave answer",
+        mode=PhraseMode.SEMITONES,
+        category="Half-time",
+        roles=(PhraseRole.BASS,),
+        steps=(
+            Step(0, Interval.UNISON, length=12),
+            Step(12, Interval.PERFECT_FIFTH, accent=0.8, length=2),
+            Step(14, Interval.OCTAVE, accent=0.85, length=2),
+            Step(16, Interval.UNISON, length=4),
+            Step(20, Interval.UNISON, accent=0.8, length=2),
+            Step(26, Interval.PERFECT_FOURTH, accent=0.85, length=2),
+            Step(28, Interval.PERFECT_FIFTH, accent=0.85, length=3),
+        ),
+    )
+    BASS_HEAVE = Phrase(
+        division=NoteDivision.SIXTEENTH,
+        cycle=32,
+        label="Heave bass: one held root a bar, the second bar leaning on the fifth",
+        mode=PhraseMode.SEMITONES,
+        category="Half-time",
+        roles=(PhraseRole.BASS,),
+        steps=(
+            Step(0, Interval.UNISON, length=15),
+            Step(16, Interval.UNISON, accent=0.9, length=11),
+            Step(28, Interval.PERFECT_FIFTH, accent=0.8, length=3),
+        ),
+    )

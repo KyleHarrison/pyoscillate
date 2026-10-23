@@ -1,5 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.hat.groove
-#   style: crisp | open | shuffle | lofi | forest
+#   style: crisp | open | shuffle | lofi | forest | halftime
 """Groove hi-hat voices with closed and open articulations.
 
 The source blends white noise with a cluster of high FM operators at
@@ -231,3 +231,15 @@ class GrooveLofi(Groove):
         self.lowpassed = Biquad(self.filtered, freq=self.lowpass_cutoff, q=0.7, type=0)
         self.shaper = Disto(self.lowpassed, drive=self.drive, slope=0.7)
         return self.shaper
+
+
+class GrooveHalfTime(Groove):
+    """Sparse dubstep hat: offbeat ticks and one open hat on the "and" of 3,
+    choked by a ghost, kept quiet so the bass and snare own the bar."""
+
+    name = "hat_halftime"
+    title = "Hat - Half-time"
+    summary = "Sparse offbeat hats with one open hat on 3, behind the half-time pulse."
+    phrase = Groove.phrase.replace(default=Rhythms.HAT_HALF_TIME)
+    cutoff = Groove.cutoff.replace(default=10500)
+    length = Groove.length.replace(default=0.8)

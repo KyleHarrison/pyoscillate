@@ -112,7 +112,7 @@ In the app:
 2. Expand a group and use **Add patches**, then flip a patch's switch on.
 3. Expand a patch for its waveform, spectrum and sliders. Set a pattern or chord progression to **Evolve** to cycle through the ticked options every N bars.
 
-Other racks live under `src/flet/` (`deep_house`, `forest_psytrance`, `lofi`, `slowed_reverb`, `psyambient`); run them with `uv run flet run src/flet/<rack>/app.py`.
+Other racks live under `src/flet/` (`deep_house`, `dubstep`, `forest_psytrance`, `lofi`, `slowed_reverb`, `psyambient`); run them with `uv run flet run src/flet/<rack>/app.py`.
 
 ## Build a standalone app
 

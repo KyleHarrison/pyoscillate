@@ -1,5 +1,5 @@
 # uv run flet run src/flet/patch/app.py -- pyoscillate.patches.drums.kick.kick
-#   style: round | punch | soft | lofi
+#   style: round | punch | soft | lofi | dubstep
 """Four-on-the-floor kick voices, plus a swung, softened lofi voice.
 
 Each hit restarts a sine body at a zero crossing, so the impact starts at full
@@ -240,3 +240,19 @@ class KickLofi(Kick):
     def voice_output(self) -> PyoObject:
         self.lowpassed = Biquad(self.shaper, freq=self.lowpass_cutoff, q=0.7, type=0)
         return self.lowpassed
+
+
+class KickDubstep(Kick):
+    """Deep, long-bodied half-time kick: a heavy thump on beat 1 with a
+    syncopated pickup, leaving the rest of the bar to the bass and the
+    snare."""
+
+    summary = "Deep, heavy half-time kick on beat 1 with a syncopated pickup."
+    body_freq, sweep_depth, sweep_time, decay, click_level = (
+        46.0,
+        95.0,
+        0.05,
+        0.34,
+        0.2,
+    )
+    phrase = Kick.phrase.replace(default=Rhythms.KICK_HALF_TIME)

@@ -36,7 +36,7 @@ class MasterRackTests(unittest.TestCase):
             ["Bass", "Drone", "Keys", "Lead", "Pluck", "Strings", "Vocal", "Woodwind"],
         )
         bass = _group(rack, "Bass")
-        self.assertEqual([child.title for child in bass.children], ["FM", "Funk"])
+        self.assertEqual([child.title for child in bass.children], ["FM", "Funk", "Reese"])
         self.assertIn(bass, tonal.children)
 
     def test_a_group_offers_only_the_patches_directly_in_its_directory(self) -> None:
