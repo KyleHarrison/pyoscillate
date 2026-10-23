@@ -84,6 +84,9 @@ class Evolution:
     def current(self) -> Any:
         """The choice the axis's dropdown is on now."""
         assert self.axis is not None and self.axis.catalog is not None
+        edited = getattr(self.patch, "edited_phrase", None)
+        if edited is not None and self.axis is type(self.patch).phrase:
+            return edited
         return self.axis.catalog.by_index(int(self.axis.read(self.patch)))
 
     def order(self, chosen: tuple[Any, ...]) -> tuple[Any, ...]:

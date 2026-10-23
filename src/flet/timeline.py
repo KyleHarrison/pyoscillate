@@ -16,12 +16,13 @@ tick.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any, ClassVar
 
 import flet as ft
 import flet.canvas as cv
 from pyoscillate.patches.evolve import Evolution
-from pyoscillate.theory.phrase.base import Phrase, PhraseMode
+from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
 from pyoscillate.theory.progression import ChordChanges
 
 ACCENT = "#00A896"
@@ -29,6 +30,7 @@ MUTED = "#A9B8B4"
 TEXT = "#F4F7F6"
 TILE_BG = "#1D2B28"
 NOW_BG = "#16413C"
+EDIT_BG = "#1C4F48"
 GRID = "#31403D"
 
 
@@ -45,6 +47,8 @@ class EvolveTimeline:
     MARKER_Y = 80
     BLOCK_GAP = 4
     MAX_BLOCKS = 4
+    # the ring and template dot of the edit guide
+    RING_RADIUS = 6
     # a playhead that moved less than this many pixels is not repainted
     MIN_MOVE = 1.0
     # the widest a bar's tick label may be crowded: label every Nth bar
@@ -80,9 +84,18 @@ class EvolveTimeline:
             expand=True,
             on_resize=self._handle_resize,
         )
-        self.control = ft.Container(
-            content=ft.Stack([self.blocks, self.playhead], height=self.HEIGHT),
-            height=self.HEIGHT,
+        # the dotted guides at the cell a tap would change, on their own canvas
+        self.guide = cv.Canvas(shapes=[], height=self.HEIGHT, expand=True)
+        self.control = ft.GestureDetector(
+            content=ft.Container(
+                content=ft.Stack(
+                    [self.blocks, self.guide, self.playhead], height=self.HEIGHT
+                ),
+                height=self.HEIGHT,
+            ),
+            on_tap_down=self._handle_tap,
+            on_hover=self._handle_hover,
+            on_exit=self._clear_guide,
         )
         self.redraw()
 
@@ -112,6 +125,118 @@ class EvolveTimeline:
         self.redraw()
         self.blocks.update()
         self.playhead.update()
+
+    # -- editing -----------------------------------------------------------
+
+    def _editable(self) -> Phrase | None:
+        """The phrase a tap would edit: the playing block's, when its patch
+        can take an edit."""
+        phrase = self.evolution.current if self.evolution.axis else None
+        patch = getattr(self.evolution, "patch", None)
+        if hasattr(patch, "edit_phrase") and isinstance(phrase, Phrase):
+            return phrase
+        return None
+
+    def _dot_y(self, phrase: Phrase, offset: float) -> float:
+        """The height a step of `offset` is drawn at, as `_draw_phrase` does."""
+        offsets = [step.offset for step in phrase.steps]
+        low, high = min(offsets), max(offsets)
+        top, bottom = self.BODY_TOP + 6, self.BODY_BOTTOM - 6
+        if phrase.mode is PhraseMode.NONE or high <= low:
+            return (top + bottom) / 2
+        return bottom - (offset - low) / (high - low) * (bottom - top)
+
+    def _target(
+        self, phrase: Phrase, x: float, y: float
+    ) -> tuple[int, int, float, float]:
+        """The step a tap at (x, y) lands on: its place in the cycle, its
+        pitch offset, and the block coordinates of its dot."""
+        cell = self._block_width / (self._span * phrase.division)
+        column = int(x / cell)
+        offsets = [step.offset for step in phrase.steps]
+        low, high = min(offsets), max(offsets)
+        top, bottom = self.BODY_TOP + 6, self.BODY_BOTTOM - 6
+        if phrase.mode is PhraseMode.NONE or high <= low:
+            return column % phrase.cycle, 0, column * cell, (top + bottom) / 2
+        fraction = min(max((bottom - y) / (bottom - top), 0), 1)
+        offset = round(low + fraction * (high - low))
+        return (
+            column % phrase.cycle,
+            offset,
+            column * cell,
+            bottom - (offset - low) / (high - low) * (bottom - top),
+        )
+
+    def _handle_tap(self, e: ft.TapEvent) -> None:
+        """A tap on the playing block's phrase adds a step where it landed, or
+        takes away the step already there (the last one stays). A pitched
+        phrase's step takes the pitch the tap's height stands for."""
+        phrase = self._editable()
+        if phrase is None or e.local_position is None:
+            return
+        x, y = e.local_position.x, e.local_position.y
+        if not 0 <= x < self._edit_width(phrase):
+            return
+        at, offset, _, _ = self._target(phrase, x, y)
+        kept = tuple(step for step in phrase.steps if step.at != at)
+        if len(kept) < len(phrase.steps):
+            steps = kept or phrase.steps
+        else:
+            steps = tuple(sorted((*kept, Step(at, offset)), key=Step.position))
+        label = phrase.label
+        if not label.endswith("(edited)"):
+            label += " (edited)"
+        self.evolution.patch.edit_phrase(replace(phrase, steps=steps, label=label))
+        for canvas in self.redraw():
+            canvas.update()
+
+    def _handle_hover(self, e: ft.PointerEvent) -> None:
+        """Draw dotted guides through the dot a tap here would place."""
+        phrase = self._editable()
+        position = e.local_position
+        if (
+            phrase is None
+            or position is None
+            or not 0 <= position.x < self._edit_width(phrase)
+        ):
+            self._clear_guide()
+            return
+        at, _, x, y = self._target(phrase, position.x, position.y)
+        existing = next((step for step in phrase.steps if step.at == at), None)
+        if existing is not None:
+            # the tap would take this note away: the guides settle on it
+            y = self._dot_y(phrase, existing.offset)
+        paint = ft.Paint(color=TEXT, stroke_width=1, stroke_dash_pattern=[2, 3])
+        self.guide.shapes = [
+            cv.Line(x, self.BODY_TOP, x, self.BODY_BOTTOM, paint),
+            cv.Line(0, y, self._edit_width(phrase), y, paint),
+        ]
+        if existing is not None:
+            # a ring round the note that would go
+            self.guide.shapes.append(
+                cv.Circle(
+                    x,
+                    y,
+                    self.RING_RADIUS,
+                    ft.Paint(color=TEXT, stroke_width=2, style=ft.PaintingStyle.STROKE),
+                )
+            )
+        else:
+            # a template of the note that would appear
+            self.guide.shapes.append(
+                cv.Circle(
+                    x,
+                    y,
+                    self.RING_RADIUS - 2,
+                    ft.Paint(color=ft.Colors.with_opacity(0.55, ACCENT)),
+                )
+            )
+        self.guide.update()
+
+    def _clear_guide(self, e: ft.ControlEvent | None = None) -> None:
+        if self.guide.shapes:
+            self.guide.shapes = []
+            self.guide.update()
 
     # -- drawing -----------------------------------------------------------
 
@@ -196,6 +321,7 @@ class EvolveTimeline:
                 border_radius=4,
                 paint=ft.Paint(color=NOW_BG if now else TILE_BG),
             ),
+            *self._draw_pattern_section(choice, left, now=now),
             cv.Rect(
                 left,
                 top,
@@ -229,6 +355,41 @@ class EvolveTimeline:
         shapes += self._draw_ruler(left)
         return shapes
 
+    def _edit_width(self, phrase: Phrase) -> float:
+        """How wide the editable pattern is at the start of the block: one
+        cycle, or all of it when the cycle fills the bars."""
+        return min(phrase.cycle / phrase.division / self._span, 1) * self._block_width
+
+    def _draw_pattern_section(
+        self, choice: Any, left: float, *, now: bool
+    ) -> list[cv.Shape]:
+        """The one cycle the listener edits, picked out at the block's start;
+        what follows is the same cycle repeating."""
+        if not (now and isinstance(choice, Phrase) and self._editable()):
+            return []
+        top, bottom = self.BODY_TOP, self.BODY_BOTTOM
+        width = self._edit_width(choice)
+        return [
+            cv.Rect(
+                left,
+                top,
+                width,
+                bottom - top,
+                border_radius=4,
+                paint=ft.Paint(color=EDIT_BG),
+            ),
+            cv.Rect(
+                left,
+                top,
+                width,
+                bottom - top,
+                border_radius=4,
+                paint=ft.Paint(
+                    color=ACCENT, stroke_width=2, style=ft.PaintingStyle.STROKE
+                ),
+            ),
+        ]
+
     def _draw_phrase(self, phrase: Phrase, left: float, *, now: bool) -> list[cv.Shape]:
         """One dot per sounding step, the phrase repeating to fill the bars;
         a pitched phrase's dots sit higher for higher offsets."""
@@ -239,6 +400,8 @@ class EvolveTimeline:
         low, high = (min(offsets), max(offsets)) if offsets else (0, 0)
         pitched = phrase.mode is not PhraseMode.NONE and high > low
         paint = ft.Paint(color=ACCENT if now else MUTED)
+        # the cycles after the first only repeat it
+        echo = ft.Paint(color=ft.Colors.with_opacity(0.4, ACCENT if now else MUTED))
         shapes: list[cv.Shape] = []
         repeat = 0.0
         while repeat < bars:
@@ -252,7 +415,12 @@ class EvolveTimeline:
                     y = (top + bottom) / 2
                 radius = 1.5 + 1.5 * min(step.accent, 1.0)
                 shapes.append(
-                    cv.Circle(left + at / bars * self._block_width, y, radius, paint)
+                    cv.Circle(
+                        left + at / bars * self._block_width,
+                        y,
+                        radius,
+                        paint if repeat == 0 else echo,
+                    )
                 )
             repeat += cycle_bars
         return shapes
