@@ -54,9 +54,8 @@ from pyoscillate.patches.common import (
     PitchBend,
 )
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.chord import Chords
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase import Hooks, PhraseMode, PhraseRole
+from pyoscillate.theory.phrase import Hooks, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -325,17 +324,6 @@ class PluckedString(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         """`note` off by Looseness's tiny, random tuning drift."""
         cents = self.looseness * self.looseness_cents * (2 * self._rng.random() - 1)
         return Note.transpose(note, cents / 100)
-
-    def note_frequency(self, value: int, bar_index: int) -> float:
-        """The pitch a phrase step asks for in `bar_index`'s chord: for a
-        chord-tone phrase `value` indexes the chord's triad, for a bass line
-        it is semitones above the chord root. Either way it is the octave of
-        the chord root nearest the Register."""
-        root = self.root_at(bar_index)
-        if self.selected_phrase.mode is PhraseMode.CHORD_TONE:
-            tones = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)
-            return Note.transpose(root, tones[value] - tones[0])
-        return Note.transpose(root, value)
 
     def voice_stage(self, string: PyoObject) -> PyoObject:
         """What happens to the summed strings before they leave the voice (a

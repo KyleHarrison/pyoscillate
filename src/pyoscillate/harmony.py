@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import ClassVar
 
-from pyoscillate.theory.chord import Chord
+from pyoscillate.theory.chord import Chord, Chords
 from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import ChordChanges
 from pyoscillate.theory.scale import Scale, Scales
@@ -35,6 +36,16 @@ class Harmony:
     Plain Python data only - no Pyo objects - so it has no graph-ownership
     duties.
     """
+
+    # the suffix a triad's (third, fifth), in semitones above its root, spells
+    TRIAD_SUFFIXES: ClassVar[dict[tuple[int, int], str]] = {
+        (4, 7): "",
+        (3, 7): "m",
+        (3, 6): "dim",
+        (4, 8): "aug",
+        (2, 7): "sus2",
+        (5, 7): "sus4",
+    }
 
     # pitch class of the tonic, 0 = C ... 11 = B
     key: int = Note.KEY_A
@@ -77,6 +88,15 @@ class Harmony:
         qualities."""
         scale = self.scale or Scales.MAJOR
         return scale.voice(shape, scale.degree(self.chord_offset(bar, progression)))
+
+    def chord_name(self, bar: int, progression: ChordChanges) -> str:
+        """The chord `progression` has sounding in `bar`, named by its root in
+        the key and the quality its triad has in the scale ("Bm", "E", "F#dim"),
+        so it matches what `chord_tones` stacks."""
+        tones = self.chord_tones(bar, Chords.TRIAD, progression)
+        root = (self.key + self.chord_offset(bar, progression)) % 12
+        suffix = self.TRIAD_SUFFIXES.get((tones[1] - tones[0], tones[2] - tones[0]), "")
+        return f"{Note.NAMES[root]}{suffix}"
 
     def key_freq(self, centre: float) -> float:
         """The tonic nearest `centre` Hz."""

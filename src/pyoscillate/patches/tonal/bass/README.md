@@ -64,7 +64,8 @@ different generator or filter for a different bass role.
 index envelope, a gated two-oscillator voice whose filter envelope swells
 open on every note, and a detuned saw stack (with a tempo-locked wobble
 LFO on its filter). All of them still subclass the
-shared `Bass` base for scheduling and chord-following (`chord_root`); only the
+shared `Bass` base for scheduling and chord-following (`Bass.root_for`, which a
+fixed-pitch style replaces by mixing in `RootPitch`); only the
 oscillator/filter graph itself is their own. `fm/`, `funk/` and `reese/` have patches
 (see their `AGENTS.md`); `acid/` is still a placeholder. A plain
 sub or harmonic bass stays in the shared core as a profile, because sub is a

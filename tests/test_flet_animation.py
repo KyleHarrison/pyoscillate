@@ -29,8 +29,10 @@ class _Evolution:
     """The parts of an `Evolution` that `EvolveTimeline` reads."""
 
     axis = None
+    patch = None
     enabled = False
     bars = 8
+    bar_index = 0
     choices: tuple = ()
     label = "Evolve"
 

@@ -985,6 +985,11 @@ class PatchPanel:
             )
             for evolution in self.patch.evolutions
         ]
+        # a tile opened after the engine started has not been told its harmony
+        harmony = getattr(getattr(self, "context", None), "harmony", None)
+        for section in self.evolve_rows:
+            section.timeline.harmony = harmony
+            section.timeline.redraw()
         main = self._rows_with_groups([p for p in self._top if p not in self._advanced])
         body: list[ft.Control] = [
             *([self.analysis_view.control] if self.analysis_view else []),
@@ -1219,6 +1224,17 @@ class PatchPanel:
         self.context = context
         self._engine_ready = True
         self.switch.disabled = False
+        for section in self.evolve_rows:
+            section.timeline.harmony = context.harmony
+
+    def redraw_timelines(self) -> list[ft.Control]:
+        """Lay the evolve timelines out again, as after the key or the
+        Register changed (the names they carry depend on both); the canvases
+        that changed, for the caller to repaint."""
+        changed: list[ft.Control] = []
+        for section in self.evolve_rows:
+            changed += section.timeline.redraw()
+        return changed
 
     def engine_stopped(self) -> None:
         self._engine_ready = False
@@ -1256,6 +1272,8 @@ class PatchPanel:
         changed = [self._value_texts[param], self.summary]
         if (group := self._show_group(param, value)) is not None:
             changed.append(group)
+        # the Register moves the notes the timelines name
+        changed += self.redraw_timelines()
         for control in changed:
             control.update()
 
@@ -2424,9 +2442,11 @@ class PatchRackApp:
     def _progression_value(self) -> str | None:
         """The dropdown value for the progression every chord-following patch
         is on; None (blank) when they differ, as after one evolves."""
-        chosen = {patch.selected_progression for patch in self._progressive_patches()}
+        # by the dropdown's own position: a progression the listener has
+        # edited is a copy of its member, not a member of the catalog
+        chosen = {int(patch.progression) for patch in self._progressive_patches()}
         if len(chosen) == 1:
-            return str(Progressions.index_of(chosen.pop()))
+            return str(chosen.pop())
         return None
 
     def _handle_progression(self, e: ft.ControlEvent) -> None:
@@ -2447,6 +2467,8 @@ class PatchRackApp:
         # patches read the key on each note, so no rebuild is needed
         self.rack.harmony.key = pitch_class
         self.key_dropdown.value = str(pitch_class)
+        for panel in self.panels.values():
+            panel.redraw_timelines()
 
     def _start_engine(self) -> None:
         try:

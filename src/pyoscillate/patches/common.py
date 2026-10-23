@@ -291,6 +291,11 @@ class Phrased(GatedVoice):
 
     # the roles whose phrases the dropdown offers; empty offers every phrase
     phrase_roles: ClassVar[tuple[PhraseRole, ...]] = ()
+    # the chord a chord-rhythm phrase sounds, lowest voice first; None for a
+    # voice that only ever plays one note at a time
+    chord_shape: ClassVar[Chord | None] = None
+    # the rack's key and scale, set by `schedule_pattern` from the build context
+    harmony: Harmony
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         if cls.phrase_roles and "phrase_roles" in vars(cls):
@@ -319,11 +324,94 @@ class Phrased(GatedVoice):
         """The `Phrase` the `phrase` dropdown currently names."""
         return self.selected_phrase_at(self.phrase)
 
+    def root_for(self, harmony: Harmony, bar_index: int) -> float | None:
+        """The pitch (Hz) a pitched phrase's offsets are measured from in
+        `bar_index`: the one thing a voice family says about *where* its notes
+        sit. `RootPitch` answers its Register, `ChordRoot` the chord root
+        nearest it, and `Bass` the chord root nearest its own centre; a voice
+        with no root pitch (a drum) keeps this default, None, and plays and
+        shows no pitches. A style that places its notes differently (an octave
+        up) overrides this and nothing else."""
+        return None
+
+    def pitch_at(
+        self, harmony: Harmony, mode: PhraseMode, offset: int, bar_index: int
+    ) -> float | None:
+        """The one note `offset` names under `mode` in `bar_index`'s chord: an
+        index into the chord's triad for `CHORD_TONE`, otherwise semitones
+        above the root. None when the voice has no root, or a chord-tone phrase
+        has no chords to read."""
+        root = self.root_for(harmony, bar_index)
+        if root is None:
+            return None
+        if mode is PhraseMode.CHORD_TONE:
+            if not isinstance(self, Progressive):
+                return None
+            tones = self.chord_tones(harmony, bar_index, Chords.TRIAD)
+            return Note.transpose(root, tones[offset] - tones[0])
+        return Note.transpose(root, offset)
+
+    def chord_voicing(
+        self, harmony: Harmony, bar_index: int, shape: Chord
+    ) -> list[float]:
+        """The pitches of `shape` stacked on `bar_index`'s chord in `harmony`,
+        lowest voice first, rooted on `root_for` (so a shape that starts below
+        its root, like a spread triad, reaches below it); empty when the voice
+        has no root or no chords."""
+        root = self.root_for(harmony, bar_index)
+        if root is None or not isinstance(self, Progressive):
+            return []
+        anchor = self.chord_tones(harmony, bar_index, Chords.TRIAD)[0]
+        return [
+            Note.transpose(root, tone - anchor)
+            for tone in self.chord_tones(harmony, bar_index, shape)
+        ]
+
+    def phrase_pitches(
+        self, harmony: Harmony, phrase: Phrase, offset: int, bar_index: int
+    ) -> list[float]:
+        """The notes (Hz) a step of `phrase` carrying `offset` sounds in
+        `bar_index`'s chord, lowest first: the one note a pitched phrase names,
+        or every note of `chord_shape` for a pitchless rhythm. This is the one
+        place a `PhraseMode` becomes pitches, for what the voice plays and what
+        the Flet timeline shows, so the two cannot disagree. It takes the
+        harmony, rather than reading `self.harmony`, so a voice that is not
+        built yet can still be asked. Empty for a phrase the voice cannot
+        resolve (a note pool, or no root)."""
+        if phrase.mode is PhraseMode.POOL_INDEX:
+            return []
+        if phrase.mode is PhraseMode.NONE:
+            if self.chord_shape is None:
+                return []
+            return self.chord_voicing(harmony, bar_index, self.chord_shape)
+        note = self.pitch_at(harmony, phrase.mode, offset, bar_index)
+        return [] if note is None else [note]
+
+    def note_frequency(self, value: int, bar_index: int) -> float:
+        """The pitch a phrase step asks for in `bar_index`'s chord: for a
+        chord-tone phrase `value` indexes the chord's triad, otherwise it is
+        semitones above the root; the octave `root_for` puts the root in."""
+        note = self.pitch_at(
+            self.harmony, self.selected_phrase.mode, int(value), bar_index
+        )
+        assert note is not None, f"{type(self).__name__} has no root pitch"
+        return note
+
+    def sounding(self, value: float, bar_index: int) -> list[float]:
+        """The notes one hit of the selected phrase plays: the whole chord for
+        a chord rhythm (a phrase with no pitches), otherwise the one note it
+        names."""
+        return self.phrase_pitches(
+            self.harmony, self.selected_phrase, int(value), bar_index
+        )
+
     def schedule_pattern(self, context: BuildContext) -> Division:
         """Fire `next_step` on the chosen phrase's grid and the voice's `rate`,
         held inside the range that grid allows: the slider is sized for the
         class's own `base_division`, and a phrase may sit on a coarser or
-        finer one."""
+        finer one. It also takes the rack's harmony, which every pitch is
+        resolved in."""
+        self.harmony = context.harmony
         division = self.selected_phrase.division
         minimum, maximum = context.clock.rate_limits(division)
         rate = min(max(round(self.rate), minimum), maximum)
@@ -845,28 +933,33 @@ class RootPitch(Patch):
         scale="note",
     )
 
+    def root_for(self, harmony: Harmony, bar_index: int) -> float | None:
+        """The Register itself: a fixed pitch that ignores the chords."""
+        return self.root_freq
+
 
 class ChordRoot(RootPitch, Progressive):
     """`RootPitch` for a voice that follows the chords: `root_at()` is the
     root of the progression's chord nearest the `root_freq` Register. Mix it
     in where `RootPitch` would go."""
 
+    def root_for(self, harmony: Harmony, bar_index: int) -> float | None:
+        """The chord root of `bar_index` in the octave nearest `root_freq`."""
+        return self.chord_freq(harmony, self.root_freq, bar_index)
+
     def root_at(self, bar_index: int) -> float:
         """The sounding chord's root in the octave nearest `root_freq`; call
         after `build()` has set `self.harmony`."""
-        return self.chord_freq(self.harmony, self.root_freq, bar_index)
+        root = self.root_for(self.harmony, bar_index)
+        assert root is not None
+        return root
 
     def chord_frequencies(self, bar_index: int, shape: Chord) -> list[float]:
         """The pitches of `shape` stacked on `bar_index`'s chord, lowest voice
         first, rooted on the chord root nearest the Register (so a shape that
         starts below its root, like a spread triad, reaches below it). Call
         after `build()` has set `self.harmony`."""
-        root = self.root_at(bar_index)
-        anchor = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)[0]
-        return [
-            Note.transpose(root, tone - anchor)
-            for tone in self.chord_tones(self.harmony, bar_index, shape)
-        ]
+        return self.chord_voicing(self.harmony, bar_index, shape)
 
 
 class Held(Gate, ChordRoot, Phrased, GatedVoice):
@@ -897,9 +990,6 @@ class Held(Gate, ChordRoot, Phrased, GatedVoice):
     """
 
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
-    # the chord a chord-rhythm phrase sounds, lowest voice first; None for a
-    # voice that only ever plays one note at a time
-    chord_shape: ClassVar[Chord | None] = None
     # detuned copies of every note: the singers of a choir, the reeds of a
     # musette. One is a single voice
     copies: ClassVar[int] = 1
@@ -1083,24 +1173,6 @@ class Held(Gate, ChordRoot, Phrased, GatedVoice):
             for _ in range(self.note_count())
             for position in positions
         ]
-
-    def note_frequency(self, value: int, bar_index: int) -> float:
-        """The pitch a phrase step asks for in `bar_index`'s chord: for a
-        chord-tone phrase `value` indexes the chord's triad, otherwise it is
-        semitones above the chord root. Either way it is the octave of the
-        chord root nearest the Register."""
-        root = self.root_at(bar_index)
-        if self.selected_phrase.mode is PhraseMode.CHORD_TONE:
-            tones = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)
-            return Note.transpose(root, tones[value] - tones[0])
-        return Note.transpose(root, value)
-
-    def sounding(self, value: float, bar_index: int) -> list[float]:
-        """The notes one hit of the phrase plays: the whole chord for a chord
-        rhythm (a phrase with no pitches), otherwise the one note it names."""
-        if self.chord_shape and self.selected_phrase.mode is PhraseMode.NONE:
-            return self.chord_frequencies(bar_index, self.chord_shape)
-        return [self.note_frequency(int(value), bar_index)]
 
     def modulation(self) -> PyoObject:
         """The frequency multiplier the voices are modulated by: the vibrato.

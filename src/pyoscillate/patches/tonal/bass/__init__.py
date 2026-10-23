@@ -30,8 +30,8 @@ class TechnoBass(RootPitch, AccentBass):
     # the sweeping cutoff's own modulator, assigned by `cutoff_source()`
     cutoff_lfo: LFO
 
-    # read live off `self.root_freq` by `current_root`'s trigger-time
-    # callback - no control body needed, see `patches/AGENTS.md`'s note on a
+    # read live off `self.root_freq` by `RootPitch.root_for`'s trigger-time
+    # lookup - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
     root_freq = RootPitch.root_freq.replace(
         minimum=Note.B0,
@@ -83,9 +83,6 @@ class TechnoBass(RootPitch, AccentBass):
         BASE_DIVISION,
         "Halves or doubles the bass pattern speed for each step away from its 16th-note grid.",
     )
-
-    def current_root(self) -> float:
-        return self.root_freq
 
     def cutoff_source(self) -> LFO:
         # neutral depth/centre: `filter_base`/`filter_range` controls set the real ones

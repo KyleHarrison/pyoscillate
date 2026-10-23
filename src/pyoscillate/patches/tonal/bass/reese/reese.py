@@ -239,9 +239,6 @@ class Reese(Bass):
         "Halves or doubles the bassline speed for each step away from its 16th-note grid.",
     )
 
-    def current_root(self) -> float:
-        return self.chord_root()
-
     def retime_wobble(self) -> None:
         """Set the wobble's frequency from the current Speed and the shared
         tempo: one cycle per `WOBBLE_BARS[speed]` of a bar."""
@@ -300,7 +297,7 @@ class Reese(Bass):
         if not step.hit:
             return
         line = self.selected_phrase
-        self.pitch.value = Note.transpose(self.current_root(), step.value)
+        self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
         self.note_gate.dur = (
             self._tempo.sixteenth * line.lengths[step.index] * self.length
         )

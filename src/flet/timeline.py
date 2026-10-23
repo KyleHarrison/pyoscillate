@@ -2,8 +2,9 @@
 where the change lands.
 
 Each block is one interval of the evolution (`bars` bars wide) holding one
-choice: a phrase draws its steps as dots, tiled across the bars; a chord
-progression draws its chords as spans. The block playing carries a playhead
+choice: a phrase draws its steps as dots, tiled across the bars, named by the
+note or chord each sounds when there is room; a chord progression draws its
+chords as spans, named by numeral and by chord in the rack's key. The block playing carries a playhead
 read off the evolution's clock progress, and a marker under its right edge
 says where the evolution moves on. A hold shows the one choice with no
 playhead.
@@ -21,8 +22,11 @@ from typing import Any, ClassVar
 
 import flet as ft
 import flet.canvas as cv
+from pyoscillate.harmony import Harmony
+from pyoscillate.patches.common import Phrased, Progressive
 from pyoscillate.patches.evolve import Evolution
 from pyoscillate.theory.phrase.base import Phrase, PhraseMode, Step
+from pyoscillate.theory.pitch import Note
 from pyoscillate.theory.progression import ChordChanges
 
 ACCENT = "#00A896"
@@ -56,6 +60,14 @@ class EvolveTimeline:
     # the widest a bar's tick label may be crowded: label every Nth bar
     LABEL_STEPS: ClassVar[tuple[int, ...]] = (1, 2, 4, 8, 16, 32)
     MIN_LABEL_SPACING = 20
+    # a note or chord name: the text size, its width per character, and the
+    # narrowest a bar may be to carry a name at its start
+    NAME_SIZE = 9
+    NAME_CHAR_WIDTH = 6
+    NAME_PAD = 4
+    # a chord struck on one step stacks its notes, one line each
+    NAME_LINE = 10
+    MIN_BAR_NAME = 30
     # a chord's name, by its root in semitones above the key
     NUMERALS: ClassVar[tuple[str, ...]] = (
         "I",
@@ -74,6 +86,9 @@ class EvolveTimeline:
 
     def __init__(self, evolution: Evolution) -> None:
         self.evolution = evolution
+        # the rack's key and scale, which name the chords; the owner sets it
+        # once the engine runs, before the patch itself is built
+        self.harmony: Harmony | None = None
         # the visible width; the blocks may run wider and scroll
         self.width = float(self.FALLBACK_WIDTH)
         self._total = self.width
@@ -137,6 +152,45 @@ class EvolveTimeline:
         if len(choices) == 1 and isinstance(choice, Phrase):
             return max(bars, math.ceil(choice.cycle / choice.division))
         return bars
+
+    def _harmony(self) -> Harmony | None:
+        """The harmony the names are read in: the one the owner gave, else the
+        built patch's own."""
+        return self.harmony or getattr(self.evolution.patch, "harmony", None)
+
+    def _voice(self) -> Phrased | None:
+        """The patch, when it plays phrases and there is a harmony to read its
+        pitches in; else None, and a phrase is drawn as dots."""
+        patch = self.evolution.patch
+        if isinstance(patch, Phrased) and self._harmony() is not None:
+            return patch
+        return None
+
+    def _first_bar(self, span: int) -> int:
+        """The clock bar the playing interval began on, which the names of its
+        chords are counted from; 0 when the clock is not moving."""
+        bar = self.evolution.bar_index
+        return bar - bar % span
+
+    def _naming_state(self, span: int) -> tuple[Any, ...] | None:
+        """Everything the names drawn depend on beyond the choices: the key and
+        scale, where the voice puts its root in each bar of the interval (its
+        Register and chords), the chords themselves and where the interval
+        began."""
+        harmony = self._harmony()
+        if harmony is None:
+            return None
+        patch = self.evolution.patch
+        first = self._first_bar(span)
+        roots = (
+            tuple(patch.root_for(harmony, first + bar) for bar in range(span))
+            if isinstance(patch, Phrased)
+            else ()
+        )
+        progression = (
+            id(patch.selected_progression) if isinstance(patch, Progressive) else None
+        )
+        return (harmony.key, id(harmony.scale), roots, progression, first)
 
     def _handle_resize(self, e: cv.CanvasResizeEvent) -> None:
         self.width = float(e.width)
@@ -284,11 +338,12 @@ class EvolveTimeline:
             self._guide_chord(choice, left, x, y)
 
     def _guide_phrase(self, phrase: Phrase, left: float, x: float, y: float) -> None:
-        at, _, column_x, y = self._step_target(phrase, x, y)
+        at, offset, column_x, y = self._step_target(phrase, x, y)
         existing = next((step for step in phrase.steps if step.at == at), None)
         if existing is not None:
             # the tap would take this note away: the guides settle on it
             y = self._dot_y(phrase, existing.offset)
+            offset = int(existing.offset)
         column_x += left
         paint = ft.Paint(color=TEXT, stroke_width=1, stroke_dash_pattern=[2, 3])
         shapes: list[cv.Shape] = [
@@ -303,6 +358,22 @@ class EvolveTimeline:
             # a template of the note that would appear
             template = ft.Paint(color=ft.Colors.with_opacity(0.55, ACCENT))
             shapes.append(cv.Circle(column_x, y, self.RING_RADIUS - 2, template))
+        names = self._names_for(phrase, int(offset), int(at / phrase.division))
+        if names:
+            # what the note under the pointer sounds, however crowded the lane
+            shapes.append(
+                cv.Text(
+                    column_x + self.RING_RADIUS + 3,
+                    min(max(y - 5, self.BODY_TOP), self.BODY_BOTTOM - 11),
+                    " ".join(names),
+                    style=ft.TextStyle(
+                        size=self.NAME_SIZE + 1,
+                        color=TEXT,
+                        weight=ft.FontWeight.BOLD,
+                        bgcolor=TILE_BG,
+                    ),
+                )
+            )
         self._show_guide(shapes)
 
     def _guide_chord(
@@ -358,6 +429,7 @@ class EvolveTimeline:
             evolution.enabled,
             round(self.width),
             self._span_of(choices),
+            self._naming_state(self._span_of(choices)),
         )
         changed: list[ft.Control] = []
         if signature != self._drawn:
@@ -545,7 +617,8 @@ class EvolveTimeline:
 
     def _draw_phrase(self, phrase: Phrase, left: float, *, now: bool) -> list[cv.Shape]:
         """One dot per sounding step, the phrase repeating to fill the bars;
-        a pitched phrase's dots sit higher for higher offsets."""
+        a pitched phrase's dots sit higher for higher offsets. Where the steps
+        are far enough apart each dot is the name of what it sounds instead."""
         bars = self._span
         cycle_bars = phrase.cycle / phrase.division
         top, bottom = self.BODY_TOP + 6, self.BODY_BOTTOM - 6
@@ -555,7 +628,10 @@ class EvolveTimeline:
         paint = ft.Paint(color=ACCENT if now else MUTED)
         # the cycles after the first only repeat it
         echo = ft.Paint(color=ft.Colors.with_opacity(0.4, ACCENT if now else MUTED))
-        shapes: list[cv.Shape] = []
+        # every sounding step as drawn: where, how high, its name, and whether
+        # it is the first pass
+        hits: list[tuple[float, float, Step, list[str], bool]] = []
+        voice = self._voice()
         repeat = 0.0
         while repeat < bars:
             for step in phrase.steps:
@@ -566,16 +642,117 @@ class EvolveTimeline:
                     y = bottom - (step.offset - low) / (high - low) * (bottom - top)
                 else:
                     y = (top + bottom) / 2
-                radius = 1.5 + 1.5 * min(step.accent, 1.0)
-                shapes.append(
-                    cv.Circle(
-                        left + at / bars * self._block_width,
-                        y,
-                        radius,
-                        paint if repeat == 0 else echo,
-                    )
+                names = self._names_for(phrase, int(step.offset), int(at))
+                if len(names) > 1:
+                    # a chord is centred on the lane, its notes stacked
+                    y = (self.BODY_TOP + self.BODY_BOTTOM) / 2
+                hits.append(
+                    (left + at / bars * self._block_width, y, step, names, repeat == 0)
                 )
             repeat += cycle_bars
+        hits.sort(key=lambda hit: hit[0])
+        named = [hit for hit in self._with_room(hits, left)]
+        shapes = self._draw_step_names(named, now=now)
+        for hit in hits:
+            if hit not in named:
+                x, y, step, _, first = hit
+                radius = 1.5 + 1.5 * min(step.accent, 1.0)
+                shapes.append(cv.Circle(x, y, radius, paint if first else echo))
+        if voice and not pitched and len(named) < len(hits):
+            shapes += self._draw_bar_names(phrase, voice, left, now=now)
+        return shapes
+
+    def _names_for(self, phrase: Phrase, offset: int, bar: int) -> list[str]:
+        """The names of the notes a step of `phrase` carrying `offset` sounds
+        `bar` bars into the playing interval, lowest first; empty when the
+        voice cannot say (a drum, a note pool) or there is no harmony yet."""
+        voice, harmony = self._voice(), self._harmony()
+        if voice is None or harmony is None:
+            return []
+        return [
+            Note.name(freq)
+            for freq in voice.phrase_pitches(
+                harmony, phrase, offset, self._first_bar(self._span) + bar
+            )
+        ]
+
+    def _with_room(
+        self, hits: list[tuple[float, float, Step, list[str], bool]], left: float
+    ) -> list[tuple[float, float, Step, list[str], bool]]:
+        """The hits that can carry their notes: they have some, a stack of them
+        fits the lane, and the next hit (or the block's end) is further along
+        than the longest name. The rest stay dots."""
+        end = left + self._block_width
+        lane = self.BODY_BOTTOM - self.BODY_TOP - 4
+        roomy = []
+        for index, hit in enumerate(hits):
+            x, _, _, names, _ = hit
+            if not names or len(names) * self.NAME_LINE > lane:
+                continue
+            following = hits[index + 1][0] if index + 1 < len(hits) else end
+            widest = max(len(name) for name in names) * self.NAME_CHAR_WIDTH
+            if following - x >= widest + self.NAME_PAD:
+                roomy.append(hit)
+        return roomy
+
+    def _draw_step_names(
+        self, hits: list[tuple[float, float, Step, list[str], bool]], *, now: bool
+    ) -> list[cv.Shape]:
+        """Each step as its notes, starting where the step lands: one name at
+        the dot's height, or a chord's notes stacked, the lowest at the bottom."""
+        colour = TEXT if now else MUTED
+        shapes: list[cv.Shape] = []
+        for x, y, _, names, first in hits:
+            for line, name in enumerate(names):
+                shapes.append(
+                    cv.Text(
+                        x + 1,
+                        y + ((len(names) - 1) / 2 - line) * self.NAME_LINE,
+                        name,
+                        style=ft.TextStyle(
+                            size=self.NAME_SIZE,
+                            color=colour
+                            if first
+                            else ft.Colors.with_opacity(0.55, colour),
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        alignment=ft.Alignment(-1, 0),
+                    )
+                )
+        return shapes
+
+    def _draw_bar_names(
+        self, phrase: Phrase, voice: Phrased, left: float, *, now: bool
+    ) -> list[cv.Shape]:
+        """Too many hits to name each: the chord the bar strikes, once at the
+        start of every bar wide enough to carry it."""
+        per_bar = self._block_width / self._span
+        if per_bar < self.MIN_BAR_NAME or not phrase.steps:
+            return []
+        harmony = self._harmony()
+        first_bar = self._first_bar(self._span)
+        shapes: list[cv.Shape] = []
+        if (
+            phrase.mode is not PhraseMode.NONE
+            or not voice.chord_shape
+            or not isinstance(voice, Progressive)
+            or harmony is None
+        ):
+            return shapes
+        for bar in range(self._span):
+            name = harmony.chord_name(first_bar + bar, voice.selected_progression)
+            if name:
+                shapes.append(
+                    cv.Text(
+                        left + bar * per_bar + 3,
+                        self.BODY_TOP + 2,
+                        name,
+                        style=ft.TextStyle(
+                            size=self.NAME_SIZE, color=TEXT if now else MUTED
+                        ),
+                        alignment=ft.Alignment(-1, -1),
+                    )
+                )
         return shapes
 
     def _draw_chords(
@@ -609,17 +786,32 @@ class EvolveTimeline:
                     paint=paint if bar < changes.cycle else echo,
                 )
             )
-            if width >= 22:
+            label = self._chord_label(changes, bar, root, width)
+            if label:
                 shapes.append(
                     cv.Text(
                         x + 3,
                         y - 11,
-                        self.NUMERALS[root % 12],
+                        label,
                         style=ft.TextStyle(size=9, color=TEXT if now else MUTED),
                     )
                 )
             bar += length
         return shapes
+
+    def _chord_label(
+        self, changes: ChordChanges, bar: int, root: int, width: float
+    ) -> str | None:
+        """The numeral and the chord's name in the rack's key, as much of them
+        as `width` holds; None when not even the numeral fits."""
+        numeral = self.NUMERALS[root % 12]
+        harmony = self._harmony()
+        if harmony is not None:
+            name = harmony.chord_name(bar, changes)
+            for text in (f"{numeral}  {name}", name):
+                if width >= len(text) * self.NAME_CHAR_WIDTH + self.NAME_PAD:
+                    return text
+        return numeral if width >= 22 else None
 
     def _draw_ruler(self, left: float) -> list[cv.Shape]:
         """A tick per bar under the block, numbered every few bars so the

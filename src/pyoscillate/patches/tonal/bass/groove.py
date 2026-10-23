@@ -40,9 +40,6 @@ class GrooveBass(AccentBass):
         "Halves or doubles the bass pattern speed for each step away from its 16th-note grid.",
     )
 
-    def current_root(self) -> float:
-        return self.chord_root()
-
 
 class BassRolling(GrooveBass):
     """Constantly moving, rolling low-end groove."""

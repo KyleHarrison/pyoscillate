@@ -40,8 +40,8 @@ class BassHover(Reverb, RootPitch, AccentBass):
     breath_lfo: Sine
     breathed: PyoObject
 
-    # read live off `self.root_freq` by `current_root`'s trigger-time
-    # callback - no control body needed, see `patches/AGENTS.md`'s note on a
+    # read live off `self.root_freq` by `RootPitch.root_for`'s trigger-time
+    # lookup - no control body needed, see `patches/AGENTS.md`'s note on a
     # parameter only read by a sequencer callback
     root_freq = RootPitch.root_freq.replace(
         minimum=Note.E0,
@@ -96,6 +96,3 @@ class BassHover(Reverb, RootPitch, AccentBass):
         )
         self.breathed = self.reverb * self.breath_lfo
         return self.breathed
-
-    def current_root(self) -> float:
-        return self.root_freq

@@ -38,8 +38,7 @@ from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import Body, ChordRoot, Gate, GatedVoice, Phrased
 from pyoscillate.patches.params import Param, rate_param
-from pyoscillate.theory.chord import Chords
-from pyoscillate.theory.phrase import Hooks, PhraseMode, PhraseRole
+from pyoscillate.theory.phrase import Hooks, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -205,17 +204,6 @@ class Bowed(Body, Gate, ChordRoot, Phrased, GatedVoice):
         base_division,
         "Halves or doubles the speed of the line for each step away from its eighth-note grid.",
     )
-
-    def note_frequency(self, value: int, bar_index: int) -> float:
-        """The pitch a phrase step asks for in `bar_index`'s chord: for a
-        chord-tone phrase `value` indexes the chord's triad, otherwise it is
-        semitones above the chord root. Either way it is the octave of the
-        chord root nearest the Register."""
-        root = self.root_at(bar_index)
-        if self.selected_phrase.mode is PhraseMode.CHORD_TONE:
-            tones = self.chord_tones(self.harmony, bar_index, Chords.TRIAD)
-            return Note.transpose(root, tones[value] - tones[0])
-        return Note.transpose(root, value)
 
     def apply_level(self) -> None:
         """Scale the bow so the string sounds at `bow_level` whatever the pitch

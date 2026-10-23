@@ -244,10 +244,6 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         "Halves or doubles the phrase speed for each step away from its 16th-note grid.",
     )
 
-    def note_root(self) -> float:
-        """The current bar's chord root in the octave nearest `root_freq`."""
-        return self.root_at(self._clock.bar_index)
-
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
@@ -310,7 +306,7 @@ class LeadFm(Gate, ChordRoot, Phrased, GatedVoice):
         step = self._step()
         if step.hit:
             self._accent = self.beat_accent if step.index % 4 == 0 else 1.0
-            self.pitch.value = Note.transpose(self.note_root(), step.value)
+            self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
             self.bark.mul = self.bite * self._accent
             self.amp.mul = self._accent
             self.trigger.play()

@@ -46,7 +46,6 @@ from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.params import Param, rate_param
 from pyoscillate.patches.tonal.bass.base import Bass
 from pyoscillate.theory.phrase import BassLines
-from pyoscillate.theory.pitch import Note
 
 BASE_DIVISION = NoteDivision.SIXTEENTH
 # the cookbook recipe; every time is in seconds, every level 0..1
@@ -178,9 +177,6 @@ class FunkBass(Bass):
         "Halves or doubles the bassline speed for each step away from its 16th-note grid.",
     )
 
-    def current_root(self) -> float:
-        return self.chord_root()
-
     def build(self, context: BuildContext) -> Patch:
         """Build the funk bassline: saw + pulse through a slowly swept ladder low-pass."""
         self._reset()
@@ -244,8 +240,7 @@ class FunkBass(Bass):
             return
         melody = self.selected_phrase
         accent = melody.accents[step.index]
-        root = self.current_root()
-        self.pitch.value = Note.transpose(root, step.value)
+        self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
         self.note_gate.dur = (
             self._tempo.sixteenth * melody.lengths[step.index] * self.length
         )

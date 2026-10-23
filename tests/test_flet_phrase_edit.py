@@ -83,7 +83,7 @@ class TimelineEditTests(unittest.TestCase):
         phrase = self.bass.selected_phrase
         cell = timeline._block_width / (timeline._span * phrase.division)
         timeline._handle_hover(self.at(cell * 2.4))
-        vertical, horizontal, _ = timeline.guide.shapes
+        vertical, horizontal, *_ = timeline.guide.shapes
         self.assertAlmostEqual(vertical.x1, cell * 2)
         self.assertEqual(horizontal.x2, timeline._edit_width(phrase))
         timeline._clear_guide()

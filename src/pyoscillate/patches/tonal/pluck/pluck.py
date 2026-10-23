@@ -31,16 +31,6 @@ class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
     base_division: ClassVar[NoteDivision] = NoteDivision.EIGHTH
     gain: ClassVar[float] = 0.14
     modulator_ratio: ClassVar[float] = 2.0
-    triads: ClassVar[dict[int, tuple[int, int, int]]] = {
-        0: (0, 4, 7),
-        2: (0, 3, 7),
-        4: (0, 3, 7),
-        5: (0, 4, 7),
-        7: (0, 4, 7),
-        9: (0, 3, 7),
-        11: (0, 3, 6),
-    }
-
     pitch: SigTo
     amp_env: PyoObject
     brightness_env: PyoObject
@@ -95,17 +85,16 @@ class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
         "Halves or doubles the hook's speed for each step away from its eighth-note grid.",
     )
 
-    def _note_frequency(self, tone_index: int, bar_index: int) -> float:
-        degree = self.chord_offset(self.harmony, bar_index) % 12
-        root = self.root_at(bar_index)
-        triad = self.triads.get(degree, (0, 4, 7))
-        return Note.transpose(root, 12 + triad[tone_index])
+    def root_for(self, harmony: Harmony, bar_index: int) -> float | None:
+        """The chord root an octave above the Register."""
+        root = super().root_for(harmony, bar_index)
+        return None if root is None else Note.transpose(root, 12)
 
     def build(self, context: BuildContext) -> Patch:
         self._reset()
         self.harmony = context.harmony
 
-        initial_frequency = self._note_frequency(0, context.clock.bar_index)
+        initial_frequency = self.note_frequency(0, context.clock.bar_index)
         self.pitch = SigTo(value=initial_frequency, time=0.01)
         self.amp_env = self.envelope(
             [(0, 0), (80, 1), (8191, 0)], dur=self.decay, exp=3
@@ -131,7 +120,7 @@ class Pluck(Gate, ChordRoot, Phrased, GatedVoice):
             self.brightness_env.stop()
             return
 
-        self.pitch.value = self._note_frequency(step.value, self._clock.bar_index)
+        self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
         self.trigger.play()
 
 

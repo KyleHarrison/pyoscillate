@@ -35,7 +35,7 @@ from pyoscillate.patches.tonal.pluck.string import (
 )
 from pyoscillate.theory.chord import Chord, Chords
 from pyoscillate.theory.interval import Interval
-from pyoscillate.theory.phrase import Hooks, PhraseMode, PhraseRole
+from pyoscillate.theory.phrase import Hooks, PhraseRole
 from pyoscillate.theory.pitch import Note
 
 
@@ -68,11 +68,8 @@ class KeyedString(Courses, Body, PluckedString):
             return
         bar = self._clock.bar_index
         accent = self.selected_phrase.accents.get(step.index, 1.0)
-        if self.selected_phrase.mode is PhraseMode.NONE:
-            for note in self.chord_frequencies(bar, self.chord_shape):
-                self.strike(note, accent, bar)
-        else:
-            self.strike(self.note_frequency(int(step.value), bar), accent, bar)
+        for note in self.sounding(step.value, bar):
+            self.strike(note, accent, bar)
 
 
 class Piano(Sympathy, KeyedString):

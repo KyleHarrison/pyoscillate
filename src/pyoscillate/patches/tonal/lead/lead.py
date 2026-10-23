@@ -28,7 +28,7 @@ from pyo.lib.effects import Disto
 from pyo.lib.filters import MoogLP
 from pyo.lib.generators import LFO
 
-from pyoscillate.clock import Clock, NoteDivision
+from pyoscillate.clock import NoteDivision
 from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
@@ -180,7 +180,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
     harmony: Harmony
 
     # anchor register for the melody; re-rooted on the rack's current chord
-    # each note, in the octave nearest this note (see `note_root`)
+    # each note, in the octave nearest this note (see `root_for`)
     root_freq = ChordRoot.root_freq.replace(
         help_text="Moves the melody up or down; low sits in the tenor range, high cuts through above the mix.",
     )
@@ -253,11 +253,6 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         "Halves or doubles the phrase's speed for each step away from its 8th-note default.",
     )
 
-    def note_root(self, clock: Clock) -> float:
-        """This voice's current root pitch (Hz), re-rooted on the rack's
-        current chord in the octave nearest `root_freq`."""
-        return self.root_at(clock.bar_index)
-
     def make_source(self) -> PyoObject:
         """The two oscillators summed, from `osc1_freq` and `osc2_freq`; a
         style that builds its tone another way overrides this."""
@@ -274,7 +269,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
         self._reset()
         self.harmony = context.harmony
 
-        initial_root = self.note_root(context.clock)
+        initial_root = self.root_at(context.clock.bar_index)
         self.pitch1 = SigTo(
             value=Note.transpose(initial_root, self.osc1_detune), time=self.glide
         )
@@ -340,7 +335,7 @@ class Lead(PitchBend, Gate, ChordRoot, Phrased, GatedVoice):
             self.amp_env.stop()
             self.filter_env.stop()
         else:
-            target = Note.transpose(self.note_root(self._clock), step.value)
+            target = self.note_frequency(step.value, self._clock.bar_index)
             self.pitch1.value = Note.transpose(target, self.osc1_detune)
             self.pitch2.value = Note.transpose(target, self.osc2_detune)
             self.amp_env.play()

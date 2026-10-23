@@ -201,6 +201,25 @@ its level (velocity-as-structure: a value that rounds to 0 is a rest, anything
 else sets loudness) should still produce both fields, so callbacks never
 infer a rest from a magic value.
 
+**Pitch: `root_for` and `phrase_pitches`.** A `Step`'s `value` is an offset; the
+`PhraseMode` says what it is an offset *from*, and `Phrased` turns it into notes
+in one place. A voice family answers a single question, `root_for(harmony,
+bar)`: the pitch the offsets are measured from. `RootPitch` answers its
+Register, `ChordRoot` the chord root nearest it, and `Bass` the chord root
+nearest its own centre and Register (a fixed-pitch bass mixes in `RootPitch`
+instead); a voice with no root pitch keeps the default, `None`. A style that
+places its notes differently overrides `root_for` and nothing else (`Pluck`
+sounds an octave above the chord root). Everything after that is shared:
+`phrase_pitches(harmony, phrase, offset, bar)` resolves a chord tone, a
+semitone offset or a struck chord (`chord_shape`), `note_frequency` and
+`sounding` read it for the selected phrase, and a voice's `next_step` calls
+those, never `Note.transpose(root, step.value)` by hand. The Flet timeline
+calls `phrase_pitches` too, to name what each dot sounds, so the label and the
+sound are the same function. Do not give a voice its own copy of this
+resolution or its own name for the root (`current_root`, `note_root`).
+`POOL_INDEX` phrases are left to the voice that supplies the pool (arpeggios),
+and so are not shown.
+
 - `common.Held` — a gated voice whose notes are *held*, not struck (organs,
   reeds, sung voices, bowed strings): see "Held voices" below.
 - `common.Breathed` — a `Held` voice with breath, a pitch drift and a room;

@@ -2,7 +2,7 @@
 
 Every voice in this family strikes one note per clock step of a phrase
 chosen from its Pattern dropdown, either on a live `root_freq` or re-rooted on
-the rack's current chord each bar - see `current_root` for that shared policy.
+the rack's current chord each bar - see `root_for` for that shared policy.
 That's the shape `GatedVoice` (`pyoscillate.patches.common`) doesn't already
 cover - `drums.base.DrumVoice` is that base's name for the drums family,
 this is its name for the bass family.
@@ -30,6 +30,7 @@ from pyo.lib.tables import CosTable, HarmTable
 from pyo.lib.triggers import TrigEnv
 
 from pyoscillate.clock import NoteDivision
+from pyoscillate.harmony import Harmony
 from pyoscillate.patches.base import BuildContext, Patch
 from pyoscillate.patches.common import (
     Gate,
@@ -61,12 +62,12 @@ class BassProfile:
 
 class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
     """Base for a gated, monophonic bassline voice: one note is struck per
-    clock step. See `current_root` for the root-pitch policy every concrete
-    voice supplies, and `build` for the shared graph the groove, hover and
-    techno voices are built from.
+    clock step. See `root_for` for the root-pitch policy (chord-following
+    unless a style mixes in `RootPitch`), and `build` for the shared graph the
+    groove, hover and techno voices are built from.
     """
 
-    # the centre a chord-following voice's `chord_root` snaps every chord
+    # the centre a chord-following voice's `root_for` snaps every chord
     # root to the octave nearest
     register_centre: ClassVar[float] = Note.A1
     # the style's timbre; supplied by each style subclass
@@ -130,20 +131,15 @@ class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
     _profile: BassProfile
     _tempo: Tempo
 
-    def current_root(self) -> float:
-        """This voice's current root pitch (Hz) at trigger time. A fixed-pitch
-        style returns its live `root_freq`; a chord-following style returns
-        `chord_root()`. Overridden per style."""
-        raise NotImplementedError
-
-    def chord_root(self) -> float:
-        """The current bar's chord root in the octave nearest
+    def root_for(self, harmony: Harmony, bar_index: int) -> float | None:
+        """The chord root of `bar_index` in the octave nearest
         `register_centre`, lifted by the live `octave` - re-rooting on a live
-        `root_freq` control could drag a chord-following line out of key."""
-        context = self._context
-        return self.chord_freq(
-            context.harmony, self.register_centre, context.clock.bar_index
-        ) * (2**self.octave)
+        `root_freq` control could drag a chord-following line out of key. A
+        fixed-pitch style mixes in `RootPitch`, which answers its Register
+        instead."""
+        return self.chord_freq(harmony, self.register_centre, bar_index) * (
+            2**self.octave
+        )
 
     def cutoff_source(self) -> Any:
         """Hook: what drives the low-pass cutoff. The default is the fixed
@@ -175,7 +171,9 @@ class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
             ),
         )
         self.oscillator_table = HarmTable(list(profile.harmonics))
-        freq = self.pitch_signal(self.current_root())
+        root = self.root_for(context.harmony, context.clock.bar_index)
+        assert root is not None
+        freq = self.pitch_signal(root)
         self.oscillator = Osc(self.oscillator_table, freq=freq, mul=self.envelope)
         self.filtered = MoogLP(
             self.oscillator,
@@ -209,7 +207,7 @@ class Bass(PitchBend, Gate, Progressive, Phrased, GatedVoice):
         # note's envelope tail is what's heard.
         step = self._step()
         if step.hit:
-            self.pitch.value = Note.transpose(self.current_root(), step.value)
+            self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
             self.apply_accent(self.selected_phrase.accents[step.index])
             self.trigger.play()
 

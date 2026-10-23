@@ -176,6 +176,15 @@ class Evolution:
         return (self._clock.tick % steps) / steps
 
     @property
+    def bar_index(self) -> int:
+        """The clock's bar count, which the chords are looked up by; 0 when
+        not ticking."""
+        if not self.ticking:
+            return 0
+        assert self._clock is not None
+        return self._clock.bar_index
+
+    @property
     def bars_left(self) -> float:
         """Bars until the next change; the full interval when not running."""
         return self.bars * (1 - self.progress)

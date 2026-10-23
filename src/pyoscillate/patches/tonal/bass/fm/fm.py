@@ -218,7 +218,7 @@ class FmBass(RootPitch, Bass):
         if not step.hit:
             return
         self._accent = self.selected_phrase.accents[step.index]
-        self.pitch.value = Note.transpose(self.root_freq, step.value)
+        self.pitch.value = self.note_frequency(step.value, self._clock.bar_index)
         self.bark.mul = self.growl * self._accent
         self.amp.mul = self._accent
         self.trigger.play()

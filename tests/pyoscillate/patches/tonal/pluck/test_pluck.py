@@ -53,7 +53,7 @@ class PluckHookTests(unittest.TestCase):
 
         for bar_index, expected in enumerate(expected_roots):
             with self.subTest(bar=bar_index):
-                actual = patch._note_frequency(0, bar_index)
+                actual = patch.note_frequency(0, bar_index)
                 self.assertAlmostEqual(
                     Note.freq_to_midi(actual), Note.freq_to_midi(expected), places=4
                 )
